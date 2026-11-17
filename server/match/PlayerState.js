@@ -150,6 +150,8 @@ export class PlayerState {
     this.isBot = !!seat.isBot;
     // (fork) the profile icon (a known id, server/lobby.js avatarOf; m.public players[].avatar)
     this.avatar = !this.isBot && typeof seat.avatar === 'string' ? seat.avatar : null;
+    // (fork, GitHub #118) the public name this player opted in to have in the match record (records.js finishRecord)
+    this.publicName = !this.isBot && typeof seat.publicName === 'string' && seat.publicName ? seat.publicName : null;
     this.connected = this.isBot ? true : !!seat.connected;
     this.left = false;
     this.autoplay = false;

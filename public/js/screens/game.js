@@ -87,7 +87,7 @@ import { ruleOption } from '../../../shared/plugins/rules.js';
 import { html, Spinner, PhaseBanner, ResultDialog, Icon, Button, confirmDialog, closeAllDialogs, useTicker } from '../ui/components.js';
 import { useGameData, GIcon } from '../ui/gameComponents.js';
 import { useFieldView } from '../ui/fieldHost.js';
-import { TopBar, liveLp, ownLeaks, uniteRemaining, tempInfo, tempReadyReason } from '../ui/hud.js';
+import { TopBar, liveLp, ownLeaks, lastLineExtra, pendingLpLeaks, uniteRemaining, tempInfo, tempReadyReason } from '../ui/hud.js';
 import { BondStrip, BondPopup } from '../ui/bondStrip.js';
 import { TeamPanel } from '../ui/teamPanel.js';
 import { ShopBar } from '../ui/shopBar.js';
@@ -375,9 +375,12 @@ function MatchScreen() {
   const uniteLocal = phase === PHASE.UNITE && battleState && battleState.uniteLeft ? battleState.uniteLeft : null;
   const leaker = phase === PHASE.UNITE && Array.isArray(pub?.unite?.leakers) && pub.unite.leakers.includes(myId);
   const localLeft = leaker && uniteLocal ? (uniteLocal[myId] ?? 0) : undefined;
+  // SPA-CC Last Line of Defense (GitHub #123): its LP on top of the leaks'; the server's pendingLp already has it
+  const lastLine = lastLineExtra(pub?.rules);
+  const serverLeaks = pendingLpLeaks(meP?.pendingLp, lastLine);
   const liveLpNow = liveLp(lpBaseRef.current, {
-    phase, round: pub?.round, lp: priv?.lp, statsLeaks: priv?.stats?.leaks, alive,
-    leaks: ownLeaks(localLeaks, meP?.pendingLp), cap: gd.config?.lpCapPerRound,
+    phase, round: pub?.round, lp: priv?.lp, statsLeaks: priv?.stats?.leaks, alive, extra: lastLine,
+    leaks: ownLeaks(localLeaks, serverLeaks), cap: gd.config?.lpCapPerRound,
     uniteLeft: leaker ? uniteRemaining(localLeft, meP?.uniteLeft) : null,
   });
   lpBaseRef.current = liveLpNow.base;
@@ -390,11 +393,12 @@ function MatchScreen() {
   if (isCombatPhase(phase) && alive) {
     const prev = roundLossRef.current;
     const same = !!prev && prev.round === pub?.round;
-    const leaks = ownLeaks(localLeaks, meP?.pendingLp);
+    const leaks = ownLeaks(localLeaks, serverLeaks);
     roundLossRef.current = {
       round: pub?.round,
       leaks: same ? Math.max(prev.leaks, leaks) : leaks,
       cap: gd.config?.lpCapPerRound,
+      extra: lastLine,
       unite: phase === PHASE.UNITE || (same && prev.unite),
     };
   }
@@ -1569,6 +1573,11 @@ function MatchScreen() {
   // asked from the server (g.unitStats → m.unitStats; only the newest request's answer counts) whenever m.private or the
   // phase changes while such a card is open — the last answer stays on show until the next one lands
   const [unitStats, setUnitStats] = useState(null);      // m.unitStats: { seq, round, units: Map<uid, entry> }
+  // (fork, GitHub #105) the Improv / personal choice overlay pulled down to look at the boards (ui/choiceOverlay.js);
+  // it comes back by itself when the choice ends
+  const [spPeek, setSpPeek] = useState(false);
+  const choosing = !!sp || !!personalChoice;
+  useEffect(() => { if (!choosing) setSpPeek(false); }, [choosing]);
   const statsSeqRef = useRef(0);
   useEffect(() => net.on('m.unitStats', (msg) => {
     if (!msg || msg.seq !== statsSeqRef.current || !Array.isArray(msg.units)) return;
@@ -1841,7 +1850,7 @@ function MatchScreen() {
   // bonds this mode never activates (标准: 10 of 23, 奥术 among them) — shown 本局禁用 on cards, chips and the popup
   const offBonds = modeOffBonds(getMode(pub?.modeId));
 
-  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, drag && 'is-dragging', barCollapsed && 'is-collapsed', deployPartial && 'is-deploy-partial', (sp || hasPersonalChoice || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && 'has-spdraft', pen && 'is-pen', readyWhy && 'has-readywhy')}
+  return html`<div class=${cx('screen', 'gm', `gm--${mode}`, drag && 'is-dragging', barCollapsed && 'is-collapsed', deployPartial && 'is-deploy-partial', (sp || hasPersonalChoice || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && 'has-spdraft', spPeek && choosing && 'is-sppeek', pen && 'is-pen', readyWhy && 'has-readywhy')}
       data-camera=${pen ? 'pen' : camKind}>
     <div class="gm__field" ref=${hostRef} onContextMenu=${(e) => e.preventDefault()}></div>
     ${viewKind === 'loading' ? html`<div class="gm__loading"><${Spinner} label="LOADING FIELD" /></div>` : null}
@@ -1890,7 +1899,7 @@ function MatchScreen() {
       </div>` : null}
 
       ${showShop ? html`<${ShopBar} priv=${priv} editable=${editable} collapsed=${barCollapsed} refreshBusy=${refreshBusy} onCollapse=${setCollapsed}
-        barRef=${barRef} offBonds=${offBonds}
+        barRef=${barRef} offBonds=${offBonds} round=${pub?.round ?? null}
         onBuy=${buy} onLevel=${() => actions.levelUp()} onRefresh=${() => actions.refresh()} onFreeze=${() => actions.freeze()}
         onDetail=${(id, kind, hint) => setDetail({ kind: kind === 'item' ? 'item' : 'chess', id, hint: hint || null, tap: ++cardTap.current })}
         onDetailClose=${() => setDetail((d) => (d?.kind === 'chess' || d?.kind === 'item' ? null : d))}
@@ -1955,9 +1964,9 @@ function MatchScreen() {
     </div>
 
     ${hasOffers && !sp && !personalChoice ? html`<${OfferOverlay} pub=${pub} myId=${myId} readOnly=${spectator || !alive} onAction=${actions.offer} />` : null}
-    ${sp ? html`<${ChoiceOverlay} pub=${pub} sp=${sp} myId=${myId} solo=${solo} busyIdx=${spBusy} total=${total}
+    ${sp ? html`<${ChoiceOverlay} pub=${pub} sp=${sp} myId=${myId} solo=${solo} busyIdx=${spBusy} total=${total} peek=${spPeek} onPeek=${setSpPeek}
       onPick=${async (i) => { setSpBusy(i); await actions.choice(i); setSpBusy(null); }} />` : null}
-    ${personalChoice ? html`<${ChoiceOverlay} key=${personalChoice.id} pub=${pub} sp=${personalChoice} myId=${myId} solo=${solo} personal=${true}
+    ${personalChoice ? html`<${ChoiceOverlay} key=${personalChoice.id} pub=${pub} sp=${personalChoice} myId=${myId} solo=${solo} personal=${true} peek=${spPeek} onPeek=${setSpPeek}
       busyIdx=${personalBusy?.choiceId === personalChoice.id ? personalBusy.idx : null} total=${total}
       onPick=${async (i) => {
         const choiceId = personalChoice.id;

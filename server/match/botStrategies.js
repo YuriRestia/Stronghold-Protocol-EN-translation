@@ -5,7 +5,8 @@ import { EXTERNAL_BOT, llmIntegrationEnabledNow } from './llmGate.js';
 
 import { BUILTIN_BOTS } from './botStrategyList.js';
 import { BASIC_TACTICS } from './botTacticsBasic.js'; // (fork) tactics (botTactics.js)
-import { LEGACY_TACTICS } from './botTacticsLegacy.js'; // (fork) the layered legacy bot's tactics
+import { LEGACY_TACTICS } from './botTacticsLegacy.js';
+import { EVO_TACTICS } from './botTacticsEvo.js'; // (fork) evobot's tactics // (fork) the layered legacy bot's tactics
 import { defineProfile } from './botTactics.js';
 
 // Registration does not enable external IO or select an opt-in strategy.
@@ -13,7 +14,7 @@ export const BOT_STRATEGIES = createBotRegistry([...(llmIntegrationEnabledNow &&
   ...BUILTIN_BOTS]);
 
 /** (fork) Every defined tactic by id: profiles given as data name their tactics by these. */
-export const TACTICS = Object.freeze(Object.fromEntries([...BASIC_TACTICS, ...LEGACY_TACTICS].map((t) => [t.id, t])));
+export const TACTICS = Object.freeze(Object.fromEntries([...BASIC_TACTICS, ...LEGACY_TACTICS, ...EVO_TACTICS].map((t) => [t.id, t])));
 
 /**
  * (fork) A profile from data, e.g. a tuning run's JSON (tools/botbench.mjs --profile): `{ id?, tactics: [{ tactic:

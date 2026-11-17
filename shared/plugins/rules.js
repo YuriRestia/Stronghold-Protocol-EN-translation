@@ -208,6 +208,19 @@ export function composeRules(entries) {
 }
 
 /**
+ * The Alliance an item gives a bearer that also wears a 变形同构体: its `giveBondId`, else the `morphBondId` a lobby rule
+ * adds (Damazti Isomorph+, GitHub #134: shared/ruleData.js ISO_PLUS). A separate field, so those items don't become
+ * Alliance items anywhere else (a Victorian Hammer check, the shop's bias, the bots' bond items read `giveBondId`).
+ * @param {any} rec
+ * @returns {string|null}
+ */
+export function morphBondOf(rec) {
+  if (!rec || typeof rec !== 'object') return null;
+  if (typeof rec.giveBondId === 'string' && rec.giveBondId) return rec.giveBondId;
+  return typeof rec.morphBondId === 'string' && rec.morphBondId ? rec.morphBondId : null;
+}
+
+/**
  * Bonds a 变形同构体 pairing grants.
  * official: fewer than two items grants nothing; a canGiveBond item must be present; every other item's
  * giveBondId grants (when bondOk says the bond exists — the client passes a bondOk that always accepts).
@@ -231,7 +244,7 @@ export function grantedBondsByMorph(items, getItem, { mode = 'official', bondOk 
   const out = [];
   for (const r of recs) {
     if (r.canGiveBond) continue;
-    const id = r.giveBondId;
+    const id = morphBondOf(r);
     if (typeof id === 'string' && id && bondOk(id) && !out.includes(id)) {
       out.push(id);
       if (mode === 'plus') break;

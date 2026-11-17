@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   ASSET_PACK_README, AUTHOR_TEST_FILES, FOLDER, REFUSE, RUNTIME_RESEARCH, assetPackName, assetPackPlan, assetPackReadme, entryProblems,
-  importableArt, isRefused, packageOutIsUnsafe, parseArgs, plan, playerPackageJson, rewritePlayerDoc, resolveSpecifier, scanFiles,
+  GENERATED_SERVER_INFO, importableArt, isRefused, packageOutIsUnsafe, parseArgs, plan, playerPackageJson, rewritePlayerDoc, resolveSpecifier, scanFiles,
   selectTracked,
 } from '../tools/package.mjs';
 import { hash16 } from '../server/http/assetIndex.js';
@@ -579,4 +579,15 @@ test('a --assets build of a development version needs --allow-dev', { skip: !has
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(out, { recursive: true, force: true });
   }
+});
+
+test('(fork, #98–#100 leftover) a checkout with git ships public/server-info.json; one without git doesn\'t plan it', () => {
+  const p = plan(ROOT, { lite: true, paths: ['package.json', 'server/index.js'] });
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' });
+  if (head.status !== 0) return; // no git here: nothing to compare
+  assert.ok(p.generated.includes(GENERATED_SERVER_INFO), p.generated.join(', '));
+  assert.ok(p.files.includes(GENERATED_SERVER_INFO));
+  assert.equal(p.serverInfo.commit, head.stdout.trim());
+  assert.ok(Array.isArray(p.serverInfo.changes) && p.serverInfo.changes.length > 0);
+  assert.equal(plan(ROOT, { lite: true, paths: ['package.json'], serverInfo: false }).generated.includes(GENERATED_SERVER_INFO), false);
 });

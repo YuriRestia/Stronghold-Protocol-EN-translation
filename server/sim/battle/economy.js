@@ -9,6 +9,8 @@ export class BattleEconomy {
   addDp(playerId, n, source = null) {
     const ps = this.getPlayer(playerId);
     if (!ps || !Number.isFinite(n)) return 0;
+    // (Fish Edition) Mod Z: an operator whose DP gain is doubled (content/modZ.js `fishDpMul`)
+    if (n > 0 && source && Number.isFinite(source.fishDpMul)) n *= source.fishDpMul;
     const before = ps.dp;
     ps.dp = Math.max(0, Math.min(this.flags.dpMax, ps.dp + n));
     const reason = source?.def?.subProf;

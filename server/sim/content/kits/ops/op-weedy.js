@@ -188,7 +188,8 @@ function cannonKit(t, owner) {
       battle.on('death', (ctx) => {
         if (ctx.unit !== unit || battle.finished) return;
         unit.removed = false;
-        const at = battle.time + Math.max(0, num(unit.base.respawnTime));
+        // (Fish Edition) Mod Z: her redeploy multiplier for the cannon (content/modZ.js `fishCannonRedeployMul`), read now
+        const at = battle.time + Math.max(0, num(unit.base.respawnTime) * (Number.isFinite(owner.fishCannonRedeployMul) ? owner.fishCannonRedeployMul : 1));
         battle.every(RETRY, (b, sched) => {
           if (unit.alive || unit.removed) { sched.cancel(); return; }
           if (b.time + 1e-9 < at || !up(owner)) return;

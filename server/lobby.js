@@ -926,6 +926,8 @@ export class Lobby {
     // (fork) a new profile icon (a repeated hello from the picker) shows on the seat card at once
     const avatar = this.avatarOf(session, room);
     if (!room.match && (seat.avatar ?? null) !== avatar) { seat.avatar = avatar; changed = true; }
+    // (fork, GitHub #118) the opted-in public name follows the profile until the match starts (records only: no broadcast)
+    if (!room.match) seat.publicName = session.publicName ?? null;
     if (!room.hostId) { this.migrateHost(room); changed = true; }
     if (changed) this.broadcastState(room);
     else this.sendState(room, session);
@@ -2595,6 +2597,8 @@ export class Lobby {
         seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected,
         // (fork) the profile icon (PUBLIC: m.public players[].avatar)
         avatar: s.isBot ? null : s.avatar || null,
+        // (fork, GitHub #118) the opted-in public name (match records only, server/match/records.js)
+        publicName: s.isBot ? null : s.publicName || null,
         // DESIGN §16: the human's checked operator loadout and (0.2.2) per-operator 潜能 / 练度 (bots fight with the defaults)
         loadout: own ? own.loadout : null,
         ops: own ? own.ops : null,
@@ -3547,6 +3551,8 @@ export class Lobby {
       card,
       // (fork) the profile icon (PUBLIC: room.state seats[].avatar)
       avatar: this.avatarOf(session, room),
+      // (fork, GitHub #118) the opted-in public name for this player's match records (never in room.state)
+      publicName: session.publicName ?? null,
       // the content each was checked for (header "Gameplay plugins": filtered at the match start when it is another)
       loadoutCs: session.loadoutCs ?? null,
       notOwnedCs: session.notOwnedCs ?? null,

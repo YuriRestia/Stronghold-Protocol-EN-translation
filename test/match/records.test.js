@@ -149,3 +149,23 @@ test('(GitHub #59) a round the next one starts after without a SETTLE gets its r
   h.toPrep(4);
   assert.deepEqual(rows.map((row) => [row.r, !!row.noSettle]), [[1, false], [2, true], [3, false]]);
 });
+
+test('GitHub #90: after a refresh the record holds the shop the player saw, after the refresh\'s own effects', REAL, () => {
+  const h = makeMatch({ mode: 'solo', seed: 7, record: true });
+  h.m.start();
+  const ps = [...h.m.players.values()].find((p) => !p.isBot);
+  assert.ok(h.drive(() => h.m.phase === 'PREP' && h.m.round >= 2, { ready: true, band: 'band_duyaoy' }));
+  assert.equal(ps.bandId, 'band_duyaoy');
+  ps.funds = 20;
+  let changed = 0;
+  for (let i = 0; i < 4; i++) {
+    const before = h.m._record.actions.length;
+    assert.deepEqual(ps.refresh(), { ok: true });
+    const shops = h.m._record.actions.slice(before).filter((a) => a.a === 'shop');
+    assert.ok(shops.length >= 1, 'the roll is logged');
+    assert.deepEqual(shops.at(-1).ids, ps.shop.slots.map((s) => (s ? s.id : null)), `refresh ${i + 1}: the last logged shop is the one shown`);
+    if (shops.at(-1).after === 'refresh') changed++;
+  }
+  h.m.dispose();
+  assert.ok(changed > 0, 'Du Yaoye\'s first refreshes change the shop after the roll (her Yan offers)');
+});

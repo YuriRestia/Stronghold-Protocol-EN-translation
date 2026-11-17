@@ -34,6 +34,7 @@ import { priceTone, mergeProgress, mergeTarget, shopBlockReason, chessLoadout, o
 import { itemIconUrl, profIconUrl, uiUrl, skillIconUrl, skillRecordIconUrl, moduleTypeIconUrl } from './assetUrls.js';
 import { data } from '../data.js';
 import { hotkeyLabelOf } from './settings.js';
+import { DeckModal } from './deck.js';
 import { t } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -300,7 +301,9 @@ export function RewardCards({ offer, priv, editable, onPick, onDetail, onLater, 
  *   the bonds this mode never activates (gameLogic modeOffBonds), struck through on the operator cards
  */
 export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onCollapse, onBuy, onLevel, onRefresh, onFreeze, onDetail, onDetailClose, onRefuse, barRef,
-  reward = null, onReward, onRewardLater, onArm = null, offBonds = null }) {
+  reward = null, onReward, onRewardLater, onArm = null, offBonds = null, round = null }) {
+  // (fork, GitHub #132) the shared deck popup (ui/deck.js)
+  const [deckOpen, setDeckOpen] = useState(false);
   const shop = priv?.shop || {};
   const slots = Array.isArray(shop.slots) ? shop.slots : [];
   // Empty slots have no kind. In 第一期 the first equipment slot opens empty at level 5; use the server's layout
@@ -362,6 +365,9 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
   return html`<section class=${cx('shopbar', frozen && 'is-frozen', !editable && 'is-locked', showReward && 'has-reward', armed && 'has-armed')} ref=${barRef} aria-label=${t('调度中心')}>
     <div class="shopbar__tools">
       <span class="shopbar__remain">${t('剩余可放置角色：')}<b class=${cx('num', remaining === 0 && 't-orange')}>${remaining}</b></span>
+      <button type="button" class="toolbtn toolbtn--deck" data-testid="shop-deck" onClick=${() => setDeckOpen(true)} title=${t('查看共享牌库里每位干员还剩几张')}>
+        <${Icon} name="cardCompact" /><span>${t('牌库')}</span>
+      </button>
       <button type="button" class=${cx('toolbtn', 'toolbtn--ice', frozen && 'is-on')} disabled=${!!frzReason} onClick=${onFreeze}
         title=${frzReason || (frozen ? t('解冻商店 · {key}', { key: hk.freeze }) : t('冻结商店（下回合保留） · {key}', { key: hk.freeze }))}>
         <${Img} src=${uiUrl(data.get('assets'), frozen ? 'shopPanel/frozen_icon2' : 'shopPanel/frozen_icon')} class="toolbtn__img" fallback=${html`<${Icon} name="snow" />`} />
@@ -374,6 +380,7 @@ export function ShopBar({ priv, editable, collapsed, refreshBusy = false, onColl
         <kbd>${hk.refresh}</kbd>
       </button>
     </div>
+    <${DeckModal} open=${deckOpen} round=${round} onClose=${() => setDeckOpen(false)} />
     <div class="shopbar__row">
       <${LevelCard} shop=${shop} reason=${lvReason} armed=${armed === levelKey} onTap=${tapLevel} />
       ${showReward ? html`<${RewardCards} offer=${reward} priv=${priv} editable=${editable} onPick=${onReward} onDetail=${onDetail} onLater=${onRewardLater}

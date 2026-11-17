@@ -157,6 +157,7 @@ export class Net {
     this.ws = null;
     this.name = null;          // desired player name (hello is sent when set)
     this.avatar = null;        // (fork) the profile icon id sent in hello (ui/avatars.js; null = none, the default icon)
+    this.publicName = null;    // (fork, GitHub #118) the opted-in name for match records sent in hello (ui/publicName.js)
     this.helloName = null;     // name we sent in the hello that got the last welcome
     this.serverName = null;    // name as normalised by the server
     this.playerId = null;
@@ -326,6 +327,18 @@ export class Net {
   }
 
   /**
+   * (fork, GitHub #118) Set the public name written into this player's match records ('' / null = none: anonymous
+   * records). Sent with `hello`, like the profile icon; a change while online sends a hello again.
+   * @param {string | null} name
+   */
+  setPublicName(name) {
+    const next = typeof name === 'string' && name.trim() ? name.trim() : null;
+    if (next === this.publicName) return;
+    this.publicName = next;
+    if (this.status === 'online' && this.ws && this.ws.readyState === WS_OPEN && this.name) this._sendHello();
+  }
+
+  /**
    * Set the player name used in `hello`. Sends hello right away when the socket is open (the server
    * accepts a repeated hello on a live socket: it renames the session and resyncs room/match
    * state), otherwise as soon as it opens. No-op when that name is already accepted.
@@ -433,6 +446,8 @@ export class Net {
     const msg = { t: 'hello', rid, name: this.name, version: PROTOCOL_VERSION, delta: STATE_DELTA_VERSION };
     // (fork) the profile icon (shared/avatars.js): an older server validates hello field by field and ignores it
     if (typeof this.avatar === 'string' && this.avatar) msg.avatar = this.avatar;
+    // (fork, GitHub #118) only when the player opted in
+    if (typeof this.publicName === 'string' && this.publicName) msg.publicName = this.publicName;
     let token = null;
     try { token = this.getToken(); } catch { token = null; }
     if (typeof token === 'string' && token.length > 0 && token.length <= 64) {

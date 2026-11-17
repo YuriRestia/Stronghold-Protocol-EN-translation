@@ -41,6 +41,7 @@
     "assets:pool-snapshot": "node tools/assets/pool-snapshot.mjs",
     "merge:generated": "node tools/merge-generated.mjs",
     "changelog": "node tools/changelog.mjs",
+    "changelog:fish": "node tools/changelog-fish.mjs",
     "server-cost": "node tools/server-cost-check.mjs",
     "traffic-report": "node tools/traffic-report.mjs",
     "postinstall": "node tools/vendor.mjs",

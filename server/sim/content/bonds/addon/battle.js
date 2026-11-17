@@ -434,7 +434,8 @@ function raidPoll(battle, st) {
     // window runs — the 10 s of the reporter's footage; once it has ended only the idle trigger is left.
     const sk = u.skill;
     const deploySkillOn = !!(sk && sk.active && (sk.kind === 'passive' || sk.spType === 'none'));
-    const ready = !!(sk && !sk.noSkill && ((sk.ready && !(sk.active && sk.isTimed)) || deploySkillOn));
+    // (Fish Edition) Mod Z 傀影: his skill always counts as ready (content/modZ.js `fishRaidReady`)
+    const ready = !!u.fishRaidReady || !!(sk && !sk.noSkill && ((sk.ready && !(sk.active && sk.isTimed)) || deploySkillOn));
     const idleOk = battle.time - since >= idle - 1e-9;
     if (!(revived || ready || idleOk)) continue;
     // 「若范围内没有敌人」: a targetable enemy, or a 隐匿 ground one (the owner's decision of 2026-10-08, raidGroundEnemy)

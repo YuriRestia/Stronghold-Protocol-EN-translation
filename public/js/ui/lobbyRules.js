@@ -8,19 +8,47 @@
 // Every change is one room.setRules partial update. Names of operators and alliances come from the game data (each
 // language's official name). A room searching for teammates plays the original game (the server refuses rules then).
 
-import { useState } from '../../vendor/hooks.module.js';
-import { html, Button, Modal, Icon, MicroLabel, Tooltip } from './components.js';
+import { useEffect, useState } from '../../vendor/hooks.module.js';
+import { html, Button, Modal, Icon, MicroLabel, Tooltip, Tabs } from './components.js';
 import { BondGlyph } from './gameComponents.js';
 import { data, useData } from '../data.js';
 import { DEFAULT_RULES, RULE_EXTRA_DEPLOY, RULE_EXTRA_FUNDS, modeIdFor } from '../../../shared/constants.js';
-import { rulesInForce, ruleLabels, ruleOf, RULES, ruleRisk, tagParent } from '../../../shared/rules.js';
-import { VIRTUOSA, BLAZE, CC, LATERANO_B_TEXT, LATERANO_B_LIST, VICTORIA_C_TEXT, TOXIC_WASTE_NAME } from '../../../shared/ruleData.js';
+import { rulesInForce, ruleLabels, ruleOf, RULES, ruleRisk, tagParent, normalizeRules, sameRuleValue } from '../../../shared/rules.js';
+import { loadPref, savePref } from '../store.js';
+import { VIRTUOSA, BLAZE, CC, ISO_PLUS, LATERANO_B_TEXT, LATERANO_B_LIST, VICTORIA_C_TEXT, TOXIC_WASTE_NAME } from '../../../shared/ruleData.js';
 import { t } from '../../../shared/i18n.js';
+import { MODZ } from '../../../shared/modZ.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 const chessName = (id, fallback) => data.lookup('chess', id)?.name || fallback;
 const bondName = (id) => data.lookup('bonds', id)?.name || id;
 const bandName = (id) => data.lookup('bands', id)?.name || id;
+const opName = (charId) => data.get('backups')?.units?.[charId]?.name || charId;
+/** "Typhon Z": a Mod Z / W by its operator's name and kind. */
+const modZShort = (id) => { const m = MODZ.find((x) => x.id === id); return m ? `${opName(m.charId)} ${m.kind}` : id; };
+/** The Damazti Isomorph's own name (the room's records may say "+"). */
+const isoName = () => data.lookupBase('items', ISO_PLUS.morphIds[0])?.name || ISO_PLUS.morphIds[0];
+/** "item → Alliance" for each pair a level adds (GitHub #134). */
+const isoPairs = (pairs) => Object.entries(pairs).map(([base, b]) => `${data.lookupBase('items', `${base}_a`)?.name || base} → ${bondName(b)}`).join(t('、'));
+
+/** The Damazti Isomorph+ cheat (GitHub #134): off / + / ++, and what the chosen level adds. */
+function IsoPlusChoice({ rules, editable, onSet }) {
+  const v = rules.isoPlus;
+  const labels = { off: t('关'), plus: `${isoName()}+`, plusplus: `${isoName()}++` };
+  const desc = v === 'off' ? t('{name}还能与更多听起来属于某个盟约的装备搭配', { name: isoName() })
+    : t('与{name}一同装备时，以下装备也使携带者视为对应盟约成员：{list}', { name: isoName(), list: isoPairs({ ...ISO_PLUS.plus, ...(v === 'plusplus' ? ISO_PLUS.plusplus : {}) }) });
+  return html`<div class="rules-row">
+    <div class="rules-mod">
+      <b>${isoName()}</b>
+      <div class="rules-seg" role="radiogroup" aria-label=${isoName()}>
+        ${['off', 'plus', 'plusplus'].map((o) => html`<button key=${o} type="button" role="radio" aria-checked=${v === o ? 'true' : 'false'}
+          class=${cx('rules-seg__opt', v === o && 'is-active')} data-rule="isoPlus" data-value=${o} disabled=${!editable}
+          onClick=${() => onSet({ isoPlus: o })}>${labels[o]}</button>`)}
+      </div>
+    </div>
+    <p class="rules-row__desc">${desc}</p>
+  </div>`;
+}
 
 /** The short label of a rule in force (the strip, the result screen). */
 export function ruleLabel(key, rules) {
@@ -33,6 +61,9 @@ export function ruleLabel(key, rules) {
     case 'tierStart': return t('开局获得各阶干员');
     case 'boosterPack': return t('开局获得补充包');
     case 'itemBoosterPack': return t('开局获得装备补充包');
+    case 'transmitterPlus': return t('信标+');
+    case 'modZ': return t('Z型/W型模组（草案）：{list}', { list: (v || []).map(modZShort).join(t('、')) });
+    case 'isoPlus': return `${isoName()}${v === 'plusplus' ? '++' : '+'}`;
     case 'lateranoMod': return t('{bond}模组 {m}', { bond: bondName('lateranoShip'), m: v });
     case 'victoriaMod': return t('{bond}模组 {m}', { bond: bondName('victoriaShip'), m: v });
     case 'virtuosaBonds': return t('{name}加入{a}与{b}', { name: chessName(VIRTUOSA.ids[0], VIRTUOSA.ids[0]), a: bondName('swiftShip'), b: bondName('deputShip') });
@@ -244,16 +275,73 @@ function RiskGrid({ rules, editable, onSet }) {
   </div>`;
 }
 
+// ---- the last used rules (GitHub #143, clientside) -----------------------------------------------------------------
+
+/** This browser's last used lobby rules (`sp.pref.lobby.rules`): what the host's last room was set to. */
+export const RULES_PREF = 'lobby.rules';
+/** The remembered rules, complete and checked (an unknown key or a bad value from an older version is dropped). */
+export function rememberedRules() {
+  const raw = loadPref(RULES_PREF, null);
+  return raw && typeof raw === 'object' ? normalizeRules(raw) : null;
+}
+/** Only the rules that differ from the original game: what a new room gets (an empty object: nothing to apply). */
+export function rulesToRestore(remembered) {
+  const out = {};
+  if (!remembered) return out;
+  for (const k of rulesInForce(remembered)) out[k] = remembered[k];
+  return out;
+}
+/** Every rule back to the original game (the dialog's "clear all"). */
+export const CLEARED_RULES = Object.freeze({ ...DEFAULT_RULES });
+// the rooms this page already decided for (applied, or found nothing to apply): a room is set up once
+const restoredRooms = new Set();
+
+/**
+ * GitHub #143: a host's new room starts with the last used rules — once per room, only while it is a plain room
+ * with none in force (not searching, no match) — and every change the host makes is remembered for the next one.
+ * Returns whether this render may save (false until the room was set up, so its first default state never overwrites
+ * the remembered rules).
+ */
+export function restoreAction(room, isHost, remembered, seen = restoredRooms) {
+  if (!room || !isHost || !room.code) return { apply: null, save: false };
+  if (seen.has(room.code)) return { apply: null, save: true };
+  seen.add(room.code);
+  const want = rulesToRestore(remembered);
+  const plain = !room.match && !room.searching && rulesInForce({ ...DEFAULT_RULES, ...(room.rules || {}) }).length === 0;
+  return { apply: plain && Object.keys(want).length ? want : null, save: !(plain && Object.keys(want).length) };
+}
+
+/** Whether two complete rules objects are the same. */
+const sameRules = (a, b) => RULES.every((r) => sameRuleValue(a?.[r.key], b?.[r.key]));
+
 /** The strip between the seats and the bottom bar: the rules in force, the labels, and the button to the dialog. */
+/** GitHub #139: the rules button glows until this browser has opened the dialog once (`sp.pref.lobby.rulesSeen`). */
+export const RULES_SEEN_PREF = 'lobby.rulesSeen';
+
 export function RulesBar({ room, isHost, busy, onSet }) {
   const [open, setOpen] = useState(false);
+  const [seen, setSeen] = useState(() => loadPref(RULES_SEEN_PREF, false) === true);
+  const openDialog = () => {
+    setOpen(true);
+    if (!seen) { setSeen(true); savePref(RULES_SEEN_PREF, true); }
+  };
   useData('chess', 'bonds', 'stages', 'backups');
   const rules = { ...DEFAULT_RULES, ...(room.rules || {}) };
+  // GitHub #143: restore the last used rules into a new room; remember the host's changes
+  useEffect(() => {
+    const { apply, save } = restoreAction(room, isHost, rememberedRules());
+    if (apply) { onSet(apply); return; }
+    if (save && isHost && !room.searching) {
+      const now = normalizeRules(rules);
+      if (!sameRules(now, rememberedRules())) savePref(RULES_PREF, now);
+    }
+  }, [room.code, isHost, JSON.stringify(room.rules || null), !!room.searching]);
   const on = rulesInForce(rules);
   const badges = ruleBadges(rules);
   return html`<div class="room-rules">
     <span class="room-bar__label">${t('自定义房间改动')}<${MicroLabel}>CUSTOM<//></span>
-    <${Button} variant="secondary" class="rules-open" onClick=${() => setOpen(true)}>${isHost ? t('调整') : t('查看')}<//>
+    <${Button} variant="secondary" class=${cx('rules-open', !seen && 'is-new')} onClick=${openDialog}
+      title=${!seen ? t('作弊、盟约调整与风险词条：开局前由创建者设置') : undefined}>${isHost ? t('调整') : t('查看')}<//>
     <div class="rules-summary">
       ${on.length ? on.map((k) => html`<span key=${k} class=${cx('rules-chip', `rules-chip--${ruleOf(k).category}`)}>${ruleLabel(k, rules)}</span>`)
         : html`<span class="t-dim">${t('原版规则')}</span>`}
@@ -404,8 +492,62 @@ export function StagePreview({ stageId }) {
   </figure>`;
 }
 
+/**
+ * (Fish Edition) The Mod Z / W the room equips, one button per module (shared/modZ.js; the cheat `modZ`): an operator's
+ * module on = every player's 自选 pick of that operator fields it (shared/diy.js modZRulePicks). One per operator: turning
+ * on Typhon W turns his Z off.
+ */
+function ModZPicker({ rules, editable, onSet }) {
+  useData('backups');
+  const on = new Set(rules.modZ || []);
+  const set = (ids) => onSet({ modZ: MODZ.map((m) => m.id).filter((id) => ids.has(id)) });
+  const toggle = (id) => {
+    const next = new Set(on);
+    if (next.has(id)) next.delete(id);
+    else {
+      const z = MODZ.find((m) => m.id === id);
+      for (const m of MODZ) if (m.charId === z.charId) next.delete(m.id);
+      next.add(id);
+    }
+    set(next);
+  };
+  const ops = new Set(MODZ.map((m) => m.charId)).size;
+  return html`<p class="rules-row__desc">${t('开启后，所有博士的该自选干员都装备这个模组（Fish Edition的自制模组，草案，未经平衡）；每名干员最多开启一个')}</p>
+    <div class="rules-bans">
+      <div class="rules-bans__head"><b>${t('装备的模组')}</b><span class="t-dim">${t('已开启 {n}/{max}名干员', { n: on.size, max: ops })}</span>
+        <${Button} size="sm" variant="ghost" disabled=${!editable || on.size === ops} onClick=${() => set(new Set(MODZ.filter((m, i) => MODZ.findIndex((x) => x.charId === m.charId) === i).map((m) => m.id)))}>${t('全部Z型')}<//>
+        <${Button} size="sm" variant="ghost" disabled=${!editable || on.size === 0} onClick=${() => set(new Set())}>${t('清空')}<//>
+      </div>
+      <div class="rules-bans__grid">
+        ${MODZ.map((m) => html`<${Tooltip} key=${m.id} text=${`${t(m.name)}（${m.type}）：${t(m.desc)}`}>
+          <button type="button" class=${cx('rules-ban rules-ban--allow', on.has(m.id) && 'is-active')} aria-pressed=${on.has(m.id) ? 'true' : 'false'}
+            data-modz=${m.id} disabled=${!editable} onClick=${() => toggle(m.id)}>
+            <span>${opName(m.charId)}</span><span class="t-dim">${m.type}</span>
+          </button>
+        <//>`)}
+      </div>
+    </div>`;
+}
+
+/** The dialog's tabs and the rule keys each one holds (its badge counts the ones in force). */
+const RULE_TABS = Object.freeze([
+  { id: 'cheat', keys: ['extraDeploy', 'extraFunds', 'doubleLp', 'tierStart', 'boosterPack', 'itemBoosterPack', 'untimed'] },
+  { id: 'modZ', keys: ['modZ'] },
+  { id: 'bonds', keys: ['lateranoMod', 'victoriaMod', 'virtuosaBonds', 'blaze'] },
+  { id: 'seeded', keys: ['stage', 'bans'] },
+  { id: 'risk', keys: null },   // every `risk` rule
+]);
+
 /** The dialog: every rule, grouped by category; read-only for everybody but the host. */
 export function RulesDialog({ open, onClose, room, rules, editable, onSet }) {
+  const [tab, setTab] = useState('cheat');
+  const inForce = new Set(rulesInForce(rules));
+  const badge = (tb) => {
+    const keys = tb.keys ?? RULES.filter((r) => r.category === 'risk').map((r) => r.key);
+    const n = tb.id === 'modZ' ? (rules.modZ || []).length : keys.filter((k) => inForce.has(k)).length;
+    return n > 0 ? n : null;
+  };
+  const tabLabel = { cheat: t('作弊'), modZ: t('Z型/W型模组'), bonds: t('盟约'), seeded: t('减少随机'), risk: t('风险') };
   useData('chess', 'bonds', 'backups');
   const lat = bondName('lateranoShip'), vic = bondName('victoriaShip');
   const blazeName = data.get('backups')?.units?.[BLAZE.charId]?.name || BLAZE.charId;
@@ -419,19 +561,26 @@ export function RulesDialog({ open, onClose, room, rules, editable, onSet }) {
     C: t(VICTORIA_C_TEXT, { bond: vic }),
   };
   return html`<${Modal} open=${open} onClose=${onClose} title=${t('自定义房间改动')} micro="CUSTOM" width="13rem" class="rules-dialog"
-    actions=${html`<${Button} variant="secondary" onClick=${onClose}>${t('关闭')}<//>`}>
+    actions=${html`${editable && rulesInForce(rules).length ? html`<${Button} variant="ghost" class="rules-clear" onClick=${() => onSet(CLEARED_RULES)}>${t('全部清除')}<//>` : null}<${Button} variant="secondary" onClick=${onClose}>${t('关闭')}<//>`}>
+    ${editable ? html`<p class="rules-note">${t('新建同盟时会自动沿用你上次的设置')}</p>` : null}
     ${room.searching ? html`<p class="rules-note">${t('搜寻队友时使用原版规则')}</p>` : null}
     ${editable ? null : html`<p class="rules-note">${t('由创建者设置')}</p>`}
-    <${Section} title=${t('作弊')} note=${t('结算画面将显示「{mark}」', { mark: 'WITH CHEATS' })}>
+    <${Tabs} class="rules-tabs" size="sm" value=${tab} onChange=${setTab} items=${RULE_TABS.map((tb) => ({ id: tb.id, label: tabLabel[tb.id], badge: badge(tb) }))} />
+    ${tab === 'cheat' ? html`<${Section} title=${t('作弊')} note=${t('结算画面将显示「{mark}」', { mark: 'WITH CHEATS' })}>
       <${Toggle} k="extraDeploy" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('extraDeploy', rules)} desc=${t('所有博士的部署上限 +{n}', { n: RULE_EXTRA_DEPLOY })} />
       <${Toggle} k="extraFunds" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('extraFunds', rules)} desc=${t('每回合开始时额外获得 {n} 资金', { n: RULE_EXTRA_FUNDS })} />
       <${Toggle} k="doubleLp" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('doubleLp', rules)} desc=${t('所有博士的初始目标生命翻倍')} />
       <${Toggle} k="tierStart" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('tierStart', rules)} desc=${t('开局时所有博士各获得每个阶级的随机干员1名（1~6阶）')} />
       <${Toggle} k="boosterPack" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('boosterPack', rules)} desc=${t('开局时所有博士各获得1个补充包：装备到干员上即可免费选择同阶干员，每次6名，按固定顺序轮换；补充包留在手牌（AI不会使用）')} />
       <${Toggle} k="itemBoosterPack" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('itemBoosterPack', rules)} desc=${t('开局时所有博士各获得1个装备补充包：装备到任意干员上即可免费选择一件装备，每次6件，按固定顺序轮换全部装备；装备补充包留在手牌（AI不会使用）')} />
+      <${Toggle} k="transmitterPlus" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('transmitterPlus', rules)} desc=${t('信标更好用：独自一人时，第一次装备给六星干员必出缪尔赛思，其他时候必出一名你层数最多的盟约的干员；有队友但没人需要原干员时，改为给2名随机队友各送1名其主盟约的同阶干员；5人及以上的房间多送1人')} />
+      <${IsoPlusChoice} rules=${rules} editable=${editable} onSet=${onSet} />
       ${room.mode === 'solo' ? null : html`<${Toggle} k="untimed" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('untimed', rules)} desc=${t('选择策略、机变阶段与休整期不限时（作战仍有时间限制）')} />`}
-    <//>
-    <${Section} title=${t('盟约模组')} note=${t('不影响结算标签')}>
+    <//>` : null}
+    ${tab === 'modZ' ? html`<${Section} title=${t('Z型/W型模组（草案）')} note=${t('结算画面将显示「{mark}」', { mark: 'WITH CHEATS' })}>
+      <${ModZPicker} rules=${rules} editable=${editable} onSet=${onSet} />
+    <//>` : null}
+    ${tab === 'bonds' ? html`<${Section} title=${t('盟约模组')} note=${t('不影响结算标签')}>
       <${ModuleChoice} k="lateranoMod" bondId="lateranoShip" rules=${rules} editable=${editable} onSet=${onSet} texts=${lateranoTexts} />
       <${ModuleChoice} k="victoriaMod" bondId="victoriaShip" rules=${rules} editable=${editable} onSet=${onSet} texts=${victoriaTexts} />
     <//>
@@ -440,12 +589,12 @@ export function RulesDialog({ open, onClose, room, rules, editable, onSet }) {
         desc=${t('{name}同时属于【{a}】【{b}】【{c}】', { name: chessName(VIRTUOSA.ids[0], VIRTUOSA.ids[0]), a: lat, b: bondName('swiftShip'), c: bondName('deputShip') })} />
       <${Toggle} k="blaze" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('blaze', rules)}
         desc=${t('{name}占据{old}在调度中心的位置（相同的阶级与价格，使用为{old}选择的技能），属于【{a}】【{b}】；<售出时>获得1名【{spark}】', { name: blazeName, old: (data.lookupBase('chess', BLAZE.slot.a)?.name || BLAZE.slot.a), a: bondName('yanShip'), b: vic, spark })} />
-    <//>
-    <${Section} title=${t('减少随机')} note=${t('结算标题将带有「{mark}」', { mark: 'seeded' })}>
+    <//>` : null}
+    ${tab === 'seeded' ? html`<${Section} title=${t('减少随机')} note=${t('结算标题将带有「{mark}」', { mark: 'seeded' })}>
       <${Seeded} room=${room} rules=${rules} editable=${editable} onSet=${onSet} />
-    <//>
-    <${Section} title=${t('风险')} note=${t('结算标题将带有「+风险」')}>
+    <//>` : null}
+    ${tab === 'risk' ? html`<${Section} title=${t('风险')} note=${t('结算标题将带有「+风险」')}>
       <${RiskGrid} rules=${rules} editable=${editable} onSet=${onSet} />
-    <//>
+    <//>` : null}
   <//>`;
 }

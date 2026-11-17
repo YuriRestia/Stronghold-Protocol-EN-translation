@@ -66,6 +66,7 @@ export class MatchIntents {
       case 'g.pause': return this.setPause(ps, !!msg.on);
       // the stats the board's units start their next battle with (the detail card in prep, user playtest #4 item 7)
       case 'g.unitStats': return this.unitStats(ps, msg.seq ?? null);
+      case 'g.deck': return this.deck(ps, msg.seq ?? null);
       case 'g.leave': this.onLeave(ps.playerId); return OK;
       case 'g.test': return this.applyTestCommand(ps, msg);
       case 'b.progress': return this._onProgress(ps, msg);
@@ -132,6 +133,18 @@ export class MatchIntents {
     if (this.phase !== PHASE.ROUND_START && this.phase !== PHASE.SP_DRAFT && this.phase !== PHASE.PREP) return fail(ERR.WRONG_PHASE);
     const units = this._unitStatsOf(ps);
     this.sendTo(ps.playerId, { t: 'm.unitStats', seq: Number.isInteger(seq) ? seq : null, round: this.round, units });
+    return OK;
+  }
+
+  /**
+   * (fork, GitHub #132) The shared deck: every operator of the match's pool with its copies left and its copies in all
+   * (`ops`: [baseId, left, cap], the public SharedPool counts; an overdrawn operator shows 0). Answered by the push
+   * m.deck { seq, round, ops } to the requester only, in any phase (the popup asks on opening and each round).
+   */
+  deck(ps, seq = null) {
+    const ops = [];
+    for (const [id, e] of this.pool?.entries ?? []) ops.push([id, Math.max(0, e.left), e.cap]);
+    this.sendTo(ps.playerId, { t: 'm.deck', seq: Number.isInteger(seq) ? seq : null, round: this.round, ops });
     return OK;
   }
 

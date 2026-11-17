@@ -121,6 +121,8 @@ export class Unit {
     // char_attribute_mul — ATK / DEF / max HP, a multiplier of its own (never summed with the 直接乘算 percentages)
     this.cultivate = null;
     this.cultMul = null;
+    /** (Fish Edition) Mod Z's final ATK / ASPD reshaper, or null (content/modZ.js; _recalc). */
+    this.fishStatPost = null;
   }
 
   markDirty() { this._dirty = true; }
@@ -152,10 +154,17 @@ export class Unit {
     const maxHp = Math.max(1, fin((bHp + a('hpFlat')) * Math.max(0, 1 + a('hpPct')) * m('hpMul') * cm.hp, bHp));
     // PRTS 游戏数据基础 属性基本公式 A_f = F_t[(A + D_p)(1 + D_t) + F_p]: `atkFinal` is the 最终加算 (FINAL_ADDITION) —
     // added after the percentages, inside the Πmul (阿戈尔's devoured base ATK, DESIGN §24.7)
-    const atk = Math.max(0, fin(((b.atk + a('atkFlat')) * Math.max(0, 1 + a('atkPct')) + a('atkFinal')) * m('atkMul') * cm.atk, fin(b.atk, 0)));
+    let atk = Math.max(0, fin(((b.atk + a('atkFlat')) * Math.max(0, 1 + a('atkPct')) + a('atkFinal')) * m('atkMul') * cm.atk, fin(b.atk, 0)));
     const def = Math.max(0, fin((b.def + a('defFlat')) * Math.max(0, 1 + a('defPct')) * m('defMul') * cm.def, fin(b.def, 0)));
     const res = clamp(fin((b.res + a('resFlat')) * m('resMul'), fin(b.res, 0)), 0, 100);
-    const aspd = clamp(fin(b.aspd + a('aspd'), 100), ASPD_MIN, ASPD_MAX);
+    let aspd = clamp(fin(b.aspd + a('aspd'), 100), ASPD_MIN, ASPD_MAX);
+    // (Fish Edition) Mod Z (content/modZ.js): a module that reshapes the final ATK / ASPD (提丰's balance, 左乐's doubled
+    // buffs) — last in the stack, so every source (buffs, 阿戈尔's devoured ATK, …) is in and nothing reads half of it
+    if (this.fishStatPost) {
+      const r = this.fishStatPost({ atk, aspd, baseAtk: fin(b.atk, 0) * cm.atk, baseAspd: fin(b.aspd, 100) });
+      atk = Math.max(0, fin(r.atk, atk));
+      aspd = clamp(fin(r.aspd, aspd), ASPD_MIN, ASPD_MAX);
+    }
     const bBat = fin(b.bat, 1) > 0 ? fin(b.bat, 1) : 1;
     const bat = fin(bBat * Math.max(0.1, 1 + a('batPct')), bBat);
     const s = {

@@ -11,6 +11,9 @@
 //   bool     true / false (default false)
 //   choice   one of `options` (default options[0], the original game)
 //   stage    a stage id of the match's mode, or null = random (the match drops one its mode does not have)
+//   modules  (Fish Edition) the Mod Z / W ids the room turns on (`options`: shared/modZ.js MODZ), at most one per
+//            operator: the rule equips them — every 自选 pick of that operator, every player's, fields it (shared/diy.js
+//            modZRulePicks)
 //   bans     a list of bond ids to ban, at most `max`; the match keeps the valid ones up to the difficulty's counts and
 //            draws the rest at random as usual
 //   level    a Risk tag: 0 = off, 1 … `risk.length - 1`; `risk[level]` is its Risk. A sequence (1 / 2 / 3 Risk) is one
@@ -21,6 +24,10 @@
 // room.setRules merges a partial { [key]: value } into the room's rules; the match reads them once at start
 // (Match opts.rules). Rooms searching for teammates and the solo queue play the original game: a room with any rule
 // set cannot search (Lobby.search).
+
+import { MODZ, modZOf } from './modZ.js';
+
+const modZCharOf = (id) => modZOf(id)?.charId ?? id;
 
 export const RULE_CATEGORIES = Object.freeze(['neutral', 'cheat', 'seeded', 'risk']);
 
@@ -43,6 +50,9 @@ export const RULES = Object.freeze([
   { key: 'tierStart', type: 'bool', category: 'cheat' },        // every player starts with one random operator of each tier
   { key: 'boosterPack', type: 'bool', category: 'cheat' },      // every player starts with a Booster Pack (shared/ruleData.js BOOSTER)
   { key: 'itemBoosterPack', type: 'bool', category: 'cheat' },  // … and an Equipment Booster Pack (shared/ruleData.js ITEM_BOOSTER)
+  { key: 'transmitterPlus', type: 'bool', category: 'cheat' },  // (GitHub #133) Transmitter+ (shared/ruleData.js TRANSMITTER_PLUS)
+  { key: 'modZ', type: 'modules', options: MODZ.map((m) => m.id), category: 'cheat' }, // (draft) the Mod Z / W the room equips, one per operator (shared/modZ.js)
+  { key: 'isoPlus', type: 'choice', options: ['off', 'plus', 'plusplus'], category: 'cheat' }, // Damazti Isomorph+ / ++: more item → Alliance pairs (GitHub #134; shared/ruleData.js ISO_PLUS)
   // Alliance Modules: A = the original effect
   { key: 'lateranoMod', type: 'choice', options: ['A', 'B'], category: 'neutral' },
   { key: 'victoriaMod', type: 'choice', options: ['A', 'C'], category: 'neutral' },
@@ -86,7 +96,7 @@ export function ruleDefault(rule) {
   if (rule.type === 'bool') return false;
   if (rule.type === 'level') return 0;
   if (rule.type === 'choice') return rule.options[0];
-  if (rule.type === 'bans') return Object.freeze([]);
+  if (rule.type === 'bans' || rule.type === 'modules') return Object.freeze([]);
   return null;
 }
 
@@ -105,6 +115,11 @@ function cleanValue(rule, v) {
       for (const id of v) if (typeof id === 'string' && ID.test(id) && !out.includes(id) && out.length < RULE_BANS_MAX) out.push(id);
       return Object.freeze(out.sort());
     }
+    case 'modules': {
+      if (!Array.isArray(v)) return undefined;
+      const seen = new Set();   // one module per operator (Typhon: Z or W): the first in `options` order
+      return Object.freeze(rule.options.filter((id) => v.includes(id) && !seen.has(modZCharOf(id)) && seen.add(modZCharOf(id))));
+    }
     default: return undefined;
   }
 }
@@ -113,6 +128,7 @@ function cleanValue(rule, v) {
 export function isRuleValue(key, v) {
   const r = BY_KEY.get(key);
   if (!r || cleanValue(r, v) === undefined) return false;
+  if (r.type === 'modules') return v.length === new Set(v).size && v.every((id) => r.options.includes(id)) && new Set(v.map(modZCharOf)).size === v.length;
   return r.type !== 'bans' || (v.length <= RULE_BANS_MAX && new Set(v).size === v.length && v.every((id) => typeof id === 'string' && ID.test(id)));
 }
 
@@ -137,7 +153,7 @@ export function normalizeRules(rules, base = DEFAULT_RULES) {
 export function ruleSet(key, value) {
   const r = BY_KEY.get(key);
   if (!r) return false;
-  if (r.type === 'bans') return Array.isArray(value) && value.length > 0;
+  if (r.type === 'bans' || r.type === 'modules') return Array.isArray(value) && value.length > 0;
   return value !== undefined && value !== ruleDefault(r);
 }
 

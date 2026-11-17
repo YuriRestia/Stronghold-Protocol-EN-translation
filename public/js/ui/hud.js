@@ -29,6 +29,8 @@
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { PHASE } from '../../../shared/constants.js';
+import { tagLevel } from '../../../shared/rules.js';
+import { CC } from '../../../shared/ruleData.js';
 import { html, Button, Icon, PingPill, Countdown, Tooltip, MicroLabel, DifficultyTag, Modal, useTicker } from './components.js';
 import { Sprite, LpTower, GIcon, LocalSprite } from './gameComponents.js';
 import { data, localAsset } from '../data.js';
@@ -270,14 +272,29 @@ const LEAK_PHASES = new Set([PHASE.COMBAT, PHASE.UNITE]);
 
 /**
  * LP a round's leaks cost at settlement — the server rule (server/match/match/settle.js): min(lpCapPerRound, counted
- * leaks), never negative.
+ * leaks), never negative, plus `extra` once anything leaked (SPA-CC Last Line of Defense, past the cap: Match.riskLoss;
+ * GitHub #123).
  * @param {number} leaks counted leaks so far
  * @param {number} [cap] data/config.json lpCapPerRound
+ * @param {number} [extra] lastLineExtra(rules)
  */
-export function pendingLoss(leaks, cap = 10) {
+export function pendingLoss(leaks, cap = 10, extra = 0) {
   const n = Math.max(0, Math.trunc(Number(leaks) || 0));
   const c = Number(cap) > 0 ? Math.trunc(Number(cap)) : 10;
-  return Math.min(c, n);
+  return n > 0 ? Math.min(c, n) + Math.max(0, Math.trunc(Number(extra) || 0)) : 0;
+}
+
+/** The LP the SPA-CC Last Line of Defense adds to a round that leaked (0 without the tag; m.public rules). */
+export function lastLineExtra(rules) {
+  return tagLevel(rules, 'ccLastLine') > 0 ? CC.lastLineLp : 0;
+}
+
+/**
+ * m.public players[].pendingLp is LP (the server's Match.riskLoss, Last Line included), the local runner counts leaks:
+ * the server's value as a leak count, for ownLeaks.
+ */
+export function pendingLpLeaks(pendingLp, extra = 0) {
+  return Number.isFinite(pendingLp) && pendingLp > 0 ? Math.max(0, pendingLp - Math.max(0, extra)) : pendingLp;
 }
 
 /**
@@ -324,23 +341,30 @@ export function uniteRemaining(local, server) {
  * @param {{ phase: string, round: any, lp: any, statsLeaks?: any, leaks?: any, cap?: number, alive?: boolean, uniteLeft?: number|null }} s
  * @returns {{ base: { round: any, lp: number, statsLeaks: number|null } | null, pending: number, shown: number|null, unite: boolean, left: number|null }}
  */
-export function liveLp(base, { phase, round, lp, statsLeaks = null, leaks = 0, cap = 10, alive = true, uniteLeft = null }) {
+export function liveLp(base, { phase, round, lp, statsLeaks = null, leaks = 0, cap = 10, alive = true, uniteLeft = null, extra = 0 }) {
   if (!Number.isFinite(lp)) return { base: null, pending: 0, shown: null, unite: false, left: null };
   if (!LEAK_PHASES.has(phase) || alive === false) return { base: null, pending: 0, shown: lp, unite: false, left: null };
   const sl = Number.isFinite(statsLeaks) ? statsLeaks : null;
   const b = base && base.round === round ? base : { round, lp, statsLeaks: sl };
   const landed = lp !== b.lp || (sl != null && b.statsLeaks != null && sl !== b.statsLeaks);
   const left = phase === PHASE.UNITE && Number.isFinite(uniteLeft) && uniteLeft >= 0 && !landed ? Math.trunc(uniteLeft) : null;
-  const pending = landed ? 0 : Math.min(lp, pendingLoss(left != null ? left : leaks, cap));
-  return { base: b, pending, shown: lp - pending, unite: phase === PHASE.UNITE && (pending > 0 || left != null), left };
+  // a 联防 leaker's own battle leaked, so Last Line applies even when the helpers catch every survivor (Match.riskLoss)
+  const pending = landed ? 0 : Math.min(lp, left != null ? Math.min(cap, left) + extra : pendingLoss(leaks, cap, extra));
+  return { base: b, pending, shown: lp - pending, unite: phase === PHASE.UNITE && (pending > 0 || left != null), left, extra };
 }
 
 /**
  * Tooltip of an LP tower with a pending loss (null without one).
  * @param {number} lp settled LP @param {number} pending @param {{ unite?: boolean, cap?: number }} [opts]
  */
-export function pendingTip(lp, pending, { unite = false, cap = 10, left = null } = {}) {
+export function pendingTip(lp, pending, { unite = false, cap = 10, left = null, extra = 0 } = {}) {
   if (!(pending > 0)) return null;
+  // SPA-CC Last Line of Defense (GitHub #123): its LP on top of the leaks' (past the cap)
+  if (extra > 0) {
+    const base = pendingTip(lp, Math.max(0, pending - extra), { unite, cap, left });
+    const more = t('另扣「最后防线」{n} 点', { n: extra });
+    return base ? `${base}；${more}` : t('目标生命值 {lp}：', { lp }) + more;
+  }
   if (unite && Number.isFinite(left)) {
     const each = left > cap ? t('剩余不足 {cap} 个后，队友每击倒一个少扣 1 点', { cap }) : t('队友每击倒一个就少扣 1 点');
     return t('目标生命值 {lp}：联防中，你漏过的敌人还剩 {left} 个，{each}；按现在结算扣除 {pending} 点（每回合至多 {cap} 点）', { lp, left, each, pending, cap });
@@ -569,7 +593,7 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
         </div>
         <div class="gtop__half gtop__half--r">
           <${LpTower} value=${lp} size="lg" tone=${lowLp ? 'danger' : boss ? 'team' : null} pending=${pending}
-            note=${pending > 0 && live?.unite ? t('联防中') : null} tip=${pendingTip(lp, pending, { unite: !!live?.unite, cap, left: live?.left ?? null })} />
+            note=${pending > 0 && live?.unite ? t('联防中') : null} tip=${pendingTip(lp, pending, { unite: !!live?.unite, cap, left: live?.left ?? null, extra: live?.extra ?? 0 })} />
         </div>
       </div>
       <i class="gtop__plus gtop__plus--r" aria-hidden="true"></i>

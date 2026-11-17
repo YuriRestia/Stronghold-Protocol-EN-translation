@@ -1,7 +1,7 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, RULE_KEYS, REHEARSAL_MAX_CANDIDATES } from './constants.js';
+import { DIFFICULTIES, NAME_MAX_LEN, PUBLIC_NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, RULE_KEYS, REHEARSAL_MAX_CANDIDATES } from './constants.js';
 import { LARGE_ROOM_SEATS, ROOM_CAPACITIES, ROOM_PASSWORD_RE } from './largeRoom.js';
 import { isDroppableChess } from './standIn.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
@@ -526,7 +526,10 @@ export const C2S = {
     noReplace: isBool, claimAt: (v) => isNum(v, 0, Number.MAX_SAFE_INTEGER), delta: (v) => v == null || isInt(v, 0, 1e6),
     // (fork) the player's profile icon (shared/avatars.js): any short string here; the lobby keeps only a known id
     avatar: (v) => v == null || isStr(v, AVATAR_ID_MAX),
-    $optional: ['token', 'version', 'noReplace', 'claimAt', 'delta', 'avatar'] },
+    // (fork, GitHub #118) the name this player opted in to have written into their match records (server/net.js
+    // sanitizePublicName); absent = anonymous records, as #32 designed them
+    publicName: (v) => v == null || isStr(v, PUBLIC_NAME_MAX_LEN * 4),
+    $optional: ['token', 'version', 'noReplace', 'claimAt', 'delta', 'avatar', 'publicName'] },
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v) },
   // test: only the literal true (DESIGN §34.8). Omit it for a normal room — `false` is a bad field, so a
   // string cannot sneak in as "not a test". The server still refuses it unless SP_TEST_MODE is on.
@@ -696,6 +699,8 @@ export const C2S = {
   // the stats the own board's units start their next battle with (user playtest #4 item 7; prep phases): answered by
   // the push m.unitStats { seq, round, units: [unitStatsEntry] }; `seq` is echoed so the client keeps the newest answer
   'g.unitStats': { seq: (v) => isInt(v, 0, 2 ** 31), $optional: ['seq'] },
+  // (fork, GitHub #132) the shared deck's copies left: answered by the push m.deck { seq, round, ops: [[baseId, left, cap]] }
+  'g.deck': { seq: (v) => isInt(v, 0, 2 ** 31), $optional: ['seq'] },
   'g.leave': {},
   // host test commands (DESIGN §34.8 phase 2). The server applies them only in a test match. `args` is checked
   // again by shared/testMode.js parseTestArgs (ids, bounds). Unknown keys inside args fail there, not here.
@@ -785,6 +790,8 @@ export const S2C = [
   'm.layer',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)
   'm.unitStats',
+  // (fork) m.deck { seq, round, ops: [[baseId, left, cap]] } — the answer to g.deck (the requester only)
+  'm.deck',
   // client-side combat (DESIGN §14): b.start { battleId, fieldId, kind, spec, authoritative, startAt, serverNow, elapsed,
   // speed, watch? } · b.pool { hp, max, teamLp, acked: { [fieldId]: cumulative boss damage counted }, risk? (the SPA-CC
   // boss-pool view, server/sim/bossRisk.js) } ·

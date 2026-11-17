@@ -17,6 +17,7 @@
 //   frontPiece / behindPiece    board neighbours ("身前一格" = one step along the piece's direction `dir`, default
 //                               RIGHT = col + 1; board piece views carry `dir`, sim/dir.js)
 
+import { morphBondOf } from '../../../../shared/plugins/rules.js';
 import { frontOf } from '../../dir.js';
 
 export function registerSupportMeta(registry) {
@@ -65,7 +66,7 @@ function withGrants(ctx, piece, bonds) {
   const recs = items.map((it) => ctx.gd.item(it.id)).filter(Boolean);
   if (!recs.some((r) => r.canGiveBond)) return bonds;
   const out = bonds.slice();
-  for (const r of recs) if (!r.canGiveBond && typeof r.giveBondId === 'string' && ctx.gd.bond(r.giveBondId) && !out.includes(r.giveBondId)) out.push(r.giveBondId);
+  for (const r of recs) { const b = morphBondOf(r); if (!r.canGiveBond && b && ctx.gd.bond(b) && !out.includes(b)) out.push(b); }
   return out;
 }
 

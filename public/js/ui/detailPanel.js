@@ -47,7 +47,7 @@ import { attackRangeGrid } from '../../../shared/loadoutRecord.js';
 import { SKILL_SUMMON_START_DEPLOY } from '../../../shared/constants.js';
 import { moduleBadge, fullTraitText } from './loadoutModel.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
-import { morphSlotPolicy } from '../../../shared/plugins/rules.js';
+import { morphSlotPolicy, morphBondOf } from '../../../shared/plugins/rules.js';
 import { audio } from '../audio.js';
 import { tokenVariantFor } from './gameLogic/loadout.js';
 import { outfitVoiceOf } from './outfits.js';
@@ -216,13 +216,14 @@ export function MorphPairings({ off = null, carried = null, mode = 'official' })
  * @param {{ item: any, off?: Set<string>|null, carried?: Array<string|{id:string}>|null, mode?: 'official'|'plus' }} props
  */
 export function MorphGrantLine({ item, off = null, carried = null, mode = 'official' }) {
-  const bond = item && !item.canGiveBond && typeof item.giveBondId === 'string' ? data.lookup('bonds', item.giveBondId) : null;
+  const bondId = item && !item.canGiveBond ? morphBondOf(item) : null; // (fork) giveBondId, or a Damazti Isomorph+ pair (#134)
+  const bond = bondId ? data.lookup('bonds', bondId) : null;
   if (!bond) return null;
   const morph = data.list('items').find((r) => r && r.canGiveBond);
   if (!morph) return null;
-  const isOff = isOffIn(off, item.giveBondId);
-  const worn = grantedBonds(carried, (id) => data.lookup('items', id), mode).includes(item.giveBondId);
-  return html`<p class=${cx('dhint', 'dhint--morph', worn && 'is-worn', isOff && 'is-off')} data-bond=${item.giveBondId}>
+  const isOff = isOffIn(off, bondId);
+  const worn = grantedBonds(carried, (id) => data.lookup('items', id), mode).includes(bondId);
+  return html`<p class=${cx('dhint', 'dhint--morph', worn && 'is-worn', isOff && 'is-off')} data-bond=${bondId}>
     <${Icon} name="info" /><span>${t('与{morph}一同装备时，携带者视为【{bond}】成员', { morph: morph.name, bond: bond.name })}${isOff ? html`<span class="dmorph__tag is-off">${t('本局禁用')}</span>` : null}${worn
       ? html`<span class="dmorph__tag is-on">${isOff ? t('已搭配') : t('生效中')}</span>` : null}</span>
   </p>`;
@@ -236,7 +237,7 @@ function ItemRow({ itemId, progress = null, carried = null, off = null, mode = '
     <${UnitThumb} kind="item" id=${itemId} size="sm" />
     <div class="ditem__text"><b>${it?.name || itemId}</b>${free ? html`<span class="dtag" data-testid="morph-free">${t('不占装备格')}</span>` : null}<${RichText} text=${it?.descRaw || it?.desc || ''} class="ditem__desc" />
       <${ItemProgress} progress=${progress} />
-      ${it?.canGiveBond ? html`<${MorphPairings} off=${off} carried=${carried || []} mode=${mode} />` : it?.giveBondId ? html`<${MorphGrantLine} item=${it} off=${off} carried=${carried} mode=${mode} />` : null}
+      ${it?.canGiveBond ? html`<${MorphPairings} off=${off} carried=${carried || []} mode=${mode} />` : morphBondOf(it) ? html`<${MorphGrantLine} item=${it} off=${off} carried=${carried} mode=${mode} />` : null}
       ${onUnequip && Number.isInteger(uid) ? html`<${Button} variant="secondary" size="sm" data-testid="unequip" onClick=${() => onUnequip(uid)}>${t('卸下')}<//>` : null}</div>
   </div>`;
 }
@@ -557,7 +558,7 @@ export function ItemDetail({ item, piece, progress = piece?.progress, editable, 
     <${Section} title=${t('效果')} micro="EFFECT"><${RichText} as="p" text=${item.descRaw || item.desc} class="dtext" /><${ItemProgress} progress=${progress} /><//>
     ${item.canGiveBond ? html`<${Section} title=${t('天赋')} micro="TALENT" class="dsec--morph"><${MorphPairings} off=${offBonds} mode=${morphMode} /><//>` : null}
     ${item.canGiveBond && morphMode === 'plus' ? html`<p class="dhint" data-testid="morph-free"><${Icon} name="info" />${t('不占装备格')}</p>` : null}
-    ${!item.canGiveBond && item.giveBondId ? html`<${MorphGrantLine} item=${item} off=${offBonds} mode=${morphMode} />` : null}
+    ${!item.canGiveBond && morphBondOf(item) ? html`<${MorphGrantLine} item=${item} off=${offBonds} mode=${morphMode} />` : null}
     ${item.note ? html`<p class="dhint dhint--rule"><${Icon} name="info" />${item.note}</p>` : null}
     ${item.itemType === 'MAGIC'
       ? html`<p class="dhint"><${Icon} name="info" />${t('将其拖拽至战场上的格子使用')}</p>`

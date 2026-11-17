@@ -19,6 +19,7 @@
 
 import { getData } from '../../../data.js';
 import { grantedBondsByMorph } from '../../../../shared/plugins/rules.js';
+import { isoPlusBond } from '../../../../shared/ruleData.js';
 import { RECORD_MAPS } from '../../../../shared/plugins/dataUtils.js';
 import { COLS, DIRECT_BONUS_STACKING } from '../../constants.js';
 import { frontOf, offsetTile } from '../../dir.js';
@@ -272,10 +273,17 @@ export function unitBonds(u) {
   const items = itemsOf(u);
   const plus = u.player?.morphPairing === 'plus';
   // The official key stays items.join('|'), so a cached official result is unchanged.
-  const key = (plus ? 'plus|' : '') + items.join('|');
+  const iso = u.player?.isoPlus ?? null;
+  const key = (plus ? 'plus|' : '') + (iso ? `${iso}|` : '') + items.join('|');
   if (cached && cached.key === key) return cached.bonds;
   const out = [...(Array.isArray(u.def?.bonds) ? u.def.bonds : Array.isArray(u.def?.raw?.bonds) ? u.def.raw.bonds : [])];
-  for (const b of grantedBondsByMorph(items, (id) => itemRecord(id), { mode: plus ? 'plus' : 'official', bondOk: (id) => !!bondRecord(id) })) {
+  // the Damazti Isomorph+ cheat: the battle's item records are the unpatched ones, so its pairs come from the rule
+  const rec = (id) => {
+    const r = itemRecord(id);
+    const b = r && !r.giveBondId && !r.canGiveBond ? isoPlusBond(id, iso) : null;
+    return b ? { ...r, morphBondId: b } : r;
+  };
+  for (const b of grantedBondsByMorph(items, rec, { mode: plus ? 'plus' : 'official', bondOk: (id) => !!bondRecord(id) })) {
     if (!out.includes(b)) out.push(b);
   }
   const bonds = Object.freeze(out);

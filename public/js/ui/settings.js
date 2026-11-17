@@ -34,6 +34,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks
 import { html, Modal, Button, Icon, MicroLabel, Tooltip, confirmDialog } from './components.js';
 import { GIcon } from './gameComponents.js';
 import { useStore, savePref, store } from '../store.js';
+import { publicNameStore, setPublicName } from './publicName.js';
+import { PUBLIC_NAME_MAX_LEN } from '../../../shared/constants.js';
 import { settingsStore } from './settingsStore.js';
 export { settingsStore } from './settingsStore.js';
 import { sanitizeSettings, HOTKEY_ACTIONS, DEFAULT_HOTKEYS, hotkeyLabel, rebindHotkey, isDefaultHotkeys, captureHotkey, VOICE_LANGS, TEXT_SIZES } from './gameLogic.js';
@@ -291,6 +293,23 @@ function DiagSection() {
  * is none. The catalogue is fetched again when the section opens (a plugin dropped in meanwhile shows) — on a server that
  * has plugins only (content.js installedCount: a server without any is never asked for it).
  */
+/**
+ * (fork, GitHub #118) 对局记录署名: opt in to have a public name written into the records of your matches. Off by
+ * default; the warning says what it means (ui/publicName.js).
+ */
+function PublicNameSection() {
+  const p = useStore((s) => s, Object.is, publicNameStore);
+  return html`<section class="set-pubname" data-testid="public-name">
+    <${Toggle} label=${t('对局记录署名')} micro="NAME IN MATCH RECORDS" value=${p.on} onChange=${(v) => setPublicName({ on: v })} />
+    <div class="set-row">
+      <span class="set-row__label">${t('署名')}<${MicroLabel}>PUBLIC NAME<//></span>
+      <input class="set-pubname__input" type="text" maxlength=${PUBLIC_NAME_MAX_LEN} value=${p.name} placeholder=${t('例如你的 Discord 名')}
+        aria-label=${t('署名')} data-testid="public-name-input" onInput=${(e) => setPublicName({ name: e.currentTarget.value })} />
+    </div>
+    <p class="set-hint">${t('开启后，此后对局的记录会写入这个署名（服务器长期保存，用于整理 SPA-CC 等记录），你的对局记录将能被认出是你的。请不要填写真实姓名等个人信息。关闭后，新的对局记录不再包含署名；已保存的记录不会改变。')}</p>
+  </section>`;
+}
+
 function CosmeticSection() {
   const cat = useStore((s) => s, Object.is, catalog);
   const ids = useStore((s) => s.ids, Object.is, personal);
@@ -565,6 +584,7 @@ export function SettingsModal({ open, onClose }) {
       <${ScreenFitSection} />
       <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
       <${CosmeticSection} />
+      <${PublicNameSection} />
       <${UiPluginSection} />
       <${StorageSection} />
       <${DiagSection} />

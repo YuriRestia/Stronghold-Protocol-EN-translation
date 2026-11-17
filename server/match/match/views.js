@@ -117,6 +117,8 @@ export class MatchViews {
         ...(this.squads ? { squad: ps.squad } : {}),
         name: ps.name,
         isBot: ps.isBot,
+        // (fork, GitHub #87) which bot an AI player plays (a registered strategy id; ui/teamPanel.js shows its name)
+        ...(ps.isBot && typeof this.botFor?.(ps)?.id === 'string' ? { bot: this.botFor(ps).id } : {}),
         // (fork) the profile icon (shared/avatars.js), omitted while none (an older client: the default icon)
         ...(ps.avatar ? { avatar: ps.avatar } : {}),
         ...(Number.isInteger(ps.aiTakeoverRound) ? { aiTakeoverRound: ps.aiTakeoverRound } : {}),

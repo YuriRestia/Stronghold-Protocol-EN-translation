@@ -94,6 +94,7 @@ import { OnlinePill } from '../ui/presence.js';
 import { publicPath } from '../gen.js';
 import { t, tc, getLang, tName, botNameParts as splitBotName } from '../../../shared/i18n.js';
 import { ROOM_BOTS, FILL_PRESETS, roomBot } from '../../../shared/botProfiles.js';
+import { BotInfoModal } from '../ui/botInfo.js';
 import { RoomChat } from '../ui/chatLog.js';
 import { ChatMuteButton } from '../ui/chat.js';
 import { ChatBubble, EmoteBubble } from '../ui/emotes.js';
@@ -306,7 +307,7 @@ function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
  * (given when an outfit is worn): a picture that fails to load gives way to the next, the last to the avatar frame.
  */
 function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onSetBot = null, onKick, onInvite, portrait = null, portraitDefault = null, botAvatar = null, operator = null, onPickCard = null, onPickAvatar = null, fresh = false,
-  onMoveSquad = null, mySquad = null, moveWait = 0, swapFrom = null, onSwap = null, bubble = null, chatOn = false, muted = false }) {
+  onMoveSquad = null, mySquad = null, moveWait = 0, swapFrom = null, onSwap = null, bubble = null, chatOn = false, muted = false, onBotInfo = null }) {
   const [badArt, setBadArt] = useState([]);
   // (fork) the profile icon (ui/avatars.js): the name plate's frame, and the card's frame without portrait art
   const iconSrc = useAvatarArt(seat, !!seat && seat.playerId === myId);
@@ -415,6 +416,8 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
             aria-label=${t('AI 方案')} onChange=${(e) => onSetBot(index, e.currentTarget.value)}>
             ${ROOM_BOTS.map((b) => html`<option key=${b.id} value=${b.id}>${t(b.label)}</option>`)}</select>`
         : html`<small class="rseat__doc" title=${prof ? t(prof.desc) : undefined}>${prof ? (seat.bot ? t(prof.label) : 'AUTONOMOUS UNIT') : `DOCTOR #${doctorNo(seat.playerId)}`}</small>`}
+      ${prof && onBotInfo ? html`<button type="button" class="rseat__botinfo" data-testid="seat-bot-info" onClick=${() => onBotInfo(prof.id)}
+          title=${t('AI 方案说明')} aria-label=${t('AI 方案说明')}><${Icon} name="info" /></button>` : null}
       ${chatOn && !isMe && !seat.isBot ? html`<${ChatMuteButton} player=${seat} muted=${muted} class="team__mute rseat__mute" />` : null}
     </div>
   </article>`;
@@ -633,6 +636,8 @@ export function RoomScreen() {
   const [picking, setPicking] = useState(false);
   // (fork) the profile icon picker (ui/avatarPicker.js), offered once this server has the icon art
   const [pickingAvatar, setPickingAvatar] = useState(false);
+  // (fork, GitHub #87) the 「AI 方案」 popup: the bot id of the seat it was opened from
+  const [botInfo, setBotInfo] = useState(null);
   const avatarReady = useAvatarPickerReady();
   // the room whose seats are on screen: a seat card that mounts after its first render is new (an AI teammate added)
   const shownRoom = useRef('');
@@ -919,7 +924,7 @@ export function RoomScreen() {
           portrait=${art} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
           portraitDefault=${art && plain !== art ? plain : null} operator=${op?.chess} onPickCard=${() => setPicking(true)} onPickAvatar=${avatarReady ? () => setPickingAvatar(true) : null}
           fresh=${shownRoom.current === room.code} onMoveSquad=${moveSquad} mySquad=${mySquad} moveWait=${moveWait} swapFrom=${swapFrom} onSwap=${swap}
-          bubble=${s ? bubbles.get(s.playerId) || null : null} chatOn=${chatOn} muted=${!!s && chatMuted(chatMute, s.playerId)} />`;
+          bubble=${s ? bubbles.get(s.playerId) || null : null} chatOn=${chatOn} muted=${!!s && chatMuted(chatMute, s.playerId)} onBotInfo=${setBotInfo} />`;
       }))}
       ${coop ? null : html`<aside class="solo-brief rs-brief brackets">
         <${MicroLabel} tone="mint">BRIEFING<//>
@@ -972,6 +977,7 @@ export function RoomScreen() {
     </footer>
     ${picking ? html`<${CardPicker} current=${myCard} list=${cardList} m=${data.get('assets')} localSkins=${localSkins} onPick=${pickCard} onClose=${() => setPicking(false)} />` : null}
     ${pickingAvatar ? html`<${AvatarPicker} onClose=${() => setPickingAvatar(false)} />` : null}
+    <${BotInfoModal} open=${botInfo != null} current=${botInfo} onClose=${() => setBotInfo(null)} />
     ${protoOpen ? facts.isHost
       ? html`<${ProtocolSelect} roomMode=${room.mode} difficulty=${protoPick || room.difficulty} onDifficulty=${setProtoPick} onClose=${closeProto}
           onCreate=${confirmDifficulty} busy=${busy === 'diff' ? 'create' : null} online=${online} action=${t('确认')} hint=${protoHint} difficulties=${protoDifficulties} />`

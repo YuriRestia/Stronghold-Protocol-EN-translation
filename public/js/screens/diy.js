@@ -22,7 +22,8 @@
 // 详情」. The list view, its 自选编队 tab and that tab's slot overview were removed (the user's call of 2026-11-08).
 
 import { useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
-import { html, Icon, Button, TierChip } from '../ui/components.js';
+import { html, Icon, Button, TierChip, Tooltip } from '../ui/components.js';
+import { hasModZ } from '../../../shared/diy.js';
 import { OperatorImage, Img } from '../ui/gameComponents.js';
 import { profGlyphUrl, skillRecordIconUrl, moduleTypeIconUrl } from '../ui/assetUrls.js';
 import { data } from '../data.js';
@@ -248,6 +249,8 @@ function DiyCard({ m, slot, opt, ch, takenTier, draft, selected, onSel, onQuick,
     railTop=${html`<${Img} src=${profGlyphUrl(m, u?.profession)} class="diy-card__prof lo-profglyph" title=${classLine(u)} />`}
     rail=${html`<span class="diy-card__kind"><${KindTag} proto=${opt.proto} /></span>`}
     ribbon=${note ? html`<span class="lo-op__ribbon diy-card__taken" title=${note}>${note}</span>` : null}
+    meta=${hasModZ(opt.charId) ? html`<${Tooltip} text=${t('在房间的自定义房间改动中为该干员开启Z型模组（作弊）')}>
+      <span class="diy-tag diy-tag--modz" data-modz-available="1">${t('Z型模组可用')}</span><//>` : null}
     side=${html`<${CardSide} k=${opt.charId}
       outfit=${() => html`<${OutfitSide} m=${m} charId=${opt.charId} name=${name} list=${outfitsOf(opt.charId)} worn=${worn} />`}
       skills=${() => html`<${DeckOpSide} m=${m} skills=${skills} skill=${cur.skill} elite=${level === 'elite'} modules=${modules} module=${curMod}
