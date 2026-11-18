@@ -475,6 +475,15 @@
   opacity: .55;
 }
 .modal__head { display: flex; flex-direction: column; gap: .04rem; padding: .22rem .3rem .04rem; }
+/* the corner × of a dialog without footer buttons (Modal closeButton, GitHub #169) */
+.modal__box.has-close { position: relative; }
+.modal__box.has-close .modal__head { padding-right: .6rem; }
+.modal__close {
+  position: absolute; right: .1rem; top: .1rem; z-index: 2; width: .36rem; height: .36rem; display: grid; place-items: center;
+  padding: 0; color: var(--text-lo); background: rgba(0, 0, 0, .35); border: 1px solid var(--line-2); cursor: pointer;
+}
+.modal__close:hover, .modal__close:focus-visible { color: var(--mint-500); border-color: var(--mint-500); outline: none; }
+.modal__close .icon { width: .2rem; height: .2rem; }
 .modal__title { font-size: calc(.26 * var(--t)); font-weight: 700; letter-spacing: .04em; }
 .modal__body { padding: .14rem .3rem .26rem; color: var(--text-md); overflow: auto; }
 .modal__text { font-size: calc(.18 * var(--t)); line-height: 1.7; }

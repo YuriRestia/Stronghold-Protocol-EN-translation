@@ -1,0 +1,1 @@
+- Fixed: the shared deck popup and other dialogs without footer buttons could be hard to close (only Esc or a click outside, and in fullscreen Esc leaves fullscreen instead). They now have a close × in the top-right corner (#177, issue #169).

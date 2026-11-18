@@ -412,10 +412,12 @@ const modalStack = []; // open modals, topmost last: only the topmost handles ke
 /**
  * Modal dialog (declarative). Esc / backdrop click call onClose.
  * @param {{ open: boolean, title?: any, micro?: string, tone?: string, onClose?: Function, actions?: any,
- *   width?: string, closeOnBackdrop?: boolean, class?: string, veilClass?: string, children?: any }} props
+ *   width?: string, closeOnBackdrop?: boolean, closeButton?: boolean, class?: string, veilClass?: string, children?: any }} props
+ * `closeButton` (default: a closable dialog without footer `actions`) draws an × in the top-right corner, so a dialog
+ * never relies on Esc or a click outside alone (GitHub #169: in browser fullscreen, Esc leaves fullscreen instead).
  * `veilClass` styles the backdrop itself (e.g. a dialog that dims the field without blurring it).
  */
-export function Modal({ open, title, micro, tone = 'mint', onClose, actions, width, closeOnBackdrop = true, class: cls, veilClass, children }) {
+export function Modal({ open, title, micro, tone = 'mint', onClose, actions, width, closeOnBackdrop = true, closeButton = !!onClose && !actions, class: cls, veilClass, children }) {
   const boxRef = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -467,9 +469,11 @@ export function Modal({ open, title, micro, tone = 'mint', onClose, actions, wid
   if (!open) return null;
   return html`<div class=${cx('modal', veilClass)} role="presentation"
       onMouseDown=${(e) => { if (closeOnBackdrop && e.target === e.currentTarget && onClose) onClose(); }}>
-    <div ref=${boxRef} class=${cx('modal__box', 'brackets', `modal__box--${tone}`, cls)} role="dialog" aria-modal="true" tabindex="-1"
+    <div ref=${boxRef} class=${cx('modal__box', 'brackets', `modal__box--${tone}`, closeButton && onClose && 'has-close', cls)} role="dialog" aria-modal="true" tabindex="-1"
          style=${width ? `width:${width}` : undefined}>
       <div class="modal__stripe" aria-hidden="true"></div>
+      ${closeButton && onClose ? html`<button type="button" class="modal__close" data-testid="modal-close" title=${t('关闭')} aria-label=${t('关闭')}
+        onClick=${() => closeRef.current?.()}><${Icon} name="close" /></button>` : null}
       ${title || micro ? html`<header class="modal__head">
         ${micro ? html`<${MicroLabel}>${micro}<//>` : null}
         ${title ? html`<h2 class="modal__title">${title}</h2>` : null}

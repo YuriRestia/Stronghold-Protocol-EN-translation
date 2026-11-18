@@ -63,5 +63,10 @@ describe('the shared deck popup (GitHub #132, mock harness, headless Chrome)', {
     await page.screenshot({ path: `${OUT}/deck-popup.png` });
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.querySelector('.deck__op'));
+    // GitHub #169: the popup also closes with its corner × (Esc can leave browser fullscreen instead)
+    await page.click('[data-testid="shop-deck"]');
+    await page.waitForSelector('.deck [data-testid="modal-close"]');
+    await page.click('.deck [data-testid="modal-close"]');
+    await page.waitForFunction(() => !document.querySelector('.deck'));
   });
 });
