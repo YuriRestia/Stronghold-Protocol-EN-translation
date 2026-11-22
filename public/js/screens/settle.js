@@ -562,8 +562,8 @@ export function useResultPreload(pub, myId) {
     if (started.current || !gd.ready) return;
     started.current = true;
     const aces = ending.aces || {};
-    const rows = (Array.isArray(pub.players) ? pub.players : []).map((p) => teamCardArt(p, aces[p.playerId] || null, opts));
-    startResultLoad(rows.filter((x) => x.animate).map((x) => x.art.skinId));
+    const players = Array.isArray(pub.players) ? pub.players : [];
+    startResultLoad(() => players.map((p) => teamCardArt(p, aces[p.playerId] || null, opts)).filter((x) => x.animate).map((x) => x.art));
   }, [ending, gd.ready]);
 }
 
@@ -576,7 +576,7 @@ function TeamCard({ p, i, gd, self, victory, raw, opts }) {
   return html`<article class=${cx('tcard', self && 'is-self', p.alive === false && 'is-dead', p.left && 'is-left', cleared ? 'is-clear' : 'is-fail')} style=${`--i:${i}`}>
     <header class="tcard__head" aria-hidden="true"><i class="tcard__pin"></i><span class="tcard__code"><i></i><i></i><i></i>STRONGHOLD PROTOCOL</span><span class="tcard__seat num">${pad2(p.seat + 1)}</span></header>
     <div class="tcard__art">
-      <${IllustArt} skinId=${art?.skinId || null} animate=${animate} class="tcard__dyn">
+      <${IllustArt} art=${art} animate=${animate} class="tcard__dyn">
         <${OperatorImage} m=${gd.m} chess=${art ? art.chess : v?.rec} ownerId=${p.playerId} skin=${isAce || !art ? ace?.skin : null} portrait avatarFallback portraitClass="tcard__img is-portrait" avatarClass="tcard__img is-avatar" fallback=${html`<span class="tcard__glyph">${[...(p.name || '?')][0]}</span>`} />
       </${IllustArt}>
       ${p.left ? html`<span class="tcard__cut">${t('连接中断')}</span>` : null}

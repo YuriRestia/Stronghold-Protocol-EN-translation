@@ -418,7 +418,11 @@ show only on a server whose index lists illustrations. Loading (D10 / D11): noth
 illustrations load from m.public `ending` (META §1) through the settlement pause, and `screens/game.js` keeps the match
 screen up after RESULT until they are ready, at most `RESULT_WAIT_MS` 3 s; the room's load after the screen has what it
 needs (`loadLater.js`) and after the entry film's files; a card not ready shows its 2D art and switches when ready. The
-strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`).
+strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
+the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
+cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
+with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a card appears and switches —
+straight into Idle, no intro, the official crossfade on a late switch (the user, 2026-11-22) — is the renderer's.
 
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
 

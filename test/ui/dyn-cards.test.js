@@ -1,11 +1,13 @@
 // (fork) ui/dynCards.js: the 动态立绘 setting (D7), which art a result / room card shows (D6), and the loading rules
-// (D10 / D11) — crew-docs/l2d-art-proposal.md §1, §5. The renderer is a fake here (setDynApi).
+// (D10 / D11) — crew-docs/l2d-art-proposal.md §1, §5. The renderer is a fake of the contract's mount API here
+// (docs/design/vfx-format.md §33.19), installed with setDynModule.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, illustSkinId, cardArtOf, resultCardArt,
-  setDynApi, loadIllust, loadStore, startResultLoad, resultWaitMs, endResultLoad,
+  RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
+  setDynModule, startResultLoad, resultWaitMs, endResultLoad,
 } from '../../public/js/ui/dynCards.js';
+import * as stub from '../../public/js/ui/dynStub.js';
 import { sanitizeSettings, DEFAULT_SETTINGS } from '../../public/js/ui/gameLogic/settings.js';
 import { cardContext } from '../../public/js/ui/seatArt.js';
 
@@ -27,22 +29,37 @@ test('which cards animate: every card on Everyone, one\'s own on Mine Only, none
   assert.deepEqual([cardAnimates('off', true), cardAnimates('off', false)], [false, false]);
 });
 
-test('settings: dynIllust / resultArt keep known values, junk takes the default', () => {
+test('settings: dynIllust / resultArt keep known values, junk takes the default (room card, the user\'s D6 default)', () => {
   assert.equal(sanitizeSettings({ dynIllust: 'mine', resultArt: 'ace' }).dynIllust, 'mine');
   assert.equal(sanitizeSettings({ dynIllust: 'mine', resultArt: 'ace' }).resultArt, 'ace');
   assert.equal(sanitizeSettings({ dynIllust: 'on', resultArt: 7 }).dynIllust, 'auto');
-  assert.equal(sanitizeSettings({ dynIllust: 'on', resultArt: 7 }).resultArt, DEFAULT_SETTINGS.resultArt);
+  assert.equal(sanitizeSettings({ dynIllust: 'on', resultArt: 7 }).resultArt, 'card');
   assert.equal(sanitizeSettings(null).resultArt, 'card');
 });
 
-test('the illustration a card plays: the worn outfit, else the E2 art', () => {
-  assert.equal(illustSkinId('char_1038_whitw2', null), 'char_1038_whitw2#2');
-  assert.equal(illustSkinId('char_1038_whitw2', 'char_1038_whitw2@sale#12'), 'char_1038_whitw2@sale#12');
-  assert.equal(illustSkinId(null, 'x'), null);
+test('a card\'s art: the operator and the owner\'s outfit for it; the key through the renderer\'s dynIllustKey', () => {
   const choices = (owner) => (owner === 'p1' ? { char_a: 'char_a@x#1' } : {});
-  assert.deepEqual(cardArtOf({ charId: 'char_a' }, 'p1', choices), { chess: { charId: 'char_a' }, charId: 'char_a', outfit: 'char_a@x#1', skinId: 'char_a@x#1' });
-  assert.equal(cardArtOf({ charId: 'char_a' }, 'p2', choices).skinId, 'char_a#2');
+  assert.deepEqual(cardArtOf({ charId: 'char_a' }, 'p1', choices), { chess: { charId: 'char_a' }, charId: 'char_a', outfit: 'char_a@x#1' });
+  assert.equal(cardArtOf({ charId: 'char_a' }, 'p2', choices).outfit, null);
   assert.equal(cardArtOf(null, 'p1', choices), null);
+  const asked = [];
+  setDynModule({ ...stub, dynIllustKey: (c, s) => { asked.push([c, s]); return c === 'char_a' ? `k_${s || 'e2'}` : null; } });
+  assert.equal(illustKey({ charId: 'char_a', outfit: 'char_a@x#1' }), 'k_char_a@x#1');
+  assert.equal(illustKey({ charId: 'char_a', outfit: null }), 'k_e2', 'no outfit: the contract\'s null');
+  assert.equal(illustKey({ charId: 'char_b', outfit: null }), null, 'none on this server: 2D');
+  assert.equal(illustKey(null), null);
+  assert.deepEqual(asked, [['char_a', 'char_a@x#1'], ['char_a', null], ['char_b', null]]);
+  setDynModule(null);
+});
+
+test('the stand-in renderer: keys from the dynillust group, every Card stays 2D', async () => {
+  assert.equal(stub.dynIllustKey('char_a', null), null, 'no local manifest: none');
+  const st = stub.createDynIllustStage({ parent: null, quality: 'full' });
+  await st.preload(['x']);
+  const card = st.mount(null, 'x');
+  assert.equal(await card.ready, false);
+  card.start(); card.unmount();
+  assert.equal(card.state, 'unmounted');
 });
 
 test('结算卡片立绘 (D6): the room card, or the ace; an AI seat (no room card) shows its ace either way', () => {
@@ -58,58 +75,59 @@ test('结算卡片立绘 (D6): the room card, or the ace; an AI seat (no room ca
   assert.equal(resultCardArt('ace', { playerId: 'p1' }, { ...o, aceChess: null }), null, 'no lineup: no art');
 });
 
-function fakeApi({ have = [], ms = {} } = {}) {
-  const calls = [];
-  const pending = new Map();
+/** A fake renderer module with the contract's API; `stages` records what was built, preloaded and destroyed. */
+function fakeModule(have) {
+  const stages = [];
   return {
-    calls, pending,
-    any: () => have.length > 0,
-    has: (id) => have.includes(id),
-    ready: () => Promise.resolve(),
-    load: (id) => { calls.push(id); return new Promise((res, rej) => { pending.set(id, { res, rej }); if (ms[id] === 0) res(); }); },
-    mount: () => ({ destroy() {} }),
+    stages,
+    dynIllustKey: (charId) => (have.includes(charId) ? `k_${charId}` : null),
+    createDynIllustStage(o) {
+      const st = { o, preloads: [], destroyed: false, settle: null };
+      stages.push(st);
+      return {
+        preload: (keys) => new Promise((res, rej) => { st.preloads.push(keys); st.settle = { res, rej }; }),
+        mount: () => ({ ready: Promise.resolve(true), state: 'ready', start() {}, unmount() {} }),
+        destroy: () => { st.destroyed = true; },
+      };
+    },
   };
 }
 const flush = () => new Promise((r) => setTimeout(r, 0));
+const noIndex = () => Promise.resolve(); // the fake's keys need no data/local-assets.json
+const settled = async () => { for (let i = 0; i < 5; i++) await flush(); };
 
-test('loading: once per illustration, ready / failed in the store; one this server lacks stays 2D without a request', async () => {
-  const api = fakeApi({ have: ['x#2', 'y#2'] });
-  setDynApi(api);
-  const p1 = loadIllust('x#2'), p2 = loadIllust('x#2');
-  assert.equal(p1, p2, 'shared');
-  const none = await loadIllust('z#2');
-  assert.equal(none, false);
-  await flush();
-  assert.deepEqual(api.calls, ['x#2'], 'z#2 never requested');
-  api.pending.get('x#2').res();
-  assert.equal(await p1, true);
-  assert.equal(loadStore.get().ready['x#2'], 'ready');
-  const py = loadIllust('y#2');
-  await flush();
-  api.pending.get('y#2').rej(new Error('404'));
-  assert.equal(await py, false);
-  assert.equal(loadStore.get().ready['y#2'], 'failed');
-  setDynApi(null);
-});
-
-test('the result screen waits for its cards, at most RESULT_WAIT_MS after the result, and opens once they are ready (D11)', async () => {
+test('the result screen waits for its cards, at most RESULT_WAIT_MS after the result, and opens once they are in (D11)', async () => {
   assert.equal(RESULT_WAIT_MS, 3000);
-  const api = fakeApi({ have: ['a#2', 'b#2'] });
-  setDynApi(api);
+  const fake = fakeModule(['char_a', 'char_b']);
+  setDynModule(fake);
   endResultLoad();
   assert.equal(resultWaitMs(1000, 1000), 0, 'no load started: no wait');
-  startResultLoad(['a#2', 'b#2', 'a#2', null]);
-  await flush();
+  startResultLoad(() => [{ charId: 'char_a', outfit: null }, { charId: 'char_b', outfit: null }, { charId: 'char_c', outfit: null }], { index: noIndex });
+  await settled();
+  assert.equal(fake.stages.length, 1, 'one Stage');
+  assert.deepEqual(fake.stages[0].preloads, [['k_char_a', 'k_char_b']], 'the cards this server has, once each');
   const at = 50_000;
   assert.equal(resultWaitMs(at, at), 3000);
   assert.equal(resultWaitMs(at, at + 2000), 1000);
   assert.equal(resultWaitMs(at, at + 3500), 0, 'the cap');
-  api.pending.get('a#2').res();
-  await flush(); await flush();
-  assert.equal(resultWaitMs(at, at + 100), 2900, 'one card still loading');
-  api.pending.get('b#2').rej(new Error('slow link'));
-  await flush(); await flush();
-  assert.equal(resultWaitMs(at, at + 100), 0, 'every card settled: open (a failed card shows its 2D art)');
+  fake.stages[0].settle.res();
+  await settled();
+  assert.equal(resultWaitMs(at, at + 100), 0, 'every card in (or failed): open');
   endResultLoad();
-  setDynApi(null);
+  await settled();
+  assert.equal(fake.stages[0].destroyed, true, 'nobody holds the Stage: it goes');
+  setDynModule(null);
+});
+
+test('a failed preload opens the result screen too (the cards keep their 2D art)', async () => {
+  const fake = fakeModule(['char_a']);
+  setDynModule(fake);
+  startResultLoad(() => [{ charId: 'char_a', outfit: null }], { index: noIndex });
+  await settled();
+  assert.ok(resultWaitMs(1, 1) > 0);
+  fake.stages[0].settle.rej(new Error('slow link'));
+  await settled();
+  assert.equal(resultWaitMs(1, 2), 0);
+  endResultLoad();
+  setDynModule(null);
 });

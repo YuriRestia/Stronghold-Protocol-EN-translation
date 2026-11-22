@@ -4,27 +4,33 @@
 // Spec: crew-docs/l2d-art-proposal.md §1 (the user's decisions D5–D11 of 2026-11-22), §5. DESIGN §10 (Result, Room).
 //
 //   设置「动态立绘」 (`dynIllust`, D7): 关 / 仅自己 / 所有人 — 'auto' is 仅自己 on a phone and 所有人 elsewhere.
-//   设置「结算卡片立绘」 (`resultArt`, D6): a result card shows the player's room card in its outfit, or the ace of the
-//     final lineup — for every card, from this viewer's side.
+//   设置「结算卡片立绘」 (`resultArt`, D6): a result card shows the player's room card in its outfit (the default), or the
+//     ace of the final lineup — for every card, from this viewer's side.
 //   Loading (D10 / D11): nothing during the match. The result cards' illustrations start loading the moment the server
 //     says the last battle is over (m.public `ending`, server/match/results.js endingView) and load through the
-//     settlement pause; the result screen opens as soon as every one is ready, at most RESULT_WAIT_MS after the pause
+//     settlement pause; the result screen opens as soon as they are in, at most RESULT_WAIT_MS after the pause
 //     (screens/game.js). The room / Grand Alliance cards load once the room screen has what it needs (loadLater.js) and
 //     after the entry film's files (D10, the first-impression rule). A card whose illustration is not ready shows its 2D
-//     art and switches when it is (D11), playing its intro into idle.
+//     art and switches when it is (D11). How a card appears and switches (no intro, no fade on appear; the official
+//     controller's crossfade on a late switch — the user, 2026-11-22) is the renderer's: nothing here animates it.
 //
-// The renderer (render/dynillust/, its mount API in the data contract) draws the illustrations; until it is installed
-// with setDynApi() every card keeps its 2D art.
+// The renderer is reached only through the contract's mount API (docs/design/vfx-format.md §33.19): dynIllustKey and
+// createDynIllustStage → Stage.preload / Stage.mount → Card { ready, start(), state, unmount() }. One Stage serves the
+// whole app while a screen with cards (or a result load) holds it, and is destroyed when none does — the match screens
+// never hold it, so nothing of it lives through a match. Until setDynModule() installs the renderer, ui/dynStub.js
+// stands in: same API, every card 2D.
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { html } from './components.js';
 import { createStore, useStore } from '../store.js';
+import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE } from './device.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { loadLater } from '../loadLater.js';
+import * as stub from './dynStub.js';
 
 /**
  * How long the result screen waits for its cards' illustrations after the settlement pause, at most (a cap: it opens the
@@ -66,28 +72,18 @@ export function useDynIllustMode() {
 // ---- which art a card shows (D6) ----------------------------------------------------------------------------------
 
 /**
- * The official skin whose illustration a card plays: the outfit worn, else the operator's E2 art (`<charId>#2`) — the
- * default look's full artwork, as the outfit picker previews it (docs/OUTFITS.md "默认 … previews the E2 artwork").
- * @param {string|null|undefined} charId @param {string|null|undefined} outfit a skinId (docs/OUTFITS.md)
- */
-export function illustSkinId(charId, outfit) {
-  if (typeof charId !== 'string' || !charId) return null;
-  return typeof outfit === 'string' && outfit ? outfit : `${charId}#2`;
-}
-
-/**
- * A card's art: the chess record it draws, the owner's outfit for it (null = the default look) and the illustration's
- * skin. The outfit follows ui/outfits.js choiceOf: one's own choice, another seat's from room.state seats[].outfits.
+ * A card's art: the chess record it draws and the owner's outfit for that operator (null = the default look). The
+ * outfit follows ui/outfits.js choiceOf: one's own choice, another seat's from room.state seats[].outfits — data every
+ * client already holds (nothing new over the socket).
  * @param {any} chess a chess record (or null: no art)
  * @param {string|null} ownerId
  * @param {(ownerId: string|null) => Record<string, string>} [choices]
- * @returns {{ chess: any, charId: string, outfit: string|null, skinId: string } | null}
+ * @returns {{ chess: any, charId: string, outfit: string|null } | null}
  */
 export function cardArtOf(chess, ownerId, choices = choiceOf) {
   const charId = chess && typeof chess.charId === 'string' ? chess.charId : null;
   if (!charId) return null;
-  const outfit = (choices(ownerId) || {})[charId] || null;
-  return { chess, charId, outfit, skinId: illustSkinId(charId, outfit) };
+  return { chess, charId, outfit: (choices(ownerId) || {})[charId] || null };
 }
 
 /**
@@ -103,8 +99,8 @@ export function roomCardArt(seat, ctx, { myId = null, myCard = null, choices = c
 
 /**
  * A result card's art (D6, from the viewer's side, every card alike): 'card' — the player's room card (the official card
- * shows the player's assistant, spec §2); 'ace' — the best unit of the final lineup. An AI seat has no room card: its
- * card shows the ace either way (the remake's card before).
+ * shows the player's assistant, spec §2; the default, the user's decision of 2026-11-22); 'ace' — the best unit of the
+ * final lineup. An AI seat has no room card: its card shows the ace either way (the remake's card before).
  * @param {'card'|'ace'} resultArt settings.resultArt
  * @param {{ isBot?: boolean, playerId: string }} player
  * @param {{ aceChess?: any, seat?: any, ctx: any, myId?: string|null, myCard?: string|null, choices?: Function }} o
@@ -129,162 +125,155 @@ export function useMatchCards(gd) {
   return { ctx, myCard, seatOf };
 }
 
-// ---- the renderer --------------------------------------------------------------------------------------------------
+// ---- the renderer (the contract's mount API) -----------------------------------------------------------------------
+
+let mod = stub;
 
 /**
- * What the screens need of the renderer (render/dynillust/, the data contract's mount API):
- *   has(skinId)            this server has that illustration (its index is loaded: `ready()`)
- *   any()                  this server has at least one (the settings show their rows only then)
- *   ready()                a promise for the index
- *   load(skinId, { signal })  download, decode, build, upload and warm one illustration: a promise for when a mount
- *                          shows it at once; a signal aborts it (the card left the screen)
- *   mount(el, skinId, { onShown })  draw it in `el` (the card's art box, official framing): fade in, intro, idle;
- *                          returns { destroy() }. onShown: the illustration covers the card (the 2D art can go).
- * Without one, no card animates.
+ * Install the renderer module — `{ dynIllustKey, createDynIllustStage }` (render/dynillust/index.js) — or null for the
+ * stand-in (ui/dynStub.js). A Stage already up is dropped: the next holder builds one from the new module.
  */
-const NONE = Object.freeze({
-  has: () => false,
-  any: () => false,
-  ready: () => Promise.resolve(),
-  load: () => Promise.reject(new Error('no dynamic illustration renderer')),
-  mount: () => null,
-});
-let api = NONE;
-
-/** Install the renderer (null: none — every card 2D). */
-export function setDynApi(next) {
-  api = next || NONE;
-  loads.clear();
-  loadStore.set({ ready: {} });
-  availableStore.set({ on: false });
-  const mine = api;
-  Promise.resolve(api.ready()).then(() => { if (api === mine) availableStore.set({ on: !!api.any() }); }, () => {});
+export function setDynModule(next) {
+  mod = next && typeof next.createDynIllustStage === 'function' && typeof next.dynIllustKey === 'function' ? next : stub;
+  if (stage) { try { stage.destroy(); } catch (err) { console.warn('[dynillust] stage destroy', err); } }
+  stage = null;
+  preloaded.clear();
 }
 
-/** Whether this server has any illustration (the index says so): the settings rows show only then. */
-export const availableStore = createStore({ on: false });
-export function useDynAvailable() { return useStore((s) => s.on, Object.is, availableStore); }
+/** The dynillust key of an art (its outfit, else the operator's default — the contract's null), or null: none here. */
+export function illustKey(art) {
+  if (!art) return null;
+  try { return mod.dynIllustKey(art.charId, art.outfit || null) || null; } catch { return null; }
+}
 
-// ---- loading -------------------------------------------------------------------------------------------------------
+/** Whether this server has any illustration (data/local-assets.json group `dynillust`): the settings rows show only then. */
+export function useDynAvailable() {
+  useData('local');
+  const g = data.get('local')?.groups?.dynillust;
+  return !!g && typeof g === 'object' && Object.keys(g).length > 0;
+}
 
-/** skinId → 'ready' | 'failed' (missing: not loaded, or loading). */
-export const loadStore = createStore({ ready: {} });
-const loads = new Map(); // skinId → { promise, ctrl, users }
+let stage = null;
+let holders = 0;
+let dropTimer = 0;
+const preloaded = new Map(); // key → the preload promise (true: in, false: failed), per Stage
 
-const mark = (skinId, state) => loadStore.set({ ready: { ...loadStore.get().ready, [skinId]: state } });
+/** Take the Stage (built on first use: the page, the phone's half-resolution pages — spec §4.3). */
+function holdStage() {
+  holders++;
+  if (dropTimer) { clearTimeout(dropTimer); dropTimer = 0; }
+  if (!stage) {
+    stage = mod.createDynIllustStage({ parent: globalThis.document?.body, quality: phoneDevice() ? 'half' : 'full' });
+    preloaded.clear();
+  }
+  return stage;
+}
+
+/** Give it back; when nobody holds it, it goes — after the current render, so a screen handing over to the next keeps it. */
+function releaseStage() {
+  holders = Math.max(0, holders - 1);
+  if (holders > 0 || dropTimer) return;
+  dropTimer = setTimeout(() => {
+    dropTimer = 0;
+    if (holders > 0 || !stage) return;
+    try { stage.destroy(); } catch (err) { console.warn('[dynillust] stage destroy', err); }
+    stage = null;
+    preloaded.clear();
+  }, 0);
+}
 
 /**
- * Load one illustration (once; later calls share it). Resolves true when it is ready, false when this server has none
- * or it failed (the card keeps its 2D art).
- * @param {string} skinId
- * @returns {Promise<boolean>}
+ * Preload keys on the held Stage (once each per Stage): a promise that settles when every one is in or failed.
+ * @param {string[]} keys
  */
-export function loadIllust(skinId) {
-  if (!skinId) return Promise.resolve(false);
-  const known = loads.get(skinId);
-  if (known) return known.promise;
-  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-  const promise = Promise.resolve(api.ready())
-    .then(() => {
-      if (!api.has(skinId)) return false;
-      return Promise.resolve(api.load(skinId, { signal: ctrl?.signal })).then(() => true);
-    })
-    .then((ok) => { if (loads.get(skinId)?.promise === promise) mark(skinId, ok ? 'ready' : 'failed'); return ok; },
-      (err) => {
-        if (loads.get(skinId)?.promise === promise) {
-          if (ctrl?.signal.aborted) loads.delete(skinId); // a card that left: a later card asks again
-          else { mark(skinId, 'failed'); console.warn('[dynillust] load failed', skinId, err); }
-        }
-        return false;
-      });
-  loads.set(skinId, { promise, ctrl });
-  return promise;
+function preload(keys) {
+  const s = stage;
+  const fresh = keys.filter((k) => k && !preloaded.has(k));
+  if (s && fresh.length) {
+    const p = Promise.resolve().then(() => s.preload(fresh)).then(() => true, (err) => { console.warn('[dynillust] preload', err); return false; });
+    for (const k of fresh) preloaded.set(k, p);
+  }
+  return Promise.all(keys.filter(Boolean).map((k) => preloaded.get(k)));
 }
-
-/** skinId → how many cards on screen want it (IllustArt), so a card that leaves stops only the loads nobody wants. */
-const wanted = new Map();
-const want = (skinId) => { wanted.set(skinId, (wanted.get(skinId) || 0) + 1); };
-const unwant = (skinId) => {
-  const n = (wanted.get(skinId) || 0) - 1;
-  if (n > 0) { wanted.set(skinId, n); return; }
-  wanted.delete(skinId);
-  const l = loads.get(skinId);
-  if (!l || loadStore.get().ready[skinId] || resultLoad?.ids.has(skinId)) return;
-  l.ctrl?.abort();
-  loads.delete(skinId);
-};
 
 /** The entry film's files (main.js openingLoaded): the room's illustrations wait for them (the first-impression rule). */
 let opening = Promise.resolve();
 export function afterOpening(promise) { opening = Promise.resolve(promise).catch(() => {}); }
 
-/** Room / Grand Alliance: load once the screen has what it needs and the entry film's files are in (spec §5.3). */
-export function loadWhenSettled(skinId) {
-  return new Promise((resolve) => {
-    // a card that left meanwhile (the match started) loads nothing: no illustration loads during the match (D10)
-    opening.then(() => loadLater(() => (wanted.get(skinId) > 0 ? loadIllust(skinId) : Promise.resolve(false)).then(resolve)));
-  });
-}
-
 // ---- the result screen's wait (D10 / D11) --------------------------------------------------------------------------
 
-let resultLoad = null; // { ids: Set<string>, pending: number }
+let resultLoad = null; // { pending: boolean }
 
-/**
- * Start loading the result cards' illustrations (the moment m.public `ending` arrives; once per match: screens/settle.js
- * useResultPreload).
- * @param {string[]} skinIds the cards that animate
- */
-export function startResultLoad(skinIds) {
-  const ids = [...new Set(skinIds.filter(Boolean))];
-  const state = { ids: new Set(ids), pending: ids.length };
-  resultLoad = state;
-  for (const id of ids) loadIllust(id).finally(() => { state.pending--; resultGateStore.set({ n: resultGateStore.get().n + 1 }); });
-}
-
-/** A tick per settled result load: screens/game.js re-checks its wait. */
+/** A tick when the result cards' load settles: screens/game.js re-checks its wait. */
 export const resultGateStore = createStore({ n: 0 });
 
 /**
- * How long the result screen still waits (ms; 0 = open it): the result cards' loads still running, at most
+ * Start loading the result cards' illustrations (the moment m.public `ending` arrives; once per match: screens/settle.js
+ * useResultPreload). Holds the Stage until endResultLoad().
+ * @param {() => any[]} cardsOf the arts that animate, computed once the illustration index is here
+ * @param {{ index?: () => Promise<any> }} [o] index: loads the illustration index (data/local-assets.json)
+ */
+export function startResultLoad(cardsOf, { index = () => data.load('local') } = {}) {
+  endResultLoad();
+  const state = { pending: true, held: true };
+  resultLoad = state;
+  holdStage();
+  const done = () => { if (state.pending) { state.pending = false; resultGateStore.set({ n: resultGateStore.get().n + 1 }); } };
+  Promise.resolve().then(index).catch(() => null)
+    .then(() => (resultLoad === state ? preload(cardsOf().map(illustKey).filter(Boolean)) : null))
+    .then(done, done);
+}
+
+/**
+ * How long the result screen still waits (ms; 0 = open it): the result cards' load still running, at most
  * RESULT_WAIT_MS after the result arrived (`resultAt`).
  */
 export function resultWaitMs(resultAt, now = Date.now()) {
-  if (!resultLoad || resultLoad.pending <= 0 || !(resultAt > 0)) return 0;
+  if (!resultLoad || !resultLoad.pending || !(resultAt > 0)) return 0;
   return Math.max(0, resultAt + RESULT_WAIT_MS - now);
 }
 
-/** Forget the match's result load (a new match). */
-export function endResultLoad() { resultLoad = null; }
+/** Forget the match's result load and give its Stage back (the next match began, or the page left the match). */
+export function endResultLoad() {
+  if (resultLoad?.held) { resultLoad.held = false; releaseStage(); }
+  resultLoad = null;
+}
 
 // ---- the card ------------------------------------------------------------------------------------------------------
 
 /**
  * A card's art box: the 2D art (children) and, when the card animates and its illustration is ready, the illustration
- * mounted over it — the same on the result, room and Grand Alliance cards (D5). A card whose illustration is still
- * loading keeps its 2D art and switches when it is ready (D11). No tap action (D9).
- * @param {{ skinId: string|null, animate: boolean, wait?: 'now'|'settled', class?: string, children?: any }} props
- *   wait: 'now' loads at once (the result screen), 'settled' after the screen has what it needs (room)
+ * drawn over it — the same on the result, room and Grand Alliance cards (D5). A card whose illustration is still loading
+ * keeps its 2D art and switches when it is ready (D11). No tap action (D9).
+ * @param {{ art: { charId: string, outfit: string|null } | null, animate: boolean, wait?: 'now'|'settled', class?: string, children?: any }} props
+ *   wait: 'now' mounts at once (the result screen: loaded in the pause), 'settled' once the screen has what it needs (room)
  */
-export function IllustArt({ skinId, animate, wait = 'now', class: cls = '', children }) {
+export function IllustArt({ art, animate, wait = 'now', class: cls = '', children }) {
+  useData('local');
+  const key = animate ? illustKey(art) : null;
   const host = useRef(null);
-  const state = useStore((s) => (skinId ? s.ready[skinId] : undefined), Object.is, loadStore);
   const [shown, setShown] = useState(false);
-  const on = !!(animate && skinId);
-  useEffect(() => {
-    if (!on) return undefined;
-    want(skinId);
-    if (!loadStore.get().ready[skinId]) { if (wait === 'settled') loadWhenSettled(skinId); else loadIllust(skinId); }
-    return () => unwant(skinId);
-  }, [on, skinId, wait]);
   useEffect(() => {
     setShown(false);
-    if (!on || state !== 'ready' || !host.current) return undefined;
-    const h = api.mount(host.current, skinId, { onShown: () => setShown(true) });
-    return () => { try { h?.destroy(); } catch (err) { console.warn('[dynillust] destroy', err); } };
-  }, [on, skinId, state]);
-  return html`<div class=${`dyn-art${shown ? ' is-live' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${on ? (state || 'loading') : 'off'}>
+    if (!key || !host.current) return undefined;
+    let card = null, live = true;
+    const s = holdStage();
+    const go = () => {
+      if (!live || stage !== s) return;
+      card = s.mount(host.current, key);
+      card.start();
+      Promise.resolve(card.ready).then((ok) => { if (live && ok) setShown(true); }, () => {});
+    };
+    if (wait === 'settled') opening.then(() => loadLater(() => { if (live) go(); return Promise.resolve(card?.ready); }));
+    else go();
+    return () => {
+      live = false;
+      try { card?.unmount(); } catch (err) { console.warn('[dynillust] unmount', err); }
+      releaseStage();
+    };
+  }, [key, wait]);
+  return html`<div class=${`dyn-art${shown ? ' is-live' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${key ? (shown ? 'live' : 'loading') : 'off'}>
     <div class="dyn-art__still">${children}</div>
-    ${on && state === 'ready' ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
+    ${key ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
   </div>`;
 }

@@ -351,7 +351,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
     <header class="rseat__strip"><i></i><span class="num">P${index + 1}</span></header>
     <div class="seat__art rseat__art">
       ${art
-        ? html`<${IllustArt} skinId=${illust?.skinId || null} animate=${!!illust?.animate} wait="settled" class="rseat__dyn">
+        ? html`<${IllustArt} art=${illust?.art || null} animate=${!!illust?.animate} wait="settled" class="rseat__dyn">
             <img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />
           </${IllustArt}>`
         : html`<${AvatarFrame} size="xl" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}
@@ -886,7 +886,7 @@ export function RoomScreen() {
         // in the seat's outfit, when 动态立绘 lets this card play it
         const dyn = op ? cardArtOf(op.chess, s.playerId) : null;
         return html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
-          illust=${dyn ? { skinId: dyn.skinId, animate: cardAnimates(dynMode, s.playerId === me.playerId) } : null}
+          illust=${dyn ? { art: dyn, animate: cardAnimates(dynMode, s.playerId === me.playerId) } : null}
           myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
           portrait=${art} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
           portraitDefault=${art && plain !== art ? plain : null} operator=${op?.chess} onPickCard=${() => setPicking(true)} onPickAvatar=${avatarReady ? () => setPickingAvatar(true) : null}
