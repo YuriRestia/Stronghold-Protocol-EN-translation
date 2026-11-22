@@ -18,7 +18,7 @@ import { initLang } from '/js/ui/lang.js';
 import { ensurePixi } from '/js/render/app/pixi.js';
 import { SettleFlow } from '/js/screens/settle.js';
 import { RoomScreen } from '/js/screens/room.js';
-import { setDynModule, setDynQuality, setDynFraming } from '/js/ui/dynCards.js';
+import { setDynModule, setDynQuality, setDynFraming, coverFramingNow } from '/js/ui/dynCards.js';
 import { cardStore, CARD_KEY } from '/js/ui/seatArt.js';
 import { outfitStore } from '/js/ui/outfits.js';
 
@@ -43,6 +43,26 @@ const FR = new Map((P.get('fr') || '').split('|').filter(Boolean).map((s) => {
 }));
 const app = document.getElementById('app');
 const bar = document.getElementById('rvbar');
+
+// ---- the zoom decisions (the user, 2026-11-23: "a toggle above each slot to switch between zoom and unzoomed and
+// something to let me quickly export my decision for each of them"): per illustration key, 'zoom' (the face framing of
+// data/dyn-card-framing.json — for a key kept plain, its measured `face`) or 'plain' (the card framing, no zoom), kept in
+// this browser; the wide cards (room, Grand Alliance) re-mount on a switch
+const DECIDE_KEY = 'dynReview.zoomDecisions';
+let TABLE = {};
+const decisions = (() => { try { return JSON.parse(localStorage.getItem(DECIDE_KEY) || '{}') || {}; } catch { return {}; } })();
+const saveDecisions = () => { try { localStorage.setItem(DECIDE_KEY, JSON.stringify(decisions)); } catch { /* private mode */ } };
+/** The face framing of `key` (zoom > 1), or null when the face framing is the plain one. */
+const faceOf = (k) => { const c = TABLE[k]; const f = c?.face || c; return f && f.zoom > 1 ? { mode: 'card', zoom: f.zoom, fx: f.fx, fy: f.fy } : null; };
+/** What a card shows now: the decision, else the table's. */
+const stateOf = (k) => decisions[k] || ((TABLE[k]?.zoom || 1) > 1 ? 'zoom' : 'plain');
+/** The framing the cards mount with (setDynFraming): the URL's &fr / &framing first, then a decision; null = the table's. */
+const decideFraming = (k) => {
+  if (FR.has(k)) return FR.get(k);
+  if (FRAMING) return FRAMING;
+  if (!decisions[k]) return null;
+  return decisions[k] === 'plain' ? 'card' : faceOf(k) || 'card';
+};
 
 const go = (patch) => { const u = new URL(location.href); for (const [k, v] of Object.entries(patch)) { if (v == null) u.searchParams.delete(k); else u.searchParams.set(k, String(v)); } u.searchParams.delete('frame'); location.href = u.toString(); };
 let review = null; // { pages, page, names, stage }
@@ -172,7 +192,84 @@ function measure(secs = 5) {
     requestAnimationFrame(f);
   });
 }
-globalThis.__review = { special: () => act('special'), start: () => act('start'), replay: () => { replay++; draw(); }, state: () => review, measure };
+/**
+ * Another page without a reload (the user, 2026-11-23: "is there a way to click next that doesnt have to reload the whole
+ * page"): the screen re-mounts with the page's cards, the URL's &page follows (a reload lands there), and the renderer
+ * frees every illustration the new page does not show.
+ */
+function goPage(n) {
+  if (!review || !(n >= 0 && n < review.pages.length) || n === review.page) return;
+  review.page = n;
+  review.names = review.allNames[n] || [];
+  const u = new URL(location.href); u.searchParams.set('page', String(n + 1)); history.replaceState(null, '', u);
+  draw();
+  try { review.stage?.release?.(review.pages[n].map((e) => e.key)); } catch (err) { console.warn('[review] release', err); }
+  renderBar(null);
+  zoomToggles();
+}
+globalThis.__review = { special: () => act('special'), start: () => act('start'), replay: () => { replay++; draw(); }, state: () => review, measure, goPage };
+
+/** The switches on the wide cards: Zoomed / Unzoomed per card, ✓ once decided here; at each card's top right. */
+function zoomToggles() {
+  if (SHOT || FRAME || SCREEN === 'result' || !review) return;
+  let layer = document.querySelector('.rvzoom');
+  if (!layer) {
+    layer = Object.assign(document.createElement('div'), { className: 'rvzoom' });
+    document.body.append(layer);
+    layer.addEventListener('click', (ev) => {
+      const b = ev.target.closest('button[data-k]');
+      if (!b || b.disabled) return;
+      const k = b.dataset.k;
+      decisions[k] = b.dataset.v;
+      saveDecisions();
+      // the mounted cards reframed in place (the renderer's setFraming: the camera moves, nothing reloads or restarts);
+      // the 2D art re-renders at the same value. A renderer without it: the screen re-mounts.
+      const cards = [...(review.stage?.cards || [])].filter((c) => c.key === k);
+      if (cards.length && cards.every((c) => typeof c.setFraming === 'function')) {
+        for (const c of cards) c.setFraming(...coverFramingNow(k));
+        draw();
+      } else { replay++; draw(); }
+      renderBar(null); zoomToggles();
+    });
+    // the cards rise in and the window resizes: follow them
+    setInterval(placeToggles, 400);
+  }
+  const group = review.pages[review.page] || [];
+  layer.innerHTML = group.map((e, i) => {
+    const s = stateOf(e.key), can = !!faceOf(e.key);
+    return `<div class="rvz" data-i="${i}" title="${review.names[i] || e.key}">`
+      + `<button type="button" data-k="${e.key}" data-v="zoom" class="${s === 'zoom' ? 'on' : ''}"${can ? '' : ' disabled title="The face is already on its line: no zoom to choose"'}>Zoomed</button>`
+      + `<button type="button" data-k="${e.key}" data-v="plain" class="${s === 'plain' ? 'on' : ''}">Unzoomed</button>`
+      + `${decisions[e.key] ? '<i>✓</i>' : ''}</div>`;
+  }).join('');
+  placeToggles();
+}
+function placeToggles() {
+  const layer = document.querySelector('.rvzoom');
+  if (!layer) return;
+  for (const el of document.querySelectorAll('.rs-seats .rseat')) {
+    const i = el.style.getPropertyValue('--i').trim();
+    const t = layer.querySelector(`.rvz[data-i="${i}"]`);
+    const art = el.querySelector('.rseat__art') || el;
+    if (!t) continue;
+    const r = art.getBoundingClientRect();
+    // inside the card's top edge, at its right: clear of the squad heading lines and the host's crown
+    Object.assign(t.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px` });
+  }
+}
+
+/** Every illustration's decision, as a file and on the clipboard: key, name, zoomed / unzoomed, decided by you or the table's. */
+function exportDecisions() {
+  const names = new Map(review.pages.flatMap((pg, p) => pg.map((e, i) => [e.key, review.allNames[p]?.[i] || e.key])));
+  const rows = review.pages.flat().map((e) => ({ key: e.key, name: names.get(e.key), choice: stateOf(e.key) === 'zoom' ? 'zoomed' : 'unzoomed', by: decisions[e.key] ? 'you' : 'default' }));
+  const out = { exported: new Date().toISOString(), decided: rows.filter((r) => r.by === 'you').length, total: rows.length, rows };
+  const text = JSON.stringify(out, null, 1);
+  navigator.clipboard?.writeText(text).catch(() => {});
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'dyn-zoom-decisions.json' });
+  document.body.append(a); a.click(); a.remove();
+  return out;
+}
+globalThis.__review.exportDecisions = exportDecisions;
 
 const viewportText = () => `Window ${innerWidth}×${innerHeight} @${+(devicePixelRatio || 1).toFixed(3)}`;
 addEventListener('resize', () => { const el = bar?.querySelector('[data-vp]'); if (el) el.textContent = viewportText(); });
@@ -190,6 +287,7 @@ function renderBar(target) {
     + '<span class="sep"></span>' + btn('Special idle now', false, 'special') + btn('Start now', false, 'start') + btn('Replay entrance', false, 'replay')
     + btn(SLOW ? `Slow ${SLOW} MB/s` : 'Slow connection', !!SLOW, 'slow')
     + btn(TIER === 'half' ? 'Half-size art' : 'Half-size art: off', TIER === 'half', 'tier')
+    + (SCREEN !== 'result' ? '<span class="sep"></span>' + btn(`Export zoom decisions (${Object.keys(decisions).length})`, false, 'export') + btn('Clear decisions', false, 'clear') : '')
     // the window as this browser sees it (CSS px and the pixel ratio): the screens the review captures are taken at
     + `<span class="sep"></span><span data-vp>${viewportText()}</span>`
     + `<span class="names">${review ? (review.pages[page] || []).map((e, i) => `${i + 1}. ${review.allNames[page]?.[i] || e.charId}`).join(' · ') : 'loading…'}</span>`;
@@ -198,18 +296,26 @@ function renderBar(target) {
     if (!a) return;
     if (a.startsWith('s:')) go({ screen: a.slice(2), page: 1 });
     else if (a.startsWith('d:')) go({ device: a.slice(2) });
-    else if (a === 'prev') go({ page: Math.max(1, page) });
-    else if (a === 'next') go({ page: Math.min(total, page + 2) });
+    else if (a === 'prev' || a === 'next') {
+      const n = a === 'prev' ? page - 1 : page + 1;
+      // the phone's frame turns its own page; the bar follows it
+      if (target) { target.__review?.goPage?.(n); review = target.__review?.state?.() || review; renderBar(target); } else goPage(n);
+    }
     else if (a === 'slow') go({ slow: SLOW ? null : 1 });
     else if (a === 'tier') go({ tier: TIER === 'half' ? null : 'half' });
-    else call(a)();
+    else if (a === 'export') exportDecisions();
+    else if (a === 'clear') {
+      if (!confirm('Clear every zoom decision made on this page?')) return;
+      for (const k of Object.keys(decisions)) delete decisions[k];
+      saveDecisions(); replay++; draw(); renderBar(null); zoomToggles();
+    } else call(a)();
   };
 }
 addEventListener('keydown', (e) => {
   if (e.key === '`') bar?.classList.toggle('hidden');
   if (!review || FRAME) return;
-  if (e.key === 'ArrowLeft') go({ page: Math.max(1, review.page) });
-  if (e.key === 'ArrowRight') go({ page: Math.min(review.pages.length, review.page + 2) });
+  if (e.key === 'ArrowLeft') goPage(review.page - 1);
+  if (e.key === 'ArrowRight') goPage(review.page + 1);
 });
 
 async function boot() {
@@ -231,7 +337,10 @@ async function boot() {
     clock: { offset: 0, rtt: 20, synced: true } });
   // 动态立绘 on every card, the result cards' default art (the room card), not saved
   settingsStore.set({ dynIllust: P.has('off') ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
-  if (FR.size) setDynFraming((key) => FR.get(key) || FRAMING);
+  if (SCREEN !== 'result') {
+    TABLE = await fetch('/data/dyn-card-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).then((j) => j?.cards || {}).catch(() => ({}));
+    setDynFraming(decideFraming);
+  } else if (FR.size) setDynFraming((key) => FR.get(key) || FRAMING);
   else if (FRAMING) setDynFraming(FRAMING);
   if (TIER) setDynQuality(TIER);
   else if (FRAME) setDynQuality('half');
@@ -243,7 +352,12 @@ async function boot() {
   const stage = await installRenderer();
   const man = await assets.local();
   const g = man?.groups?.dynillust || {};
-  const entries = Object.entries(g).map(([key, e]) => ({ key, ...e })).sort((a, b) => (a.charId + a.skinId).localeCompare(b.charId + b.skinId));
+  // &stills=charId,charId@brand#n,…: those operators (E2 art, or that outfit) in place of the index — the still-only cards'
+  // full art framed on the face (the user's pick of 2026-11-23)
+  const STILLS = (P.get('stills') || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const entries = STILLS.length
+    ? STILLS.map((s) => ({ key: s, charId: s.split('@')[0], skinId: s.includes('@') ? s : `${s}#2` }))
+    : Object.entries(g).map(([key, e]) => ({ key, ...e })).sort((a, b) => (a.charId + a.skinId).localeCompare(b.charId + b.skinId));
   const pages = [];
   for (let i = 0; i < entries.length; i += PER) pages.push(entries.slice(i, i + PER));
   const page = Math.max(0, Math.min(pages.length - 1, (Number(P.get('page')) || 1) - 1));
@@ -251,5 +365,6 @@ async function boot() {
   review = { pages, page, stage, allNames, names: allNames[page] || [] };
   draw();
   renderBar(null);
+  zoomToggles();
 }
 boot().catch((err) => console.error('[review] boot failed', err));

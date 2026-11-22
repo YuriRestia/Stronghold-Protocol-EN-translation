@@ -76,10 +76,10 @@ import { hasScriptConsent, rememberScriptConsent, pageVersion } from '../content
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } from '../store.js';
 import { data, useData, getConfig } from '../data.js';
-import { chessAvatarUrl, chessPortraitUrl } from '../ui/assetUrls.js';
+import { chessAvatarUrl, chessPortraitUrl, chessFullArtUrl } from '../ui/assetUrls.js';
 import { CARD_KEY, cardStore, setCard, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc, botCharId } from '../ui/seatArt.js';
 import { outfitOptsOf } from '../ui/outfits.js';
-import { IllustArt, cardArtOf, cardAnimates, useDynIllustMode } from '../ui/dynCards.js';
+import { IllustArt, CardArt, cardArtOf, cardAnimates, useDynIllustMode } from '../ui/dynCards.js';
 import { useAvatarArt } from '../ui/avatars.js';
 import { AvatarPicker, useAvatarPickerReady } from '../ui/avatarPicker.js';
 import { skinsStore, SKINS_KEY, ownerSkin } from '../ui/skins.js';
@@ -299,9 +299,13 @@ function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
  * (`onPickCard`); the host gets 移出 / 移除 AI 队友 at the top right. An empty seat: 邀请 (copies the key) and, for the
  * host of a co-op room, 添加 AI 队友. `portrait` is the outfit's picture, `portraitDefault` the operator's default one
  * (given when an outfit is worn): a picture that fails to load gives way to the next, the last to the avatar frame.
+ * (fork) `fullArt` / `fullArtDefault`: on a co-op room's wide card, the outfit's (else the operator's) official full art
+ * in place of the portrait — the default's once the outfit's picture gave way —, placed where the card's illustration
+ * draws, or framed on the face (dynCards.js CardArt, the user's pick of 2026-11-23); the portrait when it has no
+ * placement or fails to load.
  */
 function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, portrait = null, portraitDefault = null, botAvatar = null, operator = null, onPickCard = null, onPickAvatar = null, fresh = false,
-  onMoveSquad = null, mySquad = null, moveWait = 0, swapFrom = null, onSwap = null, bubble = null, chatOn = false, muted = false, illust = null }) {
+  onMoveSquad = null, mySquad = null, moveWait = 0, swapFrom = null, onSwap = null, bubble = null, chatOn = false, muted = false, illust = null, fullArt = null, fullArtDefault = null }) {
   const [badArt, setBadArt] = useState([]);
   // (fork) the profile icon (ui/avatars.js): the name plate's frame, and the card's frame without portrait art
   const iconSrc = useAvatarArt(seat, !!seat && seat.playerId === myId);
@@ -350,13 +354,15 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
   const state = offline ? 'offline' : seat.ready || seat.isBot ? 'ready' : isHostSeat ? 'host' : 'waiting';
   const lit = state === 'ready' || state === 'host';
   const art = seat.isBot ? null : seatArtSrc([portrait, portraitDefault], badArt);
-  const canPick = isMe && !seat.isBot && !!onPickCard;
+  const portraitImg = art ? html`<img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />` : null;  const canPick = isMe && !seat.isBot && !!onPickCard;
   // an AI teammate's name without its 「AI·」 prefix on a phone (room.css; botNameParts)
   const botPrefix = botNameParts(seat);
   // (fork) a co-op room's wide card (the user's layout I of 2026-11-22, the 4-seat room like it the same day): nothing over
   // the art — the ready state, the AI tag and the buttons sit in the name plate, the host's 创建者 is a crown on the card's
   // top edge, one's own card a ring (room.css .rs-seats--wide); the solo room keeps its tall card beside the briefing
   const wide = coop;
+  // the wide card's full art follows the portrait: the outfit's while its picture shows, the default's once it gave way
+  const fullSrc = wide && art ? (art === portrait ? fullArt : fullArtDefault) : null;
   const botTag = seat.isBot ? html`<span class="rseat__bot"><${Icon} name="robot" />${t('AI 队友')}</span>` : null;
   const pickBtn = canPick ? html`<button type="button" class="rseat__pick" data-testid="seat-card-pick" onClick=${onPickCard}
     title=${t('更换名片干员')} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null;
@@ -381,7 +387,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
     <div class="seat__art rseat__art">
       ${art
         ? html`<${IllustArt} art=${illust?.art || null} animate=${!!illust?.animate} wait="settled" backdrop=${!wide} framing=${wide ? 'cover' : null} class="rseat__dyn">
-            <img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />
+            ${fullSrc ? html`<${CardArt} key=${fullSrc} src=${fullSrc} class="seat__portrait" fallback=${portraitImg} />` : portraitImg}
           </${IllustArt}>`
         : html`<${AvatarFrame} size="xl" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}
       <div class="rseat__top">
@@ -904,13 +910,16 @@ export function RoomScreen() {
         const outfit = op ? outfitOptsOf(op.chess.charId, s.playerId) : undefined;
         const art = op ? chessPortraitUrl(data.get('assets'), op.chess, { skin, ...outfit }) : null;
         const plain = op ? chessPortraitUrl(data.get('assets'), op.chess, { outfit: null }) : null;
+        // a co-op room's wide card shows the full art (SeatCard fullArt)
+        const full = coop && op ? chessFullArtUrl(data.get('assets'), op.chess, { skin, ...outfit }) : null;
+        const fullPlain = coop && op ? chessFullArtUrl(data.get('assets'), op.chess, { outfit: null }) : null;
         // (fork) the card's animated illustration (ui/dynCards.js; the result card's rules, D5): the room card's operator
         // in the seat's outfit, when 动态立绘 lets this card play it
         const dyn = op ? cardArtOf(op.chess, s.playerId) : null;
         return html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
           illust=${dyn ? { art: dyn, animate: cardAnimates(dynMode, s.playerId === me.playerId) } : null}
           myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
-          portrait=${art} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
+          portrait=${art} fullArt=${full} fullArtDefault=${fullPlain} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
           portraitDefault=${art && plain !== art ? plain : null} operator=${op?.chess} onPickCard=${() => setPicking(true)} onPickAvatar=${avatarReady ? () => setPickingAvatar(true) : null}
           fresh=${shownRoom.current === room.code} onMoveSquad=${moveSquad} mySquad=${mySquad} moveWait=${moveWait} swapFrom=${swapFrom} onSwap=${swap}
           bubble=${s ? bubbles.get(s.playerId) || null : null} chatOn=${chatOn} muted=${!!s && chatMuted(chatMute, s.playerId)} />`;

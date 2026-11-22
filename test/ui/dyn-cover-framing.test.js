@@ -7,7 +7,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { planFraming, pickFraming, framingTable, ZOOMS, BAND, TOP_MIN, FACE_MAX } from '../../tools/dyn-cover-framing.mjs';
+import { planFraming, pickFraming, framingTable, ZOOMS, BAND, TOP_MIN, FACE_MAX, PLAIN } from '../../tools/dyn-cover-framing.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -56,6 +56,12 @@ test('data/dyn-card-framing.json: generated, one sane entry per illustration of 
   // the same table the tool writes from a measurement
   assert.deepEqual(framingTable({ rows: [{ key: 'b', pick: { zoom: 1.1, fx: 0.51234, fy: -0.2 } }, { key: 'a', pick: null }] }).cards,
     { b: { zoom: 1.1, fx: 0.5123, fy: -0.2 } });
+  // the user's plain-framing list (2026-11-23, "no zooming needed"): zoom 1 whatever the measurement picked
+  // (its measured face framing kept as `face`, for the review page's Zoomed switch)
+  assert.deepEqual(framingTable({ rows: [{ key: PLAIN[0], pick: { zoom: 1.35, fx: 0.4, fy: 0.1 } }] }).cards,
+    { [PLAIN[0]]: { zoom: 1, fx: 0.5, fy: 0.5, face: { zoom: 1.35, fx: 0.4, fy: 0.1 } } });
+  for (const k of PLAIN) assert.ok(t.cards[k].zoom === 1 && t.cards[k].fx === 0.5 && t.cards[k].fy === 0.5, `${k} at the plain card framing`);
+  assert.equal(PLAIN.length, 23);
   // every illustration of the local index, when this checkout has one
   const local = path.join(ROOT, 'data/local-assets.json');
   const idx = existsSync(local) ? JSON.parse(readFileSync(local, 'utf8')).groups?.dynillust : null;

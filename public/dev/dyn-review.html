@@ -37,6 +37,16 @@
     .rvbar .sep { width: 1px; height: 18px; background: #2f3a35; margin: 0 4px; }
     .rvbar .names { flex-basis: 100%; color: #8fa39b; font-size: 11px; }
     .rvbar.hidden { display: none; }
+    /* the zoom / unzoomed switch above each wide card (the user, 2026-11-23) */
+    .rvzoom { position: fixed; inset: 0; z-index: 190; pointer-events: none; }
+    .rvz { position: absolute; display: flex; justify-content: flex-end; gap: 2px; pointer-events: none; padding: 6px; box-sizing: border-box; }
+    .rvz > * { pointer-events: auto; }
+    .rvz button { padding: 3px 10px; background: rgba(12, 16, 14, .92); border: 1px solid #2f3a35; color: #cfd8d4; font: 600 12px/1.2 sans-serif; cursor: pointer; }
+    .rvz button:hover { border-color: #4ed8af; }
+    .rvz button.on { background: #145443; border-color: #4ed8af; color: #fff; }
+    .rvz button:disabled { opacity: .45; cursor: default; }
+    .rvz i { align-self: center; font: 700 12px/1 sans-serif; color: #4ed8af; font-style: normal; margin-left: 4px; }
+    .rvbar.hidden ~ .rvzoom, .rvzoom.hidden { display: none; }
     .rvphone { position: fixed; inset: 0; display: grid; place-items: center; background: #050706; }
     .rvphone iframe { width: 812px; height: 375px; border: 1px solid #3e4b45; transform-origin: center; }
   </style>

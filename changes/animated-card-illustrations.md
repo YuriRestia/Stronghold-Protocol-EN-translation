@@ -10,6 +10,8 @@
 
 - In a Team Simulation room the four cards are now wide windows onto the operators' illustrations, two by two; in the Grand Alliance room each squad has a row of four wide cards under its name and its ready count.
 - Nothing covers the art any more: the ready state, the buttons and the seat number sit in the name plate under each card. Your own card has a mint ring around it, and the host's card a crown on its top edge.
+- Each card is framed on its operator's face, zoomed in where the scene would leave the card's edges bare, so no head is cut off.
+- Until its animation starts, and for operators without one, a card shows the operator's official full art in place of the small portrait: exactly where the animation will draw, or framed on the face the same way.
 - Before: tall cards with the host tag, the operator's name and the ready state over the art.
 
 ### Result cards enter as in the official client
@@ -33,6 +35,7 @@ Server cost:
 | Bandwidth out / in, 300 players (game socket) | 0.00004 MB/s, 0.004 GB/day [unverified] (estimated: 75 rooms of 4, one match each per 2,700 s) | 0.00008 MB/s, 0.007 GB/day [unverified] (estimated: 38 rooms of 8) |
 | Art downloads from the origin, both servers (static files behind Cloudflare) | 0.010 MB/s, 0.9 GB/day [unverified] (estimated: each server's set refills once a day, 301 MB full + 148 MB half tier on the wire per server, from Dev 49's extraction report summ.cjs / wire.cjs) | cache rule broken, Grand Alliance at 300 players, 8 cards each match, all cold: about 2.8 MB/s, 238 GB/day [unverified] (estimated: 300 × 8 × 3.1 MB on the wire ÷ 2,700 s) |
 | Art a player downloads | 3.1 MB per illustration on a PC, 1.5 MB on a phone (half pages) [unverified] (Dev 49's report: wire sizes, arithmetic) | 8 illustrations on a screen: 24.8 MB on a PC [unverified] (arithmetic) |
+| Full art on the wide room cards (static files behind Cloudflare, in place of the portrait) | +73 KB per card the first time a player sees it: 194,160 B average full art against about 121,000 B for a portrait [src: du -cb public/assets/outfit/art (538 files), outfit/portrait (307), char/portrait (452)]; a 4-seat room +0.29 MB, a Grand Alliance room +0.58 MB cold [unverified] (arithmetic); 300 players seeing 8 new cards a day: 0.18 GB/day [unverified] (estimated) | cache rule broken, every Grand Alliance card from the origin each match: 0.17 MB/s, 15 GB/day [unverified] (estimated: 300 × 8 × 194 KB ÷ 2,700 s) |
 | Server CPU | 0 % [unverified] (one lineup sort per player at the match's end, results.js endingView) | 0 % [unverified] |
 | Memory | 0 MB [unverified] (the `ending` object until the match closes) | 0 MB [unverified] |
 | Disk | 0 MB/day [src: server/match/results.js endingView writes nothing]; the art itself is 591.6 MB per server, both tiers [src: Dev 49's extraction report, summ.cjs over the 98 illust.json files] | 0 MB/day |
@@ -40,6 +43,7 @@ Server cost:
 
 - Cap: `ending` is sent once per match (results.js endingView, one entry per player, at most 8 [src: shared/largeRoom.js LARGE_ROOM_SEATS]); the art is content-hashed and immutable, so each file downloads once per player until it changes, and a screen holds at most 8 illustrations [src: crew-docs/l2d-art-proposal.md §6].
 - The art sizes are Dev 49's measured extraction (98 illustrations); the per-day figures are arithmetic on them.
+- The full arts are the files the outfit picker already shows (nothing new on the server); the wide cards' placements are two small generated tables (`data/dyn-card-framing.json`, `data/card-art-framing.json`), fetched once per page.
 - The card entrance adds 11 small UI sprites from the public mirror, about 51 KB together [src: public/assets/ui/settleCard 15,676 B for 8 + card_bg 13,805 B + ui/uiFxMask 21,843 B for 2, wc -c / ls -l], downloaded once per player like the other art.
 
 Operator notes:

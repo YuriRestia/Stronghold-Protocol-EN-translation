@@ -285,6 +285,10 @@ test('a co-op room\'s wide card (the user\'s layout I, 2026-11-22): nothing over
   assert.match(roomJs, /\$\{wide \? null : seatBtns\}/);
   // the wide card's framing per illustration (data/dyn-card-framing.json, the face-aware zoom)
   assert.match(roomJs, /wait="settled" backdrop=\$\{!wide\} framing=\$\{wide \? 'cover' : null\} class="rseat__dyn"/);
+  // its 2D art: the full art where the illustration draws (CardArt, data/card-art-framing.json), the portrait as fallback;
+  // the default's full art once the outfit's picture gave way
+  assert.match(roomJs, /const fullSrc = wide && art \? \(art === portrait \? fullArt : fullArtDefault\) : null;/);
+  assert.match(roomJs, /\$\{fullSrc \? html`<\$\{CardArt\} key=\$\{fullSrc\} src=\$\{fullSrc\} class="seat__portrait" fallback=\$\{portraitImg\} \/>` : portraitImg\}/);
   // a squad's heading line: name, rule, its doctors' ready count
   assert.match(roomJs, /<header class="rs-squad__head">[\s\S]*?<i class="rs-squad__rule" aria-hidden="true"><\/i>[\s\S]*?rs-squad__ready/);
   // the card's shape and size: the art at --rs-ar, its width from the seat area (a size container)

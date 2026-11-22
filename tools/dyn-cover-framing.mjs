@@ -46,10 +46,30 @@ export function pickFraming(tries) {
   const ok = Object.values(tries).filter((t) => t.top == null || t.top >= TOP_MIN);
   return ok.find((t) => t.uncovered <= GOAL) || ok.sort((a, b) => a.uncovered - b.uncovered || a.zoom - b.zoom)[0] || null;
 }
-/** The table written to data/dyn-card-framing.json from a measurement. */
+/**
+ * The illustrations the user keeps at the plain card framing, no zoom (the user, 2026-11-23: "These operators outfit
+ * looks fine by default, no zooming needed": Nian E2, Surtr summer, Rosmontis Become Anew and An Airy Dream, Skadi alter
+ * E2, Ch'en alter's two outfits, Pramanix alter's outfit, Kal'tsit alter E2, Mon3tr, Haruka, Talulah E2, Mizuki,
+ * Tragodia, Hoshiguma alter's outfit and E2, Ling E2, Chongyue's two outfits, Pepe E2, Młynar W Dali, Lin's two outfits).
+ */
+export const PLAIN = Object.freeze([
+  'char_2014_nian_2', 'char_350_surtr_summer#9', 'char_391_rosmon_epoque#17', 'char_391_rosmon_sale#16', 'char_1012_skadi2_2',
+  'char_1013_chen2_boc#6', 'char_1013_chen2_summer#20', 'char_1046_sbell2_ambiencesynesthesia#8', 'char_1052_kalts2_2',
+  'char_4179_monstr_boc#11', 'char_4202_haruka_iteration#6', 'char_4247_oxi_2', 'char_437_mizuki_sale#7',
+  'char_1042_phatm2_sightseer#4', 'char_1044_hsgma2_whirlwind#11', 'char_1044_hsgma2_2', 'char_2023_ling_2',
+  'char_2024_chyue_cfa#1', 'char_2024_chyue_nian#10', 'char_4058_pepe_2', 'char_4064_mlynar_epoque#28',
+  'char_4080_lin_nian#10', 'char_4080_lin_summer#19',
+]);
+/** The table written to data/dyn-card-framing.json from a measurement; PLAIN keys at zoom 1 (the plain card framing). */
 export function framingTable(measure) {
   const cards = {};
+  const plain = new Set(PLAIN);
   for (const r of [...measure.rows].sort((a, b) => a.key.localeCompare(b.key))) {
+    // kept plain; the measured face framing stays as `face` (the review page's Zoomed switch)
+    if (plain.has(r.key)) {
+      cards[r.key] = { zoom: 1, fx: 0.5, fy: 0.5, ...(r.pick ? { face: { zoom: r.pick.zoom, fx: +r.pick.fx.toFixed(4), fy: +r.pick.fy.toFixed(4) } } : {}) };
+      continue;
+    }
     if (!r.pick) continue;
     cards[r.key] = { zoom: r.pick.zoom, fx: +r.pick.fx.toFixed(4), fy: +r.pick.fy.toFixed(4) };
   }
