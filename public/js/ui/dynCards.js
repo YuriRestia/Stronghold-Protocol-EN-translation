@@ -532,12 +532,12 @@ export function endResultLoad() {
 // play once, with no second shot") ------------------------------------------------------------------------------------
 
 /**
- * How long after the server's `ending` the result cards may wait for their illustrations, all waits included (the
- * settlement pause, the result screen's hold, the cards' first frames): one budget, never a second wait on top.
+ * How long after the server's `ending` the result cards may wait for their illustrations to load (the settlement pause,
+ * then the black cover): a card still loading then keeps its 2D art (resultKeyReady). Also the result pages' gate guard
+ * on their loaded cards' first frames (makeEntranceGate), counted from the page's mount: those get live in well under a
+ * second (0.23–0.25 s measured [src: work/dev-55 rw-1440.json / rw-4k.json]), so it only ends a renderer that never answers.
  */
 export const RESULT_GIVE_UP_MS = 8000; // [ASSUMED: proposed on a measured basis (work/dev-55 rw-*.json), user OK 2026-11-23: "alright, 8s and 160mb"]
-/** The least a team page that mounts late (its tab opened afterwards) still gives its cards' first frames (ms). */
-export const RESULT_MOUNT_MIN_MS = 2000; // [ASSUMED: proposed to the user 2026-11-23, not yet OK'd — measured basis in the report]
 
 /**
  * One result page's gate: its animating cards join (IllustArt `gate`), each settles when its illustration is live or
@@ -545,9 +545,9 @@ export const RESULT_MOUNT_MIN_MS = 2000; // [ASSUMED: proposed to the user 2026-
  * the entrance plays once). `joined()` once the page's cards have joined; `open()` once the page shows (it implies
  * joined): `ready` resolves when it is open and every card has settled. A page mounted hidden ahead of its turn (the team
  * page behind a seat's intro and own page, screens/settle.js) gets its cards live while hidden and plays its entrance the
- * moment it shows. `now` / `endingAt` for tests.
+ * moment it shows.
  */
-export function makeEntranceGate({ now = Date.now(), endingAt = resultLoad?.startedAt || 0 } = {}) {
+export function makeEntranceGate() {
   const pending = new Map(); // token → abandon
   let done = false, joined = false, opened = false, settled = false, gaveUp = 0, resolve;
   const ready = new Promise((r) => { resolve = r; });
@@ -579,7 +579,9 @@ export function makeEntranceGate({ now = Date.now(), endingAt = resultLoad?.star
     joined = true;
     check();
   };
-  const budget = Math.max(RESULT_MOUNT_MIN_MS, (endingAt > 0 ? endingAt + RESULT_GIVE_UP_MS : now + RESULT_GIVE_UP_MS) - now);
+  // every result page mounts with the result screen (a seat's 同盟 hidden), at the load's give-up at the latest: a card
+  // still loading by then has kept its 2D art already (resultKeyReady); this only guards the loaded ones' first frames
+  const budget = RESULT_GIVE_UP_MS;
   const timer = setTimeout(giveUp, budget);
   return {
     ready,

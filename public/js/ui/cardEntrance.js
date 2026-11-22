@@ -436,7 +436,7 @@ let bloomMask = null;
 const WHITE = [1, 1, 1], TEAL = [0.15, 0.8, 0.75];
 /** The game's mint accent `#4ed8af` [src: docs/design/client.md §10 Look & feel]. */
 const MINT = [0x4e / 255, 0xd8 / 255, 0xaf / 255];
-export const GLOW_STYLES = Object.freeze({ // [ASSUMED: proposals for the user's pick of 2026-11-23, not yet chosen]
+export const GLOW_STYLES = Object.freeze({ // [ASSUMED: 0–4 the proposals; 5 the user's pick of 2026-11-23 ("good enough for now"), its widths, dim and wash not yet OK'd as numbers]
   0: { glow: { a: 0.8, color: WHITE }, fadeS: 0.5, bands: [{ lo: -0.2, hi: 0.2, soft: 0.2, color: WHITE, a: 1 }] },
   1: { glow: null, fadeS: 0.25, bands: [
     { lo: -0.3, hi: 0, soft: 0.17, color: [0.35, 0.85, 0.8], a: 0.45 },
