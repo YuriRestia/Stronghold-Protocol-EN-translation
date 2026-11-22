@@ -238,6 +238,17 @@ describe('state.js (UICharacterDynIllust)', () => {
     step(0);
     assert.equal(b.r.inst.playingAction, ACTION.SPECIAL_IDLE);
   });
+  test('four cards firing together: none starts its special idle more than two frames late', () => {
+    let frame = 0, taken = -1;
+    const turn = () => { if (taken === frame) return false; taken = frame; return true; };
+    const cs = Array.from({ length: 4 }, () => { const r = rig({ Idle: 4, Special: 3 }); const st = new CardIllustState({ rng: () => 0, mayStartSpecial: turn }); r.inst.enable(); st.activate(); return { r, st, at: -1 }; });
+    const step = (dt) => { frame++; for (const c of cs) { c.st.tick(c.r.inst); c.r.advance(dt); if (c.at < 0 && c.r.inst.playingAction === ACTION.SPECIAL_IDLE) c.at = frame; } };
+    step(0);
+    for (let k = 0; k < 30; k++) step(0.1);                // 3 s: every INIT target reached
+    const fired = frame + 1;
+    for (let k = 0; k < 4; k++) step(0);
+    assert.deepEqual(cs.map((c) => c.at - fired), [0, 1, 2, 2], 'one a frame, then the rest at the two-frame limit');
+  });
   test('an instance already deep in Idle shifts the INIT range', () => {
     const r = rig({ Idle: 40, Special: 3 });
     r.inst.enable();

@@ -30,6 +30,8 @@ export const ACTION = Object.freeze({ NONE: -1, IDLE: 0, SPECIAL_IDLE: 1, START:
 export const STATE = Object.freeze({ DEACTIVATED: 0, JUST_ACTIVATED: 1, IDLE: 2, INTERACTION: 3, START: 4 });
 /** SP_IDLE_TIME [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x14950FA (3, 9), 0x1495135 (10, 24)]. */
 export const SP_IDLE_TIME = Object.freeze({ INIT: Object.freeze([3, 9]), RESUME: Object.freeze([10, 24]) });
+/** (fork) Ticks a fired special idle waits at most for its turn (CardIllustState mayStartSpecial): two frames. */
+export const SPECIAL_WAIT_MAX = 2;
 
 /** UnityEngine.Random.Range(int min, int max): an integer in [min, max) (min when the range is empty). */
 export function rangeInt(min, max, rng = Math.random) {
@@ -59,16 +61,17 @@ export class CardIllustState {
    * @param {{ rng?: () => number, autoIdleSpecialDisable?: boolean, onAction?: (a: number) => void, mayStartSpecial?: () => boolean }} [o]
    * `onAction(action)`: told when the card itself starts an action (review pages log it).
    * `mayStartSpecial()`: false when another card of the page started its special idle this frame (renderer.js
-   * Stage._specialTurn); the timer stays fired and the special idle starts at the next tick. The official timer draws
-   * whole seconds (rangeInt), so cards that appeared together often fire in the same frame, and each start (Spine's
-   * mix, the action particles switched on) is one card's heaviest frame: spread, they cost a frame each (not an
-   * official rule: a shift of a frame or two per card that fired at once).
+   * Stage._specialTurn); the timer stays fired and the special idle starts at the next tick, at most SPECIAL_WAIT_MAX
+   * ticks late. The official timer draws whole seconds (rangeInt), so cards that appeared together often fire in the
+   * same frame, and each start (Spine's mix, the action particles switched on) is one card's heaviest frame: spread,
+   * they cost a frame each (not an official rule: a shift of at most two frames, about 33 ms at 60 Hz).
    */
   constructor(o = {}) {
     this.rng = o.rng || Math.random;
     this.autoIdleSpecialDisable = !!o.autoIdleSpecialDisable;
     this.onAction = o.onAction || null;
     this.mayStartSpecial = typeof o.mayStartSpecial === 'function' ? o.mayStartSpecial : () => true;
+    this.specialWait = 0;   // ticks the fired special idle has waited for its turn (mayStartSpecial)
     this.state = STATE.DEACTIVATED;
     this.timer = { has: false, min: 0, max: 0, target: 0 };
   }
@@ -103,7 +106,9 @@ export class CardIllustState {
     }
     if (s === STATE.IDLE) {
       if (this.autoIdleSpecialDisable || a !== ACTION.IDLE) return;
-      if (!this.timerFires(inst.playingTime) || !this.mayStartSpecial()) return;
+      if (!this.timerFires(inst.playingTime)) return;
+      if (this.specialWait < SPECIAL_WAIT_MAX && !this.mayStartSpecial()) { this.specialWait++; return; }
+      this.specialWait = 0;
       inst.changeAction(ACTION.SPECIAL_IDLE, 1);
       if (this.onAction) this.onAction(ACTION.SPECIAL_IDLE);
       this.resetTimer('RESUME', inst);
