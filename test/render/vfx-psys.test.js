@@ -41,6 +41,33 @@ describe('emission', () => {
     assert.equal(ps.emitting, false);
   });
 
+  test('a particle starts when it was due: a full one-particle system is replaced in the step it dies (no gap)', () => {
+    // Nightingale's Iakhu of Flows ring balls: max 1, life 2 s, rate 2 / s, simulation speed 0.1, prewarmed
+    // [src: official fx.json char_179_cgbird_sightseer#1 node 21 'ball_01 (4)']; uneven frames as a Worker draws them.
+    // An evenly spread birth (age 0 at the step's end) left the ball's successor refused while it still lived, and the
+    // ball gone for 0.5 / 0.1 = 5 s; the engine dates each new particle by the accumulator (psys.js _emitSpan).
+    const ps = new PSys(compileSystem(sys({ top: { looping: true, prewarm: true, simulationSpeed: 0.1 },
+      I: { startLifetime: 2, maxNumParticles: 1 }, E: { rateOverTime: 2 } })), {});
+    ps.play(ID);
+    let s = 12345, t = 0, empty = 0;
+    while (t < 60) {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      const dt = 1 / 144 + (s / 4294967296) * (1 / 50 - 1 / 144);
+      ps.update(dt, ID); t += dt;
+      if (ps.count === 0) empty += dt;
+    }
+    assert.equal(empty, 0, `the ball was gone for ${empty.toFixed(2)} s of 60`);
+  });
+
+  test('rate over time: the newest particle is acc / toEmit of the step old, the next one 1 / toEmit older', () => {
+    const ps = new PSys(compileSystem(sys({ top: { looping: true }, I: { startLifetime: 10 }, E: { rateOverTime: 25 } })), {});
+    ps.play(ID);
+    ps.update(0.1, ID);   // toEmit 2.5: two particles, acc 0.5 left
+    assert.equal(ps.count, 2);
+    const ages = [...ps.age.subarray(0, 2)].sort((a, b) => a - b);
+    assert.ok(Math.abs(ages[0] - 0.02) < 1e-6 && Math.abs(ages[1] - 0.06) < 1e-6, `ages ${ages}`);
+  });
+
   test('a looping system keeps emitting; stopEmitting lets the particles finish', () => {
     const ps = new PSys(compileSystem(sys({ top: { looping: true }, E: { rateOverTime: 10 } })), {});
     ps.play(ID);
