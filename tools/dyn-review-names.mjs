@@ -8,6 +8,8 @@
 //   an outfit the EN client does not have yet (CN only): its brand's EN name (skin_table brandList[brand].brandName, the
 //           brand being the skinId's tag, `@<brand>#<n>`) and its number, 'CN only' — e.g. 'EPOQUE #57' — or the tag
 //           itself when the EN data has no such brand.
+//   an operator the EN client does not have yet: the CN data's English name (.cache/gamedata/excel/character_table.json
+//           [charId].appellation, e.g. 'Angelina the Mellow Wish'), 'CN only'.
 // usage: node tools/dyn-review-names.mjs [<local-assets.json with the dynillust group>] (default data/local-assets.json)
 
 import fs from 'node:fs';
@@ -21,6 +23,8 @@ const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
 const group = read(manifest).groups?.dynillust;
 if (!group || typeof group !== 'object') { console.error(`no dynillust group in ${manifest}`); process.exit(1); }
 const chars = read(path.join(EN, 'character_table.json'));
+// an operator the EN client does not have yet: the CN data's own English name (character_table appellation), 'CN only'
+const cnChars = read(path.join(ROOT, '.cache/gamedata/excel/character_table.json'));
 const skins = read(path.join(EN, 'skin_table.json'));
 const brands = skins.brandList || {};
 const brandName = (tag) => {
@@ -32,9 +36,10 @@ const out = {};
 let cnOnly = 0;
 for (const e of Object.values(group)) {
   if (!e || typeof e.skinId !== 'string' || typeof e.charId !== 'string') continue;
-  const op = chars[e.charId]?.name || e.charId;
-  let outfit;
   let cn = false;
+  let op = chars[e.charId]?.name;
+  if (!op) { op = `${cnChars[e.charId]?.appellation || e.charId} (CN only)`; cn = true; cnOnly++; }
+  let outfit;
   if (e.skinId === `${e.charId}#2`) outfit = 'Elite 2 art';
   else {
     const name = skins.charSkins?.[e.skinId]?.displaySkin?.skinName;
@@ -42,7 +47,7 @@ for (const e of Object.values(group)) {
     else {
       const m = e.skinId.match(/@([^#]+)#(\d+)$/);
       outfit = m ? `${brandName(m[1])} #${m[2]}` : e.skinId;
-      cn = true; cnOnly++;
+      if (!cn) { cn = true; cnOnly++; }
     }
   }
   out[e.skinId] = { op, outfit, ...(cn ? { cnOnly: true } : {}) };

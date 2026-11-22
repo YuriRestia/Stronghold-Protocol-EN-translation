@@ -40,8 +40,9 @@
   "outfit": "Elite 2 art"
  },
  "char_1015_aglna2#2": {
-  "op": "char_1015_aglna2",
-  "outfit": "Elite 2 art"
+  "op": "Angelina the Mellow Wish (CN only)",
+  "outfit": "Elite 2 art",
+  "cnOnly": true
  },
  "char_1016_agoat2@epoque#34": {
   "op": "Eyjafjalla the Hvít Aska",
@@ -389,8 +390,9 @@
   "outfit": "Stranded in Utopia"
  },
  "char_4247_oxi#2": {
-  "op": "char_4247_oxi",
-  "outfit": "Elite 2 art"
+  "op": "Talulah (CN only)",
+  "outfit": "Elite 2 art",
+  "cnOnly": true
  },
  "char_437_mizuki@sale#7": {
   "op": "Mizuki",
