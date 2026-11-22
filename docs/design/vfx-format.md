@@ -2037,7 +2037,13 @@ DynIllustActNames]; which ones a skeleton has is read from the skeleton itself.
 | `root: { node, pos: [x, y, z], rot: [x, y, z, w], scale: [x, y, z] }` | Unity units | the skeleton node's local transform (node 0 in every illustration; Lappland the Decadenza's E2 art (−0.18, −4, 5)) |
 
 The card formula (crew-docs `l2d-art-proposal.md` §4.1) reads `cameraSize`, `adjust.DEFAULT`, `root.pos` and
-`spine.scale`. The card uses `DEFAULT`: every view the manager creates calls `ApplyAdjust(DEFAULT)`, and the card never
+`spine.scale`. The adjust values are as stored; an offset or size equal to `DynIllustAdjust.DisabledValue`
+(−3.40282e38 on both components) is not applied, and the view keeps what `_CreateIllustView` gave it: offset (0, 0),
+size 2048 × 2048 (`char_1014_nearl2_epoque#17` has every adjust disabled) [src: official GameAssembly.dll
+DynIllustView.ApplyAdjust 0x144D35F–0x144D3C8 (anchoredPosition = offset, sizeDelta = size, each skipped when
+disabled); DynIllustMgr._CreateIllustView 0x144629C–0x14462D2 (SetParent(parent, false), sizeDelta 2048 × 2048)].
+The official card: `group_char` 232 × 458 with a RectMask2D, the holder `root` at (0, −39) from its centre, scale
+0.73 [src: official [uc]autochessouter.ab auto_chess_settle_game_player_item]. The card uses `DEFAULT`: every view the manager creates calls `ApplyAdjust(DEFAULT)`, and the card never
 calls `ApplySkinOffset` (O3) [src: official GameAssembly.dll DynIllustMgr._CreateIllustView 0x14463BF;
 AutoChessSettleGameTeamPlayerCardView._RenderIllust 0x28E17E9; notes dev50-l2d-o1-o3-findings.md].
 
