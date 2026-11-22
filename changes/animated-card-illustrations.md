@@ -25,14 +25,15 @@ Server cost:
 | Bandwidth out / in, per player (game socket) | 404 B / 0 per match end: m.public `ending` (202 B in a 4-player match, 51 B a player) rides 2 m.public frames [src: work/dev-52/ending-size.mjs, 4-player harness match] | 8-player room: about 840 B per match end [unverified] (estimated: 2 × 8 × 51 B) |
 | Bandwidth out / in, per room | 4 players: 1.6 KB per match end [src: work/dev-52/ending-size.mjs: 2 frames × 202 B × 4] | 8 players: 6.7 KB per match end [unverified] (estimated) |
 | Bandwidth out / in, 300 players (game socket) | 0.00004 MB/s, 0.004 GB/day [unverified] (estimated: 75 rooms of 4, one match each per 2,700 s) | 0.00008 MB/s, 0.007 GB/day [unverified] (estimated: 38 rooms of 8) |
-| Art downloads from the origin, both servers (static files behind Cloudflare) | 0.008 MB/s, 0.7 GB/day [src: crew-docs/l2d-art-proposal.md §6] (estimated: the set refills once a day per server) | cache rule broken, Grand Alliance at 300 players, 8 largest every match: about 7 MB/s, 600 GB/day [src: crew-docs/l2d-art-proposal.md §6] (estimated) |
+| Art downloads from the origin, both servers (static files behind Cloudflare) | 0.010 MB/s, 0.9 GB/day [unverified] (estimated: each server's set refills once a day, 301 MB full + 148 MB half tier on the wire per server, from Dev 49's extraction report summ.cjs / wire.cjs) | cache rule broken, Grand Alliance at 300 players, 8 cards each match, all cold: about 2.8 MB/s, 238 GB/day [unverified] (estimated: 300 × 8 × 3.1 MB on the wire ÷ 2,700 s) |
+| Art a player downloads | 3.1 MB per illustration on a PC, 1.5 MB on a phone (half pages) [unverified] (Dev 49's report: wire sizes, arithmetic) | 8 illustrations on a screen: 24.8 MB on a PC [unverified] (arithmetic) |
 | Server CPU | 0 % [unverified] (one lineup sort per player at the match's end, results.js endingView) | 0 % [unverified] |
 | Memory | 0 MB [unverified] (the `ending` object until the match closes) | 0 MB [unverified] |
-| Disk | 0 MB/day [src: server/match/results.js endingView writes nothing]; the art itself is about 345 MB per server [src: crew-docs/l2d-art-proposal.md §6] (estimated) | 0 MB/day |
+| Disk | 0 MB/day [src: server/match/results.js endingView writes nothing]; the art itself is 591.6 MB per server, both tiers [src: Dev 49's extraction report, summ.cjs over the 98 illust.json files] | 0 MB/day |
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
 - Cap: `ending` is sent once per match (results.js endingView, one entry per player, at most 8 [src: shared/largeRoom.js LARGE_ROOM_SEATS]); the art is content-hashed and immutable, so each file downloads once per player until it changes, and a screen holds at most 8 illustrations [src: crew-docs/l2d-art-proposal.md §6].
-- The art numbers are the spec's estimates; measured with the review pages before merge.
+- The art sizes are Dev 49's measured extraction (98 illustrations); the per-day figures are arithmetic on them.
 - The card entrance adds 10 small UI sprites from the public mirror, about 37 KB together [src: public/assets/ui/settleCard 15,676 B for 8 + ui/uiFxMask 21,843 B for 2, wc -c], downloaded once per player like the other art.
 
 Operator notes:

@@ -133,7 +133,26 @@ function act(what) {
   st._kick?.();
   return n;
 }
-globalThis.__review = { special: () => act('special'), start: () => act('start'), replay: () => { replay++; draw(); }, state: () => review };
+/**
+ * The §7 gates' probe: the page's frame intervals over `secs` (requestAnimationFrame): fps, median and p95 ms, the frames
+ * over the 60 fps budget (16.7 ms), the longest; and the renderer's own stats.
+ */
+function measure(secs = 5) {
+  return new Promise((res) => {
+    const d = []; let last = performance.now(); const end = last + secs * 1000;
+    const f = (t) => {
+      d.push(t - last); last = t;
+      if (t < end) { requestAnimationFrame(f); return; }
+      const s = d.slice(1).sort((a, b) => a - b);
+      const q = (p) => +s[Math.min(s.length - 1, Math.floor(p * s.length))].toFixed(2);
+      res({ frames: s.length, fps: +(1000 / (s.reduce((a, b) => a + b, 0) / s.length)).toFixed(1), median: q(0.5), p95: q(0.95),
+        over: s.filter((x) => x > 1000 / 60 + 1).length, max: +s[s.length - 1].toFixed(2), stats: review?.stage?.stats?.() || null,
+        live: [...document.querySelectorAll('.dyn-art')].filter((x) => x.dataset.dyn === 'live').length });
+    };
+    requestAnimationFrame(f);
+  });
+}
+globalThis.__review = { special: () => act('special'), start: () => act('start'), replay: () => { replay++; draw(); }, state: () => review, measure };
 
 function renderBar(target) {
   if (SHOT || !bar) return;
