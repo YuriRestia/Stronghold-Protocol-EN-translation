@@ -60,6 +60,14 @@ export async function loadIllust(illustUrl, o = {}) {
     pages.set(pg.name, await pageTexture(P, fetchFn, fileUrl(dir, entry, rel), !!(o.half && pg.half)));
   }));
   const atlasText = await okFetch(fetchFn, fileUrl(dir, entry, sp.atlas), 'text');
+  // pixi-spine divides every region's atlas coordinates by its page's `resolution` (atlas pixels = the texture's real
+  // pixels) [src: public/vendor/pixi-spine.js TextureAtlas region parse: `g = baseTexture.resolution; s.x /= g, …`];
+  // our atlas keeps the full-size coordinates, which a half page's logical size (resolution 0.5) already matches, so
+  // it parses with 1 (the logical size kept), then the page gets its 0.5 back. Without it every half frame lands twice
+  // as far and no half card draws.
+  const halfPages = [...pages.values()].filter((t) => t.resolution !== 1);
+  for (const t of halfPages) t._dynRes = t.resolution, t.resolution = 1;
+  const restore = () => { for (const t of halfPages) { t.resolution = t._dynRes; delete t._dynRes; } };
   const atlas = await new Promise((resolve, reject) => {
     const a = new P.spine.TextureAtlas(atlasText, (name, cb) => {
       const t = pages.get(name);
@@ -67,8 +75,20 @@ export async function loadIllust(illustUrl, o = {}) {
       cb(t);
     }, (done) => (done ? resolve(done) : reject(new Error('dynillust atlas failed'))));
     if (a && a.pages && a.pages.length && a.pages.every((p) => p.baseTexture)) resolve(a);
-  });
-  const res = await P.Assets.load({ src: fileUrl(dir, entry, sp.skeleton), data: { spineAtlas: atlas } });
+  }).finally(restore);
+  // Pixi's Assets keeps a parse under its URL, and a parse belongs to these page textures (release() destroys them; the
+  // other tier has its own): the half tier asks under its own URL (no second download unless a page switches tiers),
+  // and the entry is dropped once loaded, so the next prepare parses again from the browser's HTTP cache
+  const skelUrl = fileUrl(dir, entry, sp.skeleton) + (o.half ? '?tier=half' : '');
+  let res;
+  try { res = await P.Assets.load({ src: skelUrl, data: { spineAtlas: atlas } }); } finally {
+    try { P.Assets.cache.remove(skelUrl); } catch { /* not cached */ }
+    try {
+      // the loader keys its promises by the absolute URL
+      const pc = P.Assets.loader && P.Assets.loader.promiseCache;
+      if (pc) { delete pc[skelUrl]; if (globalThis.location) delete pc[new URL(skelUrl, globalThis.location.href).href]; }
+    } catch { /* no promise cache */ }
+  }
   const spineData = res && (res.spineData || res);
   if (!spineData || !spineData.animations) throw new Error('dynillust skeleton failed ' + sp.skeleton);
   // the effect layer: its files join the library's list, then the descriptor compiles against it
