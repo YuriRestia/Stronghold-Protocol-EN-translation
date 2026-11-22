@@ -11,9 +11,12 @@
 //   trigger to that state's clip, from now [src: DynIllust._ApplyAnimation 0x1431B6E–0x1431BDB: SetTrigger on every
 //   active Animator whose parameters hold a Trigger of that name]. The controller graph comes from the extraction.
 //   BoneFollowers place their node on the bone each frame: position = the skeleton transform's TransformPoint(bone
-//   world x, y, 0), rotation = the skeleton's rotation + the bone's world rotation (+180° for a negative local scale
-//   x with followLocalScale), scale = the bone's local scale with followLocalScale [unverified: spine-unity 3.8
-//   BoneFollower.LateUpdate as recalled; the client's copy is not disassembled yet].
+//   world x, y, 0), rotation = the skeleton's rotation + the bone's WorldRotationX (+180° for a negative local scale
+//   x with followLocalScale), local scale = the bone's local scaleX / scaleY with followLocalScale and without
+//   useAppliedLocalScale, else 1 [src: official GameAssembly.dll Spine.Unity.BoneFollower.DoLateUpdate 0x63675B8
+//   (TransformPoint), 0x63677B7–0x636790D (rotation), 0x6367A9A–0x6367B43 (scale); dump.cs BoneFollower fields]. Not
+//   modelled: the extra 180° turns and sign flips that only negative lossy scales of the skeleton or the follower's
+//   parent trigger (0x63677C8–0x6367803, 0x6367AEA–0x6367B25): no illustration root seen so far has one.
 //
 // The camera: orthographic along +z, centred on the illustration's origin. Our player sorts and sizes for a pinhole
 // camera, so it gets one far behind (CAM_DIST) whose field of view spans the orthographic height there: billboards face
