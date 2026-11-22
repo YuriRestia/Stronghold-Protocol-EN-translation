@@ -453,16 +453,21 @@ Workers, in every Worker's card-frame log too (`whenSmooth`, read every 250 ms w
 [ASSUMED: proposed, not yet OK'd]. Showing is the
 official card's dissolve (the user's pick of 2026-11-22): the illustration and its background appear at once behind the
 2D art, and the art box as it shows — its background, then the 2D art at its object-fit cover crop and filter, composed
-on a canvas while the cards wait — dissolves away over
-`DYN_ILLUST_INIT_SECONDS` 0.5 s (`FLIP_DISSOLVE_S`) through the result card's own `complete_up_bg_dissolve` material and
+on a canvas while the cards wait — dissolves away over `FLIP_SWEEP_S` 1 s, twice the official
+`DYN_ILLUST_INIT_SECONDS` 0.5 s (`FLIP_DISSOLVE_S`; the user, 2026-11-22: "make the border glow move slower"), its
+drive from `FLIP_SWEEP_K0` 0.25, where the bloom's band first reaches the card (`sweepDrive`) [ASSUMED: the 1 s, not yet
+OK'd], through the result card's own `complete_up_bg_dissolve` material and
 mask (`ui/cardEntrance.js drawDissolve`, the entrance's shader), with a white bloom on top (`drawBloom`, the same shader
 and mask, additive on a canvas with `mix-blend-mode: plus-lighter`; the user's direction of 2026-11-22: "a white bright
 bloom that moves on the boundary between old and new, … leaving the entire card artwork white glow before the glow fades
 away into the live2D"): a bright band on the dissolve's edge (the official `color_mask` layer's band construction: mask ×
 inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone, and
-sparks (`makeSparks`, the user's "particle effects that runs with the border"): born where the mask reads the glow's
-leading edge, over the old picture, they burst off at about the edge's own speed, slow and fade (`SPARKS`)
-[ASSUMED: the band's width and brightness, the glow and its fade, the sparks tuned to the user's descriptions, not yet
+embers (`makeSparks`, the user's "particle effects that runs with the border" and "fall out of the card itself"): born
+where the mask reads the glow's leading edge, over the old picture, gold and painted normally so the white glow does
+not swallow them, they fall under gravity out of the card on one page-wide layer over everything (`.dyn-embers`,
+cleared each frame, 1 × 1 when idle); style A thrown out of the card's sides, style B a shower down through it and out
+of its bottom (`SPARKS`; the review page's `&sparks=a|b`, B by default)
+[ASSUMED: the band's width and brightness, the glow and its fade, the embers tuned to the user's descriptions, not yet
 OK'd]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
 the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); while they play, every card's dissolve
 and bloom are drawn in one GL pass a frame (`batchDissolve` / `batchBloom` / `flushBatch`, tiles in one canvas); a card

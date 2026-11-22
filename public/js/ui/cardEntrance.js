@@ -515,13 +515,20 @@ function flushTiles(items) {
 // old and new in the glow … Currently it looks too bland and 'clean'") -------------------------------------------------
 
 /**
- * Sparks born on the dissolve's edge, where the mask reads the edge's value: they rise off it, drift and fade. `rate`
- * births per second per card while the edge moves, `life` / `size` (CSS px) / `rise` (card heights per second at birth,
- * about the edge's own speed: it crosses the card in about 0.22 s) ranges, `drag` the slowing per second, `drift`
- * sideways speed (card widths per second), `near` how close to the birth line's mask value a point must read, `lead` how
- * far (mask units) past the dissolve's edge the birth line runs, `max` live sparks per card.
+ * Embers that fall out of the card (the user, 2026-11-22: "I expected it to fall out of the card itself, and currently
+ * it's swallowed up in the glow"), drawn on one page-wide layer over everything, so they leave the card, as warm embers
+ * painted normally (not added: an added spark is lost in the white glow). Born on the glow's leading edge, where the
+ * mask reads `lead` past the dissolve's edge, over the old picture. Two styles to choose from:
+ *   A, out of the sides: born near the card's left and right edges, thrown outward and up, then falling;
+ *   B, an ember shower: born all along the border, falling down through the card and out of its bottom.
+ * `rate` births per second per card while the border moves, `life` s / `size` CSS px ranges, `vx` / `vy` CSS px per
+ * second at birth (A: `vx` outward), `gravity` CSS px/s², `side` (A) the share of the card's width at each edge births
+ * keep to, `near` how close to the birth line's value a point must read, `max` live embers per card.
  */
-export const SPARKS = Object.freeze({ rate: 320, life: [0.25, 0.55], size: [1.5, 4], rise: [3, 6], drag: 6, drift: 0.35, near: 0.04, lead: 0.2, max: 200 }); // [ASSUMED: tuned to the user's description of 2026-11-22, not yet OK'd on the clip]
+export const SPARKS = Object.freeze({ // [ASSUMED: tuned to the user's descriptions of 2026-11-22, not yet OK'd on the clip]
+  A: { rate: 110, life: [0.7, 1.3], size: [2, 4.5], vx: [150, 420], vy: [-320, -80], gravity: 1100, side: 0.16, near: 0.05, lead: 0.2, max: 160 },
+  B: { rate: 130, life: [0.9, 1.5], size: [1.8, 4], vx: [-60, 60], vy: [-40, 90], gravity: 700, near: 0.04, lead: 0.2, max: 180 },
+});
 
 /** The dissolve mask's red channel on the CPU, top row first (texture rows are uploaded flipped: row = y / H of the box). */
 let maskPx = null;
@@ -543,57 +550,60 @@ function maskPixels(url) {
 export const edgeOf = (k) => 2 * k - 0.75;
 
 let dot = null;
+/** An ember: a pale core, gold, an orange rim fading out (painted over: visible on the white glow and the dark room). */
 function sparkDot() {
   if (dot || typeof OffscreenCanvas !== 'function') return dot;
   const c = new OffscreenCanvas(32, 32), g = c.getContext('2d');
   const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
-  grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.25, 'rgba(225,250,255,0.8)'); grad.addColorStop(0.6, 'rgba(150,235,255,0.25)'); grad.addColorStop(1, 'rgba(120,220,255,0)');
+  grad.addColorStop(0, 'rgba(255,250,228,1)'); grad.addColorStop(0.3, 'rgba(255,206,112,0.95)'); grad.addColorStop(0.65, 'rgba(255,150,52,0.4)'); grad.addColorStop(1, 'rgba(255,120,30,0)');
   g.fillStyle = grad; g.fillRect(0, 0, 32, 32);
   return (dot = c);
 }
 
-/** A card's sparks: `step` them by dt s with the edge at progress k (births only while `born`), `draw` them additively. */
-export function makeSparks() {
+/**
+ * A card's embers in page coordinates: `step` them by dt s with the border at progress k (births only while `born`) over
+ * the card's box `{ left, top, width, height }` (CSS px), `draw` them on the page-wide layer (device px = CSS × dpr).
+ * @param {'A'|'B'} style
+ */
+export function makeSparks(style = 'B') {
+  const P = SPARKS[style] || SPARKS.B;
   const list = [];
   let acc = 0;
   const rnd = (a) => a[0] + Math.random() * (a[1] - a[0]);
   return {
     get count() { return list.length; },
-    step(dt, k, born) {
+    step(dt, k, born, box) {
       for (let i = list.length - 1; i >= 0; i--) {
         const s = list[i];
-        // burst off the edge at about its own speed, then slow and fall behind it
-        s.age += dt; s.x += s.vx * dt; s.y += s.vy * dt;
-        const slow = Math.max(0, 1 - SPARKS.drag * dt); s.vx *= slow; s.vy *= slow;
+        s.age += dt; s.vy += P.gravity * dt; s.x += s.vx * dt; s.y += s.vy * dt;
         if (s.age >= s.life) list.splice(i, 1);
       }
-      if (!born || !maskPx) return;
-      // born on the glow's leading edge (the band's outer side, `lead` past the dissolve's edge), over the old picture:
-      // inside the white an additive spark is lost
-      const e = edgeOf(k) + SPARKS.lead;
-      if (e < -SPARKS.near || e > 1 + SPARKS.near) return;
-      acc += SPARKS.rate * dt;
-      for (let tries = 0; acc >= 1 && tries < 400 && list.length < SPARKS.max; tries++) {
-        const x = Math.random(), y = Math.random();
+      if (!born || !maskPx || !box) return;
+      const e = edgeOf(k) + P.lead;
+      if (e < -P.near || e > 1 + P.near) return;
+      acc += P.rate * dt;
+      for (let tries = 0; acc >= 1 && tries < 400 && list.length < P.max; tries++) {
+        let x = Math.random();
+        if (style === 'A') x = x < 0.5 ? x * 2 * P.side : 1 - (x - 0.5) * 2 * P.side;
+        const y = Math.random();
         const d = maskPx.r[Math.min(maskPx.h - 1, (y * maskPx.h) | 0) * maskPx.w + Math.min(maskPx.w - 1, (x * maskPx.w) | 0)] / 255;
-        if (Math.abs(d - e) > SPARKS.near) continue;
-        list.push({ x, y, vx: (Math.random() - 0.5) * 2 * SPARKS.drift, vy: -rnd(SPARKS.rise), age: 0, life: rnd(SPARKS.life), size: rnd(SPARKS.size) });
+        if (Math.abs(d - e) > P.near) continue;
+        const vx = style === 'A' ? (x < 0.5 ? -1 : 1) * rnd(P.vx) : rnd(P.vx);
+        list.push({ x: box.left + x * box.width, y: box.top + y * box.height, vx, vy: rnd(P.vy), age: 0, life: rnd(P.life), size: rnd(P.size) });
         acc -= 1;
       }
       if (acc > 1) acc = 1;
     },
-    draw(ctx, W, H, dpr) {
+    draw(ctx, dpr) {
       const img = sparkDot();
       if (!img || !list.length) return;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
       for (const s of list) {
-        const a = 1 - s.age / s.life;
-        const r = s.size * dpr * (0.5 + 0.5 * a) * 2;
-        ctx.globalAlpha = a;
-        ctx.drawImage(img, s.x * W - r, s.y * H - r, 2 * r, 2 * r);
+        const t = s.age / s.life;
+        const r = s.size * dpr * (1 - 0.4 * t);
+        ctx.globalAlpha = 1 - t * t;
+        ctx.drawImage(img, s.x * dpr - r * 2, s.y * dpr - r * 2, r * 4, r * 4);
       }
-      ctx.restore();
+      ctx.globalAlpha = 1;
     },
   };
 }

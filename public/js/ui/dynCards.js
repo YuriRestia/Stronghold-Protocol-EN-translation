@@ -309,6 +309,15 @@ export function endResultLoad() {
  */
 export const FLIP_FADE_S = 0.15; // the fallback without the dissolve: the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
 export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x1495060]
+/**
+ * The border's sweep: slower than the official drive (the user, 2026-11-22: "make the border glow move slower"), and
+ * from FLIP_SWEEP_K0, where the bloom's band first reaches the card (edgeOf(k) + BLOOM.width = 0 at k 0.275), so no part
+ * of it is spent before the border shows.
+ */
+export const FLIP_SWEEP_S = 1; // [ASSUMED: the user's "move slower" of 2026-11-22, 2× the official 0.5 s, not yet OK'd on the clip]
+export const FLIP_SWEEP_K0 = 0.25;
+/** The dissolve's drive `s` seconds into the show (FLIP_SWEEP_K0 … 1 over FLIP_SWEEP_S). */
+export const sweepDrive = (s) => FLIP_SWEEP_K0 + (1 - FLIP_SWEEP_K0) * Math.min(1, Math.max(0, s) / FLIP_SWEEP_S);
 /** The stagger between the group's cards: the result row's step [src: ui/cardEntrance.js ANIM_DELAY_S, official _animDelay]. */
 export const FLIP_STEP_S = ANIM_DELAY_S;
 export const GROUP_CAP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — 8 s covers a typical PC's cold Grand Alliance load, 4.9–5.3 s measured at 1080p]
@@ -332,17 +341,43 @@ function workerStage() {
 function showCard(e, delay = 0) { try { e.show?.(delay); } catch (err) { console.warn('[dynillust] show', err); } }
 /**
  * The cards' transitions in one pass a frame: each queues its dissolve and bloom tiles, one GL pass draws them all
- * (cardEntrance.js flushBatch), then each draws its sparks and finishes (`after` false: done).
+ * (cardEntrance.js flushBatch), then each draws its embers on the page-wide layer and finishes (`after` false: done).
  */
 const transitions = new Set();
 let transRaf = 0;
+/** The embers' layer: one canvas over the whole page (they fall out of the cards), cleared each frame, 1 × 1 when idle. */
+let emberLayer = null;
+function embers() {
+  const doc = globalThis.document;
+  if (!doc?.body) return null;
+  if (!emberLayer) {
+    const c = doc.createElement('canvas');
+    c.className = 'dyn-embers';
+    c.setAttribute('aria-hidden', 'true');
+    emberLayer = { c, ctx: null };
+  }
+  const L = emberLayer, dpr = globalThis.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round((globalThis.innerWidth || 1) * dpr)), h = Math.max(1, Math.round((globalThis.innerHeight || 1) * dpr));
+  if (!L.c.isConnected) doc.body.append(L.c);
+  if (L.c.width !== w || L.c.height !== h) { L.c.width = w; L.c.height = h; L.ctx = null; }
+  L.ctx ||= L.c.getContext('2d');
+  L.ctx?.clearRect(0, 0, w, h);
+  L.dpr = dpr;
+  return L.ctx ? L : null;
+}
+// idle: 1 × 1 but kept in the page (adding a page-wide layer at a show would cost that frame a style and layout pass)
+function emberIdle() {
+  if (emberLayer && emberLayer.c.width > 1) { emberLayer.c.width = 1; emberLayer.c.height = 1; emberLayer.ctx = null; }
+}
 function runTransitions() {
   transRaf = 0;
   const now = performance.now();
   for (const tr of [...transitions]) { try { if (!tr.queue(now)) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
   try { flushBatch(); } catch (err) { console.warn('[dynillust] transition', err); }
-  for (const tr of [...transitions]) { try { if (!tr.after()) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
+  const layer = transitions.size ? embers() : null;
+  for (const tr of [...transitions]) { try { if (!tr.after(layer)) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
   if (transitions.size) transRaf = requestAnimationFrame(runTransitions);
+  else emberIdle();
 }
 function addTransition(tr) {
   transitions.add(tr);
@@ -600,7 +635,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       setReveal('dissolve');
       setCovered(true);
     };
-    // the show, `delay` ms from now (the group's stagger): the 2D art dissolves away over FLIP_DISSOLVE_S with a white
+    // the show, `delay` ms from now (the group's stagger): the 2D art dissolves away over FLIP_SWEEP_S with a white
     // bloom on its edge and a glow behind it that fades after (cardEntrance.js drawBloom, its own canvas, plus-lighter)
     const showNow = (delay = 0) => {
       const cv = dis.current, wc = wash.current;
@@ -612,8 +647,10 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
           setShown(true);
           const t0 = performance.now() + Math.max(0, delay);
           let dissolved = false, lastS = 0, k = 0, glow = 0;
-          const sparks = makeSparks();
-          const dpr = globalThis.devicePixelRatio || 1;
+          // the embers: style A (out of the sides) or B (a shower, the default); the review page picks with &sparks=a|b
+          const sparks = makeSparks(globalThis.__dynSparks === 'a' ? 'A' : 'B');
+          const r = cv.getBoundingClientRect();
+          const box = { left: r.left, top: r.top, width: r.width, height: r.height };
           if (wc && wc.style.opacity !== '1') wc.style.opacity = '1';
           // one frame of this card in the shared pass (runTransitions): queue its tiles, then sparks and the end
           trans = {
@@ -621,19 +658,19 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
               if (!live) return false;
               const s = (now - t0) / 1000;
               if (s < 0) return true;
-              k = Math.min(1, s / FLIP_DISSOLVE_S);
+              k = sweepDrive(s);
               if (!dissolved) batchDissolve(cv, pic, k, W, H);
               // the bloom: a band on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
-              glow = BLOOM.glow * (k < 1 ? 1 : Math.max(0, 1 - (s - FLIP_DISSOLVE_S) / BLOOM.fadeS));
+              glow = BLOOM.glow * (k < 1 ? 1 : Math.max(0, 1 - (s - FLIP_SWEEP_S) / BLOOM.fadeS));
               if (wc) batchBloom(wc, k, glow, k < 1 ? BLOOM.band : 0, W, H);
-              // the border sparks: born on the edge while it moves
-              sparks.step(Math.min(0.05, Math.max(0, s - lastS)), k, k < 1);
+              // the embers: born on the border while it moves, then falling out of the card
+              sparks.step(Math.min(0.05, Math.max(0, s - lastS)), k, k < 1, box);
               lastS = s;
               return true;
             },
-            after() {
+            after(layer) {
               if (!live || lastS <= 0) return true;
-              if (wc) sparks.draw(wc.getContext('2d'), W, H, dpr);
+              if (layer) sparks.draw(layer.ctx, layer.dpr);
               if (k >= 1 && !dissolved) { dissolved = true; cv.style.opacity = '0'; cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
               if (dissolved && !(glow > 0) && !sparks.count) {
                 if (wc) { wc.style.opacity = '0'; wc.width = 1; wc.height = 1; }
