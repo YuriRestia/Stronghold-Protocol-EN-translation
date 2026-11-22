@@ -1992,8 +1992,28 @@ the `dynillust` group; a keyed or sharded run replaces only its own entries.
   bundle: 'arts/dynchars/<key>.ab', client (CN client version), files: { rel: { hash, bytes } },
   bytes: { full, half }                       sum of what the full / half tier downloads
   spine: Spine, framing: Framing, actions: Actions,
-  fx: { file: 'fx.json', textures: { key: Texture }, meshes: { key: Mesh }, paths: { 'a/b/c': node }, posWS: [node] } }
+  fx: { file: 'fx.json', textures: { key: Texture }, meshes: { key: Mesh }, paths: { 'a/b/c': node }, posWS: [node] },
+  load: Load }
 ```
+
+**Load** (what to load first; derived from the official data, not a client field):
+
+```
+{ groups: ['IDLE', 'SPECIAL_IDLE', 'START', 'INTERACTION'],   load order; IDLE also holds every always-on part
+  cardNever: ['START', 'INTERACTION'],                         a result / room card never plays them (O1; D9: no tap)
+  nodes: [group per fx.json node], textures: { key: group }, meshes: { key: group },
+  bytes: { group: { full, half } },                            the texture and mesh files of each group
+  firstLoad: { full, half } }                                  skeleton + atlas + pages + fx.json + the IDLE group's files
+```
+
+A node takes the group of the nearest node (itself or an ancestor) that an action switches on: an `ActionParticle`
+(or holder effect) of that action [src: official DynIllust._particles, DynIllustEffectHolder._action], or a
+`GameObject.m_IsActive` curve of a clip in an Animator state of that group (the default state is IDLE; a transition on
+`OnSpecial` / `OnStart` / `OnInteract` / `OnIdle` gives its target that group, one without a trigger passes its
+source's on) [src: the AnimatorControllers' states and transitions, §33.19 Actions]; a node no action switches on is
+always on (IDLE). A file takes the earliest group of the nodes that use it, and a file no node names stays in IDLE.
+A card loads IDLE first and SPECIAL_IDLE later, and never needs START or INTERACTION. Not computed: parts outside the
+232 × 458 window for a whole action (particles move; no safe static bound).
 
 `fx.textures` / `fx.meshes` are §33.8 / §33.9 entries with paths relative to `<dir>`; `fx.paths` maps a node's path
 (GameObject names from the root, `/`-joined; the root is `''`) to its id, the first node when names repeat. Three
