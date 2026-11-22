@@ -610,6 +610,31 @@ function GoButton({ label, onClick, disabled, loading = false, ready = null, ico
 const PROPOSE_RETRY_MS = 1200;
 
 /** Room screen component. */
+/**
+ * (fork) The seat area's content box as CSS variables `--rs-cw` / `--rs-ch` (px) on the element the returned ref is put
+ * on, kept current with a ResizeObserver: a co-op room's wide cards take their width from it (room.css .rs-seats--wide),
+ * in place of container query units (Firefox ESR 115 and Safari < 16 lack them, client-static.test.js).
+ */
+function useSeatArea(on) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!on || !el) return undefined;
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      if (w > 0) el.style.setProperty('--rs-cw', `${w}px`);
+      if (h > 0) el.style.setProperty('--rs-ch', `${h}px`);
+    };
+    measure();
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [on]);
+  return ref;
+}
+
 export function RoomScreen() {
   const room = useStore((s) => s.room);
   const me = useStore((s) => s.me, shallowEqual);
@@ -683,6 +708,8 @@ export function RoomScreen() {
   const chatMute = useStore((s) => s.chatMute);
   const bubbles = activeBubbles(emotes, Date.now(), EMOTE_BUBBLE_MS);
   useTicker(bubbles.size ? 500 : 0);
+  // (fork) the wide cards' seat area, measured (room.css --rs-cw / --rs-ch): their width follows it
+  const seatsRef = useSeatArea(!!room && room.mode !== 'solo');
   if (!room) return null;
   const chatOn = !room.chatOff;
   const online = conn.status === 'online';
@@ -900,7 +927,7 @@ export function RoomScreen() {
       </div>
     </header>
 
-    <main class=${`seats rs-seats${coop ? ' rs-seats--wide' : ' seats--solo'}${isLargeRoom(room) ? ' rs-seats--large' : ''}`}>
+    <main ref=${seatsRef} class=${`seats rs-seats${coop ? ' rs-seats--wide' : ' seats--solo'}${isLargeRoom(room) ? ' rs-seats--large' : ''}`}>
       ${squadGroups(room, facts, facts.seats.map((s, i) => {
         const op = seatOperator(s, cards, { myId: me.playerId, myCard });
         // the player's outfit for that operator (header "Outfits"); null = the default art

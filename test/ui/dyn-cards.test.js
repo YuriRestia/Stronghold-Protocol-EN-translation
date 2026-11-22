@@ -28,11 +28,12 @@ test('the tier by card size: half up to one device px per official unit of the 2
 test('the backdrop: the official card background around group_char\'s window, as the prefab places them', () => {
   assert.deepEqual(BACKDROP.bg, { pos: [0, -13], size: [300, 528] });
   assert.deepEqual(BACKDROP.win, { pos: [0, -14], size: [232, 458] });
-  const s = backdropStyle('/x.png');
+  const s = backdropStyle('/x.png', 464);
   // the background starts 34 units left of the window and 36 above it; 300 / 232 wide, 528 / 458 tall
   assert.match(s, /left:-14\.655%;top:-7\.860%;width:129\.310%;height:115\.284%;/);
-  // the 9-slice borders 212 / 78 / 43 / 75 in units of the window's width (232 = 100cqw)
-  assert.match(s, /border-width:91\.379cqw 33\.621cqw 18\.534cqw 32\.328cqw;/);
+  // the 9-slice borders 212 / 78 / 43 / 75 in units of the window's measured width (a 464 px window: 2 px a unit; no
+  // container query units, client-static.test.js)
+  assert.match(s, /border-width:424\.00px 156\.00px 86\.00px 150\.00px;/);
   assert.match(s, /border-image:url\("\/x\.png"\) 212 78 43 75 fill/);
 });
 import * as stub from '../../public/js/ui/dynStub.js';

@@ -909,9 +909,10 @@
   --rs-plate-gap: 4px;
   --rs-head: max(.28rem, 22px, calc(.22 * var(--t)));
   --rs-head-gap: 10px;
-  --rs-aw: min(calc((100cqw - 2 * var(--rs-pad) - var(--rs-gap)) / 2),
-    calc(((100cqh - 2 * var(--rs-pad) - var(--rs-gap)) / 2 - var(--rs-plate) - var(--rs-plate-gap)) * var(--rs-ar)));
-  container-type: size;
+  /* --rs-cw / --rs-ch: the seat area's content box, measured by room.js (useSeatArea) — container query units are out
+     (Firefox ESR 115, Safari < 16, client-static.test.js); the viewport until the first measure */
+  --rs-aw: min(calc((var(--rs-cw, 100vw) - 2 * var(--rs-pad) - var(--rs-gap)) / 2),
+    calc(((var(--rs-ch, 70vh) - 2 * var(--rs-pad) - var(--rs-gap)) / 2 - var(--rs-plate) - var(--rs-plate-gap)) * var(--rs-ar)));
   display: grid;
   grid-template-columns: repeat(2, auto);
   align-content: center;
@@ -922,8 +923,8 @@
 }
 .rs-seats--large {
   --rs-ar: 1.6;
-  --rs-aw: min(calc((100cqw - 2 * var(--rs-pad) - 3 * var(--rs-gap)) / 4),
-    calc(((100cqh - 2 * var(--rs-pad) - var(--rs-gap)) / 2 - var(--rs-head) - var(--rs-head-gap) - var(--rs-plate) - var(--rs-plate-gap)) * var(--rs-ar)));
+  --rs-aw: min(calc((var(--rs-cw, 100vw) - 2 * var(--rs-pad) - 3 * var(--rs-gap)) / 4),
+    calc(((var(--rs-ch, 70vh) - 2 * var(--rs-pad) - var(--rs-gap)) / 2 - var(--rs-head) - var(--rs-head-gap) - var(--rs-plate) - var(--rs-plate-gap)) * var(--rs-ar)));
   grid-template-columns: auto;
 }
 .rs-seats--wide .rseat { width: var(--rs-aw); min-width: 0; min-height: 0; --lit: #4fe8c0; --lit-glow: rgba(79, 232, 192, .35); --lit-line: rgba(79, 232, 192, .55); }
