@@ -5,8 +5,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
-  setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts,
+  setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle,
 } from '../../public/js/ui/dynCards.js';
+
+test('the backdrop: the official card background around group_char\'s window, as the prefab places them', () => {
+  assert.deepEqual(BACKDROP.bg, { pos: [0, -13], size: [300, 528] });
+  assert.deepEqual(BACKDROP.win, { pos: [0, -14], size: [232, 458] });
+  const s = backdropStyle('/x.png');
+  // the background starts 34 units left of the window and 36 above it; 300 / 232 wide, 528 / 458 tall
+  assert.match(s, /left:-14\.655%;top:-7\.860%;width:129\.310%;height:115\.284%;/);
+  // the 9-slice borders 212 / 78 / 43 / 75 in units of the window's width (232 = 100cqw)
+  assert.match(s, /border-width:91\.379cqw 33\.621cqw 18\.534cqw 32\.328cqw;/);
+  assert.match(s, /border-image:url\("\/x\.png"\) 212 78 43 75 fill/);
+});
 import * as stub from '../../public/js/ui/dynStub.js';
 import { sanitizeSettings, DEFAULT_SETTINGS } from '../../public/js/ui/gameLogic/settings.js';
 import { cardContext } from '../../public/js/ui/seatArt.js';

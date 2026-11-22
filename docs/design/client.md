@@ -449,6 +449,10 @@ the renderer only through its mount API (vfx-format.md §33.19): one Stage for t
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
 with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a card appears and switches —
 straight into Idle, no intro, the official crossfade on a late switch (the user, 2026-11-22) — is the renderer's.
+An illustration's see-through pixels (its erasers) show the official card background, which both official cards draw
+before the illustration (group_bg/bg, the same 9-slice `bg_normal2` / `card_bg`): behind the result card the real one
+(below), and on the room and Grand Alliance cards `IllustArt backdrop`, mapped onto the art window as the prefab places it
+around group_char (`BACKDROP`), only while the illustration is live.
 Review (D12): `public/dev/dyn-review.html` puts every illustration of the server's index on the real screens — the result
 screen's team page 4 at a time, the room 4 seats, the Grand Alliance room 8 — with made-up players whose room card is that
 operator in that outfit, 动态立绘 on 所有人; PC or a landscape phone frame (half pages), page by page; review-only buttons

@@ -30,6 +30,7 @@ import { screenShortSide, PHONE_MAX_SIDE } from './device.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
+import { uiUrl } from './assetUrls.js';
 import * as stub from './dynStub.js';
 
 /**
@@ -239,10 +240,11 @@ export function endResultLoad() {
  * A card's art box: the 2D art (children) and, when the card animates and its illustration is ready, the illustration
  * drawn over it — the same on the result, room and Grand Alliance cards (D5). A card whose illustration is still loading
  * keeps its 2D art and switches when it is ready (D11). No tap action (D9).
- * @param {{ art: { charId: string, outfit: string|null } | null, animate: boolean, wait?: 'now'|'settled', class?: string, children?: any }} props
+ * @param {{ art: { charId: string, outfit: string|null } | null, animate: boolean, wait?: 'now'|'settled', backdrop?: boolean, class?: string, children?: any }} props
  *   wait: 'now' mounts at once (the result screen: loaded in the pause), 'settled' once the screen has what it needs (room)
+ *   backdrop: the official card background behind the live illustration (BACKDROP; the room and Grand Alliance cards)
  */
-export function IllustArt({ art, animate, wait = 'now', class: cls = '', children }) {
+export function IllustArt({ art, animate, wait = 'now', backdrop = false, class: cls = '', children }) {
   const on = !!(animate && art);
   const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
@@ -271,8 +273,35 @@ export function IllustArt({ art, animate, wait = 'now', class: cls = '', childre
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
     };
   }, [id, on, wait]);
+  const bg = backdrop && state === 'live' ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
   return html`<div class=${`dyn-art${state === 'live' ? ' is-live' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${state}>
     <div class="dyn-art__still">${children}</div>
+    ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg)}></i></div>` : null}
     ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
   </div>`;
+}
+
+/**
+ * What an illustration's see-through pixels (its erasers, the renderer's rtAlpha) show: the official card draws
+ * panel_player/group_bg/bg before group_char, the illustration. The room's card (auto_chess_player_showcase_item) and the
+ * result card (auto_chess_settle_game_player_item) both use the same 9-slice there — `bg_normal2` / `card_bg`, the same
+ * pixels and borders — white, 300 × 528 at (0, −13), around group_char's 232 × 458 window at (0, −14)
+ * [src: official [uc]autochessouter.ab, both prefabs' group_bg/bg and group_char RectTransforms; Sprite bg_normal2 and
+ * card_bg m_Rect 159 × 264, m_Border 75 / 43 / 78 / 212, identical PNGs]. The room and Grand Alliance cards (`backdrop`)
+ * draw it mapped onto their art window, only while the illustration is live (the 2D art stays uncovered); the result
+ * card has the real card background behind it (ui/cardEntrance.js CARD_BG).
+ */
+export const BACKDROP = Object.freeze({ sprite: 'settleCard/card_bg', bg: { pos: [0, -13], size: [300, 528] }, win: { pos: [0, -14], size: [232, 458] },
+  border: { left: 75, bottom: 43, right: 78, top: 212 } });
+
+/** The backdrop's box in % of the art window and its 9-slice borders in container units (1 official unit = 100cqw / 232). */
+export function backdropStyle(url) {
+  const { bg, win, border: b } = BACKDROP;
+  const [ww, wh] = win.size, [bw, bh] = bg.size;
+  const pct = (v, of) => `${((v / of) * 100).toFixed(3)}%`;
+  const u = (v) => `${((v / ww) * 100).toFixed(3)}cqw`;
+  const left = (bg.pos[0] - bw / 2) - (win.pos[0] - ww / 2), top = (win.pos[1] + wh / 2) - (bg.pos[1] + bh / 2);
+  return `left:${pct(left, ww)};top:${pct(top, wh)};width:${pct(bw, ww)};height:${pct(bh, wh)};`
+    + `border-style:solid;border-color:transparent;border-width:${u(b.top)} ${u(b.right)} ${u(b.bottom)} ${u(b.left)};`
+    + `border-image:url("${url}") ${b.top} ${b.right} ${b.bottom} ${b.left} fill`;
 }

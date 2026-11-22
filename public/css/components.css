@@ -1497,3 +1497,7 @@
 .dyn-art__live { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .dyn-art.is-live .dyn-art__still > * { visibility: hidden; }
 .dyn-art__live > .dynillust-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* the official card background behind a live illustration's see-through pixels (ui/dynCards.js BACKDROP): a size
+   container, so the 9-slice's borders scale with the art window (cqw) */
+.dyn-art__bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; container-type: size; }
+.dyn-art__bg > i { position: absolute; box-sizing: border-box; }
