@@ -53,6 +53,39 @@ export function unityToCard(f, w, h) {
   };
 }
 
+/**
+ * The official HOME SCREEN window at 16:9, in the illustration view's parent (panel_illustration) units: its visible
+ * height and where its centre sits from the panel centre (y up). The home screen shows the view at the DEFAULT adjust
+ * (HOME_PAGE is only the zoom cap of the layout editor) inside a world-space canvas seen by a FOV-50 perspective camera:
+ * at 16:9 the panel plane is 213.7273 world units away, so it shows 2 · 213.7273 · tan 25° / 0.2461068 = 809.914 panel
+ * units of height, centred (53.8844, 13.4711) / 0.2461068 = (218.947, 54.737) from the panel [src: notes
+ * dev57-home-framing.md §1, §2, §3 (official GameAssembly.dll HomeIllustView, UIIllustLayoutInfo.Apply;
+ * home_page.ab front_camera, front_canvas, panel_illustration, UI3DLayoutAdapter)].
+ */
+export const HOME_VH = 809.914;
+export const HOME_CX = 218.947;
+export const HOME_CY = 54.737;
+
+/**
+ * The linear map Unity frame → px for a `w` × `h` window framed as the official home screen frames the illustration
+ * (notes dev57-home-framing.md §4): the same vertical range as the home window (p = h / HOME_VH px per panel unit), the
+ * DEFAULT adjust, and the horizontal centre `centre: 'home'` (the home screen's own: the operator left of centre) or
+ * `'illust'` (the view's offset: the same zoom and height, the operator centred). Same output as unityToCard.
+ */
+export function unityToHome(f, w, h, { centre = 'home' } = {}) {
+  const adj = pickAdjust(f, ADJUST.DEFAULT);
+  const cs = Number(f.cameraSize) > 0 ? Number(f.cameraSize) : 10;   // as unityToCard
+  const p = h / HOME_VH;
+  const k = adj.size / (2 * cs);
+  const cx = centre === 'illust' ? adj.ox : HOME_CX;
+  return {
+    scale: p * k,
+    x0: w / 2 + (adj.ox - cx) * p,
+    y0: h / 2 - (adj.oy - HOME_CY) * p,
+    w, h,
+  };
+}
+
 /** The view's size before ApplyAdjust [src: official GameAssembly.dll DynIllustMgr._CreateIllustView 0x14462B0
  * (sizeDelta 2048 × 2048; anchoredPosition left at 0)]. */
 export const VIEW_SIZE = 2048;

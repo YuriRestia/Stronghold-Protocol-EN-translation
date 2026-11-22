@@ -47,6 +47,9 @@
   The Workers draw under the site's CSP (no eval, as the page does), and a Worker that cannot draw is never given
   cards: it must draw a test square before it starts, else the page draws the cards itself; a card whose stage cannot
   draw at all keeps its 2D art. Before, every card on the real server turned live on an empty background.
+- A card can be framed as the official home screen frames an illustration (\`mount(key, { framing: 'home' })\`): the
+  same adjust as the card, in the home screen's wider window, the operator left of centre as there or centred
+  [src: notes dev57-home-framing.md §4, §5].
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays
   counted from each switch-on, nodes that follow skeleton bones). Battle effects are unchanged.
 
