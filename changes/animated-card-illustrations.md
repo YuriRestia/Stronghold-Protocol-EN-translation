@@ -17,9 +17,9 @@ Server cost:
 
 | Measure | Typical | Worst case |
 |---|---|---|
-| Bandwidth out / in, per player (game socket) | about 0.0000002 / 0 MB/s: one m.public `ending` of 51 B a player per match [src: work/dev-52/ending-size.mjs, 4-player match, 202 B] (estimated per second over a 2,700 s match [unverified]) | 30 m.public frames in the 3 s pause without public deltas, 8 players: 12 KB a match [unverified] (estimated: DELAYS.SETTLE 3 s / PUBLIC_THROTTLE 100 ms) |
-| Bandwidth out / in, per room (8 players) | about 3.3 KB a match [unverified] (estimated: 8 × 51 B × 8 viewers) | 100 KB a match [unverified] (estimated) |
-| Bandwidth out / in, 300 players (game socket) | 0.00002 MB/s, 0.002 GB/day [unverified] (estimated: 75 rooms, one match each per 2,700 s) | 0.0003 MB/s, 0.03 GB/day [unverified] (estimated) |
+| Bandwidth out / in, per player (game socket) | 404 B / 0 per match end: m.public `ending` (202 B in a 4-player match, 51 B a player) rides 2 m.public frames [src: work/dev-52/ending-size.mjs, 4-player harness match] | 8-player room: about 840 B per match end [unverified] (estimated: 2 × 8 × 51 B) |
+| Bandwidth out / in, per room | 4 players: 1.6 KB per match end [src: work/dev-52/ending-size.mjs: 2 frames × 202 B × 4] | 8 players: 6.7 KB per match end [unverified] (estimated) |
+| Bandwidth out / in, 300 players (game socket) | 0.00004 MB/s, 0.004 GB/day [unverified] (estimated: 75 rooms of 4, one match each per 2,700 s) | 0.00008 MB/s, 0.007 GB/day [unverified] (estimated: 38 rooms of 8) |
 | Art downloads from the origin, both servers (static files behind Cloudflare) | 0.008 MB/s, 0.7 GB/day [src: crew-docs/l2d-art-proposal.md §6] (estimated: the set refills once a day per server) | cache rule broken, Grand Alliance at 300 players, 8 largest every match: about 7 MB/s, 600 GB/day [src: crew-docs/l2d-art-proposal.md §6] (estimated) |
 | Server CPU | 0 % [unverified] (one lineup sort per player at the match's end, results.js endingView) | 0 % [unverified] |
 | Memory | 0 MB [unverified] (the `ending` object until the match closes) | 0 MB [unverified] |
