@@ -7,8 +7,9 @@ import {
   RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
   setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle, cardTier, HALF_MAX_SCALE,
   FLIP_FADE_S, FLIP_DISSOLVE_S, FLIP_STEP_S, FLIP_SMOOTH_MS, FLIP_SMOOTH_FRAMES, FLIP_GIVE_UP_MS, joinGroup, groupState, leaveGroup, objectPosition,
+  FLIP_SWEEP_S, FLIP_SWEEP_K0, sweepDrive,
 } from '../../public/js/ui/dynCards.js';
-import { coverUv } from '../../public/js/ui/cardEntrance.js';
+import { coverUv, edgeOf, BLOOM, makeSparks, SPARKS } from '../../public/js/ui/cardEntrance.js';
 
 test('the tier by card size: half up to one device px per official unit of the 232 × 458 window, full above', () => {
   assert.equal(HALF_MAX_SCALE, 1);
@@ -243,6 +244,25 @@ test('the group shows only after FLIP_SMOOTH_FRAMES smooth frames in a row with 
   } finally { F.restore(); }
 });
 
+test('with the cards drawn in Workers, the group also waits for every Worker\'s card frames to run smooth', async () => {
+  const F = fakeFrames();
+  let logs = [[], []];
+  setDynModule({ getDynIllustStage: () => ({ workers: [1, 2], frames() {}, frameLog: () => Promise.resolve(logs) }), dynIllustKey: () => null });
+  try {
+    const shows = [];
+    const e = { card: { start() {} }, show: () => shows.push('a'), state: 'loading', alone: false };
+    joinGroup(e); groupState(e, 'ready');
+    const tick = async () => { F.tick(16); await Promise.resolve(); await Promise.resolve(); };
+    // [start ms, frame ms, live slots] per Worker: the first at 60 fps, the second at 25 fps
+    const run = (n, dt) => Array.from({ length: n }, (_, i) => [i * dt, 5, 1]);
+    for (let i = 0; i < 60; i++) { logs = [run(16, 16), run(8, 40)]; await tick(); }
+    assert.deepEqual(shows, [], 'the main thread is smooth, but a Worker at 25 fps holds the group');
+    for (let i = 0; i < 40; i++) { logs = [run(16, 16), run(16, 16)]; await tick(); }
+    assert.deepEqual(shows, ['a'], 'every Worker smooth: it shows');
+    leaveGroup(e);
+  } finally { F.restore(); setDynModule(null); }
+});
+
 test('the group shows one card after another in page order, the result row\'s step apart', () => {
   const F = fakeFrames();
   try {
@@ -271,4 +291,27 @@ test('the dissolve\'s crop is the 2D art\'s object-fit: cover at its object-posi
   // a wide picture: the height fits, the sides are cropped evenly at 50 %
   const w = coverUv(200, 100, 100, 100, 0.5, 0.5);
   assert.ok(Math.abs(w.u0 - 0.25) < 1e-9 && Math.abs(w.u1 - 0.75) < 1e-9 && Math.abs(w.t0) < 1e-9 && Math.abs(w.t1 - 1) < 1e-9, JSON.stringify(w));
+});
+
+test('the border\'s sweep: slower than the official drive, starting just before the bloom reaches the card, ending with the picture gone', () => {
+  assert.ok(FLIP_SWEEP_S > FLIP_DISSOLVE_S);
+  assert.equal(sweepDrive(0), FLIP_SWEEP_K0);
+  assert.equal(sweepDrive(-1), FLIP_SWEEP_K0);
+  assert.equal(sweepDrive(FLIP_SWEEP_S), 1);
+  assert.equal(sweepDrive(FLIP_SWEEP_S * 3), 1);
+  // at the start the band's leading side is still below the card's lowest mask value (0), so none of the sweep is unseen
+  assert.ok(edgeOf(sweepDrive(0)) + BLOOM.width <= 0);
+  assert.ok(edgeOf(sweepDrive(0.02 * FLIP_SWEEP_S)) + BLOOM.width > 0 - 0.05);
+  // monotonic
+  for (let s = 0; s < FLIP_SWEEP_S; s += FLIP_SWEEP_S / 20) assert.ok(sweepDrive(s + FLIP_SWEEP_S / 20) > sweepDrive(s));
+});
+
+test('embers live in page coordinates and fall: they keep moving and run out once births stop', () => {
+  for (const style of ['A', 'B']) {
+    const sp = makeSparks(style);
+    // no mask loaded in Node: no births, and stepping an empty list is harmless
+    sp.step(0.016, 0.5, true, { left: 100, top: 50, width: 200, height: 300 });
+    assert.equal(sp.count, 0);
+    assert.ok(SPARKS[style].gravity > 0 && SPARKS[style].max > 0, style);
+  }
 });

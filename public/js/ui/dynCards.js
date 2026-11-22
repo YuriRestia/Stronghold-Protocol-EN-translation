@@ -28,7 +28,7 @@ import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
-import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, drawBloom, BLOOM, makeSparks, ANIM_DELAY_S } from './cardEntrance.js';
+import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, BLOOM, makeSparks, ANIM_DELAY_S } from './cardEntrance.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -309,6 +309,15 @@ export function endResultLoad() {
  */
 export const FLIP_FADE_S = 0.15; // the fallback without the dissolve: the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
 export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x1495060]
+/**
+ * The border's sweep: slower than the official drive (the user, 2026-11-22: "make the border glow move slower"), and
+ * from FLIP_SWEEP_K0, where the bloom's band first reaches the card (edgeOf(k) + BLOOM.width = 0 at k 0.275), so no part
+ * of it is spent before the border shows.
+ */
+export const FLIP_SWEEP_S = 1; // [ASSUMED: the user's "move slower" of 2026-11-22, 2× the official 0.5 s, not yet OK'd on the clip]
+export const FLIP_SWEEP_K0 = 0.25;
+/** The dissolve's drive `s` seconds into the show (FLIP_SWEEP_K0 … 1 over FLIP_SWEEP_S). */
+export const sweepDrive = (s) => FLIP_SWEEP_K0 + (1 - FLIP_SWEEP_K0) * Math.min(1, Math.max(0, s) / FLIP_SWEEP_S);
 /** The stagger between the group's cards: the result row's step [src: ui/cardEntrance.js ANIM_DELAY_S, official _animDelay]. */
 export const FLIP_STEP_S = ANIM_DELAY_S;
 export const GROUP_CAP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — 8 s covers a typical PC's cold Grand Alliance load, 4.9–5.3 s measured at 1080p]
@@ -319,7 +328,62 @@ export const FLIP_GIVE_UP_MS = 3000; // [ASSUMED: proposed to the user 2026-11-2
 let group = null; // { entries: Set, flipped, timer, check, hold, wait, gaveUp }
 
 function startCard(e) { try { e.card?.start(); } catch (err) { console.warn('[dynillust] start', err); } }
+/** How often the group's wait reads the Workers' card-frame log (ms): about every 15 frames at 60 fps (ours). */
+const WORKER_POLL_MS = 250;
+/** The page's stage when it draws in Workers (it keeps a card-frame log: frames / frameLog), else null. */
+function workerStage() {
+  if (!mod || mod === stub) return null;
+  try {
+    const st = mod.getDynIllustStage?.();
+    return st && typeof st.frames === 'function' && typeof st.frameLog === 'function' && st.workers?.length ? st : null;
+  } catch { return null; }
+}
 function showCard(e, delay = 0) { try { e.show?.(delay); } catch (err) { console.warn('[dynillust] show', err); } }
+/**
+ * The cards' transitions in one pass a frame: each queues its dissolve and bloom tiles, one GL pass draws them all
+ * (cardEntrance.js flushBatch), then each draws its embers on the page-wide layer and finishes (`after` false: done).
+ */
+const transitions = new Set();
+let transRaf = 0;
+/** The embers' layer: one canvas over the whole page (they fall out of the cards), cleared each frame, 1 × 1 when idle. */
+let emberLayer = null;
+function embers() {
+  const doc = globalThis.document;
+  if (!doc?.body) return null;
+  if (!emberLayer) {
+    const c = doc.createElement('canvas');
+    c.className = 'dyn-embers';
+    c.setAttribute('aria-hidden', 'true');
+    emberLayer = { c, ctx: null };
+  }
+  const L = emberLayer, dpr = globalThis.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round((globalThis.innerWidth || 1) * dpr)), h = Math.max(1, Math.round((globalThis.innerHeight || 1) * dpr));
+  if (!L.c.isConnected) doc.body.append(L.c);
+  if (L.c.width !== w || L.c.height !== h) { L.c.width = w; L.c.height = h; L.ctx = null; }
+  L.ctx ||= L.c.getContext('2d');
+  L.ctx?.clearRect(0, 0, w, h);
+  L.dpr = dpr;
+  return L.ctx ? L : null;
+}
+// idle: 1 × 1 but kept in the page (adding a page-wide layer at a show would cost that frame a style and layout pass)
+function emberIdle() {
+  if (emberLayer && emberLayer.c.width > 1) { emberLayer.c.width = 1; emberLayer.c.height = 1; emberLayer.ctx = null; }
+}
+function runTransitions() {
+  transRaf = 0;
+  const now = performance.now();
+  for (const tr of [...transitions]) { try { if (!tr.queue(now)) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
+  try { flushBatch(); } catch (err) { console.warn('[dynillust] transition', err); }
+  const layer = transitions.size ? embers() : null;
+  for (const tr of [...transitions]) { try { if (!tr.after(layer)) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
+  if (transitions.size) transRaf = requestAnimationFrame(runTransitions);
+  else emberIdle();
+}
+function addTransition(tr) {
+  transitions.add(tr);
+  if (!transRaf) transRaf = requestAnimationFrame(runTransitions);
+}
+
 /** The cards' dissolve preparations (a picture composed, uploaded and drawn once each): one per animation frame. */
 const prepJobs = [];
 let prepRaf = 0;
@@ -348,25 +412,47 @@ function giveUpCard(e) { try { e.giveUp?.(); } catch (err) { console.warn('[dyni
  */
 function whenSmooth(entries, onGiveUp) {
   let t0 = 0, last = 0, n = 0, smooth = 0, id = 0, done = false;
+  // where the cards draw in Workers (render/dynillust/host.js), the main thread's frames say nothing about the cards':
+  // each Worker's card frames must also run FLIP_SMOOTH_FRAMES in a row at FLIP_SMOOTH_MS or better (its frame log,
+  // read every WORKER_POLL_MS while the group waits; a Worker that logged nothing holds nobody)
+  const st = workerStage();
+  const wsmooth = [];
+  let workersOk = !st, polling = false, lastPoll = 0;
+  if (st) { try { st.frames(true); } catch { workersOk = true; } }
+  const stopLog = () => { if (st) { try { st.frames(false); } catch { /* gone */ } } };
+  const poll = (t) => {
+    if (!st || polling || t - lastPoll < WORKER_POLL_MS) return;
+    polling = true; lastPoll = t;
+    st.frameLog().then((logs) => {
+      polling = false;
+      (logs || []).forEach((list, i) => {
+        if (!list || list.length < 2) return;
+        for (let j = 1; j < list.length; j++) wsmooth[i] = list[j][0] - list[j - 1][0] <= FLIP_SMOOTH_MS ? (wsmooth[i] || 0) + 1 : 0;
+      });
+      workersOk = (logs || []).every((list, i) => !list || list.length < 2 || (wsmooth[i] || 0) >= FLIP_SMOOTH_FRAMES);
+    }, () => { polling = false; workersOk = true; });
+  };
   const tick = (t) => {
     id = 0;
     if (done) return;
     if (!t0) t0 = last = t;
     else { n++; smooth = n >= 2 && t - last <= FLIP_SMOOTH_MS ? smooth + 1 : 0; last = t; }
+    poll(t);
     const cur = entries.filter((e) => !e.gone);
-    if (!cur.length) { done = true; return; }
-    if (smooth >= FLIP_SMOOTH_FRAMES && cur.every((e) => e.prepared !== false)) {
+    if (!cur.length) { done = true; stopLog(); return; }
+    if (smooth >= FLIP_SMOOTH_FRAMES && workersOk && cur.every((e) => e.prepared !== false)) {
+      stopLog();
       done = true;
       // one card after another, the result row's step apart (the user, 2026-11-22: "one player card at a time, in quick
       // succession")
       cur.slice().sort(byPage).forEach((e, i) => showCard(e, i * FLIP_STEP_S * 1000));
       return;
     }
-    if (t0 && t - t0 >= FLIP_GIVE_UP_MS) { done = true; for (const e of cur) giveUpCard(e); onGiveUp?.(); return; }
+    if (t0 && t - t0 >= FLIP_GIVE_UP_MS) { done = true; stopLog(); for (const e of cur) giveUpCard(e); onGiveUp?.(); return; }
     id = requestAnimationFrame(tick);
   };
   id = requestAnimationFrame(tick);
-  return () => { done = true; if (id) cancelAnimationFrame(id); };
+  return () => { if (!done) stopLog(); done = true; if (id) cancelAnimationFrame(id); };
 }
 /** A card on its own (after the flip): start it hidden and show it once smooth — or keep it 2D on a page that gave up. */
 function startAlone(e) {
@@ -471,7 +557,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
     setReveal('fade');
     setCovered(false);
     if (!on) return undefined;
-    let card = null, live = true, kept = false, raf = 0, cur = 'loading', isCovered = false;
+    let card = null, live = true, kept = false, raf = 0, cur = 'loading', isCovered = false, trans = null;
     const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false, prepared: false, show: (delay) => { if (live) showNow(delay); }, giveUp: () => keep2d() } : null;
     // a page that never got smooth: the card keeps its 2D art and its illustration stops (no low-FPS illustration)
     const keep2d = () => {
@@ -482,7 +568,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       if (wash.current) wash.current.style.opacity = '0';
       isCovered = false;
       setCovered(false);
-      setState('off');
+      setState('kept'); // data-dyn="kept": the 2D art stays (not 'off': the illustration was there and gave up)
     };
     // the dissolve's picture: the card's art box exactly as it shows — its background, then the 2D art (object-fit cover
     // at its object-position, its filter) — composed and put on the GPU while the cards wait, again at the show if the
@@ -549,7 +635,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       setReveal('dissolve');
       setCovered(true);
     };
-    // the show, `delay` ms from now (the group's stagger): the 2D art dissolves away over FLIP_DISSOLVE_S with a white
+    // the show, `delay` ms from now (the group's stagger): the 2D art dissolves away over FLIP_SWEEP_S with a white
     // bloom on its edge and a glow behind it that fades after (cardEntrance.js drawBloom, its own canvas, plus-lighter)
     const showNow = (delay = 0) => {
       const cv = dis.current, wc = wash.current;
@@ -560,32 +646,40 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
         if (drawnKey === picKey || drawDissolve(cv, pic, 0, W, H)) {
           setShown(true);
           const t0 = performance.now() + Math.max(0, delay);
-          let blooming = false, dissolved = false, lastS = 0;
-          const sparks = makeSparks();
-          const dpr = globalThis.devicePixelRatio || 1;
-          const step = () => {
-            raf = 0;
-            if (!live) return;
-            const s = (performance.now() - t0) / 1000;
-            if (s >= 0) {
-              const k = Math.min(1, s / FLIP_DISSOLVE_S);
-              if (!dissolved) drawDissolve(cv, pic, k, W, H);
-              if (k >= 1 && !dissolved) { dissolved = true; cv.style.opacity = '0'; cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
+          let dissolved = false, lastS = 0, k = 0, glow = 0;
+          // the embers: style A (out of the sides) or B (a shower, the default); the review page picks with &sparks=a|b
+          const sparks = makeSparks(globalThis.__dynSparks === 'a' ? 'A' : 'B');
+          const r = cv.getBoundingClientRect();
+          const box = { left: r.left, top: r.top, width: r.width, height: r.height };
+          if (wc && wc.style.opacity !== '1') wc.style.opacity = '1';
+          // one frame of this card in the shared pass (runTransitions): queue its tiles, then sparks and the end
+          trans = {
+            queue(now) {
+              if (!live) return false;
+              const s = (now - t0) / 1000;
+              if (s < 0) return true;
+              k = sweepDrive(s);
+              if (!dissolved) batchDissolve(cv, pic, k, W, H);
               // the bloom: a band on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
-              const glow = BLOOM.glow * (k < 1 ? 1 : Math.max(0, 1 - (s - FLIP_DISSOLVE_S) / BLOOM.fadeS));
-              if (wc && drawBloom(wc, k, glow, k < 1 ? BLOOM.band : 0, W, H) && !blooming) { blooming = true; if (wc.style.opacity !== '1') wc.style.opacity = '1'; }
-              // the border sparks: born on the edge while it moves, drawn over the bloom
-              sparks.step(Math.min(0.05, Math.max(0, s - lastS)), k, k < 1);
+              glow = BLOOM.glow * (k < 1 ? 1 : Math.max(0, 1 - (s - FLIP_SWEEP_S) / BLOOM.fadeS));
+              if (wc) batchBloom(wc, k, glow, k < 1 ? BLOOM.band : 0, W, H);
+              // the embers: born on the border while it moves, then falling out of the card
+              sparks.step(Math.min(0.05, Math.max(0, s - lastS)), k, k < 1, box);
               lastS = s;
-              if (wc && blooming) sparks.draw(wc.getContext('2d'), W, H, dpr);
+              return true;
+            },
+            after(layer) {
+              if (!live || lastS <= 0) return true;
+              if (layer) sparks.draw(layer.ctx, layer.dpr);
+              if (k >= 1 && !dissolved) { dissolved = true; cv.style.opacity = '0'; cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
               if (dissolved && !(glow > 0) && !sparks.count) {
                 if (wc) { wc.style.opacity = '0'; wc.width = 1; wc.height = 1; }
-                return;
+                return false;
               }
-            }
-            raf = requestAnimationFrame(step);
+              return true;
+            },
           };
-          raf = requestAnimationFrame(step);
+          addTransition(trans);
           return;
         }
       }
@@ -609,6 +703,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
     return () => {
       live = false;
       if (raf) cancelAnimationFrame(raf);
+      if (trans) { transitions.delete(trans); trans = null; }
       freeDissolvePicture(pic); pic = null;
       if (entry) leaveGroup(entry);
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }

@@ -422,60 +422,113 @@ let bloomMask = null;
  * d = 2k − 0.75 [src: drawDissolve, DISSOLVE_MAT s1 0.5]; the band peaks there, the glow covers d below it.
  */
 export function drawBloom(target, k, glow, band, w, h) {
-  if (!glInit() || !bloomMask) return false;
-  const tm = textures.get(`${bloomMask}|false`);
+  return flushTiles([{ kind: 'bloom', target, k, glow, band, W: Math.max(1, Math.round(w)), H: Math.max(1, Math.round(h)) }]);
+}
+
+/** One bloom tile in the current viewport (flushTiles). */
+function tileBloom(it) {
+  const tm = bloomMask ? textures.get(`${bloomMask}|false`) : null;
   if (!tm || tm.then) return false;
-  const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h));
-  const c = gl.canvas;
-  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
-  const edge = 2 * k - 0.75, bw = BLOOM.width;
+  const edge = 2 * it.k - 0.75, bw = BLOOM.width;
   // the shader's threshold is drive × 2 − 1: mask 1 = smoothstep((d − c1) / bw) with c1 = edge − bw (on above the
   // edge… below it fades); mask 2 (inverted d) = smoothstep(((1 − d) − c2) / bw) with c2 = 1 − (edge + bw): on below the edge
   const r = (edge - bw + 1) / 2, g = (1 - (edge + bw) + 1) / 2;
-  gl.useProgram(prog);
-  gl.viewport(0, 0, W, H);
-  gl.uniform2f(loc.u_view, 1, 1);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE);
-  gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1,
-    0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1]), gl.STREAM_DRAW);
-  gl.enableVertexAttribArray(loc.a_pos); gl.vertexAttribPointer(loc.a_pos, 2, gl.FLOAT, false, 24, 0);
-  gl.enableVertexAttribArray(loc.a_uv); gl.vertexAttribPointer(loc.a_uv, 2, gl.FLOAT, false, 24, 8);
-  gl.enableVertexAttribArray(loc.a_quv); gl.vertexAttribPointer(loc.a_quv, 2, gl.FLOAT, false, 24, 16);
-  const bind = (unit, t2, u) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u, unit); };
   const pass = (d1, alpha) => {
     if (!(alpha > 0)) return;
     // main texture white; mask 1 the noise (the band) or white (the glow: always on); mask 2 the noise, inverted
-    bind(0, null, loc.u_main); bind(1, d1, loc.u_d1); bind(2, tm.tex, loc.u_d2);
+    bindTex(0, null, loc.u_main); bindTex(1, d1, loc.u_d1); bindTex(2, tm.tex, loc.u_d2);
     gl.uniform4fv(loc.u_vcol, [d1 ? r : 0, g, 0, alpha]);
     gl.uniform4fv(loc.u_st1, [1, 1, 0, 0]); gl.uniform4fv(loc.u_st2, [1, 1, 0, 0]);
     gl.uniform3fv(loc.u_color, [1, 1, 1]);
     for (const [u, val] of [['u_ic', 1], ['u_ci', 1], ['u_c1', -1], ['u_s1', bw], ['u_r1', 0], ['u_c2', -1], ['u_s2', bw], ['u_r2', 1], ['u_add', 1]]) gl.uniform1f(loc[u], val);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   };
-  pass(null, glow);
-  pass(tm.tex, band);
-  if (target.width !== W || target.height !== H) { target.width = W; target.height = H; }
-  const ctx = target.getContext('2d');
-  ctx.clearRect(0, 0, W, H);
-  ctx.drawImage(c, 0, 0);
+  pass(null, it.glow);
+  pass(tm.tex, it.band);
   return true;
+}
+
+function bindTex(unit, t2, u) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u, unit); }
+
+// ---- one GL pass per frame for every card's dissolve and bloom ------------------------------------------------------
+// Each card drawing its own (a draw, then a copy into its canvas, twice per card) made the GPU finish and hand back the
+// shared canvas up to sixteen times a frame (a 49.9 ms frame with eight cards). Queued instead, a frame packs every
+// card's tiles into the canvas, draws them in one pass (a viewport and scissor per tile), then copies each tile out.
+const queue = [];
+/** Queue a card's dissolve frame (drawDissolve's arguments) for flushBatch. */
+export function batchDissolve(target, pic, drive, w, h) {
+  queue.push({ kind: 'dissolve', target, pic, drive, W: Math.max(1, Math.round(w)), H: Math.max(1, Math.round(h)) });
+}
+/** Queue a card's bloom frame (drawBloom's arguments) for flushBatch. */
+export function batchBloom(target, k, glow, band, w, h) {
+  queue.push({ kind: 'bloom', target, k, glow, band, W: Math.max(1, Math.round(w)), H: Math.max(1, Math.round(h)) });
+}
+/** Draw everything queued this frame in one pass. */
+export function flushBatch() { return flushTiles(queue.splice(0)); }
+
+/** The quad over a whole tile (y up), its picture and mask UVs 0–1 (the picture was uploaded flipped). */
+const TILE_QUAD = new Float32Array([0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1]);
+const MAX_SIDE = 4096;
+function flushTiles(items) {
+  if (!items.length || !glInit()) return false;
+  // shelf-pack the tiles (rows of at most MAX_SIDE)
+  let x = 0, y = 0, rowH = 0, CW = 1, CH = 1;
+  for (const it of items) {
+    if (x + it.W > MAX_SIDE) { x = 0; y += rowH; rowH = 0; }
+    it.x = x; it.y = y; x += it.W; rowH = Math.max(rowH, it.H);
+    CW = Math.max(CW, x); CH = Math.max(CH, y + rowH);
+  }
+  const c = gl.canvas;
+  // grown, never shrunk while in use: a resize reallocates the drawing buffer
+  if (c.width < CW || c.height < CH) { c.width = Math.max(c.width, CW); c.height = Math.max(c.height, CH); }
+  gl.useProgram(prog);
+  gl.uniform2f(loc.u_view, 1, 1);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, TILE_QUAD, gl.STREAM_DRAW);
+  gl.enableVertexAttribArray(loc.a_pos); gl.vertexAttribPointer(loc.a_pos, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(loc.a_uv); gl.vertexAttribPointer(loc.a_uv, 2, gl.FLOAT, false, 24, 8);
+  gl.enableVertexAttribArray(loc.a_quv); gl.vertexAttribPointer(loc.a_quv, 2, gl.FLOAT, false, 24, 16);
+  gl.enable(gl.BLEND);
+  gl.enable(gl.SCISSOR_TEST);
+  gl.clearColor(0, 0, 0, 0);
+  const drawn = items.map((it) => {
+    const gy = c.height - it.y - it.H;
+    gl.viewport(it.x, gy, it.W, it.H);
+    gl.scissor(it.x, gy, it.W, it.H);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    return it.kind === 'dissolve' ? tileDissolve(it) : tileBloom(it);
+  });
+  gl.disable(gl.SCISSOR_TEST);
+  items.forEach((it, i) => {
+    if (!drawn[i]) return;
+    const t = it.target;
+    if (t.width !== it.W || t.height !== it.H) { t.width = it.W; t.height = it.H; }
+    const ctx = t.getContext('2d');
+    ctx.clearRect(0, 0, it.W, it.H);
+    ctx.drawImage(c, it.x, it.y, it.W, it.H, 0, 0, it.W, it.H);
+  });
+  return drawn.every(Boolean);
 }
 
 // ---- the border sparks (the user, 2026-11-22: "there should be some particle effects that runs with the border between
 // old and new in the glow … Currently it looks too bland and 'clean'") -------------------------------------------------
 
 /**
- * Sparks born on the dissolve's edge, where the mask reads the edge's value: they rise off it, drift and fade. `rate`
- * births per second per card while the edge moves, `life` / `size` (CSS px) / `rise` (card heights per second at birth,
- * about the edge's own speed: it crosses the card in about 0.22 s) ranges, `drag` the slowing per second, `drift`
- * sideways speed (card widths per second), `near` how close to the birth line's mask value a point must read, `lead` how
- * far (mask units) past the dissolve's edge the birth line runs, `max` live sparks per card.
+ * Embers that fall out of the card (the user, 2026-11-22: "I expected it to fall out of the card itself, and currently
+ * it's swallowed up in the glow"), drawn on one page-wide layer over everything, so they leave the card, as warm embers
+ * painted normally (not added: an added spark is lost in the white glow). Born on the glow's leading edge, where the
+ * mask reads `lead` past the dissolve's edge, over the old picture. Two styles to choose from:
+ *   A, out of the sides: born near the card's left and right edges, thrown outward and up, then falling;
+ *   B, an ember shower: born all along the border, falling down through the card and out of its bottom.
+ * `rate` births per second per card while the border moves, `life` s / `size` CSS px ranges, `vx` / `vy` CSS px per
+ * second at birth (A: `vx` outward), `gravity` CSS px/s², `side` (A) the share of the card's width at each edge births
+ * keep to, `near` how close to the birth line's value a point must read, `max` live embers per card.
  */
-export const SPARKS = Object.freeze({ rate: 320, life: [0.25, 0.55], size: [1.5, 4], rise: [3, 6], drag: 6, drift: 0.35, near: 0.04, lead: 0.2, max: 200 }); // [ASSUMED: tuned to the user's description of 2026-11-22, not yet OK'd on the clip]
+export const SPARKS = Object.freeze({ // [ASSUMED: tuned to the user's descriptions of 2026-11-22, not yet OK'd on the clip]
+  A: { rate: 110, life: [0.7, 1.3], size: [2, 4.5], vx: [150, 420], vy: [-320, -80], gravity: 1100, side: 0.16, near: 0.05, lead: 0.2, max: 160 },
+  B: { rate: 130, life: [0.9, 1.5], size: [1.8, 4], vx: [-60, 60], vy: [-40, 90], gravity: 700, near: 0.04, lead: 0.2, max: 180 },
+});
 
 /** The dissolve mask's red channel on the CPU, top row first (texture rows are uploaded flipped: row = y / H of the box). */
 let maskPx = null;
@@ -497,57 +550,60 @@ function maskPixels(url) {
 export const edgeOf = (k) => 2 * k - 0.75;
 
 let dot = null;
+/** An ember: a pale core, gold, an orange rim fading out (painted over: visible on the white glow and the dark room). */
 function sparkDot() {
   if (dot || typeof OffscreenCanvas !== 'function') return dot;
   const c = new OffscreenCanvas(32, 32), g = c.getContext('2d');
   const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
-  grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.25, 'rgba(225,250,255,0.8)'); grad.addColorStop(0.6, 'rgba(150,235,255,0.25)'); grad.addColorStop(1, 'rgba(120,220,255,0)');
+  grad.addColorStop(0, 'rgba(255,250,228,1)'); grad.addColorStop(0.3, 'rgba(255,206,112,0.95)'); grad.addColorStop(0.65, 'rgba(255,150,52,0.4)'); grad.addColorStop(1, 'rgba(255,120,30,0)');
   g.fillStyle = grad; g.fillRect(0, 0, 32, 32);
   return (dot = c);
 }
 
-/** A card's sparks: `step` them by dt s with the edge at progress k (births only while `born`), `draw` them additively. */
-export function makeSparks() {
+/**
+ * A card's embers in page coordinates: `step` them by dt s with the border at progress k (births only while `born`) over
+ * the card's box `{ left, top, width, height }` (CSS px), `draw` them on the page-wide layer (device px = CSS × dpr).
+ * @param {'A'|'B'} style
+ */
+export function makeSparks(style = 'B') {
+  const P = SPARKS[style] || SPARKS.B;
   const list = [];
   let acc = 0;
   const rnd = (a) => a[0] + Math.random() * (a[1] - a[0]);
   return {
     get count() { return list.length; },
-    step(dt, k, born) {
+    step(dt, k, born, box) {
       for (let i = list.length - 1; i >= 0; i--) {
         const s = list[i];
-        // burst off the edge at about its own speed, then slow and fall behind it
-        s.age += dt; s.x += s.vx * dt; s.y += s.vy * dt;
-        const slow = Math.max(0, 1 - SPARKS.drag * dt); s.vx *= slow; s.vy *= slow;
+        s.age += dt; s.vy += P.gravity * dt; s.x += s.vx * dt; s.y += s.vy * dt;
         if (s.age >= s.life) list.splice(i, 1);
       }
-      if (!born || !maskPx) return;
-      // born on the glow's leading edge (the band's outer side, `lead` past the dissolve's edge), over the old picture:
-      // inside the white an additive spark is lost
-      const e = edgeOf(k) + SPARKS.lead;
-      if (e < -SPARKS.near || e > 1 + SPARKS.near) return;
-      acc += SPARKS.rate * dt;
-      for (let tries = 0; acc >= 1 && tries < 400 && list.length < SPARKS.max; tries++) {
-        const x = Math.random(), y = Math.random();
+      if (!born || !maskPx || !box) return;
+      const e = edgeOf(k) + P.lead;
+      if (e < -P.near || e > 1 + P.near) return;
+      acc += P.rate * dt;
+      for (let tries = 0; acc >= 1 && tries < 400 && list.length < P.max; tries++) {
+        let x = Math.random();
+        if (style === 'A') x = x < 0.5 ? x * 2 * P.side : 1 - (x - 0.5) * 2 * P.side;
+        const y = Math.random();
         const d = maskPx.r[Math.min(maskPx.h - 1, (y * maskPx.h) | 0) * maskPx.w + Math.min(maskPx.w - 1, (x * maskPx.w) | 0)] / 255;
-        if (Math.abs(d - e) > SPARKS.near) continue;
-        list.push({ x, y, vx: (Math.random() - 0.5) * 2 * SPARKS.drift, vy: -rnd(SPARKS.rise), age: 0, life: rnd(SPARKS.life), size: rnd(SPARKS.size) });
+        if (Math.abs(d - e) > P.near) continue;
+        const vx = style === 'A' ? (x < 0.5 ? -1 : 1) * rnd(P.vx) : rnd(P.vx);
+        list.push({ x: box.left + x * box.width, y: box.top + y * box.height, vx, vy: rnd(P.vy), age: 0, life: rnd(P.life), size: rnd(P.size) });
         acc -= 1;
       }
       if (acc > 1) acc = 1;
     },
-    draw(ctx, W, H, dpr) {
+    draw(ctx, dpr) {
       const img = sparkDot();
       if (!img || !list.length) return;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
       for (const s of list) {
-        const a = 1 - s.age / s.life;
-        const r = s.size * dpr * (0.5 + 0.5 * a) * 2;
-        ctx.globalAlpha = a;
-        ctx.drawImage(img, s.x * W - r, s.y * H - r, 2 * r, 2 * r);
+        const t = s.age / s.life;
+        const r = s.size * dpr * (1 - 0.4 * t);
+        ctx.globalAlpha = 1 - t * t;
+        ctx.drawImage(img, s.x * dpr - r * 2, s.y * dpr - r * 2, r * 4, r * 4);
       }
-      ctx.restore();
+      ctx.globalAlpha = 1;
     },
   };
 }
@@ -587,41 +643,23 @@ export function coverUv(iw, ih, w, h, px = 0.5, py = 0.5) {
  * 0 (whole) … 1 (gone): the material's threshold is drive × 2 − 1 [src: FS mask(), _ImageControl].
  */
 export function drawDissolve(target, pic, drive, w, h) {
-  if (!glInit() || !pic?.tex) return false;
-  const tm = textures.get(`${pic.mask}|false`);
+  return flushTiles([{ kind: 'dissolve', target, pic, drive, W: Math.max(1, Math.round(w)), H: Math.max(1, Math.round(h)) }]);
+}
+
+/** One dissolve tile in the current viewport (flushTiles): the whole box, its picture uploaded flipped. */
+function tileDissolve(it) {
+  const pic = it.pic;
+  const tm = pic?.tex ? textures.get(`${pic.mask}|false`) : null;
   if (!tm || tm.then) return false;
-  const tp = pic, uv = { u0: 0, u1: 1, t0: 0, t1: 1 };
-  const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h));
-  const c = gl.canvas;
-  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
   const m = MAT[DISSOLVE_MAT];
-  gl.useProgram(prog);
-  gl.viewport(0, 0, W, H);
-  gl.uniform2f(loc.u_view, 1, 1);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-  gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  // the quad is the whole box (y up); the picture was uploaded flipped (v up = 1 − its top-down t)
-  const u0 = uv.u0, u1 = uv.u1, vb = 1 - uv.t1, vt = 1 - uv.t0;
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, u0, vb, 0, 0, 1, 0, u1, vb, 1, 0, 1, 1, u1, vt, 1, 1,
-    0, 0, u0, vb, 0, 0, 1, 1, u1, vt, 1, 1, 0, 1, u0, vt, 0, 1]), gl.STREAM_DRAW);
-  gl.enableVertexAttribArray(loc.a_pos); gl.vertexAttribPointer(loc.a_pos, 2, gl.FLOAT, false, 24, 0);
-  gl.enableVertexAttribArray(loc.a_uv); gl.vertexAttribPointer(loc.a_uv, 2, gl.FLOAT, false, 24, 8);
-  gl.enableVertexAttribArray(loc.a_quv); gl.vertexAttribPointer(loc.a_quv, 2, gl.FLOAT, false, 24, 16);
-  const bind = (unit, t2, u) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u, unit); };
-  bind(0, tp.tex, loc.u_main); bind(1, tm.tex, loc.u_d1); bind(2, null, loc.u_d2);
+  bindTex(0, pic.tex, loc.u_main); bindTex(1, tm.tex, loc.u_d1); bindTex(2, null, loc.u_d2);
   // vertex colour: r drives mask 1; g 0 keeps mask 2 (white) whole (threshold −1)
-  gl.uniform4fv(loc.u_vcol, [Math.max(0, Math.min(1, drive)), 0, 1, 1]);
+  gl.uniform4fv(loc.u_vcol, [Math.max(0, Math.min(1, it.drive)), 0, 1, 1]);
   gl.uniform4fv(loc.u_st1, m.st1); gl.uniform4fv(loc.u_st2, m.st2);
   gl.uniform3fv(loc.u_color, m.col);
   for (const [u, val] of [['u_ic', m.ic], ['u_ci', m.ci], ['u_c1', m.c1], ['u_s1', m.s1], ['u_r1', m.r1], ['u_c2', m.c2], ['u_s2', m.s2], ['u_r2', m.r2], ['u_add', 0]]) gl.uniform1f(loc[u], val);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
-  if (target.width !== W || target.height !== H) { target.width = W; target.height = H; }
-  const ctx = target.getContext('2d');
-  ctx.clearRect(0, 0, W, H);
-  ctx.drawImage(c, 0, 0);
   return true;
 }
 
