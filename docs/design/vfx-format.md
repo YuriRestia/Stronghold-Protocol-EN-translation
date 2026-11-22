@@ -2056,8 +2056,10 @@ hasExitTime, conditions: [{ mode ('if' | 'ifNot' | 'greater' | 'less' | 'equals'
 
 ```
 dynIllustKey(charId, skinId | null) → key | null    the dynillust group of data/local-assets.json; skinId null = the
-                                                    E2 art, the entry whose skinId is `<charId>#2`
+                                                    E2 art, the entry whose skinId is `<charId>#2`; null until that
+                                                    file is loaded: await Stage.index() first
 getDynIllustStage() → Stage                         one per page, made on first use: one WebGL context, offscreen
+Stage.index() → Promise<void>                       settles once data/local-assets.json is loaded (dynIllustKey's input)
 Stage.quality = 'full' | 'half'                     set from the D7 setting before preload
 Stage.preload(keys) → Promise<void>                 D10: download, decode, build, upload, warm; started when the final
                                                     battle ends (m.public `ending`) or a room opens; settles when every
@@ -2076,17 +2078,22 @@ Card.unmount()
 Skin ids: the 26 E2 illustrations of the CN skin table are all `<charId>#2`; no `#1` (default) skin has one
 [src: official skin_table.json, gamedata@17759cc8 charSkins dynIllustId]. The stage renders each illustration offscreen
 and copies its region into `Card.canvas` every drawn frame, as the client renders each illustration by its own camera
-into a render texture [src: official dump.cs DynIllustMgr RT_WIDTH, RT_HEIGHT]; how (and its measured cost for 8 cards)
-is the renderer's (WP2). One key mounted on several cards is drawn once (spec §4.3); a hidden page or a canvas out of
-view pauses its card and frees its slot.
+into a render texture [src: official dump.cs DynIllustMgr RT_WIDTH, RT_HEIGHT]. As built (WP2): one offscreen WebGL
+context and a `drawImage` copy into each card's canvas, 0.1 ms median / 0.3 ms p95 a frame for 8 cards [src: Dev 50's
+measurement, 2026-11-22]. One key mounted on several cards is drawn once (spec §4.3); a hidden page or a canvas out of
+view pauses its card and frees its slot. A screen awaits `getDynIllustStage().index()` before it calls
+`dynIllustKey`.
 
 | `Card.state` | meaning | the caller |
 |---|---|---|
-| `loading` | not drawable yet; `Card.canvas` transparent | shows its 2D art |
-| `ready` | drawable, `start()` not called; canvas transparent | shows its 2D art |
-| `live` | drawn at alpha 1, looping `Idle` and the action flow (WP3) | hides its 2D art |
-| `failed` | will not draw (missing file, decode or GL error) | keeps its 2D art; may drop the card |
-| `unmounted` | `unmount()` was called | — |
+| `loading` | not drawable yet; `Card.canvas` at opacity 0 | shows its 2D art |
+| `ready` | preloaded and drawable, `start()` not called; canvas at opacity 0 | shows its 2D art |
+| `live` | canvas at opacity 1, looping `Idle` and the action flow (WP3) | hides its 2D art |
+| `failed` | never drawable (missing file, decode or GL error) | keeps its 2D art; may drop the card |
+| `unmounted` | after `unmount()` | — |
+
+Transitions: `loading` → `ready` (preloaded); `ready` → `live` on `start()`; `start()` while `loading` keeps
+`loading` until ready, then the 0.15 s fade, then `live`; `loading` → `failed`; any → `unmounted`.
 
 `start()` on a `ready` card: alpha 1 at once and straight into looping `Idle`, no fade and no `Start` — the official
 card activates with `SafeActivate(fastMode: true)`, which sets alpha 1 and goes to Idle (O1, the user's decision of
