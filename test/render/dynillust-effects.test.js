@@ -78,9 +78,9 @@ describe('loader.js (illust.json, §33.19)', () => {
   test('the half tier: the atlas parses at resolution 1 (its frames are full size), the page keeps 0.5, Pixi keeps no parse', async () => {
     // pixi-spine divides atlas coordinates by the page's resolution [src: public/vendor/pixi-spine.js TextureAtlas]
     const seen = [], removed = [], promiseCache = {};
-    class BaseTexture { constructor(img, o) { this.resolution = o.resolution; } }
+    class BaseTexture { constructor(img, o) { this.resolution = o.resolution; this.mipmap = o.mipmap; } }
     const P = {
-      ALPHA_MODES: { PMA: 2 }, BaseTexture,
+      ALPHA_MODES: { PMA: 2 }, MIPMAP_MODES: { OFF: 0, POW2: 1, ON: 2 }, BaseTexture,
       spine: { TextureAtlas: class { constructor(text, pageCb, done) { this.pages = []; pageCb('pg.png', (t) => { seen.push(t.resolution); this.pages.push({ baseTexture: t }); }); done(this); } } },
       Assets: { cache: { remove: (k) => removed.push(k) }, loader: { promiseCache }, load: async ({ src }) => { promiseCache[src] = 1; return { spineData: { animations: [] } }; } },
     };
@@ -94,6 +94,8 @@ describe('loader.js (illust.json, §33.19)', () => {
       const r = await loadIllust('/assets/local/dynillust/k/illust.json', { P, fetch: fetchFn, half: true });
       assert.deepEqual(seen, [1]);
       assert.equal([...r.pages.values()][0].resolution, 0.5);
+      // mipmaps at any page size (Pixi's POW2 default builds none for a 2008 px page)
+      assert.equal([...r.pages.values()][0].mipmap, 2);
       assert.ok(urls.some((u) => u.includes('/p/half/pg.webp')));
       assert.deepEqual(Object.keys(promiseCache), []);
       assert.ok(removed.some((k) => k.endsWith('s.skel?tier=half')));

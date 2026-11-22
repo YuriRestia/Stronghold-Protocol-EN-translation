@@ -94,6 +94,52 @@ describe('dynamic illustration effect shaders (materials.js)', () => {
     for (const fam of Object.keys(FAMILIES)) assert.ok(!L2D_FAMILIES[fam], `${fam} is not redefined`);
   });
 
+  test('Disturb2 moves its own texture by two noise reads and ignores the vertex rgb (Dusk\'s Elite 2 background)', () => {
+    const ab = compileMaterial({ shader: 'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)', keywords: ['_DISTURBMODE_DEFAULT'] });
+    const add = compileMaterial({ shader: 'Torappu/Particles-L2D/Disturb/Disturb2 (Add)' });
+    const glow = compileMaterial({ shader: 'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)', keywords: ['_DISTURBMODE_GLOW'] });
+    for (const m of [ab, add, glow]) assert.equal(m.family, 'disturb2');
+    assert.equal(ab.defs.glow, false);
+    assert.equal(add.defs.add, true);
+    assert.equal(glow.defs.glow, true);
+    assert.equal(new Set([ab.key, add.key, glow.key]).size, 3);
+    const src = fragmentSource('disturb2', ab.defs);
+    assert.match(src, /u_Noise1Param\.zw \* 0\.1/);
+    assert.match(src, /c\.a \* v_col\.a/);
+    assert.doesNotMatch(src, /v_col\.rgb/, 'the vertex colour\'s rgb is not read');
+    assert.match(fragmentSource('disturb2', add.defs), /c\.rgb \* t\.a/);
+    assert.match(fragmentSource('disturb2', glow.defs), /t\.g \* u_GlowColor/);
+    assert.notEqual(familyOf('Torappu/Particles/Disturb/Disturb Origin').family, 'disturb2', 'the battle Disturb Origin keeps its family');
+  });
+
+  test('Ram/VertexDisturb moves a mesh\'s vertices and always disturbs the main UV (Degenbrecher\'s outfit)', () => {
+    const vd = compileMaterial({ shader: 'Torappu/Particles-L2D/Ram/VertexDisturb(CustomData)' });
+    const rd = compileMaterial({ shader: 'Torappu/Particles-L2D/Ram/Disturb(CustomData)' });
+    const battle = compileMaterial({ shader: 'Torappu/Particles/Ram/VertexDisturb(CustomData)' });
+    assert.equal(vd.family, 'ramDisturbCd');
+    assert.equal(vd.defs.vx, 'vdisturb');
+    assert.notEqual(vd.key, rd.key);
+    assert.equal(battle.defs.vx, undefined, 'the battle shader keeps its program');
+    const v = vertexSource('mesh', vd.defs);
+    assert.match(v, /textureLod\(u_VertexDisturbTex, vuv, 0\.0\)\.xyz - 0\.5/);
+    assert.match(v, /d \* w \* u_VertexDisturbIntensity\.xyz/);
+    assert.ok(v.lastIndexOf('gl_Position = u_vp * vec4(pw, 1.0)') > v.indexOf('gl_Position = u_vp * vec4(p, 1.0)'));
+    assert.equal(vertexSource('quad', vd.defs), vertexSource('quad'), 'a particle draws undisplaced');
+    assert.match(fragmentSource(vd.family, vd.defs), /muv2 = muv \+ dist\.xy;/);
+    assert.match(fragmentSource(rd.family, rd.defs), /muv2 = muv \+ dist\.xy \* u_DisturbInfluenceMainUV;/);
+  });
+
+  test('an illustration target translates the official alpha factors from transmittance to coverage (Mask/Erase)', async () => {
+    const { rtAlphaFactors } = await import('../../public/js/render/vfx/gl.js');
+    const erase = compileMaterial({ shader: 'Torappu/Particles-L2D/Mask/Erase', passes: [{ blend: ['SrcAlpha', 'OneMinusSrcAlpha', 'One', 'OneMinusSrcAlpha'] }] });
+    assert.deepEqual(rtAlphaFactors(erase.state.srcA, erase.state.dstA), [false, true], 'Erase: C(1 − a), the pixel turns see-through');
+    const ab = compileMaterial({ shader: 'Torappu/Particles-L2D/AlphaBlend', passes: [{ blend: ['SrcAlpha', 'OneMinusSrcAlpha', 'Zero', 'OneMinusSrcAlpha'] }] });
+    assert.deepEqual(rtAlphaFactors(ab.state.srcA, ab.state.dstA), [true, true], 'alpha blend: coverage accumulates as before');
+    const add = compileMaterial({ shader: 'Torappu/Particles-L2D/Additive', passes: [{ blend: ['SrcAlpha', 'One', 'Zero', 'One'] }] });
+    assert.deepEqual(rtAlphaFactors(add.state.srcA, add.state.dstA), [false, false], 'additive keeps the target alpha');
+    assert.equal(rtAlphaFactors(1, 0), null, 'no exact equivalent: the default stays');
+  });
+
   test('a vertex variant adds its code at the end of main()', () => {
     const v = vertexSource('quad', { vx: 'grab' });
     assert.match(v, /out vec4 v_g2;/);

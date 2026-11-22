@@ -12,6 +12,7 @@
 //   vx 'grab'    v_g2 = clip position of the displaced point of Disturb GrabPass _DirMode 1 / 2
 //   vx 'hull'    Unlit-Outline's outline pass: the clip position pushed out along the clip-space normal
 //   vx 'tangent' Poker-Reflect: the world tangent, bitangent and the second UV set (mesh attributes 13 and 14)
+//   vx 'vdisturb' Ram/VertexDisturb(CustomData): a mesh's vertices moved in object space by _VertexDisturbTex
 
 const S = (names) => names.map((n) => `uniform sampler2D u${n};`).join('\n');
 const U4 = (names) => names.map((n) => `uniform vec4 u${n};`).join('\n');
@@ -47,6 +48,31 @@ export function l2dVertexExtra(defs = {}, kind = 'quad') {
     c.xy += n * 0.0003;
     c.z += u_Outline_Depth_Offset * 0.0001;
     gl_Position = c;
+  }\n`,
+    };
+  }
+  if (defs.vx === 'vdisturb') {
+    // Ram/VertexDisturb(CustomData) vertex program: d = _VertexDisturbTex(uv × ST + frac(speed × _Time.y)).xyz − 0.5,
+    // w = _VertexDisturbWeightTex(uv × ST).r (both at mip 0); object-space offset d · w · _VertexDisturbIntensity.xyz,
+    // plus normalize(normal) · d.x · w · _NormalDisturbIntensity when _NormalDisturb > 0; then object → world → clip.
+    // Only a mesh carries its object frame here; a particle using this shader draws undisplaced.
+    if (kind !== 'mesh') return null;
+    return {
+      decl: `${S(['_VertexDisturbTex', '_VertexDisturbWeightTex'])}
+${U4(['_VertexDisturbTex_ST', '_VertexDisturbWeightTex_ST', '_VertexDisturbIntensity', '_Time'])}
+${U1(['_VertexDisturbUSpeed', '_VertexDisturbVSpeed', '_NormalDisturb', '_NormalDisturbIntensity'])}
+`,
+      body: `  {
+    vec2 vuv = a_uv * u_VertexDisturbTex_ST.xy + u_VertexDisturbTex_ST.zw + fract(vec2(u_VertexDisturbUSpeed, u_VertexDisturbVSpeed) * u_Time.y);
+    vec3 d = textureLod(u_VertexDisturbTex, vuv, 0.0).xyz - 0.5;
+    float w = textureLod(u_VertexDisturbWeightTex, a_uv * u_VertexDisturbWeightTex_ST.xy + u_VertexDisturbWeightTex_ST.zw, 0.0).x;
+    vec3 o = d * w * u_VertexDisturbIntensity.xyz;
+    float ln = length(a_nrm);
+    if (u_NormalDisturb > 0.0 && ln > 1e-8) o += (a_nrm / ln) * d.x * w * u_NormalDisturbIntensity;
+    vec3 q = a_pos + o;
+    vec3 pw = a_center + a_m0 * q.x + a_m1 * q.y + a_m2 * q.z;
+    v_wpos = pw;
+    gl_Position = u_vp * vec4(pw, 1.0);
   }\n`,
     };
   }
@@ -125,6 +151,28 @@ void main() {
   else if (u_DirMode > 3.5 && u_DirMode < 4.5) dir = normalize(v_uv - u_DisturbCenterUV.xy) * (u_DisturbInvert * 2.0 - 1.0) * 0.1 * vec2(1.0, u_GrabParams.z);
   vec2 off = dir * u_Intensity * n.r * m * v_col.r${d.cvs ? ' * v_t1.zw' : ''};
   o_col = texture(u_GrabTexture, suv + off);
+}`,
+  },
+  // Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend / Add): the main texture (UV × _MainTex_ST) moved by two
+  // noise reads of _DisturTex — red at UV × _Noise1Param.x + (frac(_Noise1Param.y × _Time.x), 0), green at the same
+  // with _Noise2Param — × their .zw × 0.1. _DISTURBMODE_DEFAULT: AlphaBlend = texture × _MainColor, alpha × vertex
+  // alpha; Add = the same with the colour × texture alpha. _DISTURBMODE_GLOW: texture red × _MainColor + green ×
+  // _GlowColor. Saturated. The vertex colour's rgb is not read.
+  disturb2: {
+    tex: ['_MainTex', '_DisturTex'],
+    src: (d) => `${S(['_MainTex', '_DisturTex'])}
+${U4(['_MainTex_ST', '_MainColor', '_GlowColor', '_Noise1Param', '_Noise2Param'])}
+void main() {
+  vec2 uv = st(v_uv, u_MainTex_ST);
+  vec2 n1 = uv * u_Noise1Param.x + vec2(fract(u_Noise1Param.y * u_Time.x), 0.0);
+  vec2 n2 = uv * u_Noise2Param.x + vec2(fract(u_Noise2Param.y * u_Time.x), 0.0);
+  vec2 off = texture(u_DisturTex, n2).g * u_Noise2Param.zw * 0.1 + texture(u_DisturTex, n1).r * u_Noise1Param.zw * 0.1;
+  vec4 t = texture(u_MainTex, uv + off);
+  ${d.glow
+    ? 'o_col = clamp(t.r * u_MainColor + t.g * u_GlowColor, 0.0, 1.0);'
+    : d.add
+      ? 'vec4 c = t * u_MainColor;\n  o_col = clamp(vec4(c.rgb * t.a, c.a * v_col.a), 0.0, 1.0);'
+      : 'vec4 c = t * u_MainColor;\n  o_col = clamp(vec4(c.rgb, c.a * v_col.a), 0.0, 1.0);'}
 }`,
   },
   // Torappu/Particles-L2D/Special/Particle-Blur: the frame copy (GrabPass "_DisturbGrabTexture", shared with

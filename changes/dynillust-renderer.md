@@ -16,6 +16,11 @@
   dev50-gpu-skinning-report.md §Pale shapes].
 - The half tier draws again (its atlas frames were placed twice as far, so no card went live on a phone), and the
   effect files load for the cards in turn, so the first cards no longer wait behind the others' downloads.
+- Cards start smoothly when a page shows many at once: each card's first-draw work (uploads, shader builds, its
+  skeleton and effects, the particle prewarm, a warm-up draw) runs in small steps before it reports ready, so the worst
+  frame while a page's cards start roughly halves [src: notes dev50-gpu-skinning-report.md §Paging].
+- The illustrations no longer look jagged at card size: every atlas page gets mipmaps (Pixi built none for pages whose
+  sides are not powers of two, 85 of the 98) [src: notes dev50-gpu-skinning-report.md §Jagged edges].
 - Skeletons skin on the GPU (WebGL2, phones included): the CPU keeps only the animation and bone transforms, the
   vertex shader places every vertex. 8 heavy illustrations at once: 35 → 43 fps on the dev PC, the same pixels as the
   CPU path on 17 illustrations [src: notes dev50-l2d-perf-report.md §GPU skinning].

@@ -43,6 +43,15 @@ export const MAX_DPR = 2;
 export const FX_STEP_MAX = 0.25;
 /** The late card's fade in s [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10]. */
 export const LATE_FADE_S = 0.15;
+/**
+ * Staging work per frame in ms (ours, not an official value): a card's first-draw work — page and effect texture
+ * uploads, shader builds, its slot (skeleton, GPU skinning, effect instance), the first step (the particle prewarm) and
+ * a warm-up draw — runs before the card reports 'ready', a piece at a time after each frame's own work while the frame
+ * has used less than this, at least one piece a frame; so start() at 'live' costs nothing and the page keeps animating.
+ */
+export const STAGE_BUDGET_MS = 8;
+/** Frames a card waits for a layout size before it reports 'ready' unstaged (it then builds at its first draw). */
+export const STAGE_SIZE_FRAMES = 30;
 
 function byUnityOrder(a, b) {
   return (a.layer - b.layer) || (a.order - b.order) || (a.queue - b.queue) || (b.dist - a.dist) || (a.seq - b.seq);
@@ -71,6 +80,8 @@ export class DynIllustStage {
     this.last = 0;
     this.time = 0;
     this._raf = 0;
+    this._jobs = [];            // staging pieces (STAGE_BUDGET_MS): () => true when done, false to try again next frame
+    this._warming = new Set();  // staged slots to draw once (not stepped) in the next frame: the warm-up draw
     this.canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
     if (this.canvas) { this.canvas.width = 2; this.canvas.height = 2; }
     this.renderer = null;
@@ -129,7 +140,11 @@ export class DynIllustStage {
     this.canvas.addEventListener('webglcontextrestored', () => { this.lost = false; this.lib.forgetGpu(); this._kick(); });
     const gl = this.renderer.gl;
     if (gl && this.renderer.context?.webGLVersion === 2) {
-      try { this.glr = new FxGL(gl, this.lib); } catch (err) { console.warn('[dynillust] effects unavailable', err); }
+      // rtAlpha: the official illustration render texture's alpha is a transmittance (camera clear (0, 0, 0, 1), the
+      // card's UI/UI_RT_DYN_ILLUST adds RT.rgb + background × RT.a), so an eraser (Mask/Erase) makes pixels see-through;
+      // FxGL keeps the materials' alpha factors, turned into our coverage alpha [src: doc client.md §Official battle
+      // effects, Shaders; render/vfx/gl.js rtAlphaFactors]
+      try { this.glr = new FxGL(gl, this.lib, { rtAlpha: true }); } catch (err) { console.warn('[dynillust] effects unavailable', err); }
     }
     return true;
   }
@@ -158,28 +173,66 @@ export class DynIllustStage {
     return c.promise;
   }
 
-  /** Put an illustration's pages, effect programs and textures on the GPU ahead of its first draw (D10). */
+  /**
+   * Put an illustration's pages, effect programs and textures on the GPU ahead of its first draw (D10). The downloads
+   * and decodes run here; every GL call (an upload, a program's build start) is one staging piece (_runJobs), so no
+   * frame carries them all. Settles once the pieces ran; `prep.progs` lists the programs (their builds may still run:
+   * _stage waits for them).
+   */
   async _warm(prep) {
     if (!this._ensureGL() || this.lost) return;
-    const r = this.renderer;
-    for (const t of prep.pages.values()) { try { r.texture.bind(t); } catch { /* uploaded at its first draw */ } }
     const def = prep.fxDef, glr = this.glr;
-    if (!def || !glr) return;
     const half = this.quality === 'half';
     // one owner per illustration: the library shares its parallel loads between the cards in turn
-    await Promise.all((def.textures || []).map((k) => this.lib.loadTexture(k, half, prep.entry && prep.entry.key)));
+    if (def && glr) await Promise.all((def.textures || []).map((k) => this.lib.loadTexture(k, half, prep.entry && prep.entry.key)));
     const progs = new Map();
-    const add = (kind, mi) => { const mat = mi != null ? def.material(mi, false) : null; if (mat) progs.set(`${kind}|${mat.key}`, [kind, mat]); };
-    for (let i = 0; i < def.n; i++) {
-      const pr = def.psr[i];
-      if (pr && pr.enabled && pr.mode !== 'none') { add(pr.mode === 'mesh' ? 'mesh' : 'quad', pr.mats[0]); if (def.ps[i]?.trail) add('strip', pr.mats[1]); }
-      if (def.mesh[i]) for (const mi of def.mesh[i].mats) add('mesh', mi);
-      for (const x of [def.skinned[i], def.trail[i], def.line[i]]) if (x) for (const mi of x.mats) add('strip', mi);
+    if (def && glr) {
+      const add = (kind, mi) => { const mat = mi != null ? def.material(mi, false) : null; if (mat) progs.set(`${kind}|${mat.key}`, [kind, mat]); };
+      for (let i = 0; i < def.n; i++) {
+        const pr = def.psr[i];
+        if (pr && pr.enabled && pr.mode !== 'none') { add(pr.mode === 'mesh' ? 'mesh' : 'quad', pr.mats[0]); if (def.ps[i]?.trail) add('strip', pr.mats[1]); }
+        if (def.mesh[i]) for (const mi of def.mesh[i].mats) add('mesh', mi);
+        for (const x of [def.skinned[i], def.trail[i], def.line[i]]) if (x) for (const mi of x.mats) add('strip', mi);
+      }
     }
-    try {
-      for (const [kind, mat] of progs.values()) glr.program(kind, mat);
-      for (const k of def.textures || []) glr.texture(k, half);
-    } finally { resetPixi(r); }
+    prep.progs = [...progs.values()];
+    const r = this.renderer;
+    const gl1 = (fn) => () => { if (!this.lost) { try { fn(); } catch { /* done at its first draw instead */ } finally { resetPixi(r); } } return true; };
+    const pieces = [];
+    for (const t of prep.pages.values()) pieces.push(gl1(() => r.texture.bind(t)));
+    if (def && glr) {
+      // the builds start here and run on in the driver (KHR_parallel_shader_compile); several starts make one piece
+      for (let i = 0; i < prep.progs.length; i += 4) { const some = prep.progs.slice(i, i + 4); pieces.push(gl1(() => { for (const [kind, mat] of some) glr.program(kind, mat); })); }
+      for (const k of def.textures || []) pieces.push(gl1(() => glr.texture(k, half)));
+    }
+    await this._enqueue(pieces);
+  }
+
+  /** Queue staging pieces; settles once the last of them is done. */
+  _enqueue(pieces) {
+    if (!pieces.length) return Promise.resolve();
+    return new Promise((resolve) => {
+      const last = pieces[pieces.length - 1];
+      this._jobs.push(...pieces.slice(0, -1), () => { const done = last(); if (done) resolve(); return done; });
+      this._kick();
+    });
+  }
+
+  /**
+   * Run staging pieces after this frame's own work while the frame has used less than STAGE_BUDGET_MS (at least one
+   * piece a frame). A piece that is not done yet (waiting for a layout size, a shader build) goes to the back.
+   */
+  _runJobs(frameStart) {
+    const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    let ran = 0;
+    for (let n = this._jobs.length; n > 0 && this._jobs.length; n--) {
+      if (ran && now() - frameStart >= STAGE_BUDGET_MS) break;
+      const job = this._jobs.shift();
+      let done = true;
+      try { done = job() !== false; } catch (err) { console.warn('[dynillust] staging', err); }
+      if (!done) this._jobs.push(job);
+      ran++;
+    }
   }
 
   /** D10: get every key ready (or failed) before its cards are shown. Settles when all have. */
@@ -213,34 +266,60 @@ export class DynIllustStage {
     if (card.slot) { card.slot.cards.delete(card); if (!card.slot.cards.size) this._dropSlot(card.slot); card.slot = null; }
   }
 
-  _dropSlot(slot) { this.slots.delete(slot.id); slot.destroy(); }
+  _dropSlot(slot) { this._warming.delete(slot); this.slots.delete(slot.id); slot.destroy(); }
+
+  /** Put `card` on the slot of its key at w × h (built when none yet), leaving its old one; the slot, or null at 0 size. */
+  _attach(card, prep, w, h) {
+    card.w = w; card.h = h;
+    if (card.slot) { card.slot.cards.delete(card); if (!card.slot.cards.size) this._dropSlot(card.slot); card.slot = null; }
+    if (!(w > 0 && h > 0)) return null;
+    const id = `${card.key}|${this.quality}|${w}x${h}`;
+    let slot = this.slots.get(id);
+    if (!slot) { slot = new Slot(this, id, card.key, prep, w, h); this.slots.set(id, slot); }
+    slot.cards.add(card);
+    card.slot = slot;
+    card.canvas.width = w; card.canvas.height = h;
+    return slot;
+  }
 
   _kick() {
-    if (this._raf || this.destroyed || !this.cards.size) return;
+    if (this._raf || this.destroyed || (!this.cards.size && !this._jobs.length)) return;
     const raf = this.opts.raf || requestAnimationFrame;
     this._raf = raf((t) => this._frame(t));
   }
 
   _frame(t) {
     this._raf = 0;
-    if (this.destroyed || !this.cards.size) { this.last = 0; return; }
+    if (this.destroyed || (!this.cards.size && !this._jobs.length)) { this.last = 0; return; }
     if (this._hidden()) { for (const s of this.slots.values()) s.pause(); this.last = 0; return; }
+    const frameStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const now = this.opts.now ? this.opts.now() : t;
     const dt = this.last ? Math.max(0, (now - this.last) / 1000) : 0;
     this.last = now;
     this.time += dt;
     this.frameNo++;
     for (const c of this.cards) c.sync(dt);
-    const live = [];
+    const live = [], warm = [];
     for (const slot of this.slots.values()) {
       let any = false;
       for (const c of slot.cards) if (c.drawing) { any = true; break; }
-      if (!any) { slot.pause(); continue; }
+      if (!any) {
+        // a staged slot waits enabled and posed (its prewarm done) until its card shows; drawn once to warm up
+        if (slot.held) { if (this._warming.has(slot)) warm.push(slot); continue; }
+        slot.pause();
+        continue;
+      }
+      slot.held = false;
+      this._warming.delete(slot);
       slot.resume();
       slot.step(dt);
       live.push(slot);
     }
-    if (live.length && this._ensureGL() && !this.lost) this._draw(live);
+    if ((live.length || warm.length) && this._ensureGL() && !this.lost) {
+      this._draw(live.concat(warm));
+      for (const s of warm) { if (s.x >= 0) { s.warmed = true; this._warming.delete(s); } }
+    }
+    if (this._jobs.length) this._runJobs(frameStart);
     this._kick();
   }
 
@@ -337,13 +416,48 @@ export class Card {
       this.canvas.__dynCard = this;
       if (S.io) S.io.observe(this.canvas);
     }
-    this.ready = S._prepare(key).then((prep) => {
+    this.ready = S._prepare(key).then((prep) => this._stage(prep)).then((prep) => {
       if (this.state === 'unmounted') return false;
       this.prep = prep;
       if (this.started) { this.fade = 0; S._kick(); }   // D11: the late card fades in
       else this._set('ready');
       return true;
     }, () => { if (this.state !== 'unmounted') this._set('failed'); return false; });
+  }
+
+  /** The canvas's CSS box in device px (capped at MAX_DPR): [w, h]. */
+  _measure() {
+    const r = this.canvas.getBoundingClientRect();
+    const dpr = Math.min(MAX_DPR, Math.max(1, globalThis.devicePixelRatio || 1));
+    return [Math.round(r.width * dpr), Math.round(r.height * dpr)];
+  }
+
+  /**
+   * Build and warm this card's slot before the card reports 'ready' (STAGE_BUDGET_MS pieces): wait for a layout size,
+   * build the slot, enable it and take its first step (the particle prewarm), draw it once offscreen, wait for its
+   * shaders. Resolves to `prep`. Without a canvas or a GL stage, or with no size after STAGE_SIZE_FRAMES frames, it
+   * resolves at once and the slot builds at its first draw, as before.
+   */
+  _stage(prep) {
+    const S = this.S;
+    if (!this.canvas || !S._ensureGL() || S.lost || this.state === 'unmounted') return prep;
+    let waited = 0, slot = null;
+    const progsReady = () => !S.glr || (prep.progs || []).every(([kind, mat]) => { S.glr.program(kind, mat); return !S.glr.building(kind, mat); });
+    return S._enqueue([
+      () => {
+        if (this.state === 'unmounted') return true;
+        const [w, h] = this._measure();
+        if (w > 0 && h > 0) { slot = S._attach(this, prep, w, h); return true; }
+        return ++waited >= STAGE_SIZE_FRAMES;
+      },
+      () => {
+        // the first step: OnEnable (Idle), the effects switched on and prewarmed
+        if (slot && !slot.held && !slot.warmed && slot.paused) { slot.resume(); slot.step(0); slot.held = true; S._warming.add(slot); }
+        return true;
+      },
+      // drawn once (the next frame's _draw), and every shader built
+      () => !slot || this.state === 'unmounted' || !slot.held || (slot.warmed && progsReady()),
+    ]).then(() => prep);
   }
 
   _set(st) {
@@ -369,21 +483,8 @@ export class Card {
   /** Size from the canvas's CSS box; (re)attach to the slot of this size; advance the late fade. */
   sync(dt) {
     if (!this.prep || !this.canvas || this.state === 'unmounted') return;
-    const r = this.canvas.getBoundingClientRect();
-    const dpr = Math.min(MAX_DPR, Math.max(1, globalThis.devicePixelRatio || 1));
-    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
-    if (w !== this.w || h !== this.h || !this.slot) {
-      this.w = w; this.h = h;
-      if (this.slot) { this.slot.cards.delete(this); if (!this.slot.cards.size) this.S._dropSlot(this.slot); this.slot = null; }
-      if (w > 0 && h > 0) {
-        const id = `${this.key}|${this.S.quality}|${w}x${h}`;
-        let slot = this.S.slots.get(id);
-        if (!slot) { slot = new Slot(this.S, id, this.key, this.prep, w, h); this.S.slots.set(id, slot); }
-        slot.cards.add(this);
-        this.slot = slot;
-        this.canvas.width = w; this.canvas.height = h;
-      }
-    }
+    const [w, h] = this._measure();
+    if (w !== this.w || h !== this.h || !this.slot) this.S._attach(this, this.prep, w, h);
     if (this.fade >= 0 && this.drawing) {
       this.fade += dt;
       const a = Math.min(1, this.fade / LATE_FADE_S);
@@ -415,6 +516,8 @@ class Slot {
     this.w = w; this.h = h;
     this.x = -1; this.y = -1;
     this.paused = true;
+    this.held = false;    // staged (Card._stage): enabled and posed, waiting for its card to show
+    this.warmed = false;  // drawn once offscreen
     this.time = 0;
     this.fxTime = 0;
     this.items = [];

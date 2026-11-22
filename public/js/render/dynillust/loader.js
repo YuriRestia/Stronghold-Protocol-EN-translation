@@ -37,8 +37,12 @@ async function pageTexture(P, fetchFn, url, half) {
   const img = typeof createImageBitmap === 'function'
     ? await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
     : await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(im); im.onerror = reject; im.src = URL.createObjectURL(blob); });
-  // raw upload: the Spine shader applies the material's keywords (_USEBLEED_ON: rgb × a) itself [src: doc §33.19 Files]
-  return new P.BaseTexture(img, { alphaMode: P.ALPHA_MODES.PMA, resolution: half ? 0.5 : 1 });
+  // raw upload: the Spine shader applies the material's keywords (_USEBLEED_ON: rgb × a) itself [src: doc §33.19 Files].
+  // Mipmaps ON: Pixi's default (POW2) builds none for a page whose sides are not powers of two (most are: 2008, 4016),
+  // so a card sampled such a page far below its size with no smaller level — the jagged edges at card size; WebGL2
+  // builds mipmaps at any size and Pixi then samples them trilinearly [src: public/vendor/pixi.min.js
+  // TextureSystem.updateTextureStyle: `mipmap === POW2 && !isPowerOfTwo → no mipmap`]. A third more GPU memory per page.
+  return new P.BaseTexture(img, { alphaMode: P.ALPHA_MODES.PMA, resolution: half ? 0.5 : 1, mipmap: P.MIPMAP_MODES.ON });
 }
 
 /**
