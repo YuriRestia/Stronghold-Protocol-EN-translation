@@ -5,7 +5,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { compileSystem, PSys } from '../../public/js/render/vfx/psys.js';
+import { compileSystem, PSys, setPrewarmSink } from '../../public/js/render/vfx/psys.js';
 import { Shape } from '../../public/js/render/vfx/shapes.js';
 import { Rng } from '../../public/js/render/vfx/rng.js';
 import { mat4, mat4Trs, quatEuler } from '../../public/js/render/vfx/math.js';
@@ -105,6 +105,44 @@ describe('emission', () => {
     ps.play(ID);
     assert.ok(ps.count >= 19 && ps.count <= 21, `prewarmed ${ps.count}`);
     assert.equal(ps.delay, 0, 'no start delay with prewarm');
+  });
+
+  test('a prewarm handed to a sink and run in slices ends exactly as the one-loop prewarm (illustration staging)', () => {
+    const def = compileSystem(sys({ top: { looping: true, prewarm: true, lengthInSec: 2 }, I: { startLifetime: 3, startSpeed: 2 }, E: { rateOverTime: 40 } }));
+    const at = frameAt(1, 2, 0);
+    const state = (ps) => { const o = { count: ps.count, time: ps.time }; for (const [k, v] of Object.entries(ps)) if (v instanceof Float32Array) o[k] = Array.from(v.subarray(0, ps.count)); return o; };
+    // one loop: play, the owner's first step(0), then a real frame
+    const a = new PSys(def, { seed: 7 });
+    a.play(at); a.update(0, at); a.update(1 / 30, at);
+    // sliced: the same calls, the prewarm deferred and run a few steps per slice
+    const b = new PSys(def, { seed: 7 });
+    const sunk = [];
+    setPrewarmSink((s) => sunk.push(s));
+    try { b.play(at); } finally { setPrewarmSink(null); }
+    assert.deepEqual(sunk, [b]);
+    assert.equal(b.count, 0, 'nothing simulated yet');
+    b.update(0, frameAt(9, 9, 9));            // a zero update while pending waits for the prewarm…
+    b.update(0, at);                          // …and the last one is applied after it
+    let slices = 0;
+    while (!b.prewarmStep(0)) slices++;       // a budget of 0: one step per slice
+    assert.ok(slices > 10, `slices ${slices}`);
+    b.update(1 / 30, at);
+    assert.deepEqual(state(b), state(a));
+  });
+
+  test('a real update or a stop while a prewarm is pending finishes it first', () => {
+    const def = compileSystem(sys({ top: { looping: true, prewarm: true }, I: { startLifetime: 2 }, E: { rateOverTime: 10 } }));
+    const a = new PSys(def, { seed: 3 }); a.play(ID); a.update(0.1, ID);
+    const b = new PSys(def, { seed: 3 });
+    setPrewarmSink(() => {});
+    try { b.play(ID); } finally { setPrewarmSink(null); }
+    b.update(0.1, ID);
+    assert.equal(b.count, a.count);
+    const c = new PSys(def, { seed: 3 });
+    setPrewarmSink(() => {});
+    try { c.play(ID); } finally { setPrewarmSink(null); }
+    c.stopEmitting();
+    assert.ok(c.count >= 19, `prewarmed before the stop: ${c.count}`);
   });
 
   test('rate over distance emits per unit the emitter moves (none while it stands)', () => {
