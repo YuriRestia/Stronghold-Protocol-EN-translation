@@ -12,6 +12,7 @@
 //   vx 'grab'    v_g2 = clip position of the displaced point of Disturb GrabPass _DirMode 1 / 2
 //   vx 'hull'    Unlit-Outline's outline pass: the clip position pushed out along the clip-space normal
 //   vx 'tangent' Poker-Reflect: the world tangent, bitangent and the second UV set (mesh attributes 13 and 14)
+//   vx 'vdisturb' Ram/VertexDisturb(CustomData): a mesh's vertices moved in object space by _VertexDisturbTex
 
 const S = (names) => names.map((n) => `uniform sampler2D u${n};`).join('\n');
 const U4 = (names) => names.map((n) => `uniform vec4 u${n};`).join('\n');
@@ -47,6 +48,31 @@ export function l2dVertexExtra(defs = {}, kind = 'quad') {
     c.xy += n * 0.0003;
     c.z += u_Outline_Depth_Offset * 0.0001;
     gl_Position = c;
+  }\n`,
+    };
+  }
+  if (defs.vx === 'vdisturb') {
+    // Ram/VertexDisturb(CustomData) vertex program: d = _VertexDisturbTex(uv × ST + frac(speed × _Time.y)).xyz − 0.5,
+    // w = _VertexDisturbWeightTex(uv × ST).r (both at mip 0); object-space offset d · w · _VertexDisturbIntensity.xyz,
+    // plus normalize(normal) · d.x · w · _NormalDisturbIntensity when _NormalDisturb > 0; then object → world → clip.
+    // Only a mesh carries its object frame here; a particle using this shader draws undisplaced.
+    if (kind !== 'mesh') return null;
+    return {
+      decl: `${S(['_VertexDisturbTex', '_VertexDisturbWeightTex'])}
+${U4(['_VertexDisturbTex_ST', '_VertexDisturbWeightTex_ST', '_VertexDisturbIntensity', '_Time'])}
+${U1(['_VertexDisturbUSpeed', '_VertexDisturbVSpeed', '_NormalDisturb', '_NormalDisturbIntensity'])}
+`,
+      body: `  {
+    vec2 vuv = a_uv * u_VertexDisturbTex_ST.xy + u_VertexDisturbTex_ST.zw + fract(vec2(u_VertexDisturbUSpeed, u_VertexDisturbVSpeed) * u_Time.y);
+    vec3 d = textureLod(u_VertexDisturbTex, vuv, 0.0).xyz - 0.5;
+    float w = textureLod(u_VertexDisturbWeightTex, a_uv * u_VertexDisturbWeightTex_ST.xy + u_VertexDisturbWeightTex_ST.zw, 0.0).x;
+    vec3 o = d * w * u_VertexDisturbIntensity.xyz;
+    float ln = length(a_nrm);
+    if (u_NormalDisturb > 0.0 && ln > 1e-8) o += (a_nrm / ln) * d.x * w * u_NormalDisturbIntensity;
+    vec3 q = a_pos + o;
+    vec3 pw = a_center + a_m0 * q.x + a_m1 * q.y + a_m2 * q.z;
+    v_wpos = pw;
+    gl_Position = u_vp * vec4(pw, 1.0);
   }\n`,
     };
   }

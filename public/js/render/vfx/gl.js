@@ -11,6 +11,12 @@
 // factors (meant for an opaque target) are replaced so that the board shows through as the client draws it:
 // OneMinusSrcAlpha destinations accumulate coverage (One, OneMinusSrcAlpha), additive / screen-like destinations keep
 // the target alpha (Zero, One), and the Multiply family darkens by the luminance it multiplies with.
+// (fork) A dynamic illustration's target (option `rtAlpha`) is different: the official illustration camera clears its
+// render texture to alpha 1 and the card adds RT.rgb + background × RT.a, so the RT alpha is a transmittance and the
+// materials' own alpha factors are meant for it [src: official GameAssembly.dll DynIllustMgr._InitDisplay
+// set_backgroundColor (0,0,0,1); [uc]shaders.ab UI/UI_RT_DYN_ILLUST blend One SrcAlpha]. With rtAlpha the factors are
+// translated to our coverage (1 − transmittance): (Zero, OneMinusSrcAlpha) → (One, OneMinusSrcAlpha) as before,
+// (One, OneMinusSrcAlpha) → (Zero, OneMinusSrcAlpha) (Mask/Erase: the pixel becomes see-through), (Zero, One) kept.
 // Culling: Unity treats clockwise screen triangles as front faces; the effects reach the screen with the same winding
 // (the battle frame's flip is part of the camera equivalence), so frontFace(CW) + the material's cull mode.
 
@@ -24,10 +30,12 @@ export class FxGL {
   /**
    * @param {WebGL2RenderingContext} gl
    * @param {{ texture: (key: string) => { image: any, info: any } | null, mesh: (key: string) => any }} lib
+   * @param {{ rtAlpha?: boolean }} [opts] rtAlpha: the target is a dynamic illustration's (see the header)
    */
-  constructor(gl, lib) {
+  constructor(gl, lib, opts = {}) {
     this.gl = gl;
     this.lib = lib;
+    this.rtAlpha = !!opts.rtAlpha;
     this.programs = new Map();     // `${kind}|${mat.key}` → program record
     this.textures = new Map();     // `${key}|${half}` → { tex, bytes }
     this.meshes = new Map();       // mesh key → { vao, vbo, ibo, sub: [{ first, count }], type }
@@ -578,6 +586,10 @@ export class FxGL {
       src = gl.ZERO; dst = gl.SRC_COLOR; srcA = gl.ONE; dstA = gl.ONE_MINUS_SRC_ALPHA;
     } else if (st.dst === BLEND.OneMinusSrcAlpha || st.dst === BLEND.Zero) { srcA = gl.ONE; dstA = gl.ONE_MINUS_SRC_ALPHA; }
     else { srcA = gl.ZERO; dstA = gl.ONE; }
+    if (this.rtAlpha) {
+      const t = rtAlphaFactors(st.srcA, st.dstA);
+      if (t) { srcA = t[0] ? gl.ONE : gl.ZERO; dstA = t[1] ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE; }
+    }
     gl.blendFuncSeparate(src, dst, srcA, dstA);
     const op = st.op === 'Sub' ? gl.FUNC_SUBTRACT : st.op === 'RevSub' ? gl.FUNC_REVERSE_SUBTRACT : st.op === 'Min' ? gl.MIN : st.op === 'Max' ? gl.MAX : gl.FUNC_ADD;
     gl.blendEquationSeparate(op, gl.FUNC_ADD);
@@ -627,6 +639,18 @@ const FRAME_UNIFORMS = new Set(['_GrabTexture', '_GrabParams', '_GrabSize', '_Sc
 const VIEW_ROT = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, -1]);
 // attribute locations of a mesh's tangent and second UV set (glsl-l2d.js vertex extra 'tangent')
 const LOC_TAN = 13, LOC_UV1 = 14;
+
+/**
+ * (fork) A material's official alpha factors on a transmittance target (T' = srcA·a + dstA·T) as factors on our
+ * coverage C = 1 − T: [srcOne, dstOneMinusSrcAlpha] (C' = (srcOne ? a : 0) + C·(dstOneMinusSrcAlpha ? 1 − a : 1)),
+ * or null when there is no exact equivalent (the caller keeps its default).
+ */
+export function rtAlphaFactors(srcA, dstA) {
+  if (dstA === BLEND.OneMinusSrcAlpha && srcA === BLEND.Zero) return [true, true];   // T(1 − a)      → a + C(1 − a)
+  if (dstA === BLEND.OneMinusSrcAlpha && srcA === BLEND.One) return [false, true];   // a + T(1 − a)  → C(1 − a)
+  if (dstA === BLEND.One && srcA === BLEND.Zero) return [false, false];               // T             → C
+  return null;
+}
 
 function GL_BLEND(gl, b) {
   switch (b) {

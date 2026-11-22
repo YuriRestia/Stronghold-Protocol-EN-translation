@@ -335,7 +335,7 @@ void main() {
   vec4 ram = chan4(texture(u_RamTex, ruv), u_RamTexChannel);
   vec4 dist = vec4(0.0);
   ${d.lite ? '' : 'dist = (vec4(addI) + vec4(u_IntensityU, u_IntensityV, u_IntensityU, u_IntensityV)) * chan1(texture(u_DisturbTex, tuv), u_DisturbTexChannel);'}
-  vec2 muv2 = muv + dist.xy * u_DisturbInfluenceMainUV;
+  vec2 muv2 = muv + dist.xy${d.vx === 'vdisturb' ? '' : ' * u_DisturbInfluenceMainUV'};${d.vx === 'vdisturb' ? ' // (fork) L2D Ram/VertexDisturb: no influence factor, always moved' : ''}
   vec2 duv2 = duv + dist.zw * u_DisturbInfluenceDissolveUV;
   vec4 t = chan4(texture(u_MainTex, muv2), u_MainTexChannel) * u_MainColor * v_col * ram;
   float a = 2.0 * t.a * u_Opacity;

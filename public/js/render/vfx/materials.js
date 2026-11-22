@@ -85,6 +85,8 @@ const L2D_SHADERS = {
   'Torappu/Particles-L2D/Disturb/Disturb2 (Add)': { glowKw: '_DISTURBMODE_GLOW', add: true },
   'Torappu/Particles-L2D/Unlit-Outline': { hull: 1 },
   'Torappu/Particles-L2D/Particles-Poker-Reflect': { vx: 'tangent' },
+  // the Ram/Disturb(CustomData) fragment with the main UV always disturbed, plus its vertex displacement
+  'Torappu/Particles-L2D/Ram/VertexDisturb(CustomData)': { vx: 'vdisturb' },
 };
 
 const fallbacks = new Map(); // shader name → family it falls back to
