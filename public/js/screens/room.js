@@ -79,6 +79,7 @@ import { data, useData, getConfig } from '../data.js';
 import { chessAvatarUrl, chessPortraitUrl } from '../ui/assetUrls.js';
 import { CARD_KEY, cardStore, setCard, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc, botCharId } from '../ui/seatArt.js';
 import { outfitOptsOf } from '../ui/outfits.js';
+import { IllustArt, cardArtOf, cardAnimates, useDynIllustMode } from '../ui/dynCards.js';
 import { useAvatarArt } from '../ui/avatars.js';
 import { AvatarPicker, useAvatarPickerReady } from '../ui/avatarPicker.js';
 import { skinsStore, SKINS_KEY, ownerSkin } from '../ui/skins.js';
@@ -292,7 +293,7 @@ function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
  * (given when an outfit is worn): a picture that fails to load gives way to the next, the last to the avatar frame.
  */
 function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, portrait = null, portraitDefault = null, botAvatar = null, operator = null, onPickCard = null, onPickAvatar = null, fresh = false,
-  onMoveSquad = null, mySquad = null, moveWait = 0, swapFrom = null, onSwap = null, bubble = null, chatOn = false, muted = false }) {
+  onMoveSquad = null, mySquad = null, moveWait = 0, swapFrom = null, onSwap = null, bubble = null, chatOn = false, muted = false, illust = null }) {
   const [badArt, setBadArt] = useState([]);
   // (fork) the profile icon (ui/avatars.js): the name plate's frame, and the card's frame without portrait art
   const iconSrc = useAvatarArt(seat, !!seat && seat.playerId === myId);
@@ -350,7 +351,9 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
     <header class="rseat__strip"><i></i><span class="num">P${index + 1}</span></header>
     <div class="seat__art rseat__art">
       ${art
-        ? html`<img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />`
+        ? html`<${IllustArt} skinId=${illust?.skinId || null} animate=${!!illust?.animate} wait="settled" class="rseat__dyn">
+            <img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />
+          </${IllustArt}>`
         : html`<${AvatarFrame} size="xl" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}
       <div class="rseat__top">
         ${isHostSeat ? html`<span class="rseat__host"><${Icon} name="crown" />${t('创建者')}</span>` : null}
@@ -599,6 +602,7 @@ export function RoomScreen() {
   const myCard = useStore((s) => s[CARD_KEY], Object.is, cardStore);
   const localSkins = useStore((s) => s[SKINS_KEY], Object.is, skinsStore);
   const otherSkins = useStore((s) => s.otherSkins !== false, Object.is, settingsStore);
+  const dynMode = useDynIllustMode(); // (fork) 动态立绘 (ui/dynCards.js)
   const [picking, setPicking] = useState(false);
   // (fork) the profile icon picker (ui/avatarPicker.js), offered once this server has the icon art
   const [pickingAvatar, setPickingAvatar] = useState(false);
@@ -878,7 +882,11 @@ export function RoomScreen() {
         const outfit = op ? outfitOptsOf(op.chess.charId, s.playerId) : undefined;
         const art = op ? chessPortraitUrl(data.get('assets'), op.chess, { skin, ...outfit }) : null;
         const plain = op ? chessPortraitUrl(data.get('assets'), op.chess, { outfit: null }) : null;
+        // (fork) the card's animated illustration (ui/dynCards.js; the result card's rules, D5): the room card's operator
+        // in the seat's outfit, when 动态立绘 lets this card play it
+        const dyn = op ? cardArtOf(op.chess, s.playerId) : null;
         return html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
+          illust=${dyn ? { skinId: dyn.skinId, animate: cardAnimates(dynMode, s.playerId === me.playerId) } : null}
           myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
           portrait=${art} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
           portraitDefault=${art && plain !== art ? plain : null} operator=${op?.chess} onPickCard=${() => setPicking(true)} onPickAvatar=${avatarReady ? () => setPickingAvatar(true) : null}

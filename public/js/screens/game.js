@@ -132,7 +132,8 @@ import { toast } from '../ui/toasts.js';
 import { LoadoutButton } from './loadout.js';
 import { BriefingScreen } from './briefing.js';
 import { BandDraftScreen } from './bandDraft.js';
-import { ResultScreen } from './settle.js';
+import { ResultScreen, useResultPreload } from './settle.js';
+import { resultGateStore, resultWaitMs } from '../ui/dynCards.js';
 import { ProtocolBoot, preloadBootArt, bootArtReady, BOOT_LEAVE_MS, warmOfaSounds } from '../ui/protocolBoot.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, serverNow, isSpectating } from '../store.js';
@@ -191,6 +192,24 @@ export function GameScreen() {
   // (fork) One for All: the reveal's sounds load during the vote, so its beats never wait for a download
   const voteDraft = pub?.draft?.mode === 'vote';
   useEffect(() => { if (voteDraft) warmOfaSounds(); }, [voteDraft]);
+  // (fork) the result cards' animated illustrations (crew-docs l2d-art-proposal D10 / D11, ui/dynCards.js): they load from
+  // the moment the server says the last battle is over (m.public `ending`) through the settlement pause; the result
+  // screen then waits for them — at most RESULT_WAIT_MS after the result arrived, opening the moment they are ready —
+  // with the match screen as it stands (its end plate)
+  const myId = useStore((s) => s.me.playerId);
+  useResultPreload(pub, myId);
+  const toResult = hasResult || (pub ? phaseMode(pub.phase) === 'result' : false);
+  const resultAt = useRef(0);
+  if (!toResult) resultAt.current = 0;
+  else if (!resultAt.current) resultAt.current = Date.now();
+  useStore((s) => s.n, Object.is, resultGateStore); // a card's load settled: look again
+  const resultWait = toResult ? resultWaitMs(resultAt.current) : 0;
+  const [, endResultWait] = useState(0);
+  useEffect(() => {
+    if (!(resultWait > 0)) return undefined;
+    const id = setTimeout(() => endResultWait((n) => n + 1), resultWait);
+    return () => clearTimeout(id);
+  }, [resultWait > 0]);
   // 已选定策略 (PR #643, the event's draft end, video 7:36–7:44): once the draft is over the screen stays DRAFT_HOLD_MS on
   // 策略选择完成 · 正在进入模拟… with the pick, from the last draft snapshot (m.public.draft is gone after BAND_DRAFT),
   // then 协议启动！ — both inside BATTLE_CHECK's official 3 s (see DRAFT_HOLD_MS). Decided while rendering, so the match
@@ -219,7 +238,8 @@ export function GameScreen() {
   }
   const mode = phaseMode(pub.phase);
   let body;
-  if (hasResult || mode === 'result') body = html`<${ResultScreen} />`;
+  if (resultWait > 0) body = html`<${MatchScreen} />`; // (fork) waiting for the result cards' illustrations (above)
+  else if (hasResult || mode === 'result') body = html`<${ResultScreen} />`;
   else if (mode === 'briefing') body = html`<${BriefingScreen} />`;
   else if (mode === 'draft' || held) body = html`<${BandDraftScreen} held=${held} />`;
   else body = html`<${MatchScreen} />`;

@@ -13,6 +13,7 @@
 // ≤ 1 title and uses each title ≤ once (config.titleRule [ASSUMED]).
 
 import { bondList } from './bondsMeta.js';
+import { aceOf } from '../../shared/resultAce.js';
 import { boardOrder } from './board.js';
 
 const STAT_OF = {
@@ -119,6 +120,44 @@ export function altArtResult(m, hiddenReached, rows) {
 }
 
 /**
+ * A player's final lineup as m.result carries it (`players[].lineup`): the board's chess in board order.
+ * @param {any} gd @param {any} ps PlayerState
+ */
+export function resultLineup(gd, ps) {
+  return boardOrder(ps.board).filter((x) => x.piece.kind === 'chess').map(({ r, c, piece }) => {
+    const e = { id: piece.id, golden: gd.isGolden(piece.id), tier: gd.tierOf(piece.id), row: r, col: c, items: (piece.items || []).map((i) => i.id) };
+    // 0.2.0 自选编队: a DIY slot's pick — the result screen names and draws the operator (shared/diy.js diyRecord)
+    const pick = typeof ps.diyPickOf === 'function' ? ps.diyPickOf(piece.id) : null;
+    if (pick) e.diy = { charId: pick.charId, skillIndex: pick.skillIndex, uniEquipId: pick.uniEquipId };
+    // 0.2.0 补位: a chess this player fielded as its stand-in — the result screen draws the stand-in (the owner's recall
+    // of the official mode, 2026-10-06); `standInFor` = the replaced operator's charId, like the sim's UnitInfo
+    const si = typeof ps.fieldsStandIn === 'function' && ps.fieldsStandIn(piece.id) ? gd.standIn(piece.id) : null;
+    if (si && si.standInFor) e.standInFor = si.standInFor;
+    return e;
+  });
+}
+
+/**
+ * (fork) m.public `ending` (views.js): set once the last battle is over and RESULT follows the settlement pause. `aces`:
+ * each player's result-card ace (shared/resultAce.js, the unit m.result's lineup will name) without its tile and items,
+ * so the page can load that card's animated illustration during the pause (crew-docs l2d-art-proposal D6 / D10). Bots
+ * included: the page decides what an AI seat's card shows. Once per match, about 60 B a player.
+ * @param {import('./Match.js').Match} m
+ */
+export function endingView(m) {
+  const aces = {};
+  for (const ps of m.players.values()) {
+    const a = aceOf(resultLineup(m.gd, ps));
+    if (!a) continue;
+    const e = { id: a.id, golden: a.golden };
+    if (a.diy) e.diy = { charId: a.diy.charId };
+    if (a.standInFor) e.standInFor = a.standInFor;
+    aces[ps.playerId] = e;
+  }
+  return { aces };
+}
+
+/**
  * @param {import('./Match.js').Match} m
  * @param {{ victory: boolean, hiddenReached: boolean, hiddenCleared: boolean, reason: string }} outcome
  */
@@ -130,17 +169,7 @@ export function buildResult(m, outcome) {
   const teamRounds = victory ? gd.bossRound + (hiddenCleared ? 1 : 0) : Math.max(0, Math.min(m.round, gd.bossRound) - 1);
   const rows = players.map((ps) => {
     const roundsPassed = !ps.alive && ps.eliminatedRound != null ? Math.max(0, ps.eliminatedRound - 1) : teamRounds;
-    const lineup = boardOrder(ps.board).filter((x) => x.piece.kind === 'chess').map(({ r, c, piece }) => {
-      const e = { id: piece.id, golden: gd.isGolden(piece.id), tier: gd.tierOf(piece.id), row: r, col: c, items: (piece.items || []).map((i) => i.id) };
-      // 0.2.0 自选编队: a DIY slot's pick — the result screen names and draws the operator (shared/diy.js diyRecord)
-      const pick = typeof ps.diyPickOf === 'function' ? ps.diyPickOf(piece.id) : null;
-      if (pick) e.diy = { charId: pick.charId, skillIndex: pick.skillIndex, uniEquipId: pick.uniEquipId };
-      // 0.2.0 补位: a chess this player fielded as its stand-in — the result screen draws the stand-in (the owner's recall
-      // of the official mode, 2026-10-06); `standInFor` = the replaced operator's charId, like the sim's UnitInfo
-      const si = typeof ps.fieldsStandIn === 'function' && ps.fieldsStandIn(piece.id) ? gd.standIn(piece.id) : null;
-      if (si && si.standInFor) e.standInFor = si.standInFor;
-      return e;
-    });
+    const lineup = resultLineup(gd, ps);
     // the team's clear counts for the players still in; an eliminated / departed teammate did not pass the boss round
     const cleared = victory && ps.alive;
     return {

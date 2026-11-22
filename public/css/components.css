@@ -1489,3 +1489,10 @@
 .hscroll__arrow:hover { background: rgba(20, 60, 50, .9); }
 .hscroll__arrow:focus-visible { outline: 2px solid #4af2c4; outline-offset: 2px; }
 .hscroll__arrow:disabled { opacity: 0; visibility: hidden; }
+
+/* (fork) A card's animated illustration (ui/dynCards.js IllustArt; the result, room and Grand Alliance cards): the
+   wrapper adds no box, so the 2D art keeps its own layout; the illustration's layer fills the card's art box (the
+   nearest positioned ancestor) over the 2D art, which hides once the illustration covers the card (its fade-in done). */
+.dyn-art, .dyn-art__still { display: contents; }
+.dyn-art__live { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.dyn-art.is-live .dyn-art__still > * { visibility: hidden; }

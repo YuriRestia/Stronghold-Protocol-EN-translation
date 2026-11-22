@@ -57,6 +57,7 @@ import { pluginMicro } from './pluginTag.js';
 import { hasAnySkinChoices } from './skins.js';
 import { fxAvailable } from '../render/vfx/available.js';
 import { resolveOfficialFx } from '../render/vfx/tier.js';
+import { dynIllustMode, useDynAvailable } from './dynCards.js';
 import { ScreenFitSection } from './screenFit.js';
 import { askPersistStorage, importSupport, storagePersisted } from '../assetCache.js';
 import { assetImport, pruneImportedAssets } from '../assetPack.js';
@@ -152,6 +153,43 @@ const SPRITE_ANIM = [
   ['unlimited', N_('无限制'), N_('所有单位始终播放完整动画。手机烫得能煎蛋可别怪我。')],
 ];
 // en (auto): "Auto" · "Full animation. If the frame rate drops, units switch to simplified animation until it recovers."
+/**
+ * (fork) 动态立绘 (`dynIllust`, ui/dynCards.js; the user's decision D7 of 2026-11-22): which result / room / Grand Alliance
+ * cards play the official dynamic illustrations. The stored default 'auto' shows as the mode it resolves to (仅自己 on a
+ * phone, 所有人 elsewhere), like 官方特效.
+ */
+// en: "Off" (关) · "Mine Only" (仅自己) · "Everyone" (所有人)
+const DYN_ILLUST = [['off', N_('关')], ['mine', N_('仅自己')], ['all', N_('所有人')]];
+/** (fork) 结算卡片立绘 (`resultArt`, ui/dynCards.js resultCardArt; the user's decision D6): what every result card shows. */
+// en: "Card Operator" (名片干员) · "Best Unit" (阵容最强干员)
+const RESULT_ART = [['card', N_('名片干员')], ['ace', N_('阵容最强干员')]];
+
+/** The two rows of the animated illustrations — only on a server that has them (their index lists any). */
+function DynIllustRows({ s }) {
+  const on = useDynAvailable();
+  if (!on) return null;
+  const mode = dynIllustMode(s.dynIllust);
+  // en: "Animated Illustrations" · "Plays the operators' official animated illustrations, with their effects, on the
+  // result, room and Grand Alliance cards. Default: Mine Only on phones, Everyone on PC."
+  // en: "Result Card Art" · "Each result card shows the doctor's card operator in their outfit, or the strongest
+  // operator of their final lineup."
+  return html`<div class="set-row" data-testid="dyn-illust">
+      <span class="set-row__label">${t('动态立绘')}<${MicroLabel}>ANIMATED ART<//></span>
+      <div class="set-seg" role="radiogroup" aria-label=${t('动态立绘')}>
+        ${DYN_ILLUST.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${mode === id ? 'true' : 'false'}
+          class=${mode === id ? 'is-on' : ''} onClick=${() => updateSettings({ dynIllust: id })}>${t(label)}</button>`)}
+      </div>
+    </div>
+    <p class="set-hint">${t('在结算、同盟房间和大同盟房间的卡片上播放干员的官方动态立绘与特效。默认：手机仅自己，电脑所有人。')}</p>
+    <div class="set-row" data-testid="result-art">
+      <span class="set-row__label">${t('结算卡片立绘')}<${MicroLabel}>RESULT CARD ART<//></span>
+      <div class="set-seg" role="radiogroup" aria-label=${t('结算卡片立绘')}>
+        ${RESULT_ART.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${s.resultArt === id ? 'true' : 'false'}
+          class=${s.resultArt === id ? 'is-on' : ''} onClick=${() => updateSettings({ resultArt: id })}>${t(label)}</button>`)}
+      </div>
+    </div>
+    <p class="set-hint">${t('结算时每张卡片显示该博士的名片干员（穿着其时装），或其最终阵容中最强的干员。')}</p>`;
+}
 /**
  * 文字大小: one step of TEXT_SIZES (ui/gameLogic/settings.js) with its label — 小 is the design's own sizes, the others
  * raise the text root `--t` (css/theme.css) and with it every readable font-size; the board and the HUD's boxes stay.
@@ -572,6 +610,7 @@ export function SettingsModal({ open, onClose }) {
         </div>
       </div>
       <p class="set-hint">${t('使用服主从自己的游戏客户端提取的官方战斗特效（普攻、弹道、命中、状态、阵亡、部署，干员、召唤物和敌人的技能与天赋，以及秘术师储存的能量），连到这台服务器的玩家看到的都是服主提取的这一份；提取里没有的或对战中没有时机的（如只在游戏内部条件下触发的天赋效果）仍为本作的特效。精简：半分辨率贴图、粒子减半，适合手机。只在 3D 棋盘上显示。')}</p>` : null}
+      <${DynIllustRows} s=${s} />
       <div class="set-row">
         <span class="set-row__label">${t('文字大小')}<${MicroLabel}>TEXT SIZE<//></span>
         <div class="set-seg set-textsize" role="radiogroup" aria-label=${t('文字大小')} data-testid="text-size">
