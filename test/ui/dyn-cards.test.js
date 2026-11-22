@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {
   RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
   setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle, cardTier, HALF_MAX_SCALE,
+  FLIP_FADE_S, joinGroup, groupState, leaveGroup,
 } from '../../public/js/ui/dynCards.js';
 
 test('the tier by card size: half up to one device px per official unit of the 232 × 458 window, full above', () => {
@@ -145,4 +146,33 @@ test('a failed preload opens the result screen too (the cards keep their 2D art)
   assert.equal(resultWaitMs(1, 2), 0);
   endResultLoad();
   setDynModule(null);
+});
+
+test('the room\'s group flip: every card waits for the others, then all start in one frame; a failed one does not hold them; a later one swaps alone', () => {
+  const frames = [];
+  const raf = globalThis.requestAnimationFrame, caf = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = (f) => { frames.push(f); return frames.length; };
+  globalThis.cancelAnimationFrame = () => {};
+  const tick = () => { const fs = frames.splice(0); for (const f of fs) f(performance.now()); };
+  try {
+    assert.equal(FLIP_FADE_S, 0.15);
+    const starts = [];
+    const mk = (n) => ({ card: { start: () => starts.push(n) }, state: 'loading', alone: false });
+    const a = mk('a'), b = mk('b'), c = mk('c');
+    for (const e of [a, b, c]) joinGroup(e);
+    groupState(a, 'ready'); groupState(b, 'ready'); tick(); tick();
+    assert.deepEqual(starts, [], 'c is still loading: nobody starts');
+    groupState(c, 'failed'); tick(); tick();
+    assert.deepEqual(starts, ['a', 'b'], 'all the ready ones in the same frame; the failed one keeps its 2D');
+    const d = mk('d');
+    joinGroup(d); tick();
+    assert.deepEqual(starts, ['a', 'b'], 'joined after the flip: waits for its own ready');
+    groupState(d, 'ready');
+    assert.deepEqual(starts, ['a', 'b', 'd'], 'and then swaps alone');
+    for (const e of [a, b, c, d]) leaveGroup(e);
+    const e2 = mk('e');
+    joinGroup(e2); groupState(e2, 'ready'); tick(); tick();
+    assert.deepEqual(starts, ['a', 'b', 'd', 'e'], 'a new screen forms a new group');
+    leaveGroup(e2);
+  } finally { globalThis.requestAnimationFrame = raf; globalThis.cancelAnimationFrame = caf; }
 });

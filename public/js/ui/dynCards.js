@@ -287,6 +287,66 @@ export function endResultLoad() {
   resultLoad = null;
 }
 
+// ---- the room's group flip (the user, 2026-11-22: "keep placeholder and flip at the same time") ------------------------
+
+/**
+ * The room's and the Grand Alliance room's cards keep their 2D art until every card on the screen is ready (or failed),
+ * then all start in one animation frame and fade in together over FLIP_FADE_S (CSS `.dyn-art--flip`). A card that
+ * fails keeps its 2D and does not hold the others. Past GROUP_CAP_MS from the first card's mount the ready ones flip and
+ * a later one swaps alone when ready; so does a card mounted after the flip (a player who joins, a new outfit or
+ * portrait). The result screen does not group (D11: at most 3 s after the settlement pause, a late card fades in alone).
+ */
+export const FLIP_FADE_S = 0.15; // the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
+export const GROUP_CAP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — 8 s covers a typical PC's cold Grand Alliance load, 4.9–5.3 s measured at 1080p]
+let group = null; // { entries: Set, flipped, timer, check }
+
+function startCard(e) { try { e.card?.start(); } catch (err) { console.warn('[dynillust] start', err); } }
+function flipGroup(g) {
+  if (g.flipped) return;
+  g.flipped = true;
+  clearTimeout(g.timer);
+  requestAnimationFrame(() => {
+    // one frame for all: the ready cards start together; one still loading swaps alone when ready
+    for (const e of g.entries) { if (e.state === 'ready') startCard(e); else e.alone = true; }
+  });
+}
+function checkGroup(g) {
+  if (g.flipped || g.check) return;
+  // a frame later, so every card mounting in this burst has joined
+  g.check = requestAnimationFrame(() => {
+    g.check = 0;
+    if ([...g.entries].every((e) => e.state === 'ready' || e.state === 'failed')) flipGroup(g);
+  });
+}
+/** A room card's illustration is mounted (not started): it joins the screen's group, or swaps alone after the flip. */
+export function joinGroup(e) {
+  if (!group) {
+    const g = { entries: new Set(), flipped: false, check: 0, timer: 0 };
+    g.timer = setTimeout(() => flipGroup(g), GROUP_CAP_MS);
+    group = g;
+  }
+  e.group = group;
+  group.entries.add(e);
+  if (group.flipped) e.alone = true;
+  if (e.alone) { if (e.state === 'ready') startCard(e); } else checkGroup(group);
+}
+/** The card's state changed (the renderer's onState). */
+export function groupState(e, s) {
+  e.state = s;
+  const g = e.group;
+  if (!g) return;
+  if (e.alone) { if (s === 'ready') startCard(e); } else checkGroup(g);
+}
+/** The card left (the screen closed, the seat emptied, its art changed): a group with no card left is forgotten. */
+export function leaveGroup(e) {
+  const g = e.group;
+  if (!g) return;
+  g.entries.delete(e);
+  e.group = null;
+  if (!g.entries.size) { clearTimeout(g.timer); if (g.check) cancelAnimationFrame(g.check); if (group === g) group = null; }
+  else checkGroup(g);
+}
+
 // ---- the card ------------------------------------------------------------------------------------------------------
 
 /**
@@ -320,13 +380,15 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
     setState(on ? 'loading' : 'off');
     if (!on) return undefined;
     let card = null, live = true;
+    // the room's cards flip together (flipGroup); the result screen's start at once (D11: a late one fades in)
+    const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false } : null;
     const go = () => readyStage(tier).then(({ R, st }) => {
       const key = live ? illustKey(R, art) : null;
       if (!key || !host.current) { if (live) setState('off'); return null; }
       // the renderer's card: its own 2D canvas in the art window, under the card's overlays (§33.19); 'live' = drawn
-      card = st.mount(key, { onState: (s) => { if (live) setState(s); } });
+      card = st.mount(key, { onState: (s) => { if (!live) return; setState(s); if (entry) groupState(entry, s); } });
       if (card.canvas) host.current.append(card.canvas);
-      card.start();
+      if (entry) { entry.card = card; joinGroup(entry); } else card.start();
       return card.ready;
     }).catch((err) => { console.warn('[dynillust] card', err); if (live) setState('off'); });
     // every card on the screen waits for the same moment and then loads at once (the renderer fetches and builds them in
@@ -337,11 +399,12 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
     else go();
     return () => {
       live = false;
+      if (entry) leaveGroup(entry);
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
     };
   }, [id, on, wait, tier]);
   const bg = backdrop && state === 'live' ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
-  return html`<div class=${`dyn-art${state === 'live' ? ' is-live' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${state}>
+  return html`<div class=${`dyn-art${state === 'live' ? ' is-live' : ''}${wait === 'settled' ? ' dyn-art--flip' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${state}>
     <div class="dyn-art__still">${children}</div>
     ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg)}></i></div>` : null}
     ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
