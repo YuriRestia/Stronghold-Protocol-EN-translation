@@ -463,6 +463,31 @@ def animator_graph(env, ctx, co, nid):
     return {'node': nid, 'controller': ct.get('m_Name'), 'parameters': params, 'layers': layers}
 
 
+def half_page(img, straight):
+    """The half-size copy of an atlas page, exactly w/2 × h/2, every texel the premultiplied mean of its 2 × 2 source
+    texels (Image.BOX: no overshoot, so rgb ≤ a stays true). How the page stores colour decides the steps:
+    - premultiplied (the material has no `_USEBLEED_ON`: the shader takes rgb as it is) — each channel averaged alike,
+      on the separate bands. Image.resize on the RGBA image would premultiply it a second time (Pillow premultiplies
+      RGBA itself before resampling and divides afterwards): an edge texel kept its full colour while its alpha halved,
+      the pale fringes of the half tier (Goldenglow summer#12, 2026-11-22);
+    - straight (`_USEBLEED_ON`: the shader multiplies rgb by a) — premultiplied, averaged, divided back (Pillow's own
+      RGBa round trip)."""
+    from PIL import Image
+    size = (img.width // 2, img.height // 2)
+    box = (0, 0, size[0] * 2, size[1] * 2)
+    rgba = img.convert('RGBA')
+    if straight:
+        return rgba.convert('RGBa').resize(size, Image.BOX, box=box).convert('RGBA')
+    return Image.merge('RGBA', [band.resize(size, Image.BOX, box=box) for band in rgba.split()])
+
+
+def material_keywords(env, mo):
+    """A material's shader keywords (m_ValidKeywords, or the older space-separated m_ShaderKeywords)."""
+    d = env.tt(mo)
+    kw = d.get('m_ValidKeywords') or d.get('m_ShaderKeywords') or []
+    return kw.split() if isinstance(kw, str) else list(kw)
+
+
 def write_spine(env, sda_file, sda, writer, helpers, log, key):
     """Skeleton, atlas and pages of a SkeletonDataAsset → files; returns the `spine` part of the index (without the
     SkeletonAnimation fields) and the page texture map for the exporter."""
@@ -474,7 +499,7 @@ def write_spine(env, sda_file, sda, writer, helpers, log, key):
     is_json = blob.lstrip(b'\xef\xbb\xbf \r\n\t')[:1] == b'{'
     stem = re.sub(r'\.(skel|json)$', '', helpers['safe_name'](ta.m_Name or key))   # Python 3.8: no removesuffix
     skel_rel = f'{stem}.json' if is_json else f'{stem}.skel'
-    texts, pages, page_tex, materials = [], {}, {}, []
+    texts, pages, page_tex, materials, straight = [], {}, {}, [], {}
     for aref in sda.get('atlasAssets') or []:
         _, aa = _ref(env, sda_file, aref)
         if aa is None:
@@ -495,6 +520,7 @@ def write_spine(env, sda_file, sda, writer, helpers, log, key):
             mt = main.read()
             name = mt.m_Name + '.png'       # as the atlas names it (`#` kept); the file name is made safe below
             pages[name] = helpers['merge_alpha'](mt.image, alpha.read().image if alpha is not None else None)
+            straight[name] = '_USEBLEED_ON' in material_keywords(env, mo)   # the shader premultiplies: straight page
             page_tex[(id(tf), main.path_id)] = name
             if alpha is not None:
                 page_tex[(id(af), alpha.path_id)] = name
@@ -508,24 +534,24 @@ def write_spine(env, sda_file, sda, writer, helpers, log, key):
             raise ValueError(f'atlas pages {names} do not match the textures {sorted(pages)}')
         only = next(iter(pages))
         pages = {names[0]: pages[only]}
+        straight = {names[0]: straight[only]}
         page_tex = {k: names[0] for k in page_tex}
     atlas_rel = f'{stem}.atlas'
     writer.put(skel_rel, blob)
     writer.put(atlas_rel, helpers['normalize_atlas'](atlas, {p: img.size for p, img in pages.items()}).encode('utf-8'))
     out_pages = []
-    from PIL import Image
     for name, img in pages.items():
         base = fx.fx_file(Path(name).stem)              # URL-safe: `#` → `_` + CRC32 (§33.1)
         full, half = f'p/{base}.webp', f'p/half/{base}.webp'
         buf = io.BytesIO()
         img.save(buf, 'WEBP', **PAGE_WEBP)
         writer.put(full, buf.getvalue())
-        size = (img.width // 2, img.height // 2)
-        small = img.convert('RGBa').resize(size, Image.LANCZOS).convert('RGBA')   # premultiplied resize: no dark fringes
+        small = half_page(img, straight.get(name, False))
         buf = io.BytesIO()
         small.save(buf, 'WEBP', **PAGE_WEBP)
         writer.put(half, buf.getvalue())
-        out_pages.append({'name': name, 'file': full, 'half': half, 'w': img.width, 'h': img.height})
+        out_pages.append({'name': name, 'file': full, 'half': half, 'w': img.width, 'h': img.height,
+                          'pma': not straight.get(name, False)})
     mix = {'default': fx.f6(sda.get('defaultMix', 0)),
            'pairs': [[a, b, fx.f6(t)] for a, b, t in zip(sda.get('fromAnimation') or [], sda.get('toAnimation') or [],
                                                          sda.get('duration') or [])]}
