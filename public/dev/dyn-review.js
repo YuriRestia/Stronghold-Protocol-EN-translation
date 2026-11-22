@@ -136,7 +136,7 @@ async function installRenderer() {
  */
 let NAMES = {};
 function nameOf(e) {
-  const n = NAMES[e.skinId];
+  const n = NAMES[e.skinId] || NAMES[String(e.skinId || '').toLowerCase()];
   if (n) return `${n.op} · ${n.outfit}${n.cnOnly ? ' (CN only)' : ''}`;
   const chess = data.list('chess').find((c) => c && c.charId === e.charId) || Object.values(data.get('backups')?.units || {}).find((u) => u && u.charId === e.charId);
   const outfit = e.skinId === `${e.charId}#2` ? 'Elite 2 art' : data.lookup('outfits', e.skinId)?.name || e.skinId;
@@ -455,9 +455,14 @@ async function boot() {
   // &set=stills: every still-only full art of data/card-art-framing.json, paged like the illustrations (the user,
   // 2026-11-23: "how do I switch to the static art and edit it as well"); `still` = its art file, the edit's key
   const stillSet = SET_STILLS ? await stillEntries() : null;
+  // the players' outfit ids as the outfit data spells them: the index has 7 Ambience Synesthesia ids in lowercase
+  // (`@ambiencesynesthesia#N`, the user's report of 2026-11-23: Pramanix alter showed her E2 art), which a real player
+  // never wears — the made-up players wear the real spelling, as in a match
+  const canon = new Map(Object.keys(data.get('assets')?.outfits?.chars || {}).map((id) => [id.toLowerCase(), id]));
+  const real = (e) => (e.skinId && canon.has(e.skinId.toLowerCase()) ? { ...e, skinId: canon.get(e.skinId.toLowerCase()) } : e);
   const entries = stillSet || (STILLS.length
     ? STILLS.map((s) => ({ key: s, charId: s.split('@')[0], skinId: s.includes('@') ? s : `${s}#2` }))
-    : Object.entries(g).map(([key, e]) => ({ key, ...e })).sort((a, b) => (a.charId + a.skinId).localeCompare(b.charId + b.skinId)));
+    : Object.entries(g).map(([key, e]) => real({ key, ...e })).sort((a, b) => (a.charId + a.skinId).localeCompare(b.charId + b.skinId)));
   const pages = [];
   for (let i = 0; i < entries.length; i += PER) pages.push(entries.slice(i, i + PER));
   const page = Math.max(0, Math.min(pages.length - 1, (Number(P.get('page')) || 1) - 1));
