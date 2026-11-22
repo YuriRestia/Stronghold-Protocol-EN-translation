@@ -43,7 +43,7 @@ beforeEach(() => {
 });
 afterEach(() => { Object.assign(globalThis, saved); for (const k of Object.keys(saved)) if (saved[k] === undefined) delete globalThis[k]; });
 
-const { DynIllustHost, workersSupported } = await import('../../public/js/render/dynillust/host.js');
+const { DynIllustHost, workersSupported, CARD_FIXED_BYTES } = await import('../../public/js/render/dynillust/host.js');
 
 describe('DynIllustHost', () => {
   test('one Worker per illustration; a new one to the Worker with the fewest', async () => {
@@ -65,6 +65,40 @@ describe('DynIllustHost', () => {
     H.release([]);
     assert.deepEqual([...H.workers[0].keys].sort(), ['a']);
     assert.ok(w0.sent.some((m) => m.t === 'unmount' && m.id === c1.id));
+  });
+
+  test('preload splits by cost: the heaviest first, each to the least loaded Worker', async () => {
+    const g = { h1: { bytes: 6e6 }, h2: { bytes: 5e6 }, l1: { bytes: 2e6 }, l2: { bytes: 1e6, bytesHalf: 5e5 } };
+    const H = new DynIllustHost({ workers: 2, manifest: async () => ({ groups: { dynillust: g } }) });
+    await H.ready;
+    const done = H.preload(['l2', 'l1', 'h2', 'h1']);   // the screen's order: lightest first
+    await tick();
+    for (const w of FakeWorker.all) for (const m of w.sent) if (m.t === 'preload') w.answer({ t: 'preloaded', rid: m.rid });
+    await done;
+    const asked = FakeWorker.all.map((w) => w.sent.filter((m) => m.t === 'preload').flatMap((m) => m.keys));
+    // with the fixed part F per card: h1 → W0 (6 + F), h2 → W1 (5 + F), l1 → W1 (7 + 2F), l2 → W0 (7 + 2F)
+    assert.deepEqual(asked, [['h1', 'l2'], ['h2', 'l1']]);
+    assert.deepEqual(H.stats().load, [7e6 + 2 * CARD_FIXED_BYTES, 7e6 + 2 * CARD_FIXED_BYTES]);
+    // a mount of a preloaded key stays on its Worker
+    H.mount('l1');
+    await tick();
+    assert.ok(FakeWorker.all[1].sent.some((m) => m.t === 'mount' && m.key === 'l1'));
+  });
+
+  test('a page swap: only what each Worker draws now counts, not what it keeps from the last page', async () => {
+    const g = { a: { bytes: 5e6 }, b: { bytes: 5e6 }, c: { bytes: 5e6 }, d: { bytes: 1e6 }, e: { bytes: 1e6 }, f: { bytes: 1e6 } };
+    const H = new DynIllustHost({ workers: 2, manifest: async () => ({ groups: { dynillust: g } }) });
+    await H.ready;
+    const old = ['a', 'b', 'c'].map((k) => H.mount(k));
+    await tick();
+    // a, c on W0; b on W1
+    assert.deepEqual(H.stats().load, [10e6 + 2 * CARD_FIXED_BYTES, 5e6 + CARD_FIXED_BYTES]);
+    for (const c of old) c.unmount();
+    assert.deepEqual(H.stats().load, [0, 0]);
+    const next = ['d', 'e', 'f'].map((k) => H.mount(k));
+    await tick();
+    // spread again from zero (by the old totals all three would have gone to W1)
+    assert.deepEqual(next.map((c) => c.worker.i), [0, 1, 0]);
   });
 
   test('a card follows its Worker: states, ready(), start()', async () => {

@@ -34,6 +34,24 @@ describe('DynIllustStage staging', () => {
     assert.equal(settled, true);
   });
 
+  test('maxFps: on a 240 Hz display a 60 fps cap draws every 4th frame and steps by the real time between', () => {
+    const S = new DynIllustStage({ raf: () => 1, hidden: () => false, manifest: async () => ({ groups: {} }), maxFps: 60 });
+    const dts = [];
+    S.cards.add({ sync: (dt) => dts.push(dt) });   // a stand-in card: sync runs once per drawn frame
+    // (rAF times start after page load; the stage reads a time of 0 as "no frame yet")
+    const step = 1000 / 240, t0 = 1000;
+    for (let i = 0; i < 241; i++) S._frame(t0 + i * step);
+    assert.equal(S.frameNo, 61, 'one drawn frame per 4 display frames, plus the first');
+    const total = dts.reduce((a, b) => a + b, 0);
+    assert.ok(Math.abs(total - 1) < 1e-9, `stepped ${total} s over 1 s`);
+    assert.ok(dts.slice(1).every((d) => Math.abs(d - 4 * step / 1000) < 1e-9));
+    // without a cap every display frame draws
+    const U = stage();
+    U.cards.add({ sync() {} });
+    for (let i = 0; i < 241; i++) U._frame(t0 + i * step);
+    assert.equal(U.frameNo, 241);
+  });
+
   test('a throwing piece is dropped, the queue goes on', () => {
     const S = stage();
     const ran = [];
