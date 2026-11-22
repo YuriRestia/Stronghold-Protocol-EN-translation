@@ -5,6 +5,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { DynIllustStage, STAGE_BUDGET_MS } from '../../public/js/render/dynillust/renderer.js';
+import { cardFraming } from '../../public/js/render/dynillust/framing.js';
 
 const stage = () => new DynIllustStage({ raf: () => 1, hidden: () => false, manifest: async () => ({ groups: {} }) });
 
@@ -77,6 +78,40 @@ describe('DynIllustStage staging', () => {
     // setting the same tier again frees nothing
     S.quality = 'half';
     assert.deepEqual([...S.cache.keys()], ['c|half']);
+  });
+
+  test('setFraming: a slot only this card draws is reframed in place; a shared one is left for the next frame', () => {
+    const S = stage();
+    const home = cardFraming('home'), card0 = cardFraming('card');
+    // a stand-in slot (Slot.reframe sets frameId and the framing map: the constructor's own code)
+    const slotFor = (cards) => {
+      const s = { id: `k|full|720x403|${card0.id}`, w: 720, h: 403, frameId: card0.id, cards: new Set(cards), framed: [] };
+      s.reframe = (f) => { s.framed.push(f.mode); s.frameId = f.id; };
+      s.destroy = () => {};
+      S.slots.set(s.id, s);
+      return s;
+    };
+    const a = S.mount('k');
+    const sa = slotFor([a]); a.slot = sa;
+    a.setFraming('home');
+    assert.equal(a.slot, sa, 'the same slot: no rebuild, the animation goes on');
+    assert.deepEqual(sa.framed, ['home']);
+    assert.equal(sa.id, `k|full|720x403|${home.id}`);
+    assert.deepEqual([...S.slots.keys()], [sa.id]);
+    assert.equal(a.frameId, home.id);
+    // the same framing again: nothing
+    a.setFraming('home');
+    assert.deepEqual(sa.framed, ['home']);
+    // shared: the slot stays as it is; the card's frameId differs from it, so its next sync re-attaches it
+    S.slots.clear();
+    const b = S.mount('k'), c = S.mount('k');
+    const sb = slotFor([b, c]); b.slot = sb; c.slot = sb;
+    b.setFraming('home');
+    assert.deepEqual(sb.framed, []);
+    assert.equal(sb.id, `k|full|720x403|${card0.id}`);
+    assert.notEqual(b.slot.frameId, b.frameId);
+    assert.equal(c.slot.frameId, c.frameId);
+    for (const x of [a, b, c]) x.unmount();
   });
 
   test('a throwing piece is dropped, the queue goes on', () => {

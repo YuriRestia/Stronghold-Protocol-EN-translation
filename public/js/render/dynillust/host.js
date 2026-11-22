@@ -356,6 +356,15 @@ class HostCard {
     if (send && this.worker) this.worker.w.postMessage({ t: 'box', id: this.id, w, h });
   }
 
+  /** A new framing for this card, without a remount (renderer.js Card.setFraming). */
+  setFraming(framing, centre) {
+    if (this.state === 'unmounted') return;
+    this.framing = { framing: framing && typeof framing === 'object' ? { ...framing } : (framing || 'card'), centre };
+    if (this.inner) this.inner.setFraming(this.framing.framing, centre);
+    else if (this.worker) this.worker.w.postMessage({ t: 'framing', id: this.id, ...this.framing });
+    // (not placed yet: _place sends this.framing with the mount)
+  }
+
   _view(v) { if (this.worker) this.worker.w.postMessage({ t: 'view', id: this.id, v }); }
 
   _set(st) {

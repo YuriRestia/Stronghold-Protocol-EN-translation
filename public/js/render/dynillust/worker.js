@@ -10,7 +10,7 @@
 // use for either.
 //
 // Messages from the page (host.js): manifest, opts, quality, preload, mount (with the transferred canvas and the
-// card's size), box, view, start, unmount, release, hidden, act, frames, frameLog, diag. To the page: ok / fail (after
+// card's size), box, framing, view, start, unmount, release, hidden, act, frames, frameLog, diag. To the page: ok / fail (after
 // boot), preloaded, state, ready, opacity, action, frameLog, diag, error.
 
 /* global importScripts */
@@ -100,7 +100,15 @@ function diagCard(c) {
     canvas: c.canvas ? [c.canvas.width, c.canvas.height] : null,
     slot: s ? { w: s.w, h: s.h, x: s.x, y: s.y, scale: r(s.map.scale), x0: r(s.map.x0), y0: r(s.map.y0), held: s.held, warmed: s.warmed, paused: s.paused, gpu: !!s.skel.gpu, cards: s.cards.size } : null,
     pages: c.prep ? [...c.prep.pages.values()].map((t) => [t.width, t.height, t.realWidth, t.realHeight, !!t.valid, !!t.destroyed]) : null,
+    // the effect nodes drawing particles now: [node, particles] (at most 60)
+    fx: s && s.fx ? liveNodes(s.fx.fx) : null,
   };
+}
+
+function liveNodes(e) {
+  const out = [];
+  for (let i = 0; i < e.def.n && out.length < 60; i++) { const sy = e.sys[i]; if (sy && e.hier[i] && sy.count > 0) out.push([i, sy.count]); }
+  return out;
 }
 
 function handle(m) {
@@ -123,6 +131,7 @@ function handle(m) {
       break;
     }
     case 'box': { const c = cards.get(m.id); if (c) { c.box = [m.w, m.h]; stage._kick(); } break; }
+    case 'framing': cards.get(m.id)?.setFraming(m.framing, m.centre); break;
     case 'view': { const c = cards.get(m.id); if (c) { c.inView = !!m.v; stage._kick(); } break; }
     case 'start': cards.get(m.id)?.start(); break;
     case 'unmount': { const c = cards.get(m.id); cards.delete(m.id); c?.unmount(); break; }
