@@ -1952,7 +1952,7 @@ client's pixels as stored; seconds; Unity's frames (§33.2).
 | file | content |
 |---|---|
 | `illust.json` | the index below |
-| `<stem>.skel` or `<stem>.json` | the skeleton TextAsset as stored: binary 3.8, or Spine JSON (Pepe's E2 art, O6) |
+| `<stem>.skel` or `<stem>.json` | the skeleton TextAsset as stored: binary 3.8, or Spine JSON (4 of the 98: `char_4058_pepe_2` — Pepe's E2 art, O6 —, `char_4058_pepe_sightseer#2`, `char_1016_agoat2_epoque#34`, `char_1020_reed2_summer#17`); all 3.8.99. Of the 98, 2 use `DynIllustSpecial` (`char_1045_svash2_sale#20`, `char_1041_angel2_iteration#6`) and none a SkeletonGraphic |
 | `<stem>.atlas` | the atlas text, `size:` per page, no `pma` (`normalize_atlas`, §13) |
 | `p/<page>.webp`, `p/half/<page>.webp` | atlas pages as stored: the RGB unchanged, A from the `[alpha]` texture (`merge_alpha`); WebP lossy q90, alpha 100, `exact` (the RGB under A = 0 kept); half = exactly w/2 × h/2 |
 | `fx.json` | the effect layer: one §33.4 descriptor of the whole prefab tree, holder effects included (root = node 0 = the skeleton's node; its Spine renderers are drawn from `spine`, not as effect renderers) |
@@ -2036,7 +2036,7 @@ AutoChessSettleGameTeamPlayerCardView._RenderIllust 0x28E17E9; notes dev50-l2d-o
 | `animators: [{ node, controller, parameters, layers }]` | the Animator's state machine, below | `_animators[]` and their AnimatorControllers |
 | `fixFxDelay`, `animTimeFixed` | bool | `_fixFxDelay`, `_animTimeFixed` |
 | `extraTracks: [{ track, animation }]` | Spine track ≥ 2 | `_extraTrackAnimations` (`EXTRA_TRACK_START_INDEX` = 2) |
-| `cameraShakes: [{ node, …fields }]` | the behaviour's own scalar fields as stored (delay, duration, strength, vibrato, randomness, fadeOut) | `FxDynIllustCameraShake` on that node |
+| `cameraShakes: [{ node, enabled, trigs: [{ delay, duration, strength: [x, y, z], vibrato, randomness, fadeOut }] }]` | s, Unity units, as stored; 1 of the 98 has one (Hoshiguma the Breacher's E2 art: 4) | `FxDynIllustCameraShake._shakeTrigs` on that node |
 
 An animator entry: `parameters: [{ name, type ('trigger' | 'bool' | 'float' | 'int'), default }]`; `layers: [{
 defaultState, states: [{ name, clip (index into fx.json clips | null), speed, transitions: [Transition] }],
