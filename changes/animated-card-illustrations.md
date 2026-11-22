@@ -8,7 +8,7 @@
 
 ### Result cards enter as in the official client
 
-- Each result card now plays the official entrance, one card after another: it fades in, the operator drops into place, the name card slides up, and a cleared card gets the light beam, the teal frame and strip and the colour wash (a failed one the grey frame and strip).
+- Each result card now plays the official entrance, one card after another: it fades in, the operator drops into place, the name card slides up, and a cleared card gets the light beam, the teal frame and strip and the colour wash (a failed one the grey frame and strip), over the official card background.
 - Before: the cards faded in with a simple animation of our own.
 
 ### New settings: Animated Illustrations and Result Card Art
@@ -34,11 +34,11 @@ Server cost:
 
 - Cap: `ending` is sent once per match (results.js endingView, one entry per player, at most 8 [src: shared/largeRoom.js LARGE_ROOM_SEATS]); the art is content-hashed and immutable, so each file downloads once per player until it changes, and a screen holds at most 8 illustrations [src: crew-docs/l2d-art-proposal.md §6].
 - The art sizes are Dev 49's measured extraction (98 illustrations); the per-day figures are arithmetic on them.
-- The card entrance adds 10 small UI sprites from the public mirror, about 37 KB together [src: public/assets/ui/settleCard 15,676 B for 8 + ui/uiFxMask 21,843 B for 2, wc -c], downloaded once per player like the other art.
+- The card entrance adds 11 small UI sprites from the public mirror, about 51 KB together [src: public/assets/ui/settleCard 15,676 B for 8 + card_bg 13,805 B + ui/uiFxMask 21,843 B for 2, wc -c / ls -l], downloaded once per player like the other art.
 
 Operator notes:
 
-- After the merge, `node tools/fetch-assets.mjs --add-only` on each server fetches the 10 new sprites (`ui/settleCard/*`, `ui/uiFxMask/*`); then the art upload as usual.
+- After the merge, `node tools/fetch-assets.mjs --add-only` on each server fetches the 11 new sprites (`ui/settleCard/*`, `ui/uiFxMask/*`); then the art upload as usual.
 
 News:
 
