@@ -2119,6 +2119,9 @@ Card.canvas: HTMLCanvasElement                      a 2D canvas the caller place
 Card.ready → Promise<boolean>                       true when drawable, false when failed
 Card.start()                                        show it: see the states
 Card.state, onState(state)                          below
+Card.setFraming(framing, centre?)                   a new framing (as mount's) for a mounted card, no remount: its slot
+                                                    is moved in place (the animation and effects go on), or the card
+                                                    joins the slot of that framing at its next frame when shared
 Card.unmount()
 ```
 
@@ -2137,8 +2140,8 @@ the stage runs in up to `DYN_WORKERS` (3) Workers (`render/dynillust/worker.js`)
 OffscreenCanvas and its own frame loop. `Card.canvas` is still a page element; its drawing is transferred to the Worker
 that draws the card, so no card frame, load, staging piece or warm-up runs on the page's main thread. All cards of one
 illustration go to one Worker; a new one to the Worker whose illustrations download the least in all. The page sends
-each card's size (ResizeObserver: CSS px × the device pixel ratio, capped at 2), in view, page hidden; it applies the
-canvas opacity. Without that support, or when no Worker starts (no WebGL2 in a Worker, a script error, no
+each card's size (ResizeObserver's layout size, never the CSS-transformed box: CSS px × the device pixel ratio, capped
+at 2; `host.diag()` returns what each Worker's stage holds per card), in view, page hidden; it applies the canvas opacity. Without that support, or when no Worker starts (no WebGL2 in a Worker, a script error, no
 answer within 15 s), the main-thread stage draws the cards, as before. A Worker that stops later fails its cards (the
 caller keeps their 2D art). `globalThis.__dynMainThread = true` before the first `getDynIllustStage()` forces the main
 thread.

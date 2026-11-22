@@ -111,6 +111,46 @@ describe('DynIllustHost', () => {
     assert.deepEqual(m.map((x) => [x.framing, x.centre]), [['home', 'illust'], ['card', undefined]]);
   });
 
+  test("a card's size comes from the ResizeObserver, not its transformed box", async () => {
+    // a seat in its entrance animation: getBoundingClientRect is scaled, the layout size (contentRect) is not
+    const obs = [];
+    const savedRO = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class { constructor(cb) { this.cb = cb; obs.push(this); } observe(el) { this.el = el; } unobserve() {} disconnect() {} };
+    try {
+      const H = new DynIllustHost({ workers: 1, manifest: async () => ({ groups: { dynillust: { a: {} } } }) });
+      await H.ready;
+      const c = H.mount('a');
+      c.canvas.isConnected = true;
+      c.canvas.getBoundingClientRect = () => ({ width: 721.3, height: 404.1 });
+      await tick();
+      const w = FakeWorker.all[0];
+      assert.equal(w.sent.find((m) => m.t === 'mount').box, null);
+      obs[0].cb([{ target: c.canvas, contentRect: { width: 720, height: 403 } }]);
+      assert.deepEqual(w.sent.filter((m) => m.t === 'box').map((m) => [m.w, m.h]), [[720, 403]]);
+    } finally { if (savedRO === undefined) delete globalThis.ResizeObserver; else globalThis.ResizeObserver = savedRO; }
+  });
+
+  test('setFraming goes to the Worker as a framing message (no remount)', async () => {
+    const H = new DynIllustHost({ workers: 1, manifest: async () => ({ groups: { dynillust: { a: {} } } }) });
+    await H.ready;
+    const c = H.mount('a');
+    await tick();
+    c.setFraming({ mode: 'card', zoom: 1.4, fy: 0.3 });
+    const w = FakeWorker.all[0];
+    assert.deepEqual(w.sent.filter((m) => m.t === 'framing').map((m) => [m.id, m.framing, m.centre]), [[c.id, { mode: 'card', zoom: 1.4, fy: 0.3 }, undefined]]);
+    assert.equal(w.sent.filter((m) => m.t === 'mount').length, 1);
+  });
+
+  test("diag() returns each Worker's answer", async () => {
+    const H = new DynIllustHost({ workers: 1, manifest: async () => ({ groups: { dynillust: { a: {} } } }) });
+    await H.ready;
+    const p = H.diag();
+    const w = FakeWorker.all[0];
+    const ask = w.sent.find((m) => m.t === 'diag');
+    w.answer({ t: 'diag', rid: ask.rid, gl: 0, cards: [{ key: 'a', wh: [720, 403] }] });
+    assert.deepEqual(await p, [{ worker: 0, gl: 0, cards: [{ key: 'a', wh: [720, 403] }] }]);
+  });
+
   test('a card follows its Worker: states, ready(), start()', async () => {
     const H = new DynIllustHost({ workers: 1, manifest: async () => ({ groups: { dynillust: { a: {} } } }) });
     await H.ready;

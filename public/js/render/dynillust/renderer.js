@@ -697,6 +697,31 @@ export class Card {
     }
   }
 
+  /**
+   * Change the framing of a mounted card (mount's `framing` / `centre`, framing.js cardFraming) without a remount: a
+   * slot only this card draws is moved in place (Slot.reframe), so the animation, its effects and the special-idle
+   * timer go on, with no staging, restart or fade. A slot other cards share, or a framing another card of this key
+   * already shows, is left: the card moves to the slot of its new framing at its next frame (sync → _attach).
+   */
+  setFraming(framing, centre) {
+    if (this.state === 'unmounted') return;
+    const f = cardFraming(framing, centre);
+    if (f.id === this.frameId) return;
+    this.frame = f;
+    this.frameId = f.id;
+    const S = this.S, s = this.slot;
+    if (s && s.cards.size === 1 && s.cards.has(this)) {
+      const id = `${this.key}|${s.id.split('|')[1]}|${s.w}x${s.h}|${f.id}`;
+      if (!S.slots.has(id)) {
+        S.slots.delete(s.id);
+        s.id = id;
+        s.reframe(f);
+        S.slots.set(id, s);
+      }
+    }
+    S._kick();
+  }
+
   /** Drawn this frame: started, ready, in view, sized. */
   get drawing() { return this.started && !!this.prep && this.inView && this.w > 0 && this.h > 0 && this.state !== 'unmounted'; }
 
@@ -704,7 +729,7 @@ export class Card {
   sync(dt) {
     if (!this.prep || !this.canvas || this.state === 'unmounted') return;
     const [w, h] = this._measure();
-    if (w !== this.w || h !== this.h || !this.slot) this.S._attach(this, this.prep, w, h);
+    if (w !== this.w || h !== this.h || !this.slot || this.slot.frameId !== this.frameId) this.S._attach(this, this.prep, w, h);
     if (this.fade >= 0 && this.drawing) {
       this.fade += dt;
       const a = Math.min(1, this.fade / LATE_FADE_S);
@@ -758,12 +783,8 @@ class Slot {
     if (this.fx) this.fx.fx.place({ pos: d.root.pos });
     this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: d.instance, now: () => this.time });
     this.card = new CardIllustState({ rng: S.opts.rng, onAction: S.opts.onAction ? (a) => S.opts.onAction(key, a) : null, mayStartSpecial: () => S._specialTurn() });
-    this.map = framingMap(d.framing, w, h, frame);
-    const pos = d.root.pos, rs = d.root.scale;
+    this.reframe(frame);
     const sp = this.skel.spine;
-    sp.position.set(this.map.x0 + this.map.scale * pos[0], this.map.y0 - this.map.scale * pos[1]);
-    // y flipped here: the skeleton is posed y-up, as spine-unity poses it (skeleton.js poseYUp)
-    sp.scale.set(this.map.scale * this.skel.scale * rs[0], -this.map.scale * this.skel.scale * rs[1]);
     sp.render = (renderer) => S._renderSlot(renderer, this);
     this.root = new P.Container();
     const mask = new P.Graphics().beginFill(0xffffff).drawRect(0, 0, w, h).endFill();
@@ -771,8 +792,24 @@ class Slot {
     this.root.mask = mask;
     this.basis = illustBasis(d.framing.cameraSize, h);
     this.camU = this.basis.pos;
-    this.zRoot = Number(pos[2]) || 0;
+    this.zRoot = Number(d.root.pos[2]) || 0;
     this.vp = new Float32Array(16);
+  }
+
+  /**
+   * Place the skeleton for `frame` (Card.frame): the framing map and the skeleton's position and scale. The effects
+   * read the map each frame (prepare → cardViewProj), so a reframe moves everything at once; the animation, its
+   * effects and their particles go on as they were (Card.setFraming).
+   */
+  reframe(frame = null) {
+    const d = this.data;
+    this.frameId = frame ? frame.id : null;
+    this.map = framingMap(d.framing, this.w, this.h, frame);
+    const pos = d.root.pos, rs = d.root.scale;
+    const sp = this.skel.spine;
+    sp.position.set(this.map.x0 + this.map.scale * pos[0], this.map.y0 - this.map.scale * pos[1]);
+    // y flipped here: the skeleton is posed y-up, as spine-unity poses it (skeleton.js poseYUp)
+    sp.scale.set(this.map.scale * this.skel.scale * rs[0], -this.map.scale * this.skel.scale * rs[1]);
   }
 
   resume() {

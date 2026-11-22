@@ -10,8 +10,8 @@
 // use for either.
 //
 // Messages from the page (host.js): manifest, opts, quality, preload, mount (with the transferred canvas and the
-// card's size), box, view, start, unmount, release, hidden, act, frames, frameLog. To the page: ok / fail (after
-// boot), preloaded, state, ready, opacity, action, frameLog, error.
+// card's size), box, framing, view, start, unmount, release, hidden, act, frames, frameLog, diag. To the page: ok / fail (after
+// boot), preloaded, state, ready, opacity, action, frameLog, diag, error.
 
 /* global importScripts */
 const post = (m) => self.postMessage(m);
@@ -92,6 +92,25 @@ async function boot() {
   };
 }
 
+/** One card as the stage sees it (host.js diag). */
+function diagCard(c) {
+  const s = c.slot, r = (v) => Math.round(v * 1000) / 1000;
+  return {
+    key: c.key, state: c.state, started: c.started, inView: c.inView, box: c.box, wh: [c.w, c.h],
+    canvas: c.canvas ? [c.canvas.width, c.canvas.height] : null,
+    slot: s ? { w: s.w, h: s.h, x: s.x, y: s.y, scale: r(s.map.scale), x0: r(s.map.x0), y0: r(s.map.y0), held: s.held, warmed: s.warmed, paused: s.paused, gpu: !!s.skel.gpu, cards: s.cards.size } : null,
+    pages: c.prep ? [...c.prep.pages.values()].map((t) => [t.width, t.height, t.realWidth, t.realHeight, !!t.valid, !!t.destroyed]) : null,
+    // the effect nodes drawing particles now: [node, particles] (at most 60)
+    fx: s && s.fx ? liveNodes(s.fx.fx) : null,
+  };
+}
+
+function liveNodes(e) {
+  const out = [];
+  for (let i = 0; i < e.def.n && out.length < 60; i++) { const sy = e.sys[i]; if (sy && e.hier[i] && sy.count > 0) out.push([i, sy.count]); }
+  return out;
+}
+
 function handle(m) {
   switch (m.t) {
     case 'manifest': resolveManifest(m.data); stage.index(); break;
@@ -112,6 +131,7 @@ function handle(m) {
       break;
     }
     case 'box': { const c = cards.get(m.id); if (c) { c.box = [m.w, m.h]; stage._kick(); } break; }
+    case 'framing': cards.get(m.id)?.setFraming(m.framing, m.centre); break;
     case 'view': { const c = cards.get(m.id); if (c) { c.inView = !!m.v; stage._kick(); } break; }
     case 'start': cards.get(m.id)?.start(); break;
     case 'unmount': { const c = cards.get(m.id); cards.delete(m.id); c?.unmount(); break; }
@@ -127,6 +147,7 @@ function handle(m) {
       stage._kick();
       break;
     case 'frames': frames = m.on ? [] : null; break;
+    case 'diag': post({ t: 'diag', rid: m.rid, gl: stage.renderer?.gl?.getError?.() ?? null, cards: [...cards.values()].map(diagCard) }); break;
     case 'frameLog': post({ t: 'frameLog', rid: m.rid, origin: performance.timeOrigin, frames: frames || [] }); if (frames) frames = []; break;
     default: break;
   }
