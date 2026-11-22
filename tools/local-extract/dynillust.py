@@ -470,14 +470,21 @@ def half_page(img, straight):
       on the separate bands. Image.resize on the RGBA image would premultiply it a second time (Pillow premultiplies
       RGBA itself before resampling and divides afterwards): an edge texel kept its full colour while its alpha halved,
       the pale fringes of the half tier (Goldenglow summer#12, 2026-11-22);
-    - straight (`_USEBLEED_ON`: the shader multiplies rgb by a) — premultiplied, averaged, divided back (Pillow's own
-      RGBa round trip)."""
+    - straight (`_USEBLEED_ON`: the shader multiplies rgb by a) — where the half texel has alpha, the alpha-weighted
+      colour (premultiplied, averaged, divided back: Pillow's RGBa round trip); where it is fully transparent, the plain
+      mean of the source colour. These pages carry colour bled into their transparent texels (88 % of the transparent
+      ring around Eyjafjalla epoque#57's regions), which bilinear sampling reads at every edge; the round trip alone
+      leaves black there, a dark outline round small parts (2026-11-22)."""
     from PIL import Image
     size = (img.width // 2, img.height // 2)
     box = (0, 0, size[0] * 2, size[1] * 2)
     rgba = img.convert('RGBA')
     if straight:
-        return rgba.convert('RGBa').resize(size, Image.BOX, box=box).convert('RGBA')
+        weighted = rgba.convert('RGBa').resize(size, Image.BOX, box=box).convert('RGBA')
+        alpha = weighted.getchannel('A')
+        bled = rgba.convert('RGB').resize(size, Image.BOX, box=box)
+        rgb = Image.composite(weighted.convert('RGB'), bled, alpha.point(lambda v: 255 if v else 0))
+        return Image.merge('RGBA', (*rgb.split(), alpha))
     return Image.merge('RGBA', [band.resize(size, Image.BOX, box=box) for band in rgba.split()])
 
 

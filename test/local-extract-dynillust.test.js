@@ -126,8 +126,12 @@ test('half pages: the premultiplied 2 × 2 mean — premultiplied pages per chan
   // gave the premultiplied page white at a quarter alpha (the half tier's pale fringes).
   const got = py(`from PIL import Image
 im = Image.new('RGBA', (2, 2), (0, 0, 0, 0)); im.putpixel((0, 0), (255, 255, 255, 255))
-print(json.dumps([dy.half_page(im, False).getpixel((0, 0)), dy.half_page(im, True).getpixel((0, 0)), dy.half_page(Image.new('RGBA', (5, 3)), False).size]))`);
-  const [pma, straight, odd] = got;
+bled = Image.new('RGBA', (2, 2), (200, 100, 50, 0))
+print(json.dumps([dy.half_page(im, False).getpixel((0, 0)), dy.half_page(im, True).getpixel((0, 0)), dy.half_page(Image.new('RGBA', (5, 3)), False).size,
+                  dy.half_page(bled, True).getpixel((0, 0))]))`);
+  const [pma, straight, odd, bled] = got;
+  // a straight page's colour bled into transparent texels survives the halving (bilinear sampling reads it at edges)
+  assert.deepEqual(bled, [200, 100, 50, 0]);
   assert.ok(Math.max(...pma.slice(0, 3)) <= pma[3], `premultiplied half keeps rgb <= a: ${pma}`);
   assert.ok(Math.abs(pma[3] - 64) <= 1, `alpha is the mean: ${pma}`);
   assert.deepEqual(straight.slice(0, 3), [255, 255, 255]);
