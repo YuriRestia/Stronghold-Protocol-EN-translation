@@ -456,7 +456,7 @@ WebGL2 port of `Torappu/UI/Dissolve/UI-DoubleDissolve-Tex` into two canvases ove
 wash (`group_complete`), the others the grey strip and frame and their wash (`group_normal`); the layers stay at the clip's
 last frame. Behind the card, the prefab's own background `settleCard/card_bg` (group_bg/bg: a 9-slice, 300 × 528 at
 (0, −13) under the 234 × 486 card, borders 75 / 43 / 78 / 212 — `CARD_BG`, a CSS border-image) replaces our panel, and the
-square on the top strip is the strip sprite's own (`unfinish_bg` dark, `complete_up_bg` teal), so our teal pin gives way.
+square on the top strip is the strip sprite's own (`unfinish_bg` dark, `complete_up_bg` teal), so our teal pin gives way, as do our header's STRONGHOLD PROTOCOL text and seat number (the strip prints its own text).
 Without those sprites or WebGL2 the card keeps its CSS entrance; under reduced motion it shows the last frame.
 
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
