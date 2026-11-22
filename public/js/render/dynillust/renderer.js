@@ -166,7 +166,8 @@ export class DynIllustStage {
     const def = prep.fxDef, glr = this.glr;
     if (!def || !glr) return;
     const half = this.quality === 'half';
-    await Promise.all((def.textures || []).map((k) => this.lib.loadTexture(k, half)));
+    // one owner per illustration: the library shares its parallel loads between the cards in turn
+    await Promise.all((def.textures || []).map((k) => this.lib.loadTexture(k, half, prep.entry && prep.entry.key)));
     const progs = new Map();
     const add = (kind, mi) => { const mat = mi != null ? def.material(mi, false) : null; if (mat) progs.set(`${kind}|${mat.key}`, [kind, mat]); };
     for (let i = 0; i < def.n; i++) {

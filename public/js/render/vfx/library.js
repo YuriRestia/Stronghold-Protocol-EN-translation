@@ -99,7 +99,7 @@ export class FxLibrary {
     this.images = new Map();    // `${key}|${half}` → { image, flipped, info } | null
     this.imageLoads = new Map();
     this.onGpu = new Set();     // the same ids once FxGL holds them (their images were let go: not decoded again)
-    this.queue = [];
+    this.queues = new Map();    // owner → loads waiting (null: callers without one, e.g. a battle's set)
     this.active = 0;
     this.failed = new Set();
     this.listeners = new Set();
@@ -201,15 +201,31 @@ export class FxLibrary {
     return this._texInfo;
   }
 
-  /** Run fn under the parallel-load limit. */
-  _limit(fn) {
+  /**
+   * Run fn under the parallel-load limit. Loads wait per `owner` and a freed slot goes to the owners in turn, so one
+   * owner's long list (a card's illustration effects) does not hold back the others; loads without an owner keep one
+   * first-in, first-out line, as before.
+   */
+  _limit(fn, owner = null) {
     return new Promise((resolve, reject) => {
       const run = () => {
         this.active++;
-        Promise.resolve().then(fn).then(resolve, reject).finally(() => { this.active--; const next = this.queue.shift(); if (next) next(); });
+        Promise.resolve().then(fn).then(resolve, reject).finally(() => { this.active--; this._next(); });
       };
-      if (this.active < MAX_PARALLEL) run(); else this.queue.push(run);
+      if (this.active < MAX_PARALLEL) { run(); return; }
+      const q = this.queues.get(owner);
+      if (q) q.push(run); else this.queues.set(owner, [run]);
     });
+  }
+
+  /** Start the next waiting load: the first owner in line, which then goes to the back if it has more. */
+  _next() {
+    for (const [owner, q] of this.queues) {
+      const run = q.shift();
+      this.queues.delete(owner);
+      if (q.length) this.queues.set(owner, q);
+      if (run) { run(); return; }
+    }
   }
 
   /** The descriptor of a prefab key (null when absent / failed). */
@@ -255,7 +271,8 @@ export class FxLibrary {
     return null;
   }
 
-  loadMesh(key) {
+  /** `owner`: whose load it is, for the fair share of the parallel loads (_limit); none for a battle's set. */
+  loadMesh(key, owner = null) {
     if (!key) return Promise.resolve(null);
     if (this.meshes.has(key)) return Promise.resolve(this.meshes.get(key));
     if (key.startsWith('builtin:')) return Promise.resolve(this.mesh(key));
@@ -263,7 +280,7 @@ export class FxLibrary {
     if (!p) {
       p = this.init().then(() => {
         const url = this.url('fx/mesh', key);
-        return url ? this._limit(() => this._json(url)) : null;
+        return url ? this._limit(() => this._json(url), owner) : null;
       }).then((m) => { const d = normalizeMesh(m); this.meshes.set(key, d); return d; }, () => { this.meshes.set(key, null); return null; });
       this.meshLoads.set(key, p);
     }
@@ -279,7 +296,8 @@ export class FxLibrary {
     return null;
   }
 
-  loadTexture(key, half) {
+  /** `owner`: as loadMesh. */
+  loadTexture(key, half, owner = null) {
     const id = `${key}|${half ? 1 : 0}`;
     const revision = this.pluginRevision || 0;
     const stale = () => key.startsWith('plugin:') && revision !== (this.pluginRevision || 0);
@@ -291,7 +309,7 @@ export class FxLibrary {
         const e = this.groups?.['fx/tex']?.[key];
         const url = isObj(e) ? (half && typeof e.half === 'string' ? e.half : e.path) : null;
         if (!url) return null;
-        const img = await this._limit(() => this._image(url));
+        const img = await this._limit(() => this._image(url), owner);
         return img ? { image: img.image, flipped: img.flipped, info: infos[key] || {} } : null;
       }).then((r) => {
         if (stale()) { r?.image?.close?.(); return null; }

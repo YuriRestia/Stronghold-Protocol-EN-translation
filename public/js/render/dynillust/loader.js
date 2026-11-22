@@ -103,7 +103,7 @@ export async function loadIllust(illustUrl, o = {}) {
     }
     for (const [k, m] of Object.entries(entry.fx.meshes || {})) g['fx/mesh'][k] = { path: fileUrl(dir, entry, m.file) };
     const desc = await okFetch(fetchFn, fileUrl(dir, entry, entry.fx.file), 'json');
-    await Promise.all((desc.meshes || []).map((m) => lib.loadMesh(m)));
+    await Promise.all((desc.meshes || []).map((m) => lib.loadMesh(m, entry.key || illustUrl))); // owner: library.js _limit
     fxDef = compileEffect(desc, lib);
     // node 0 is the skeleton's node and the separator parts are its renderers: drawn from `spine`, never as effects
     const own = new Set([0, ...((sp.separator && sp.separator.parts) || []), ...((sp.renderers || []).map((r) => r.node))]);

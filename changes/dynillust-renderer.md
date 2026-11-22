@@ -14,6 +14,8 @@
 - Skeletons are posed y-up as the official runtime poses them, and path constraints use Spine's own math: Angelina the
   Mellow Wish's face and Exusiai the New Covenant's legs were torn into flat pale shapes [src: notes
   dev50-gpu-skinning-report.md §Pale shapes].
+- The half tier draws again (its atlas frames were placed twice as far, so no card went live on a phone), and the
+  effect files load for the cards in turn, so the first cards no longer wait behind the others' downloads.
 - Skeletons skin on the GPU (WebGL2, phones included): the CPU keeps only the animation and bone transforms, the
   vertex shader places every vertex. 8 heavy illustrations at once: 35 → 43 fps on the dev PC, the same pixels as the
   CPU path on 17 illustrations [src: notes dev50-l2d-perf-report.md §GPU skinning].
