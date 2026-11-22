@@ -414,3 +414,35 @@ test('the cards\' look: the user\'s pick, one thin line on the smoothed mask, no
   assert.ok(core.hi - core.lo <= 0.02, 'a thin core (the user: "half as thin")');
   assert.equal(ce.makeSparks, undefined, 'the glitter was dropped (the user, 2026-11-23)');
 });
+
+test('the dissolve Worker loads the page\'s drawing code: cardEntrance.js imports nothing of the page', async () => {
+  const fs = await import('node:fs');
+  const imports = (f) => [...fs.readFileSync(new URL(f, import.meta.url), 'utf8').matchAll(/^import .* from '([^']+)';$/gm)].map((m) => m[1]);
+  // assetUrls.js has no imports of its own; data.js / device.js / the hooks touch the page and stay in cardEntranceHook.js
+  assert.deepEqual(imports('../../public/js/ui/cardEntrance.js'), ['./assetUrls.js']);
+  assert.deepEqual(imports('../../public/js/ui/assetUrls.js'), []);
+  assert.deepEqual(imports('../../public/js/ui/dissolveWorker.js'), ['./cardEntrance.js']);
+  const hook = await import('../../public/js/ui/cardEntranceHook.js');
+  assert.equal(typeof hook.useCardEntrance, 'function');
+});
+
+test('the dissolve picture: the 2D art placed as it shows, its box\'s background painted the same on and off the page', async () => {
+  const { artPlacement, paintBackgroundStyle } = await import('../../public/js/ui/cardEntrance.js');
+  // a placed art (object-fit fill) past the card's left edge, at dpr 1.5: drawn whole at its own box
+  const p = artPlacement({ placed: true, r: { left: 90, top: 210, width: 400, height: 300 }, bx: 100, by: 200, bw: 300, bh: 180, nw: 1024, nh: 768, dpr: 1.5 });
+  assert.deepEqual(p, { W: 450, H: 270, dx: -15, dy: 15, dw: 600, dh: 450, crop: { x: 0, y: 0, w: 1024, h: 768 } });
+  // a cover art: the crop coverUv gives, over the whole box
+  const c = artPlacement({ placed: false, r: { left: 0, top: 0, width: 200, height: 100 }, bx: 0, by: 0, bw: 200, bh: 100, nw: 400, nh: 400, px: 0.5, py: 0.5, dpr: 1 });
+  const uv = coverUv(400, 400, 200, 100, 0.5, 0.5);
+  assert.deepEqual(c, { W: 200, H: 100, dx: 0, dy: 0, dw: 200, dh: 100, crop: { x: uv.u0 * 400, y: uv.t0 * 400, w: (uv.u1 - uv.u0) * 400, h: (uv.t1 - uv.t0) * 400 } });
+  // the background: colour, then a top-to-bottom gradient with its stops; another direction keeps the colour only
+  const calls = [];
+  const g = { set fillStyle(v) { calls.push(['fill', v]); }, fillRect: (...a) => calls.push(['rect', ...a]),
+    createLinearGradient: (...a) => { calls.push(['grad', ...a]); return { addColorStop: (at, col) => calls.push(['stop', at, col]) }; } };
+  paintBackgroundStyle(g, { backgroundColor: 'rgb(1, 2, 3)', backgroundImage: 'linear-gradient(180deg, rgba(0, 0, 0, 0) 40%, rgb(9, 9, 9) 100%)' }, 10, 20);
+  assert.deepEqual(calls.filter((x) => x[0] !== 'fill' || typeof x[1] === 'string'), [
+    ['fill', 'rgb(1, 2, 3)'], ['rect', 0, 0, 10, 20], ['grad', 0, 0, 0, 20], ['stop', 0.4, 'rgba(0, 0, 0, 0)'], ['stop', 1, 'rgb(9, 9, 9)'], ['rect', 0, 0, 10, 20]]);
+  calls.length = 0;
+  paintBackgroundStyle(g, { backgroundColor: 'transparent', backgroundImage: 'linear-gradient(90deg, red, blue)' }, 10, 20);
+  assert.deepEqual(calls, []);
+});

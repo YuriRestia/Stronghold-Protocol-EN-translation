@@ -17,11 +17,11 @@
 // Images], the materials [src: same bundle, materials line_trans, complete_up_bg_dissolve, complete_frame_dissolve,
 // char_color_complete, char_color_mask, char_color], the shader [src: official Torappu/UI/Dissolve/UI-DoubleDissolve-Tex
 // fragment program, D3D11 disassembly of blob 7].
+//
+// This module imports nothing of the page (no DOM, no data store, no hooks): the room cards' dissolve Worker
+// (ui/dissolveWorker.js) loads it too. The entrance's hook is ui/cardEntranceHook.js.
 
-import { useLayoutEffect, useState } from '../../vendor/hooks.module.js';
-import { data } from '../data.js';
 import { uiUrl } from './assetUrls.js';
-import { reducedMotion } from './device.js';
 
 /** The card's delay step: index × this before its clip plays. [src: official auto_chess_settle_game_player_item _animDelay] */
 export const ANIM_DELAY_S = 0.083;
@@ -223,7 +223,7 @@ function glStart() {
   ctx.attachShader(p, vs); ctx.attachShader(p, fs); ctx.linkProgram(p);
   pending = { ctx, p, vs, fs, ext };
 }
-function glInit() {
+export function glInit() {
   if (gl) return gl;
   glStart();
   return pending ? glFinish() : null;
@@ -284,8 +284,11 @@ function texture(url, wrap) {
   return p;
 }
 
-/** The URLs of every sprite the layers draw, or null when one is missing from the manifest (the card keeps its look). */
-export function entranceSprites(m = data.get('assets')) {
+/**
+ * The URLs of every sprite the layers draw, or null when one is missing from the manifest (the card keeps its look).
+ * @param {any} m the asset manifest (data.get('assets'))
+ */
+export function entranceSprites(m) {
   const out = {};
   for (const [k, key] of Object.entries(SPRITES)) {
     const url = uiUrl(m, key);
@@ -391,9 +394,17 @@ export function drawMattes(cv, kind, t, scale, urls) {
  */
 const DISSOLVE_MAT = 'complete_up_bg_dissolve';
 
-/** Load what a dissolve needs (the shader and its mask); resolves to the mask's URL, rejects without WebGL2 or the sprite. */
-export function loadDissolve(m = data.get('assets')) {
-  const mask = uiUrl(m, SPRITES[MAT[DISSOLVE_MAT].t1]);
+/** The dissolve mask's URL in the asset manifest `m` (data.get('assets')), or null. */
+export function dissolveMaskUrl(m) { return uiUrl(m, SPRITES[MAT[DISSOLVE_MAT].t1]) || null; }
+
+/**
+ * Load what a dissolve needs (the shader and its mask); resolves to the mask's URL, rejects without WebGL2 or the sprite.
+ * @param {any} m the asset manifest (data.get('assets'))
+ */
+export function loadDissolve(m) { return loadDissolveMask(dissolveMaskUrl(m)); }
+
+/** loadDissolve by the mask's URL (the dissolve Worker has no manifest). */
+export function loadDissolveMask(mask) {
   if (!mask) return Promise.reject(new Error('no dissolve mask'));
   return glReady().then((ok) => {
     if (!ok) throw new Error('no WebGL2');
@@ -749,74 +760,53 @@ function tileDissolve(it) {
   return true;
 }
 
-// ---- the card ------------------------------------------------------------------------------------------------------
+// ---- the dissolve's picture: the art box as it shows (ui/dynCards.js on the page, ui/dissolveWorker.js off it) -----
 
 /**
- * Play the entrance on a result card (screens/settle.js TeamCard): once, from the moment the card mounts, after
- * `index × ANIM_DELAY_S`. Drives the card's CSS variables (--ce-a its opacity, --ce-root / --ce-card the illustration's
- * and the name card's offsets in px, --ce-round the rounds group's opacity) and draws the mattes into the card's two
- * `.tcard__ce` canvases. Under reduced motion the card shows the clip's last frame at once. Returns false — and the card
- * keeps its own look — when the manifest lacks a sprite or the page has no WebGL2. With `gate` (a promise: the result
- * page's entrance gate, ui/dynCards.js makeEntranceGate) the card holds the clip's first frame (unseen: alpha 0) until
- * it resolves — its illustration live, failed or given up — and plays from then, so the one-shot entrance plays with the
- * illustration (the user, 2026-11-23: "it should wait for the l2d to be ready instead of rushing ahead with the static
- * art").
- * @param {{ current: HTMLElement|null }} ref the card
- * @param {{ index: number, kind: 'complete'|'normal', gate?: Promise<any>|null }} o
+ * Where the picture (the art box, W × H device px) draws a card's 2D art, `dx dy dw dh` in device px, and which part of
+ * the art, `crop` in its own pixels: a placed art (object-fit fill) whole at its own box `r` inside the box at (bx, by);
+ * a cover art's crop at object-position (px, py) over the whole box. `r`, `bx`, `by`, `bw`, `bh` in CSS px.
  */
-export function useCardEntrance(ref, { index, kind, gate = null }) {
-  const [urls] = useState(() => {
-    const u = entranceSprites();
-    try { return u && glInit() ? u : null; } catch (err) { console.warn('[cardEntrance] WebGL2', err); return null; }
+export function artPlacement({ placed, r, bx, by, bw, bh, nw, nh, px = 0.5, py = 0.5, dpr = 1 }) {
+  const W = Math.max(1, Math.round(bw * dpr)), H = Math.max(1, Math.round(bh * dpr));
+  if (placed) return { W, H, dx: (r.left - bx) * dpr, dy: (r.top - by) * dpr, dw: r.width * dpr, dh: r.height * dpr, crop: { x: 0, y: 0, w: nw, h: nh } };
+  const uv = coverUv(nw, nh, r.width, r.height, px, py);
+  return { W, H, dx: 0, dy: 0, dw: W, dh: H, crop: { x: uv.u0 * nw, y: uv.t0 * nh, w: (uv.u1 - uv.u0) * nw, h: (uv.t1 - uv.t0) * nh } };
+}
+
+/** Split a CSS value at its top-level commas. */
+export function splitTop(s) {
+  const out = []; let depth = 0, cur = '';
+  for (const ch of s) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+/**
+ * Paint a computed background into a 2D context of w × h: its colour, then a top-to-bottom linear-gradient (the room
+ * card's art box: `linear-gradient(180deg, …)`, css/screens/room.css .rseat__art); any other image keeps the colour.
+ * @param {{ backgroundColor?: string, backgroundImage?: string }} cs computed style values
+ */
+export function paintBackgroundStyle(g, cs, w, h) {
+  const col = cs?.backgroundColor;
+  if (col && col !== 'transparent' && col !== 'rgba(0, 0, 0, 0)') { g.fillStyle = col; g.fillRect(0, 0, w, h); }
+  const m = /^linear-gradient\((.*)\)$/.exec(String(cs?.backgroundImage || '').trim());
+  if (!m) return;
+  let stops = splitTop(m[1]);
+  const dir = stops[0];
+  if (/deg$|^to /.test(dir)) { if (dir !== '180deg' && dir !== 'to bottom') return; stops = stops.slice(1); }
+  if (!stops.length) return;
+  const grad = g.createLinearGradient(0, 0, 0, h);
+  stops.forEach((s, i) => {
+    const sm = /^(.*\))\s+(-?[\d.]+)%$/.exec(s) || /^(\S+)\s+(-?[\d.]+)%$/.exec(s);
+    const color = sm ? sm[1] : s;
+    const at = sm ? parseFloat(sm[2]) / 100 : (stops.length > 1 ? i / (stops.length - 1) : 0);
+    grad.addColorStop(Math.max(0, Math.min(1, at)), color);
   });
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!urls || !el) return undefined;
-    const [base, add] = el.querySelectorAll('.tcard__ce');
-    const head = el.querySelector('.tcard__head');
-    const bg = el.querySelector('.tcard__cardbg');
-    if (bg) { bg.style.borderImageSource = `url("${urls.card_bg}")`; bg.style.borderImageSlice = `${CARD_BG.border.top} ${CARD_BG.border.right} ${CARD_BG.border.bottom} ${CARD_BG.border.left} fill`; }
-    let t0 = performance.now() + Math.max(0, index) * ANIM_DELAY_S * 1000;
-    let raf = 0, ready = false, now = 0, live = true;
-    const apply = (t) => {
-      now = t;
-      const w = el.getBoundingClientRect().width;
-      if (!(w > 0)) return;
-      const scale = w / (OVERLAY.right - OVERLAY.left);
-      const d = domState(sampleShow(t));
-      el.style.setProperty('--ce-a', String(d.alpha));
-      el.style.setProperty('--ce-root', `${(-d.root * scale).toFixed(2)}px`);
-      el.style.setProperty('--ce-card', `${(-d.card * scale).toFixed(2)}px`);
-      el.style.setProperty('--ce-round', String(d.round));
-      const top = (head ? head.offsetTop : 0) - (OVERLAY.top - STRIP_TOP) * scale;
-      for (const c of [base, add]) { c.style.top = `${top}px`; c.style.height = `${(OVERLAY.top - OVERLAY.bottom) * scale}px`; }
-      if (bg) {
-        const [bx, by] = CARD_BG.pos, [bw, bh] = CARD_BG.size, b = CARD_BG.border;
-        Object.assign(bg.style, { left: `${(bx - bw / 2 - OVERLAY.left) * scale}px`, top: `${top + (OVERLAY.top - (by + bh / 2)) * scale}px`,
-          width: `${bw * scale}px`, height: `${bh * scale}px`, borderWidth: `${b.top * scale}px ${b.right * scale}px ${b.bottom * scale}px ${b.left * scale}px` });
-      }
-      if (ready) drawMattes({ base, add }, kind, t, scale * (globalThis.devicePixelRatio || 1), urls);
-    };
-    const tick = () => {
-      if (!live) return;
-      const t = (performance.now() - t0) / 1000;
-      apply(Math.max(0, t));
-      if (t < CLIP_LENGTH_S) raf = requestAnimationFrame(tick);
-    };
-    if (reducedMotion()) apply(CLIP_LENGTH_S);
-    else if (gate) {
-      // held on the first frame until the page's illustrations are ready, then the row's stagger from that moment
-      apply(0);
-      Promise.resolve(gate).then(() => {
-        if (!live) return;
-        t0 = performance.now() + Math.max(0, index) * ANIM_DELAY_S * 1000;
-        tick();
-      });
-    } else tick();
-    loadEntrance(urls).then(() => { if (live) { ready = true; apply(now); } }, (err) => console.warn('[cardEntrance] sprites', err));
-    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => apply(now)) : null;
-    ro?.observe(el);
-    return () => { live = false; cancelAnimationFrame(raf); ro?.disconnect(); };
-  }, [urls, kind]);
-  return !!urls;
+  g.fillStyle = grad;
+  g.fillRect(0, 0, w, h);
 }

@@ -36,7 +36,7 @@ import { t, shownName } from '../../../shared/i18n.js';
 import { aceOf } from '../../../shared/resultAce.js';
 import { IllustArt, resultCardArt, cardAnimates, useDynIllustMode, useMatchCards, startResultLoad, endResultLoad, makeEntranceGate, releaseIllusts } from '../ui/dynCards.js';
 import { settingsStore } from '../ui/settingsStore.js';
-import { useCardEntrance } from '../ui/cardEntrance.js';
+import { useCardEntrance } from '../ui/cardEntranceHook.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 

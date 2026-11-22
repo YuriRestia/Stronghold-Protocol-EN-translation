@@ -516,8 +516,23 @@ first frames 60 ms of script and 125–180 ms of rendering. The cards keep their
 is shrunk only as the last of them unmounts, in the screen change's own frame: shrunk 2 s after the show it cost a frame
 of 42–67 ms in 7 of 8 loads, none in 8 since [src: work/dev-55 wf-ab-before / wf-ab-shrink, Grand Alliance page 6,
 2560 × 1440 @1 and @1.5, 2026-11-23]; the canvas holds about 16 MB there at 1440p (3564 × 1110 px × 4 bytes [src: work/dev-55
-ss-1440-5.json, its resizes]) while the room is open [unverified: at 4K]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
-the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); while they play, every card's dissolve
+ss-1440-5.json, its resizes]) while the room is open [unverified: at 4K]. The dissolve is drawn in a Worker where the browser can (`ui/dissolveWorker.js`, the lead's go of
+2026-11-23): the same shader, mask and tiles (`ui/cardEntrance.js`, which imports nothing of the page; the result
+entrance's hook is `ui/cardEntranceHook.js`) in the Worker's own WebGL2 context, drawing into each card's dissolve and
+wash canvases handed over with `transferControlToOffscreen`; the Worker fetches, decodes and composes each card's
+picture itself (its art box's computed background and the 2D art at `artPlacement`), and the page only posts each
+frame's numbers. On the page, the context's creation, the shader's status queries, the shared canvas's first allocation
+and each picture's upload waited on the GPU process while the cards loaded. The Worker reports ready only after a test
+draw; without OffscreenCanvas or WebGL2 in Workers, after a failed test draw, an error or no answer within
+`FLIP_GIVE_UP_MS`, the page draws the dissolve itself as before (`dissolveWorker`). A cover drawn there shows over the
+2D art two frames before the illustration takes the 2D art's place under it, so a late cover frame can only show the 2D
+art. Measured on Grand Alliance page 6, 8 cold loads each at 2319 × 1356 @1 and @1.5 [src: work/dev-55 wf-ab-base-*,
+wf-ab-worker-*, sw-final-*.json, 2026-11-23]: the page's long frames of the dissolve while the cards load went from 2–8 a
+load (51–249 ms) to none; frames over 33 ms in the switch from 1 in 16 loads (41.7 ms) to none; none after it either way;
+every frame from each card's cover to its sweep showed the cover whole (opaque, unchanged; 16 loads × 8 cards); the
+switch comes 4.1–4.4 s after the load at @1 (3.1–3.4 s on the page) and 4.3–5.0 s at @1.5 (3.5–5.2 s). On the page's
+path each card's picture is composed, uploaded and drawn once while the cards wait, one card per frame, and the shader
+builds off the main thread (`glReady`, KHR_parallel_shader_compile); while they play, every card's dissolve
 and bloom are drawn in one GL pass a frame (`batchDissolve` / `batchBloom` / `flushBatch`, tiles in one canvas); a card
 that gave up shows `data-dyn="kept"`; the cards go
 one after another in page order, the result row's 0.083 s apart

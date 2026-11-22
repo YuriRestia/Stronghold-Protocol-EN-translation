@@ -28,7 +28,7 @@ import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
-import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, BLOOM, glowStyle, sweepRange, ANIM_DELAY_S } from './cardEntrance.js';
+import { loadDissolve, dissolveMaskUrl, artPlacement, paintBackgroundStyle, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, BLOOM, glowStyle, sweepRange, ANIM_DELAY_S } from './cardEntrance.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -600,6 +600,8 @@ function runTransitions() {
   const now = performance.now();
   for (const tr of [...transitions]) { try { if (!tr.queue(now)) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
   try { flushBatch(); } catch (err) { console.warn('[dynillust] transition', err); }
+  // the cards the dissolve Worker draws: this frame's numbers in one message
+  if (workerItems.length) { const items = workerItems; workerItems = []; dissolveApi?.post({ type: 'frame', items }); }
   for (const tr of [...transitions]) { try { if (!tr.after()) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
   if (transitions.size) transRaf = requestAnimationFrame(runTransitions);
 }
@@ -608,6 +610,64 @@ function addTransition(tr) {
   if (!transitions.size) try { performance.mark('dyn-show'); } catch { /* no User Timing */ }
   transitions.add(tr);
   if (!transRaf) transRaf = requestAnimationFrame(runTransitions);
+}
+
+/**
+ * The room cards' dissolve drawn in a Worker (ui/dissolveWorker.js: the same shader and tiles in its own WebGL2 context,
+ * into the cards' canvases handed over with transferControlToOffscreen; it fetches, decodes and composes each picture
+ * itself), so the page makes no GL call for it. On the page, the context's creation, the shader's status queries, the
+ * shared canvas's first allocation and each picture's upload waited on the GPU process while the cards loaded: 180–409 ms,
+ * 71 ms, 138–160 ms and 47–72 ms a card of main-thread frames [src: work/dev-55 ss-1440-3.json, ss-1440-5.json,
+ * ss-1440-7.json, 2026-11-23]. The Worker reports ready only after a test draw; where it cannot (no OffscreenCanvas or
+ * WebGL2 in Workers, a failed test draw, an error, or no answer within FLIP_GIVE_UP_MS) the page draws the dissolve itself,
+ * as before. `globalThis.__dynMainDissolve` set before the page loads keeps it on the page (A/B runs).
+ */
+let dissolveBackend = null; // Promise<api | null>, one Worker for the page
+let dissolveApi = null;
+let workerItems = [];
+let dissolveIds = 0;
+/** A dissolve canvas handed over to the Worker → its card id there (a canvas can be handed over only once). */
+const handedOver = new WeakMap();
+function dissolveWorker() {
+  if (dissolveBackend) return dissolveBackend;
+  const maskUrl = dissolveMaskUrl(data.get('assets'));
+  const can = !globalThis.__dynMainDissolve && !!maskUrl && typeof Worker === 'function' && typeof OffscreenCanvas === 'function'
+    && typeof globalThis.HTMLCanvasElement?.prototype?.transferControlToOffscreen === 'function';
+  if (!can) return (dissolveBackend = Promise.resolve(null));
+  dissolveBackend = new Promise((resolve) => {
+    let w = null, settled = false, failed = false, timer = 0;
+    const waits = new Map();
+    const done = (api) => { if (settled) return; settled = true; clearTimeout(timer); dissolveApi = api; resolve(api); };
+    const fail = (why) => {
+      failed = true;
+      if (why) console.warn('[dynillust] dissolve Worker', why);
+      for (const f of waits.values()) f({ ok: false });
+      waits.clear();
+      if (!settled) { try { w?.terminate(); } catch { /* gone */ } done(null); }
+    };
+    timer = setTimeout(() => fail('no answer'), FLIP_GIVE_UP_MS);
+    try { w = new Worker(new URL('./dissolveWorker.js', import.meta.url), { type: 'module', name: 'dissolve' }); } catch (err) { fail(err); return; }
+    const api = {
+      get failed() { return failed; },
+      attach(dis, wash) {
+        const id = ++dissolveIds, a = dis.transferControlToOffscreen(), b = wash.transferControlToOffscreen();
+        w.postMessage({ type: 'card', id, dis: a, wash: b }, [a, b]);
+        return id;
+      },
+      prep(id, msg) {
+        if (failed) return Promise.resolve({ ok: false });
+        return new Promise((r) => { waits.set(id, r); w.postMessage({ type: 'prep', id, ...msg }); });
+      },
+      post(m) { if (!failed) w.postMessage(m); },
+    };
+    w.onmessage = (ev) => {
+      const d = ev.data || {};
+      if (d.type === 'ready') { if (d.ok) done(api); else fail(d.err || 'not ready'); } else if (d.type === 'prepared') { const f = waits.get(d.id); waits.delete(d.id); f?.(d); }
+    };
+    w.onerror = (ev) => { ev?.preventDefault?.(); fail(ev?.message || 'error'); };
+    w.postMessage({ type: 'init', maskUrl: new URL(maskUrl, globalThis.location?.href).href, glow: globalThis.__dynGlow ?? null });
+  });
+  return dissolveBackend;
 }
 
 /** The cards' dissolve preparations (a picture composed, uploaded and drawn once each): one per animation frame. */
@@ -794,7 +854,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
       if (dis.current) dis.current.style.opacity = '0';
       if (wash.current) wash.current.style.opacity = '0';
-      reserveTiles(dis);
+      dropDissolve();
       isCovered = false;
       setCovered(false);
       setState('kept'); // data-dyn="kept": the 2D art stays (not 'off': the illustration was there and gave up)
@@ -803,7 +863,16 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
     // at its object-position, its filter) — composed and put on the GPU while the cards wait, again at the show if the
     // box changed size
     let pic = null, picKey = '';
-    const compose = () => {
+    // the dissolve Worker's api and this card's id there, when the Worker draws this card (dissolveWorker), else null
+    let wapi = null, wid = 0, wEl = null;
+    // the picture and tiles freed (the Worker keeps the handed-over canvases until they leave the page)
+    const dropDissolve = () => {
+      if (wapi) wapi.post({ type: 'drop', id: wid });
+      else { reserveTiles(dis); freeDissolvePicture(pic); }
+      pic = null;
+    };
+    // where the 2D art sits in the art box now (cardEntrance.js artPlacement), and the picture's key
+    const geom = () => {
       const img = entry.img, box = img?.offsetParent;
       const r = img?.isConnected ? img.getBoundingClientRect() : null;
       if (!img || !box || !r || !(r.width > 0 && r.height > 0) || !img.naturalWidth) return null;
@@ -815,24 +884,34 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
       const bx = br.left + box.clientLeft, by = br.top + box.clientTop;
       const bw = placed ? box.clientWidth : r.width, bh = placed ? box.clientHeight : r.height;
       if (!(bw > 0 && bh > 0)) return null;
-      const dpr = globalThis.devicePixelRatio || 1;
-      const W = Math.max(1, Math.round(bw * dpr)), H = Math.max(1, Math.round(bh * dpr));
-      const key = `${W}x${H}|${img.currentSrc || img.src}${placed ? `|${Math.round(r.left - bx)},${Math.round(r.top - by)},${Math.round(r.width)}` : ''}`;
+      const [px, py] = objectPosition(cs.objectPosition);
+      const at = artPlacement({ placed, r, bx, by, bw, bh, nw: img.naturalWidth, nh: img.naturalHeight, px, py, dpr: globalThis.devicePixelRatio || 1 });
+      const src = img.currentSrc || img.src;
+      return { ...at, img, box, cs, src, key: `${at.W}x${at.H}|${src}${placed ? `|${Math.round(r.left - bx)},${Math.round(r.top - by)},${Math.round(r.width)}` : ''}` };
+    };
+    // on the page: the picture composed here and put on the page's GPU context
+    const compose = () => {
+      const gm = geom();
+      if (!gm) return null;
+      const { W, H, key } = gm;
       if (pic && key === picKey) return { W, H };
       const c = document.createElement('canvas');
       c.width = W; c.height = H;
       const g = c.getContext('2d');
-      paintBackground(g, box, W, H);
-      if (cs.filter && cs.filter !== 'none') g.filter = cs.filter;
-      if (placed) g.drawImage(img, (r.left - bx) * dpr, (r.top - by) * dpr, r.width * dpr, r.height * dpr);
-      else {
-        const [px, py] = objectPosition(cs.objectPosition);
-        const uv = coverUv(img.naturalWidth, img.naturalHeight, r.width, r.height, px, py);
-        g.drawImage(img, uv.u0 * img.naturalWidth, uv.t0 * img.naturalHeight, (uv.u1 - uv.u0) * img.naturalWidth, (uv.t1 - uv.t0) * img.naturalHeight, 0, 0, W, H);
-      }
+      paintBackground(g, gm.box, W, H);
+      if (gm.cs.filter && gm.cs.filter !== 'none') g.filter = gm.cs.filter;
+      g.drawImage(gm.img, gm.crop.x, gm.crop.y, gm.crop.w, gm.crop.h, gm.dx, gm.dy, gm.dw, gm.dh);
       pic = dissolvePicture(c, entry.mask, pic);
       picKey = key;
       return pic ? { W, H } : null;
+    };
+    // in the Worker: the same picture composed there from the art's file and the box's computed background, its first
+    // frame drawn on the card's canvas (and committed) before it resolves
+    const prepInWorker = (gm) => {
+      const bs = globalThis.getComputedStyle(gm.box);
+      return wapi.prep(wid, { url: new URL(gm.src, globalThis.location?.href).href, gm: { W: gm.W, H: gm.H, dx: gm.dx, dy: gm.dy, dw: gm.dw, dh: gm.dh, crop: gm.crop },
+        bg: { backgroundColor: bs.backgroundColor, backgroundImage: bs.backgroundImage }, filter: gm.cs.filter, key: gm.key })
+        .then((r) => { if (r?.ok && live) { picKey = r.key; return true; } return false; });
     };
     // a dissolve that cannot be prepared falls back to the fade; it never holds the group
     const prepare = () => {
@@ -847,7 +926,23 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
       // the card background the illustration shows over (BACKDROP) decoded now, not in the frame the cards show
       const bgUrl = backdrop ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
       const bgImg = bgUrl && typeof Image === 'function' ? Object.assign(new Image(), { src: bgUrl }) : null;
-      Promise.all([loadDissolve(), img.decode ? img.decode().catch(() => {}) : null, bgImg?.decode ? bgImg.decode().catch(() => {}) : null])
+      const decodes = [img.decode ? img.decode().catch(() => {}) : null, bgImg?.decode ? bgImg.decode().catch(() => {}) : null];
+      dissolveWorker().then((api) => {
+        if (!live) return undefined;
+        if (!api || api.failed || !dis.current || !wash.current) return prepareOnPage(decodes);
+        // the Worker draws this card: its two canvases handed over once
+        wEl = dis.current;
+        wid = handedOver.get(wEl) || 0;
+        if (!wid) { wid = api.attach(wEl, wash.current); handedOver.set(wEl, wid); }
+        wapi = api;
+        return Promise.all(decodes).then(() => {
+          const gm = live ? geom() : null;
+          return gm ? prepInWorker(gm).then((ok) => { if (ok) { drawnKey = picKey; cover(); } }) : null;
+        }).catch((err) => { console.warn('[dynillust] dissolve', err); }).finally(() => { entry.prepared = true; });
+      }).catch((err) => { console.warn('[dynillust] dissolve', err); entry.prepared = true; });
+    };
+    const prepareOnPage = (decodes) => {
+      Promise.all([loadDissolve(data.get('assets')), ...decodes])
         .then(([mask]) => {
           // one card's picture, upload and first frame per animation frame (prepQueue): eight at once took a 246 ms task
           queuePrep(() => {
@@ -875,58 +970,81 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
       isCovered = true;
       dis.current.style.opacity = '1';
       // the bloom's canvas too, sized and in place (empty) now: showing an additive layer at the show cost a 77 ms frame
+      // (in the Worker it was sized with the picture)
       const wc = wash.current;
-      if (wc && dis.current.width > 1) { wc.width = dis.current.width; wc.height = dis.current.height; wc.style.opacity = '1'; }
-      setReveal('dissolve');
-      setCovered(true);
+      const place = () => {
+        if (!live || kept) return;
+        if (wc && wapi) wc.style.opacity = '1';
+        else if (wc && dis.current && dis.current.width > 1) { wc.width = dis.current.width; wc.height = dis.current.height; wc.style.opacity = '1'; }
+        setReveal('dissolve');
+        setCovered(true);
+      };
+      // drawn in the Worker, the cover's frame reaches the screen apart from the page's: it shows over the 2D art (the
+      // same picture) first, and the 2D art gives way to the illustration under it two frames later, so a cover frame
+      // that came late can only show the 2D art, never the illustration
+      if (wapi) requestAnimationFrame(() => requestAnimationFrame(place)); else place();
     };
     // the show, `delay` ms from now (the group's stagger): the 2D art dissolves away over FLIP_SWEEP_S with a white
     // bloom on its edge and a glow behind it that fades after (cardEntrance.js drawBloom, its own canvas, plus-lighter)
     const showNow = (delay = 0) => {
-      const cv = dis.current, wc = wash.current;
-      const size = isCovered && cv ? compose() : null;
-      if (size) {
-        const { W, H } = size;
-        // the box changed size since: its first frame again
-        if (drawnKey === picKey || drawDissolve(cv, pic, 0, W, H)) {
-          setShown(true);
-          const t0 = performance.now() + Math.max(0, delay);
-          let dissolved = false, lastS = 0, k = 0, glow = 0;
-          const G = glowStyle();
-          if (wc && wc.style.opacity !== '1') wc.style.opacity = '1';
-          // one frame of this card in the shared pass (runTransitions): queue its tiles, then the end
-          trans = {
-            queue(now) {
-              if (!live) return false;
-              const s = (now - t0) / 1000;
-              if (s < 0) return true;
-              // the glow's look (GLOW_STYLES): a dim of the old picture first, then the sweep
-              const dimS = G.dim?.s || 0, sw = s - dimS;
-              const dim = G.dim ? 1 - (1 - G.dim.to) * Math.min(1, s / dimS) : 1;
-              k = sweepDrive(sw, G);
-              if (!dissolved) batchDissolve(cv, pic, k, W, H, dim);
-              // the bloom: bands on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
-              glow = k < 1 ? 1 : Math.max(0, 1 - (sw - FLIP_SWEEP_S) / G.fadeS);
-              if (wc) batchBloom(wc, k, glow, k < 1 ? BLOOM.band : 0, W, H);
-              lastS = s;
-              return true;
-            },
-            after() {
-              if (!live || lastS <= 0) return true;
-              if (k >= 1 && !dissolved) { dissolved = true; cv.style.opacity = '0'; cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
-              // done: the card keeps its tiles in the shared canvas until it unmounts (reserveTiles: no resize of its own)
-              if (dissolved && !(glow > 0)) {
-                if (wc) { wc.style.opacity = '0'; wc.width = 1; wc.height = 1; }
-                return false;
-              }
-              return true;
-            },
-          };
-          addTransition(trans);
-          return;
-        }
+      const cv = dis.current;
+      if (!isCovered || !cv) { setShown(true); return; }
+      if (wapi) {
+        const gm = geom();
+        if (!gm) { setShown(true); return; }
+        // the box changed size since: its picture again first
+        if (gm.key !== picKey) { prepInWorker(gm).then((ok) => { if (!live) return; if (ok) sweep(gm.W, gm.H, delay); else setShown(true); }); return; }
+        sweep(gm.W, gm.H, delay);
+        return;
       }
+      const size = compose();
+      // the box changed size since: its first frame again
+      if (size && (drawnKey === picKey || drawDissolve(cv, pic, 0, size.W, size.H))) { sweep(size.W, size.H, delay); return; }
       setShown(true);
+    };
+    const sweep = (W, H, delay) => {
+      const cv = dis.current, wc = wash.current;
+      setShown(true);
+      const t0 = performance.now() + Math.max(0, delay);
+      let dissolved = false, lastS = 0, k = 0, glow = 0, endFrames = 0;
+      const G = glowStyle();
+      if (wc && wc.style.opacity !== '1') wc.style.opacity = '1';
+      // one frame of this card in the shared pass (runTransitions): queue its tiles (or the Worker's numbers), then the end
+      trans = {
+        queue(now) {
+          if (!live) return false;
+          const s = (now - t0) / 1000;
+          if (s < 0) return true;
+          // the glow's look (GLOW_STYLES): a dim of the old picture first, then the sweep
+          const dimS = G.dim?.s || 0, sw = s - dimS;
+          const dim = G.dim ? 1 - (1 - G.dim.to) * Math.min(1, s / dimS) : 1;
+          k = sweepDrive(sw, G);
+          if (!dissolved) { if (wapi) workerItems.push({ id: wid, kind: 'dissolve', drive: k, dim, W, H }); else batchDissolve(cv, pic, k, W, H, dim); }
+          // the bloom: bands on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
+          glow = k < 1 ? 1 : Math.max(0, 1 - (sw - FLIP_SWEEP_S) / G.fadeS);
+          const band = k < 1 ? BLOOM.band : 0;
+          if (wc) { if (wapi) workerItems.push({ id: wid, kind: 'bloom', k, glow, band, W, H }); else batchBloom(wc, k, glow, band, W, H); }
+          lastS = s;
+          return true;
+        },
+        after() {
+          if (!live || lastS <= 0) return true;
+          // the Worker draws a frame after the page asks for it: the cover goes a frame after its last one (k 1) was asked
+          if (k >= 1 && !dissolved && (!wapi || ++endFrames > 1)) {
+            dissolved = true;
+            cv.style.opacity = '0';
+            if (wapi) wapi.post({ type: 'end', id: wid });
+            else { cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
+          }
+          // done: the card keeps its tiles in the shared canvas until it unmounts (reserveTiles: no resize of its own)
+          if (dissolved && !(glow > 0)) {
+            if (wc) { wc.style.opacity = '0'; if (wapi) wapi.post({ type: 'washEnd', id: wid }); else { wc.width = 1; wc.height = 1; } }
+            return false;
+          }
+          return true;
+        },
+      };
+      addTransition(trans);
     };
     // a 'cover' card waits for its framing tables (two small files, fetched once per page; CardArt places its 2D art with
     // the same values)
@@ -964,8 +1082,9 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
       gate?.settle(gateTok);
       if (raf) cancelAnimationFrame(raf);
       if (trans) { transitions.delete(trans); trans = null; }
-      reserveTiles(dis);
-      freeDissolvePicture(pic); pic = null;
+      dropDissolve();
+      // a handed-over canvas that left the page: the Worker lets it go too (one that stays is used again)
+      if (wapi && wEl) { const el = wEl, api = wapi, i = wid; setTimeout(() => { if (!el.isConnected) { api.post({ type: 'forget', id: i }); handedOver.delete(el); } }, 0); }
       if (entry) leaveGroup(entry);
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
     };
@@ -983,42 +1102,13 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
   </div>`;
 }
 
-/** Split a CSS value at its top-level commas. */
-function splitTop(s) {
-  const out = []; let depth = 0, cur = '';
-  for (const ch of s) {
-    if (ch === '(') depth++;
-    if (ch === ')') depth--;
-    if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
-  }
-  if (cur.trim()) out.push(cur.trim());
-  return out;
-}
-
 /**
- * Paint an element's own background into a 2D context of w × h: its colour, then a top-to-bottom linear-gradient (the
- * room card's art box: `linear-gradient(180deg, …)`, css/screens/room.css .rseat__art); any other image keeps the colour.
+ * Paint an element's own background into a 2D context of w × h (cardEntrance.js paintBackgroundStyle on its computed
+ * style: its colour, then a top-to-bottom linear-gradient).
  */
 export function paintBackground(g, el, w, h) {
   const cs = globalThis.getComputedStyle?.(el);
-  if (!cs) return;
-  const col = cs.backgroundColor;
-  if (col && col !== 'transparent' && col !== 'rgba(0, 0, 0, 0)') { g.fillStyle = col; g.fillRect(0, 0, w, h); }
-  const m = /^linear-gradient\((.*)\)$/.exec(String(cs.backgroundImage || '').trim());
-  if (!m) return;
-  let stops = splitTop(m[1]);
-  const dir = stops[0];
-  if (/deg$|^to /.test(dir)) { if (dir !== '180deg' && dir !== 'to bottom') return; stops = stops.slice(1); }
-  if (!stops.length) return;
-  const grad = g.createLinearGradient(0, 0, 0, h);
-  stops.forEach((s, i) => {
-    const sm = /^(.*\))\s+(-?[\d.]+)%$/.exec(s) || /^(\S+)\s+(-?[\d.]+)%$/.exec(s);
-    const color = sm ? sm[1] : s;
-    const at = sm ? parseFloat(sm[2]) / 100 : (stops.length > 1 ? i / (stops.length - 1) : 0);
-    grad.addColorStop(Math.max(0, Math.min(1, at)), color);
-  });
-  g.fillStyle = grad;
-  g.fillRect(0, 0, w, h);
+  if (cs) paintBackgroundStyle(g, cs, w, h);
 }
 
 /** CSS object-position (computed: two lengths or percentages) as fractions; anything but percentages counts as 50 %. */
