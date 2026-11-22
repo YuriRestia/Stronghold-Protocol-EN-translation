@@ -2129,7 +2129,7 @@ view pauses its card and frees its slot. A screen awaits `getDynIllustStage().in
 
 **Workers** (fork, 2026-11-22): where the browser has `Worker`, `OffscreenCanvas` and
 `transferControlToOffscreen`, `getDynIllustStage()` returns a host (`render/dynillust/host.js`) with the same API, and
-the stage runs in `DYN_WORKERS` (2) Workers (`render/dynillust/worker.js`), each with its own WebGL2 context on an
+the stage runs in up to `DYN_WORKERS` (3) Workers (`render/dynillust/worker.js`), each with its own WebGL2 context on an
 OffscreenCanvas and its own frame loop. `Card.canvas` is still a page element; its drawing is transferred to the Worker
 that draws the card, so no card frame, load, staging piece or warm-up runs on the page's main thread. All cards of one
 illustration go to one Worker; a new illustration goes to the Worker with the fewest. The page reports each card's size

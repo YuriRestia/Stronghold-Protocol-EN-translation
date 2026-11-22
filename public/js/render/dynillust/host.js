@@ -15,8 +15,18 @@
 
 import { DynIllustStage, MAX_DPR } from './renderer.js';
 
-/** Workers drawing the illustrations (ours, not an official value; measured in notes dev50-l2d-perf-report.md). */
-export const DYN_WORKERS = 2;
+/**
+ * Workers drawing the illustrations (ours, not an official value). Cold Grand Alliance page 6, 8 cards, 1440p and 4K:
+ * 3 Workers kept every card frame under 33 ms in all 4 loads, 2 and 4 had one over each; at most one fewer than the
+ * machine's threads [src: notes dev50-l2d-perf-report.md §Workers, step 2].
+ */
+export const DYN_WORKERS = 3;
+
+/** The Workers this machine gets: DYN_WORKERS, at most one fewer than its threads, at least 1. */
+export function workerCount() {
+  const hc = Number(globalThis.navigator?.hardwareConcurrency) || 0;
+  return hc > 1 ? Math.max(1, Math.min(DYN_WORKERS, hc - 1)) : DYN_WORKERS;
+}
 /** A Worker that has not booted after this long counts as failed, ms. */
 export const DYN_BOOT_MS = 15000;
 
@@ -52,7 +62,7 @@ export class DynIllustHost {
     this._id = 0;
     this._rid = 0;
     this._waits = new Map();    // rid → resolve
-    const n = Number.isInteger(opts.workers) ? opts.workers : DYN_WORKERS;
+    const n = Number.isInteger(opts.workers) ? opts.workers : workerCount();
     const url = opts.workerUrl || new URL('./worker.js', import.meta.url);
     if (n > 0 && workersSupported()) for (let i = 0; i < n; i++) this.workers.push(this._spawn(url, i));
     this.ready = Promise.all(this.workers.map((w) => w.ok)).then(() => {
