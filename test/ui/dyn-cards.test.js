@@ -7,8 +7,9 @@ import {
   RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
   setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle, cardTier, HALF_MAX_SCALE,
   FLIP_FADE_S, FLIP_DISSOLVE_S, FLIP_STEP_S, FLIP_SMOOTH_MS, FLIP_SMOOTH_FRAMES, FLIP_GIVE_UP_MS, joinGroup, groupState, leaveGroup, objectPosition,
-  FLIP_SWEEP_S, FLIP_SWEEP_K0, sweepDrive,
+  FLIP_SWEEP_S, FLIP_SWEEP_K0, sweepDrive, dynTierStore, setDynQuality,
 } from '../../public/js/ui/dynCards.js';
+import { settingsStore } from '../../public/js/ui/settingsStore.js';
 import { coverUv, edgeOf, BLOOM, makeSparks, SPARKS } from '../../public/js/ui/cardEntrance.js';
 
 test('the tier by card size: half up to one device px per official unit of the 232 × 458 window, full above', () => {
@@ -35,7 +36,7 @@ test('the backdrop: the official card background around group_char\'s window, as
   assert.match(s, /border-image:url\("\/x\.png"\) 212 78 43 75 fill/);
 });
 import * as stub from '../../public/js/ui/dynStub.js';
-import { sanitizeSettings, DEFAULT_SETTINGS } from '../../public/js/ui/gameLogic/settings.js';
+import { sanitizeSettings, DEFAULT_SETTINGS, DYN_QUALITY_SETTING } from '../../public/js/ui/gameLogic/settings.js';
 import { cardContext } from '../../public/js/ui/seatArt.js';
 
 test('动态立绘: auto is Mine Only on a phone and Everyone elsewhere; Off / Mine / Everyone as set (D7)', () => {
@@ -291,6 +292,39 @@ test('the dissolve\'s crop is the 2D art\'s object-fit: cover at its object-posi
   // a wide picture: the height fits, the sides are cropped evenly at 50 %
   const w = coverUv(200, 100, 100, 100, 0.5, 0.5);
   assert.ok(Math.abs(w.u0 - 0.25) < 1e-9 && Math.abs(w.u1 - 0.75) < 1e-9 && Math.abs(w.t0) < 1e-9 && Math.abs(w.t1 - 1) < 1e-9, JSON.stringify(w));
+});
+
+test('settings: 动态立绘画质 keeps auto / half / full, junk or a profile saved before it takes auto', () => {
+  assert.deepEqual([...DYN_QUALITY_SETTING], ['auto', 'half', 'full']);
+  assert.equal(DEFAULT_SETTINGS.dynQuality, 'auto');
+  for (const q of DYN_QUALITY_SETTING) assert.equal(sanitizeSettings({ dynQuality: q }).dynQuality, q);
+  assert.equal(sanitizeSettings({ dynQuality: 'ultra' }).dynQuality, 'auto');
+  assert.equal(sanitizeSettings({ dynQuality: 1 }).dynQuality, 'auto');
+  assert.equal(sanitizeSettings({ bgm: 0.5 }).dynQuality, 'auto', 'a profile saved before the setting');
+  // what settings.js saves is sanitizeSettings(store): the choice survives a save and a load
+  assert.equal(sanitizeSettings(JSON.parse(JSON.stringify(sanitizeSettings({ dynQuality: 'half' })))).dynQuality, 'half');
+});
+
+test('动态立绘画质 drives the page tier with no reload: Half / Full force it, Auto hands it back to the cards\' size', async () => {
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+  const pick = (dynQuality) => settingsStore.set(sanitizeSettings({ ...settingsStore.get(), dynQuality }));
+  try {
+    pick('half'); await tick();
+    assert.equal(dynTierStore.get().tier, 'half', 'Half: every card re-mounts on half pages');
+    pick('full'); await tick();
+    assert.equal(dynTierStore.get().tier, 'full', 'Full: every card re-mounts on full pages');
+    pick('half'); await tick();
+    pick('auto'); await tick();
+    // no card measured: the page keeps its tier until one does (tierChanged); the result load picks by size again
+    assert.equal(dynTierStore.get().tier, 'half');
+    // another setting's change leaves the tier alone (the review page's &tier stays as it set it)
+    setDynQuality('full'); await tick();
+    settingsStore.set({ resultArt: 'ace' }); await tick();
+    assert.equal(dynTierStore.get().tier, 'full');
+  } finally {
+    setDynQuality(null);
+    settingsStore.set(sanitizeSettings({ ...settingsStore.get(), dynQuality: 'auto', resultArt: 'card' }));
+  }
 });
 
 test('the border\'s sweep: slower than the official drive, starting just before the bloom reaches the card, ending with the picture gone', () => {
