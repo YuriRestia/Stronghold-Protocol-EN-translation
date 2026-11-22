@@ -69,6 +69,31 @@ def skin_id(key):
     return f'{cid}#{rest}' if rest.isdigit() else f'{cid}@{rest}'
 
 
+def official_key(key, prefab_name):
+    """The key as the client spells it. Bundle files and container paths are lower case (`…_ambiencesynesthesia#4.ab`);
+    the card prefab's GameObject keeps the official case of skin_table dynIllustId
+    (`dyn_illust_char_172_svrash_ambienceSynesthesia#4`), which the skinId must match exactly. A name that is not this
+    key's prefab leaves the key as it is."""
+    name = prefab_name or ''
+    if name.startswith('dyn_illust_') and name[len('dyn_illust_'):].lower() == key.lower():
+        return name[len('dyn_illust_'):]
+    return key
+
+
+def outfit_ids(root):
+    """The outfit ids of data/outfits.json (tools/build-outfits.mjs, from the official skin_table), or None without it."""
+    p = Path(root) / 'data' / 'outfits.json'
+    if not p.is_file():
+        return None
+    return set(json.loads(p.read_text(encoding='utf-8')).keys())
+
+
+def skin_id_mismatches(skin_ids, outfits):
+    """Outfit skinIds (`<charId>@<outfit>#<n>`) that are not exactly an id of data/outfits.json: the game never finds
+    their illustration (one differing letter case is enough)."""
+    return sorted(s for s in skin_ids if s and '@' in s and s not in outfits)
+
+
 def pool_chars(root):
     """charIds of the main pool (data/chess.json records) and the self-select pool (data/backups.json units)."""
     data = Path(root) / 'data'
@@ -694,6 +719,7 @@ def export_one(env, key, path, eff_path, out_dir, budget, helpers, log):
                 root = obj.deref() if hasattr(obj, 'deref') else obj
     if root is None:
         raise ValueError(f'no prefab dyn_illust_{key} in {path.name}')
+    sid = skin_id(official_key(key, env.tt(root).get('m_Name')))
     def tree_behaviours(cmps):
         """(class, typetree, object) of every MonoBehaviour in a walked tree."""
         out = []
@@ -890,7 +916,7 @@ def export_one(env, key, path, eff_path, out_dir, budget, helpers, log):
     swaps = [(p['file'], p['half']) for p in spine['pages']] + [(t['file'], t['half']) for t in textures.values() if t.get('half')]
     half = full + sum(files[h]['bytes'] - files[f]['bytes'] for f, h in swaps)
     m = KEY_RE.match(key)
-    index = {'format': 'dynillust', 'version': DYN_VERSION, 'key': key, 'charId': m.group(1), 'skinId': skin_id(key),
+    index = {'format': 'dynillust', 'version': DYN_VERSION, 'key': key, 'charId': m.group(1), 'skinId': sid,
              'class': dyn_cls, 'bundle': f'arts/dynchars/{path.name}', 'client': helpers.get('client'),
              'files': dict(sorted(files.items())), 'bytes': {'full': full, 'half': half},
              'spine': spine, 'framing': framing, 'actions': actions,
@@ -956,6 +982,13 @@ def export_dynillust(ab_root, out_root, manifest, log, root, helpers, keys=None,
             f'{row["particles"]} particle sets, {row["holders"]} holders ({time.time() - t0:.1f} s; run '
             f'{budget.used / 1048576:.0f} MB)')
     manifest[DYN_SUB] = group
+    outfits = outfit_ids(root)
+    if outfits is not None:     # every outfit illustration must name its outfit exactly, or the game never shows it
+        for sid in skin_id_mismatches([g['skinId'] for g in group.values()], outfits):
+            log(f'WARNING skinId {sid} is not an id of data/outfits.json: no outfit shows this illustration')
+            for k, g in group.items():
+                if g['skinId'] == sid:
+                    rows[k]['skinIdMismatch'] = True
     if report:
         fx.write_atomic(Path(report), json.dumps(rows, ensure_ascii=False, indent=1).encode('utf-8'))
     return n

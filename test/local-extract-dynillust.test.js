@@ -2,6 +2,7 @@
 // fixtures only; no game install, network or UnityPy is needed.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fxFixture } from './helpers/fxFixtures.js';
@@ -18,6 +19,30 @@ function py(code) {
 test('skin ids follow the official dynIllustId naming: E2 art <charId>#n, outfits <charId>@<outfit>#n', () => {
   const got = py(`print(json.dumps([dy.skin_id(k) for k in ['char_1038_whitw2_2', 'char_1038_whitw2_sale#15', 'char_2025_shu_nlc#1', 'effect']]))`);
   assert.deepEqual(got, ['char_1038_whitw2#2', 'char_1038_whitw2@sale#15', 'char_2025_shu@nlc#1', null]);
+});
+
+test('skin ids keep the official letter case of the prefab name, not the lower-case bundle name', () => {
+  const got = py(`k = 'char_172_svrash_ambiencesynesthesia#4'
+print(json.dumps([dy.skin_id(dy.official_key(k, 'dyn_illust_char_172_svrash_ambienceSynesthesia#4')),
+                  dy.skin_id(dy.official_key(k, 'sp_dyn_illust_char_172_svrash_ambienceSynesthesia#4')),
+                  dy.skin_id(dy.official_key('char_1038_whitw2_2', 'dyn_illust_char_1038_whitw2_2')),
+                  dy.skin_id_mismatches(['char_172_svrash@ambiencesynesthesia#4', 'char_172_svrash@ambienceSynesthesia#4',
+                                         'char_172_svrash#2', None], {'char_172_svrash@ambienceSynesthesia#4'})]))`);
+  assert.deepEqual(got, ['char_172_svrash@ambienceSynesthesia#4', 'char_172_svrash@ambiencesynesthesia#4',
+    'char_1038_whitw2#2', ['char_172_svrash@ambiencesynesthesia#4']]);
+});
+
+// The extracted index (data/local-assets.json, or DYNILLUST_MANIFEST for an extraction kept elsewhere): every outfit
+// illustration names an outfit of data/outfits.json exactly, and every other one is E2 art `<charId>#<n>`.
+test('every extracted illustration skin id exists exactly in the outfit data', (t) => {
+  const file = process.env.DYNILLUST_MANIFEST || 'data/local-assets.json';
+  const group = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).groups?.dynillust : null;
+  if (!group || !Object.keys(group).length) return t.skip(`no dynillust group in ${file}`);
+  const outfits = JSON.parse(fs.readFileSync('data/outfits.json', 'utf8'));
+  const bad = Object.entries(group).filter(([, g]) => (g.skinId.includes('@')
+    ? !outfits[g.skinId] || outfits[g.skinId].charId !== g.charId : !new RegExp(`^${g.charId}#\\d+$`).test(g.skinId)))
+    .map(([k, g]) => `${k}: ${g.skinId}`);
+  assert.deepEqual(bad, []);
 });
 
 test('the skeleton version comes from the binary header or the JSON skeleton', () => {
