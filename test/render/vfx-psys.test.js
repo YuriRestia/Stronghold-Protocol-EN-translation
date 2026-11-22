@@ -59,6 +59,22 @@ describe('emission', () => {
     assert.equal(empty, 0, `the ball was gone for ${empty.toFixed(2)} s of 60`);
   });
 
+  test('a particle born before a loop boundary inside a step lives through the rest of the step (no gap)', () => {
+    // Nightingale's Iakhu of Flows gold bars (BG_xian/jinshu xian_01 …): loop 1 s, life 1 s, rate 1 / s, max 1,
+    // prewarmed [src: official fx.json char_179_cgbird_sightseer#1 nodes 119–138]: every birth falls on a loop end
+    const ps = new PSys(compileSystem(sys({ top: { looping: true, prewarm: true, lengthInSec: 1 },
+      I: { startLifetime: 1, maxNumParticles: 1 }, E: { rateOverTime: 1 } })), {});
+    ps.play(ID);
+    let s = 777, t = 0, empty = 0;
+    while (t < 60) {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      const dt = 1 / 144 + (s / 4294967296) * (1 / 50 - 1 / 144);
+      ps.update(dt, ID); t += dt;
+      if (ps.count === 0) empty += dt;
+    }
+    assert.equal(empty, 0, `the bar was gone for ${empty.toFixed(2)} s of 60`);
+  });
+
   test('rate over time: the newest particle is acc / toEmit of the step old, the next one 1 / toEmit older', () => {
     const ps = new PSys(compileSystem(sys({ top: { looping: true }, I: { startLifetime: 10 }, E: { rateOverTime: 25 } })), {});
     ps.play(ID);

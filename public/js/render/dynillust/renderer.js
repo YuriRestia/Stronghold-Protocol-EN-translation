@@ -5,7 +5,8 @@
 //
 // How it draws: one WebGL2 context on an off-page canvas. Each frame every visible illustration ("slot") is updated,
 // placed in its own rectangle of that canvas (scissored), drawn — its Spine parts and its effect layer interleaved in
-// Unity's sort order (sorting layer, order, render queue, depth), the parts being SkeletonPartsRenderers — and then
+// Unity's sort order (the opaque-queue pass first, then sorting layer, order, render queue, depth: byUnityOrder), the
+// parts being SkeletonPartsRenderers, depth-tested on the GPU path as their Spine material says — and then
 // copied (drawImage) into each card's own 2D canvas, `Card.canvas`, which the screen places under its overlays; the
 // official card shows its slot's render texture through a RawImage the same way [src: official dump.cs DynIllustMgr
 // RT_WIDTH, RT_HEIGHT]. So a card's DOM stacking, transforms, opacity and scrolling stay the page's, and the page has a
@@ -22,7 +23,7 @@
 //   the controller's own non-fast fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor
 //   0x147EF10 fadeDuration 0.15], also straight into Idle (the user's decision of 2026-11-22, doc §33.19 Mount API).
 
-import { cardFraming, framingMap, cardViewProj } from './framing.js';
+import { cardFraming, framingMap, cardViewProj, ZR } from './framing.js';
 import { IllustSkeleton } from './skeleton.js';
 import { DynIllustInstance } from './instance.js';
 import { CardIllustState, ACTION } from './state.js';
@@ -63,8 +64,24 @@ export const PREWARM_SLICE_MS = 4;
 /** Effect texture pixels one staging piece uploads (one 1024 × 1024 texture; renderer _texPieces). */
 export const UPLOAD_PIECE_PX = 1 << 20;
 
-function byUnityOrder(a, b) {
-  return (a.layer - b.layer) || (a.order - b.order) || (a.queue - b.queue) || (b.dist - a.dist) || (a.seq - b.seq);
+/**
+ * The render queue that ends the engine's opaque pass: a renderer whose material queue is at most this draws in the
+ * opaque pass, before every transparent one, whatever its sorting layer and order [src: official UnityPlayer.dll
+ * 2021.3.39 game build (its UnityPlayer.pdb): BuildRenderObjectData 0x1328688 `cmp ebp, 0x9c4` puts each object in
+ * the opaque or the transparent list by its queue (the object's own, else its shader's: 0x1328655–0x1328683);
+ * DoRenderLoop 0x132bea7 draws the opaque list (DoForwardShaderRenderLoop), the skybox and image effects, then the
+ * transparent list at 0x132bfdc]. W's Elite 2 bullets (3D/Toon, queue Geometry 2000, ZWrite On, sorting order 1) draw
+ * before her skeleton (order 0) and hide it where they are nearer; the 3D/Toon program reads no vertex colour.
+ */
+export const OPAQUE_MAX_QUEUE = 2500;
+
+/**
+ * Draw order: the opaque pass first, then sorting layer, order, render queue, back to front. (Inside the opaque pass the
+ * same keys: its depth-writing opaque meshes give the same picture in any order.)
+ */
+export function byUnityOrder(a, b) {
+  const pa = a.queue <= OPAQUE_MAX_QUEUE ? 0 : 1, pb = b.queue <= OPAQUE_MAX_QUEUE ? 0 : 1;
+  return (pa - pb) || (a.layer - b.layer) || (a.order - b.order) || (a.queue - b.queue) || (b.dist - a.dist) || (a.seq - b.seq);
 }
 
 export class DynIllustStage {
@@ -697,6 +714,31 @@ export class Card {
     }
   }
 
+  /**
+   * Change the framing of a mounted card (mount's `framing` / `centre`, framing.js cardFraming) without a remount: a
+   * slot only this card draws is moved in place (Slot.reframe), so the animation, its effects and the special-idle
+   * timer go on, with no staging, restart or fade. A slot other cards share, or a framing another card of this key
+   * already shows, is left: the card moves to the slot of its new framing at its next frame (sync → _attach).
+   */
+  setFraming(framing, centre) {
+    if (this.state === 'unmounted') return;
+    const f = cardFraming(framing, centre);
+    if (f.id === this.frameId) return;
+    this.frame = f;
+    this.frameId = f.id;
+    const S = this.S, s = this.slot;
+    if (s && s.cards.size === 1 && s.cards.has(this)) {
+      const id = `${this.key}|${s.id.split('|')[1]}|${s.w}x${s.h}|${f.id}`;
+      if (!S.slots.has(id)) {
+        S.slots.delete(s.id);
+        s.id = id;
+        s.reframe(f);
+        S.slots.set(id, s);
+      }
+    }
+    S._kick();
+  }
+
   /** Drawn this frame: started, ready, in view, sized. */
   get drawing() { return this.started && !!this.prep && this.inView && this.w > 0 && this.h > 0 && this.state !== 'unmounted'; }
 
@@ -704,7 +746,7 @@ export class Card {
   sync(dt) {
     if (!this.prep || !this.canvas || this.state === 'unmounted') return;
     const [w, h] = this._measure();
-    if (w !== this.w || h !== this.h || !this.slot) this.S._attach(this, this.prep, w, h);
+    if (w !== this.w || h !== this.h || !this.slot || this.slot.frameId !== this.frameId) this.S._attach(this, this.prep, w, h);
     if (this.fade >= 0 && this.drawing) {
       this.fade += dt;
       const a = Math.min(1, this.fade / LATE_FADE_S);
@@ -758,12 +800,8 @@ class Slot {
     if (this.fx) this.fx.fx.place({ pos: d.root.pos });
     this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: d.instance, now: () => this.time });
     this.card = new CardIllustState({ rng: S.opts.rng, onAction: S.opts.onAction ? (a) => S.opts.onAction(key, a) : null, mayStartSpecial: () => S._specialTurn() });
-    this.map = framingMap(d.framing, w, h, frame);
-    const pos = d.root.pos, rs = d.root.scale;
+    this.reframe(frame);
     const sp = this.skel.spine;
-    sp.position.set(this.map.x0 + this.map.scale * pos[0], this.map.y0 - this.map.scale * pos[1]);
-    // y flipped here: the skeleton is posed y-up, as spine-unity poses it (skeleton.js poseYUp)
-    sp.scale.set(this.map.scale * this.skel.scale * rs[0], -this.map.scale * this.skel.scale * rs[1]);
     sp.render = (renderer) => S._renderSlot(renderer, this);
     this.root = new P.Container();
     const mask = new P.Graphics().beginFill(0xffffff).drawRect(0, 0, w, h).endFill();
@@ -771,8 +809,26 @@ class Slot {
     this.root.mask = mask;
     this.basis = illustBasis(d.framing.cameraSize, h);
     this.camU = this.basis.pos;
-    this.zRoot = Number(pos[2]) || 0;
+    this.zRoot = Number(d.root.pos[2]) || 0;
+    // the skeleton plane's depth in cardViewProj's clip space (z / ZR) and its Spine material's ZTest / ZWrite (GPU path)
+    this.skel.depth = prep.skelDepth ? { z: this.zRoot / ZR, test: prep.skelDepth.zTest, write: prep.skelDepth.zWrite } : null;
     this.vp = new Float32Array(16);
+  }
+
+  /**
+   * Place the skeleton for `frame` (Card.frame): the framing map and the skeleton's position and scale. The effects
+   * read the map each frame (prepare → cardViewProj), so a reframe moves everything at once; the animation, its
+   * effects and their particles go on as they were (Card.setFraming).
+   */
+  reframe(frame = null) {
+    const d = this.data;
+    this.frameId = frame ? frame.id : null;
+    this.map = framingMap(d.framing, this.w, this.h, frame);
+    const pos = d.root.pos, rs = d.root.scale;
+    const sp = this.skel.spine;
+    sp.position.set(this.map.x0 + this.map.scale * pos[0], this.map.y0 - this.map.scale * pos[1]);
+    // y flipped here: the skeleton is posed y-up, as spine-unity poses it (skeleton.js poseYUp)
+    sp.scale.set(this.map.scale * this.skel.scale * rs[0], -this.map.scale * this.skel.scale * rs[1]);
   }
 
   resume() {

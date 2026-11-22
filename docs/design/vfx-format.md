@@ -2119,6 +2119,9 @@ Card.canvas: HTMLCanvasElement                      a 2D canvas the caller place
 Card.ready → Promise<boolean>                       true when drawable, false when failed
 Card.start()                                        show it: see the states
 Card.state, onState(state)                          below
+Card.setFraming(framing, centre?)                   a new framing (as mount's) for a mounted card, no remount: its slot
+                                                    is moved in place (the animation and effects go on), or the card
+                                                    joins the slot of that framing at its next frame when shared
 Card.unmount()
 ```
 
