@@ -609,6 +609,20 @@ export class FxGL {
     gl.colorMask(!!(cm & 8), !!(cm & 4), !!(cm & 2), true);
   }
 
+  /** Free one texture (and its cube copy) on the GPU; drawn again, it loads again (the library forgets it was there). */
+  dropTexture(key, half) {
+    const gl = this.gl;
+    for (const id of [`${key}|${half ? 1 : 0}`, `${key}|${half ? 1 : 0}|cube`]) {
+      const t = this.textures.get(id);
+      if (!t) continue;
+      gl.deleteTexture(t.tex);
+      this.textures.delete(id);
+      this.stats.textures = Math.max(0, this.stats.textures - 1);
+      this.stats.texBytes = Math.max(0, this.stats.texBytes - (t.bytes || 0));
+    }
+    this.lib.onGpu?.delete(`${key}|${half ? 1 : 0}`);
+  }
+
   /** Free GPU memory of textures not used for `ttl` frames (called by the system between battles). */
   dropTextures() {
     const gl = this.gl;
