@@ -423,6 +423,15 @@ the renderer only through its mount API (vfx-format.md §33.19): one Stage for t
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
 with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a card appears and switches —
 straight into Idle, no intro, the official crossfade on a late switch (the user, 2026-11-22) — is the renderer's.
+(fork) **The result card's entrance** (`ui/cardEntrance.js`, the user's go of 2026-11-22) is the client's own: the clip
+`auto_chess_settle_game_player_item_show` (25 float curves, 1.31667 s — a legacy clip runs to its last key) played once,
+linearly, after the card's place in the row × `_animDelay` 0.083 s (`_PlayShowCardAnim`, GameAssembly.dll 0x28E0C60). It
+fades the card in, drops the illustration holder in with its overshoot, slides the name card up, fades the rounds in, and
+draws the card's matte layers with the client's sprites (`settleCard/*`, the two `uiFxMask/*` dissolve masks) through a
+WebGL2 port of `Torappu/UI/Dissolve/UI-DoubleDissolve-Tex` into two canvases over the card (alpha-blended, and additive with
+`plus-lighter`): a cleared card the light beam, the hanger line, the top strip's and the frame's dissolves and the teal
+wash (`group_complete`), the others the grey strip and frame and their wash (`group_normal`); the layers stay at the clip's
+last frame. Without those sprites or WebGL2 the card keeps its CSS entrance; under reduced motion it shows the last frame.
 
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
 

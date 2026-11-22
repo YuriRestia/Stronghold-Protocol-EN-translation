@@ -36,6 +36,7 @@ import { t, shownName } from '../../../shared/i18n.js';
 import { aceOf } from '../../../shared/resultAce.js';
 import { IllustArt, resultCardArt, cardAnimates, useDynIllustMode, useMatchCards, startResultLoad, endResultLoad } from '../ui/dynCards.js';
 import { settingsStore } from '../ui/settingsStore.js';
+import { useCardEntrance } from '../ui/cardEntrance.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -573,7 +574,10 @@ function TeamCard({ p, i, gd, self, victory, raw, opts }) {
   const title = titleView(p, gd);
   const cleared = rowCleared(raw, p, victory);
   const band = p.bandId ? gd.band(p.bandId) : null;
-  return html`<article class=${cx('tcard', self && 'is-self', p.alive === false && 'is-dead', p.left && 'is-left', cleared ? 'is-clear' : 'is-fail')} style=${`--i:${i}`}>
+  const cardRef = useRef(null);
+  const ce = useCardEntrance(cardRef, { index: i, kind: cleared ? 'complete' : 'normal' });
+  return html`<article ref=${cardRef} class=${cx('tcard', self && 'is-self', p.alive === false && 'is-dead', p.left && 'is-left', cleared ? 'is-clear' : 'is-fail', ce && 'has-ce')} style=${`--i:${i}`}>
+    ${ce ? html`<canvas class="tcard__ce" aria-hidden="true"></canvas><canvas class="tcard__ce tcard__ce--add" aria-hidden="true"></canvas>` : null}
     <header class="tcard__head" aria-hidden="true"><i class="tcard__pin"></i><span class="tcard__code"><i></i><i></i><i></i>STRONGHOLD PROTOCOL</span><span class="tcard__seat num">${pad2(p.seat + 1)}</span></header>
     <div class="tcard__art">
       <${IllustArt} art=${art} animate=${animate} class="tcard__dyn">

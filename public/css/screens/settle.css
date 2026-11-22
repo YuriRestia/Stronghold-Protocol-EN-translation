@@ -306,6 +306,17 @@ span.settle__nexticon .icon { width: .34rem; height: .34rem; }
 .steam__cards .hscroll__arrow { top: 3.2rem; }
 .tcard { position: relative; isolation: isolate; width: 3.47rem; flex: none; display: flex; flex-direction: column; animation: tcard-in 560ms var(--ease-out) calc(150ms + var(--i) * 120ms) both; }
 @keyframes tcard-in { 0% { opacity: 0; transform: translateY(-.3rem); filter: brightness(2.4) saturate(0); } 50% { opacity: 1; } }
+/* (fork) the official entrance (ui/cardEntrance.js: the client's show clip drives these variables, and its mattes are
+   drawn into the two .tcard__ce canvases — under the title, rounds, header text and name card, over the art; the
+   additive layers composited with plus-lighter). The CSS entrance above stays for a page without the sprites / WebGL2. */
+.tcard.has-ce { animation: none; opacity: var(--ce-a, 0); }
+.tcard__ce { position: absolute; left: 0; width: 100%; z-index: 1; pointer-events: none; }
+.tcard__ce--add { mix-blend-mode: plus-lighter; }
+.tcard.has-ce .tcard__head { z-index: 2; background: transparent; }
+.tcard.has-ce .tcard__plate, .tcard.has-ce .tcard__chips { position: relative; z-index: 2; }
+.tcard.has-ce .tcard__plate { transform: translateY(var(--ce-card, 0px)); }
+.tcard.has-ce .tcard__img, .tcard.has-ce .dyn-art__live { transform: translateY(var(--ce-root, 0px)); }
+.tcard.has-ce .tcard__rounds { opacity: var(--ce-round, 1); }
 .tcard::before { content: ''; position: absolute; left: -.06rem; right: -.06rem; top: .36rem; bottom: .7rem; background: rgba(22, 27, 26, .78); box-shadow: 0 0 0 1px rgba(180, 196, 192, .14); z-index: -1; }
 .tcard__head { position: relative; height: .45rem; margin-top: .39rem; display: flex; align-items: center; gap: .1rem; padding: 0 .12rem; background: #32dcae; color: #0b3a2f; }
 .tcard__pin { position: absolute; left: 50%; top: -.39rem; width: .14rem; height: .14rem; margin-left: -.07rem; background: #32dcae; }

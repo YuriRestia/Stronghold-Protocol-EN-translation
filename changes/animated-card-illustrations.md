@@ -6,6 +6,11 @@
 - They load only after the last battle of a match is over. The result screen waits for them for at most 3 seconds after the settlement pause and opens as soon as they are ready; a card that is still loading shows its picture and switches when ready. [src: crew-docs/l2d-art-proposal.md §1 Decisions D11]
 - Before: every card showed a still picture.
 
+### Result cards enter as in the official client
+
+- Each result card now plays the official entrance, one card after another: it fades in, the operator drops into place, the name card slides up, and a cleared card gets the light beam, the teal frame and strip and the colour wash (a failed one the grey frame and strip).
+- Before: the cards faded in with a simple animation of our own.
+
 ### New settings: Animated Illustrations and Result Card Art
 
 - Settings → Animated Illustrations: **Off**, **Mine Only** (default on phones) or **Everyone** (default on PC).
@@ -28,6 +33,11 @@ Server cost:
 
 - Cap: `ending` is sent once per match (results.js endingView, one entry per player, at most 8 [src: shared/largeRoom.js LARGE_ROOM_SEATS]); the art is content-hashed and immutable, so each file downloads once per player until it changes, and a screen holds at most 8 illustrations [src: crew-docs/l2d-art-proposal.md §6].
 - The art numbers are the spec's estimates; measured with the review pages before merge.
+- The card entrance adds 10 small UI sprites from the public mirror, about 37 KB together [src: public/assets/ui/settleCard 15,676 B for 8 + ui/uiFxMask 21,843 B for 2, wc -c], downloaded once per player like the other art.
+
+Operator notes:
+
+- After the merge, `node tools/fetch-assets.mjs --add-only` on each server fetches the 10 new sprites (`ui/settleCard/*`, `ui/uiFxMask/*`); then the art upload as usual.
 
 News:
 

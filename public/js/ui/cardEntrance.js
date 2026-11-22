@@ -1,0 +1,394 @@
+// ui/cardEntrance.js — (fork) the official result card's entrance: the CN client's
+// AutoChessSettleGameTeamPlayerCardView._PlayShowCardAnim, which samples the clip `auto_chess_settle_game_player_item_show`
+// at its start, then plays it once with a linear tween after `index × _animDelay` (the card's place in the row)
+// [src: official GameAssembly.dll 0x28E0C60: SampleClipAtBegin, PlayWithTween, SetEase(1 = Linear), SetDelay(index ×
+// [this+0x100]); dump.cs AutoChessSettleGameTeamPlayerCardView _showAnim 0xF0, _animDelay 0x100; the tween's length is
+// the clip's (UIAnimationTween._ConstructorImpl → AnimationHandler.GetClipLength, 0x151BF09)].
+//
+// The clip moves four things the page draws in its DOM — the card's CanvasGroup alpha (`.`), the illustration holder
+// (`group_char/root`), the name card (`group_card`) and the rounds group (`group_round`) — and animates the card's matte
+// layers (`group_char_matte`: the light beam, the top strip's dissolve, the hanger line, the frame's dissolve and the
+// colour washes over the operator). The mattes are drawn here with the client's own sprites and a port of their shader
+// (Torappu/UI/Dissolve/UI-DoubleDissolve-Tex) into two canvases laid over the card: the alpha-blended layers, and the
+// additive ones (Blend SrcAlpha One) composited with `mix-blend-mode: plus-lighter`. A cleared card shows
+// `group_complete`, the others `group_normal` (_objPassBg / _objNotPassBg). The layers stay at the clip's last frame.
+// Every number below is the client's: the clip [src: official [uc]autochessouter.ab auto_chess_settle_game_player_item_show
+// m_FloatCurves], the prefab [src: official [uc]autochessouter.ab auto_chess_settle_game_player_item RectTransforms /
+// Images], the materials [src: same bundle, materials line_trans, complete_up_bg_dissolve, complete_frame_dissolve,
+// char_color_complete, char_color_mask, char_color], the shader [src: official Torappu/UI/Dissolve/UI-DoubleDissolve-Tex
+// fragment program, D3D11 disassembly of blob 7].
+
+import { useLayoutEffect, useState } from '../../vendor/hooks.module.js';
+import { data } from '../data.js';
+import { uiUrl } from './assetUrls.js';
+import { reducedMotion } from './device.js';
+
+/** The card's delay step: index × this before its clip plays. [src: official auto_chess_settle_game_player_item _animDelay] */
+export const ANIM_DELAY_S = 0.083;
+/**
+ * The clip's length: its last key (a legacy clip's length is its curves'; the stored m_MuscleClip stop time is 1.0 on
+ * 78 of the bundle's 80 legacy clips, a default). [src: official auto_chess_settle_game_player_item_show, last key 1.31667]
+ */
+export const CLIP_LENGTH_S = 1.31667;
+
+/** The clip: [path under panel_player ('.' = itself), attribute, [[time s, value, inSlope, outSlope], …]]. */
+export const SHOW_CLIP = [
+  ['group_char/root', 'm_AnchoredPosition.y', [[0, 59.1, 0, 0], [0.05, 194.763, 0, 0], [0.216667, -31.7333, -47.1352, -47.1352], [0.666667, -39, 0, 0]]],
+  ['.', 'm_Alpha', [[0, 0, 0, 0], [0.25, 1, 0, 0]]],
+  ['group_card', 'm_AnchoredPosition.y', [[0, -236.1, 0, 0], [0.25, -192.364, 11.782, 11.782], [0.666667, -190.4, 0, 0]]],
+  ['group_char_matte/group_complete/line_trans', 'm_AnchoredPosition.y', [[0.05, 494.3, -4210.91, -4210.91], [0.0833333, 385.05, -2993.25, -2993.25], [0.133333, 316, -1450.5, -1450.5], [0.216667, 240, 0, 0]]],
+  ['group_char_matte/group_complete/line_trans', 'm_Color.r', [[0.0833333, 0.141176, 0, 0], [0.133333, 0.413279, 4.68257, 4.68257], [0.183333, 0.609434, 1.89596, 1.89596], [0.4, 0.918868, 0, 0]]],
+  ['group_char_matte/group_complete/line_trans', 'm_Color.g', [[0.0833333, 0.831373, 0, 0], [0.133333, 0.932075, 1.68627, 1.68627], [0.183333, 1, 0, 0], [0.4, 1, 0, 0]]],
+  ['group_char_matte/group_complete/line_trans', 'm_Color.b', [[0.0833333, 0.670588, 0, 0], [0.133333, 0.811219, 2.38377, 2.38377], [0.183333, 0.908966, 0.637951, 0.637951], [0.4, 0.98134, 0, 0]]],
+  ['group_char_matte/group_complete/line_trans', 'm_Color.a', [[0, 0, 0, 0], [0.05, 1, 0, 0], [0.216667, 1, 0, -5.45455], [0.4, 0, -5.45455, 0]]],
+  ['group_char_matte/group_complete/line_trans', 'm_SizeDelta.x', [[0.05, 60, 0, 0], [0.0833333, 42.9, -360, -360], [0.133333, 30, -329, -329], [0.183333, 10, -192, -192], [0.216667, 6, -36.9231, -36.9231], [0.4, 2, 0, 0]]],
+  ['group_char_matte/group_complete/line_trans', 'm_SizeDelta.y', [[0.05, 1103.9, 0, 0], [0.0833333, 697.7, 0, 0], [0.133333, 1307, 0, 0], [0.183333, 900, 0, 0], [0.4, 1000, 0, 0]]],
+  ['group_char_matte/group_complete/line_up', 'm_FillAmount', [[0.0666667, 0, 0, 0], [0.283333, 1, 0, 0]]],
+  ['group_char_matte/group_complete/char_color', 'm_Color.b', [[0.166667, 0, 0, 0], [0.25, 1, -2.89595, -2.89595], [1.05, 0, 0, 0]]],
+  ['group_char_matte/group_complete/char_color', 'm_Color.r', [[0.166667, 1, 0, 0], [0.2, 0.6, -9.6, -9.6], [0.25, 0.2, -6, -6], [0.3, 0, 0, 0], [1.05, 0.642097, 0, 0]]],
+  ['group_char_matte/group_complete/char_color', 'm_Color.g', [[0.166667, 0, 0, 0], [0.2, 1.49744e-7, 9.30732, 9.30732], [0.333333, 0.445259, 1.75385, 1.75385], [1.05, 0.8, 0.601789, 0.601789]]],
+  ['group_char_matte/group_complete/char_color/tile_line', 'm_Alpha', [[0.2, 0, 0, 0], [0.3, 1, 0, 0], [0.916667, 0, 0, 0]]],
+  ['group_char_matte/color_mask', 'm_Color.b', [[0.166667, 0, 0, 0], [0.25, 1, -2.89595, -2.89595], [0.666667, 0, 0, 0]]],
+  ['group_char_matte/color_mask', 'm_Color.r', [[0.166667, 1, 0, 0], [0.2, 0.6, -9.6, -9.6], [0.25, 0.2, -6, -6], [0.3, 0, 0, 0], [0.666667, 0.702157, 0, 0]]],
+  ['group_char_matte/color_mask', 'm_Color.g', [[0.166667, 0, 0, 0], [0.2, 1.49744e-7, 9.30732, 9.30732], [0.333333, 0.445259, 1.75385, 1.75385], [0.666667, 0.8, 0.601789, 0.601789]]],
+  ['group_char_matte/group_complete/complete_up_bg_dissolve', 'm_Color.r', [[0.183333, 0.876998, 0, 0], [0.3, 0.198833, 0, 0]]],
+  ['group_char_matte/group_complete/frame_color', 'm_Color.r', [[0.216667, 0.902893, 0, 0], [0.416667, 0.656157, 0, 0]]],
+  ['group_char_matte/group_normal/char_color', 'm_Color.r', [[0.166667, 1, 0, 0], [0.2, 0.6, -9.6, -9.6], [0.25, 0.2, -6, -6], [0.3, 0, 0, 0], [1.31667, 0.642097, 0, 0]]],
+  ['group_char_matte/group_normal/char_color', 'm_Color.g', [[0.166667, 0, 0, 0], [0.2, 1.49744e-7, 9.30732, 9.30732], [0.333333, 0.445259, 1.75385, 1.75385], [1.31667, 0.8, 0.601789, 0.601789]]],
+  ['group_char_matte/group_normal/char_color', 'm_Color.b', [[0.166667, 0, 0, 0], [0.25, 1, -2.89595, -2.89595], [1.31667, 0, 0, 0]]],
+  ['group_char_matte/group_normal/char_color/tile_line', 'm_Alpha', [[0.2, 0, 0, 0], [0.3, 1, 0, 0], [1.15, 0, 0, 0]]],
+  ['group_round', 'm_Alpha', [[0.25, 0, 0, 0], [0.516667, 1, 0, 0]]],
+];
+
+/**
+ * One curve at time t: Unity's AnimationCurve — cubic Hermite between keys with their in / out slopes (per second),
+ * clamped to the first / last value outside them (the legacy clip's default wrap).
+ * @param {number[][]} keys [[t, v, inSlope, outSlope], …] @param {number} t
+ */
+export function evalCurve(keys, t) {
+  if (t <= keys[0][0]) return keys[0][1];
+  const last = keys[keys.length - 1];
+  if (t >= last[0]) return last[1];
+  let i = 0;
+  while (keys[i + 1][0] < t) i++;
+  const [t0, v0, , o0] = keys[i], [t1, v1, in1] = keys[i + 1];
+  const dt = t1 - t0, s = (t - t0) / dt, s2 = s * s, s3 = s2 * s;
+  return (2 * s3 - 3 * s2 + 1) * v0 + (s3 - 2 * s2 + s) * dt * o0 + (-2 * s3 + 3 * s2) * v1 + (s3 - s2) * dt * in1;
+}
+
+/** Every animated value at clip time t, as `{ '<path>|<attribute>': value }`. */
+export function sampleShow(t) {
+  const out = {};
+  for (const [path, attr, keys] of SHOW_CLIP) out[`${path}|${attr}`] = evalCurve(keys, Math.max(0, Math.min(CLIP_LENGTH_S, t)));
+  return out;
+}
+
+// ---- the matte layers (panel_player space: origin at its centre, y up, 1 unit = 1/234 of the card's width) --------
+
+const M = 'group_char_matte/';
+/** The materials (Torappu/UI/Dissolve/UI-DoubleDissolve-Tex): `add` = _Dst 1 (Additive), else _Dst 10 (Alpha). */
+const MAT = {
+  ui: null, // UI/Default: the sprite × the vertex colour, alpha-blended
+  line_trans: { add: true, ic: 0, ci: 1, col: [1, 1, 1], t1: 'm03', st1: [1, 0.95, 0, 0.025], c1: -1, s1: 0, r1: 0, t2: 'm01', st2: [1, 0.95, 0, 0.025], c2: 0.06, s2: 0.17, r2: 0 },
+  complete_up_bg_dissolve: { add: false, ic: 1, ci: 1, col: [1, 1, 1], t1: 'm03', st1: [1, 1, 0, 0], c1: -1, s1: 0.5, r1: 0, t2: null, st2: [1, 1, 0, 0], c2: -0.001, s2: 0, r2: 0 },
+  complete_frame_dissolve: { add: false, ic: 1, ci: 1, col: [0.141, 0.831, 0.671], t1: 'm03', st1: [1, 1, 0, 0], c1: -1, s1: 0.332, r1: 0, t2: null, st2: [1, 1, 0, 0], c2: -0.001, s2: 0, r2: 0 },
+  char_color_complete: { add: true, ic: 1, ci: 1.38, col: [0.106, 0.561, 0.42], t1: 'm03', st1: [1, 1, 0, 0], c1: -1, s1: 1, r1: 0, t2: 'm03', st2: [1, 1, 0, 0], c2: -1, s2: 1, r2: 1 },
+  char_color_mask: { add: true, ic: 1, ci: 1.1, col: [1, 1, 1], t1: 'm03', st1: [1, 1, 0, 0], c1: -1, s1: 1, r1: 0, t2: 'm03', st2: [1, 1, 0, 0], c2: -1, s2: 1, r2: 1 },
+  char_color: { add: true, ic: 1, ci: 0.8, col: [0.368, 0.368, 0.368], t1: 'm03', st1: [1, 1, 0, 0], c1: -1, s1: 1, r1: 0, t2: 'm03', st2: [1, 1, 0, 0], c2: -1, s2: 1, r2: 1 },
+};
+
+/**
+ * The layers in draw order (Unity UI: the hierarchy's order): rect = [x, y] of the pivot, [w, h], pivot [px, py];
+ * sprite (a 'settleCard/…' UI key; null = white), type ('simple' | 'sliced' [l, b, r, t] | 'tiled' | 'filled' vertical
+ * from the bottom), colour, material, `anim` = the clip path that drives it, `alpha` = a CanvasGroup alpha path.
+ */
+const GROUPS = {
+  complete: [
+    { id: M + 'group_complete/line_trans', pos: [2.9, 90.1], size: [2, 1000], pivot: [0.5, 0], sprite: null, color: [0.919, 1, 0.981, 0], mat: 'line_trans' },
+    { id: M + 'group_complete/complete_up', pos: [0, 244], size: [234, 79], pivot: [0.5, 0], sprite: 'complete_up_glow', type: ['sliced', 3, 0, 3, 0], color: [0.039, 0.737, 0.616, 1], mat: 'ui' },
+    { id: M + 'group_complete/normal_up_bg', pos: [0, 233.2], size: [234, 32], pivot: [0.5, 0.5], sprite: 'unfinish_bg', color: [0.972, 0.972, 0.972, 1], mat: 'ui' },
+    { id: M + 'group_complete/complete_up_bg_dissolve', pos: [0, 233.2], size: [234, 32], pivot: [0.5, 0.5], sprite: 'complete_up_bg', color: [0.199, 0, 1, 1], mat: 'complete_up_bg_dissolve' },
+    { id: M + 'group_complete/line_up', pos: [3, 239.99], size: [4, 112], pivot: [0.5, 0], sprite: 'line_up', type: ['filled'], fill: 1, color: [1, 1, 1, 1], mat: 'ui' },
+    { id: M + 'group_complete/frame', pos: [0, 217.2], size: [234, 460.2], pivot: [0.5, 1], sprite: 'bg_frame', type: ['sliced', 8, 8, 8, 8], color: [0.086, 0.086, 0.086, 1], mat: 'ui' },
+    { id: M + 'group_complete/frame_color', pos: [0, -12.9], size: [234, 460.2], pivot: [0.5, 0.5], sprite: 'bg_frame', type: ['sliced', 8, 8, 8, 8], color: [0.656, 0, 1, 1], mat: 'complete_frame_dissolve' },
+    { id: M + 'group_complete/char_color', pos: [0, -35.07], size: [234, 563.34], pivot: [0.5, 0.5], sprite: 'char_color_mask', color: [1, 0, 0.956, 1], mat: 'char_color_complete' },
+    { id: M + 'group_complete/char_color/tile_line', pos: [0, -49.13], size: [234, 535.21], pivot: [0.5, 0.5], sprite: 'tile_line', type: ['tiled', 32], color: [1, 1, 1, 0.035], mat: 'ui', alpha: M + 'group_complete/char_color/tile_line' },
+  ],
+  normal: [
+    { id: M + 'group_normal/unfinish_up_bg', pos: [0, 233.2], size: [234, 32], pivot: [0.5, 0.5], sprite: 'unfinish_bg', color: [1, 1, 1, 1], mat: 'ui' },
+    { id: M + 'group_normal/frame', pos: [0, 217.2], size: [234, 460.2], pivot: [0.5, 1], sprite: 'bg_frame', type: ['sliced', 8, 8, 8, 8], color: [0.247, 0.247, 0.247, 1], mat: 'ui' },
+    { id: M + 'group_normal/char_color', pos: [0, -35.07], size: [234, 563.34], pivot: [0.5, 0.5], sprite: 'char_color_mask', color: [0.612, 0.749, 0.012, 0.314], mat: 'char_color' },
+    { id: M + 'group_normal/char_color/tile_line', pos: [0, -49.13], size: [234, 535.21], pivot: [0.5, 0.5], sprite: 'tile_line', type: ['tiled', 32], color: [1, 1, 1, 0.035], mat: 'ui', alpha: M + 'group_normal/char_color/tile_line' },
+  ],
+  // after the active group, both kinds
+  tail: [
+    { id: M + 'color_mask', pos: [0, -35.07], size: [234, 563.34], pivot: [0.5, 0.5], sprite: 'char_color_mask', color: [1, 0, 0.923, 0.282], mat: 'char_color_mask' },
+  ],
+};
+
+/** The sprite keys the layers draw (data/assets.json `ui`): the card's own, the shared tile line, the two dissolve masks. */
+const SPRITES = {
+  complete_up_glow: 'settleCard/complete_up_glow', unfinish_bg: 'settleCard/unfinish_bg', complete_up_bg: 'settleCard/complete_up_bg',
+  line_up: 'settleCard/line_up', bg_frame: 'settleCard/bg_frame', char_color_mask: 'settleCard/char_color_mask', tile_line: 'settle/tile_line',
+  m03: 'uiFxMask/img_uifx_basicmask_03', m01: 'uiFxMask/img_uifx_common_basicmask_01',
+};
+
+/** The canvases' extent in panel units: the beam comes down from above the card, the washes run below it. */
+export const OVERLAY = Object.freeze({ top: 760, bottom: -320, left: -117, right: 117 });
+/** The top of the official top strip (normal_up_bg: y 233.2, height 32), which our card's header top stands for. */
+export const STRIP_TOP = 249.2;
+
+/** A layer's colour, fill and CanvasGroup alpha at clip time `t` (the prefab's values where the clip has none). */
+export function layerState(layer, s) {
+  const c = layer.color.slice();
+  const ch = ['r', 'g', 'b', 'a'];
+  for (let i = 0; i < 4; i++) { const v = s[`${layer.id}|m_Color.${ch[i]}`]; if (v != null) c[i] = v; }
+  const pos = layer.pos.slice(), size = layer.size.slice();
+  const py = s[`${layer.id}|m_AnchoredPosition.y`]; if (py != null) pos[1] = py;
+  const sx = s[`${layer.id}|m_SizeDelta.x`]; if (sx != null) size[0] = sx;
+  const sy = s[`${layer.id}|m_SizeDelta.y`]; if (sy != null) size[1] = sy;
+  const fill = s[`${layer.id}|m_FillAmount`] ?? layer.fill ?? 1;
+  const ga = layer.alpha ? (s[`${layer.alpha}|m_Alpha`] ?? 1) : 1;
+  return { color: [c[0], c[1], c[2], c[3] * ga], pos, size, fill };
+}
+
+/** The DOM parts' values at clip time t: card opacity, the illustration's and the name card's offset (panel units, up +). */
+export function domState(s) {
+  return {
+    alpha: s['.|m_Alpha'],
+    root: s['group_char/root|m_AnchoredPosition.y'] - -39, // the holder rests at y −39 (prefab)
+    card: s['group_card|m_AnchoredPosition.y'] - -190.4, // the name card rests at y −190.4 (prefab)
+    round: s['group_round|m_Alpha'],
+  };
+}
+
+// ---- the renderer (one WebGL2 context for every card) ---------------------------------------------------------------
+
+const VS = `#version 300 es
+in vec2 a_pos; in vec2 a_uv; in vec2 a_quv;
+uniform vec2 u_view;
+out vec2 v_uv; out vec2 v_quv;
+void main() { v_uv = a_uv; v_quv = a_quv; gl_Position = vec4(a_pos / u_view * 2.0 - 1.0, 0.0, 1.0); }`;
+// Torappu/UI/Dissolve/UI-DoubleDissolve-Tex, blob 7 (no UNITY_UI_ALPHACLIP / CLIP_RECT): each dissolve mask's red (inverted
+// by _RevertN) against a threshold — the vertex colour's r (mask 1) / g (mask 2) × 2 − 1 when _ImageControl, else
+// _DissolveNClip — smoothstepped over _DissolveNSmooth; rgb = tex × _ColIntensity × (_ImageControl ? _Color : vertex
+// colour), alpha = mask1 × mask2 × tex.a × _ColIntensity × vertex alpha. The dissolve masks read the quad's own UV, the
+// main texture the sprite's (identical for a simple sprite).
+const FS = `#version 300 es
+precision highp float;
+in vec2 v_uv; in vec2 v_quv;
+uniform sampler2D u_main, u_d1, u_d2;
+uniform vec4 u_vcol, u_st1, u_st2; uniform vec3 u_color;
+uniform float u_ic, u_ci, u_c1, u_s1, u_r1, u_c2, u_s2, u_r2, u_add;
+out vec4 o;
+float mask(sampler2D t, vec4 st, float rev, float clip, float sm, float drive) {
+  float d = texture(t, v_quv * st.xy + st.zw).r;
+  d = rev > 0.0 ? 1.0 - d : d;
+  float c = u_ic > 0.0 ? drive * 2.0 - 1.0 : clip;
+  float x = clamp((d - c) / max(sm, 1e-6), 0.0, 1.0);
+  return x * x * (3.0 - 2.0 * x);
+}
+void main() {
+  float m = mask(u_d1, u_st1, u_r1, u_c1, u_s1, u_vcol.r) * mask(u_d2, u_st2, u_r2, u_c2, u_s2, u_vcol.g);
+  vec4 t = texture(u_main, v_uv) * u_ci;
+  vec3 rgb = u_ic > 0.0 ? t.rgb * u_color : t.rgb * u_vcol.rgb;
+  float a = clamp(m * t.a * u_vcol.a, 0.0, 1.0);
+  vec3 p = clamp(rgb, 0.0, 64.0) * a;
+  o = u_add > 0.0 ? vec4(p, max(p.r, max(p.g, p.b))) : vec4(p, a);
+}`;
+
+let gl = null, prog = null, buf = null, loc = null, white = null;
+const textures = new Map(); // url → { tex, w, h } | Promise
+
+function glInit() {
+  if (gl) return gl;
+  const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(256, 256) : globalThis.document?.createElement('canvas');
+  const ctx = canvas?.getContext('webgl2', { premultipliedAlpha: true, alpha: true, antialias: false, preserveDrawingBuffer: true });
+  if (!ctx) return null;
+  const sh = (type, src) => { const s = ctx.createShader(type); ctx.shaderSource(s, src); ctx.compileShader(s); if (!ctx.getShaderParameter(s, ctx.COMPILE_STATUS)) throw new Error(ctx.getShaderInfoLog(s)); return s; };
+  const p = ctx.createProgram();
+  ctx.attachShader(p, sh(ctx.VERTEX_SHADER, VS)); ctx.attachShader(p, sh(ctx.FRAGMENT_SHADER, FS)); ctx.linkProgram(p);
+  if (!ctx.getProgramParameter(p, ctx.LINK_STATUS)) throw new Error(ctx.getProgramInfoLog(p));
+  gl = ctx; prog = p; buf = ctx.createBuffer();
+  loc = {};
+  for (const n of ['a_pos', 'a_uv', 'a_quv']) loc[n] = ctx.getAttribLocation(p, n);
+  for (const n of ['u_view', 'u_main', 'u_d1', 'u_d2', 'u_vcol', 'u_st1', 'u_st2', 'u_color', 'u_ic', 'u_ci', 'u_c1', 'u_s1', 'u_r1', 'u_c2', 'u_s2', 'u_r2', 'u_add']) loc[n] = ctx.getUniformLocation(p, n);
+  white = ctx.createTexture();
+  ctx.bindTexture(ctx.TEXTURE_2D, white);
+  ctx.texImage2D(ctx.TEXTURE_2D, 0, ctx.RGBA, 1, 1, 0, ctx.RGBA, ctx.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+  return gl;
+}
+
+/** A sprite's texture (loaded once; Unity's v up = the image's bottom row, so the upload flips Y). */
+function texture(url, wrap) {
+  const k = `${url}|${wrap}`;
+  const have = textures.get(k);
+  if (have) return have;
+  const p = fetch(url).then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`${r.status} ${url}`))))
+    .then((b) => createImageBitmap(b, { imageOrientation: 'flipY', premultiplyAlpha: 'none' }))
+    .then((img) => {
+      const t = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      const w = wrap ? gl.REPEAT : gl.CLAMP_TO_EDGE;
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, w);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, w);
+      const v = { tex: t, w: img.width, h: img.height };
+      textures.set(k, v);
+      return v;
+    });
+  textures.set(k, p);
+  return p;
+}
+
+/** The URLs of every sprite the layers draw, or null when one is missing from the manifest (the card keeps its look). */
+export function entranceSprites(m = data.get('assets')) {
+  const out = {};
+  for (const [k, key] of Object.entries(SPRITES)) {
+    const url = uiUrl(m, key);
+    if (!url) return null;
+    out[k] = url;
+  }
+  return out;
+}
+
+/** Load every texture (a promise; rejects when one fails). */
+export function loadEntrance(urls) {
+  if (!glInit()) return Promise.reject(new Error('no WebGL2'));
+  return Promise.all(Object.entries(urls).map(([k, url]) => texture(url, k === 'tile_line')));
+}
+
+/** A layer's quads: [x, y, u, v, qu, qv] × 6 per quad, in panel units relative to the overlay's bottom-left. */
+function quads(layer, st, spr) {
+  const [px, py] = st.pos, [w, h] = st.size;
+  const x0 = px - w * layer.pivot[0] - OVERLAY.left, y0 = py - h * layer.pivot[1] - OVERLAY.bottom;
+  const out = [];
+  const quad = (ax, ay, bx, by, au, av, bu, bv) => {
+    const qu = (x) => (x - x0) / w, qv = (y) => (y - y0) / h;
+    out.push(ax, ay, au, av, qu(ax), qv(ay), bx, ay, bu, av, qu(bx), qv(ay), bx, by, bu, bv, qu(bx), qv(by),
+      ax, ay, au, av, qu(ax), qv(ay), bx, by, bu, bv, qu(bx), qv(by), ax, by, au, bv, qu(ax), qv(by));
+  };
+  const type = layer.type?.[0] || 'simple';
+  if (type === 'sliced' && spr) {
+    // 9-slice: border px of the sprite = units (sprite ppu 100 / canvas reference ppu 100) [src: official sprites m_Border, m_PixelsToUnits 100]
+    const [, l, b, r, t] = layer.type;
+    const xs = [x0, x0 + l, x0 + w - r, x0 + w], ys = [y0, y0 + b, y0 + h - t, y0 + h];
+    const us = [0, l / spr.w, 1 - r / spr.w, 1], vs = [0, b / spr.h, 1 - t / spr.h, 1];
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) if (xs[i + 1] > xs[i] && ys[j + 1] > ys[j]) quad(xs[i], ys[j], xs[i + 1], ys[j + 1], us[i], vs[j], us[i + 1], vs[j + 1]);
+  } else if (type === 'tiled' && spr) {
+    const tile = layer.type[1];
+    quad(x0, y0, x0 + w, y0 + h, 0, 0, w / tile, h / tile);
+  } else if (type === 'filled') {
+    const f = Math.max(0, Math.min(1, st.fill));
+    if (f > 0) quad(x0, y0, x0 + w, y0 + h * f, 0, 0, 1, f);
+  } else quad(x0, y0, x0 + w, y0 + h, 0, 0, 1, 1);
+  return out;
+}
+
+/**
+ * Draw one card's mattes at clip time t into its two canvases (`base`: alpha-blended, `add`: additive), each covering
+ * OVERLAY at `scale` px per panel unit.
+ * @param {{ base: HTMLCanvasElement, add: HTMLCanvasElement }} cv @param {'complete'|'normal'} kind
+ */
+export function drawMattes(cv, kind, t, scale, urls) {
+  if (!glInit()) return false;
+  const W = Math.max(1, Math.round((OVERLAY.right - OVERLAY.left) * scale)), H = Math.max(1, Math.round((OVERLAY.top - OVERLAY.bottom) * scale));
+  const c = gl.canvas;
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const s = sampleShow(t);
+  const layers = [...GROUPS[kind], ...GROUPS.tail];
+  const tex = (k) => { const v = textures.get(`${urls[k]}|${k === 'tile_line'}`); return v && !v.then ? v : null; };
+  gl.useProgram(prog);
+  gl.viewport(0, 0, W, H);
+  gl.uniform2f(loc.u_view, OVERLAY.right - OVERLAY.left, OVERLAY.top - OVERLAY.bottom);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enable(gl.BLEND);
+  for (const add of [false, true]) {
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.blendFunc(gl.ONE, add ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
+    for (const layer of layers) {
+      const mat = MAT[layer.mat];
+      if (!!mat?.add !== add) continue;
+      const st = layerState(layer, s);
+      if (!(st.color[3] > 0)) continue;
+      const spr = layer.sprite ? tex(layer.sprite) : null;
+      if (layer.sprite && !spr) continue;
+      const v = new Float32Array(quads(layer, st, spr));
+      if (!v.length) continue;
+      gl.bufferData(gl.ARRAY_BUFFER, v, gl.STREAM_DRAW);
+      gl.enableVertexAttribArray(loc.a_pos); gl.vertexAttribPointer(loc.a_pos, 2, gl.FLOAT, false, 24, 0);
+      gl.enableVertexAttribArray(loc.a_uv); gl.vertexAttribPointer(loc.a_uv, 2, gl.FLOAT, false, 24, 8);
+      gl.enableVertexAttribArray(loc.a_quv); gl.vertexAttribPointer(loc.a_quv, 2, gl.FLOAT, false, 24, 16);
+      const bind = (unit, t2, u) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u, unit); };
+      bind(0, spr?.tex, loc.u_main);
+      bind(1, mat?.t1 ? tex(mat.t1)?.tex : null, loc.u_d1);
+      bind(2, mat?.t2 ? tex(mat.t2)?.tex : null, loc.u_d2);
+      const m = mat || { ic: 0, ci: 1, col: [1, 1, 1], st1: [1, 1, 0, 0], st2: [1, 1, 0, 0], c1: -1, s1: 1, r1: 0, c2: -1, s2: 1, r2: 0 };
+      gl.uniform4fv(loc.u_vcol, st.color);
+      gl.uniform4fv(loc.u_st1, m.st1); gl.uniform4fv(loc.u_st2, m.st2);
+      gl.uniform3fv(loc.u_color, m.col);
+      for (const [u, val] of [['u_ic', m.ic], ['u_ci', m.ci], ['u_c1', m.c1], ['u_s1', m.s1], ['u_r1', m.r1], ['u_c2', m.c2], ['u_s2', m.s2], ['u_r2', m.r2], ['u_add', add ? 1 : 0]]) gl.uniform1f(loc[u], val);
+      gl.drawArrays(gl.TRIANGLES, 0, v.length / 6);
+    }
+    const target = add ? cv.add : cv.base;
+    if (target.width !== W || target.height !== H) { target.width = W; target.height = H; }
+    const ctx = target.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(c, 0, 0);
+  }
+  return true;
+}
+
+// ---- the card ------------------------------------------------------------------------------------------------------
+
+/**
+ * Play the entrance on a result card (screens/settle.js TeamCard): once, from the moment the card mounts, after
+ * `index × ANIM_DELAY_S`. Drives the card's CSS variables (--ce-a its opacity, --ce-root / --ce-card the illustration's
+ * and the name card's offsets in px, --ce-round the rounds group's opacity) and draws the mattes into the card's two
+ * `.tcard__ce` canvases. Under reduced motion the card shows the clip's last frame at once. Returns false — and the card
+ * keeps its own look — when the manifest lacks a sprite or the page has no WebGL2.
+ * @param {{ current: HTMLElement|null }} ref the card @param {{ index: number, kind: 'complete'|'normal' }} o
+ */
+export function useCardEntrance(ref, { index, kind }) {
+  const [urls] = useState(() => {
+    const u = entranceSprites();
+    try { return u && glInit() ? u : null; } catch (err) { console.warn('[cardEntrance] WebGL2', err); return null; }
+  });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!urls || !el) return undefined;
+    const [base, add] = el.querySelectorAll('.tcard__ce');
+    const head = el.querySelector('.tcard__head');
+    const t0 = performance.now() + Math.max(0, index) * ANIM_DELAY_S * 1000;
+    let raf = 0, ready = false, now = 0, live = true;
+    const apply = (t) => {
+      now = t;
+      const w = el.getBoundingClientRect().width;
+      if (!(w > 0)) return;
+      const scale = w / (OVERLAY.right - OVERLAY.left);
+      const d = domState(sampleShow(t));
+      el.style.setProperty('--ce-a', String(d.alpha));
+      el.style.setProperty('--ce-root', `${(-d.root * scale).toFixed(2)}px`);
+      el.style.setProperty('--ce-card', `${(-d.card * scale).toFixed(2)}px`);
+      el.style.setProperty('--ce-round', String(d.round));
+      const top = (head ? head.offsetTop : 0) - (OVERLAY.top - STRIP_TOP) * scale;
+      for (const c of [base, add]) { c.style.top = `${top}px`; c.style.height = `${(OVERLAY.top - OVERLAY.bottom) * scale}px`; }
+      if (ready) drawMattes({ base, add }, kind, t, scale * (globalThis.devicePixelRatio || 1), urls);
+    };
+    const tick = () => {
+      if (!live) return;
+      const t = (performance.now() - t0) / 1000;
+      apply(Math.max(0, t));
+      if (t < CLIP_LENGTH_S) raf = requestAnimationFrame(tick);
+    };
+    if (reducedMotion()) apply(CLIP_LENGTH_S); else tick();
+    loadEntrance(urls).then(() => { if (live) { ready = true; apply(now); } }, (err) => console.warn('[cardEntrance] sprites', err));
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => apply(now)) : null;
+    ro?.observe(el);
+    return () => { live = false; cancelAnimationFrame(raf); ro?.disconnect(); };
+  }, [urls, kind]);
+  return !!urls;
+}
