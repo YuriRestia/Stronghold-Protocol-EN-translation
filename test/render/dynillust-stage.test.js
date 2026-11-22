@@ -52,6 +52,33 @@ describe('DynIllustStage staging', () => {
     assert.equal(U.frameNo, 241);
   });
 
+  test('quality Full → Half frees the full tier no card shows; a shown one goes when its last card does', () => {
+    const S = stage();
+    const freed = [], dropped = [];
+    const prep = (name, tex) => ({ pages: new Map([[name, { destroy: () => freed.push(name) }]]), fxDef: { textures: tex } });
+    S.cache.set('a|full', { prep: prep('a', ['ta', 'shared']) });
+    S.cache.set('b|full', { prep: prep('b', ['tb', 'shared']) });
+    S.cache.set('c|half', { prep: prep('c', ['tc']) });
+    S.glr = { dropTexture: (k, half) => dropped.push(`${k}|${half ? 'half' : 'full'}`) };
+    // a card still shows b at the full tier (its screen re-mounts it after the switch)
+    const cardB = { key: 'b', tier: 'full', state: 'live' };
+    S.cards.add(cardB);
+    S.quality = 'half';
+    // a freed: its page, and its own effect texture; 'shared' stays (b still uses it); b and the current tier stay
+    assert.deepEqual(freed, ['a']);
+    assert.deepEqual(dropped, ['ta|full']);
+    assert.deepEqual([...S.cache.keys()].sort(), ['b|full', 'c|half']);
+    // b's last card unmounts: the full tier goes
+    cardB.state = 'unmounted';
+    S._unmount(cardB);
+    assert.deepEqual(freed, ['a', 'b']);
+    assert.deepEqual(dropped.sort(), ['shared|full', 'ta|full', 'tb|full']);
+    assert.deepEqual([...S.cache.keys()], ['c|half']);
+    // setting the same tier again frees nothing
+    S.quality = 'half';
+    assert.deepEqual([...S.cache.keys()], ['c|half']);
+  });
+
   test('a throwing piece is dropped, the queue goes on', () => {
     const S = stage();
     const ran = [];

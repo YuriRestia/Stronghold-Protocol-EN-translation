@@ -2109,10 +2109,10 @@ Stage.preload(keys) → Promise<void>                 D10: download, decode, bui
                                                     key is ready or failed. A ready key stays cached in the stage.
 Stage.release(keep = [])                            frees every cached key not in `keep` (the match starts: release())
 Stage.mount(key, { onState?, framing?, centre? }) → Card
-                                                    framing 'card' (default): the official end-screen card; 'home':
-                                                    the official home screen (framing.js unityToHome, DEFAULT adjust in
-                                                    the 16:9 home window; centre 'home' = left of centre as there,
-                                                    'illust' = centred) [src: notes dev57-home-framing.md §4]
+                                                    framing 'card' (default) | 'home' (official home screen: unityToHome,
+                                                    DEFAULT adjust in the 16:9 home window; centre 'home' as there |
+                                                    'illust' centred [src: notes dev57-home-framing.md §4]) | { mode,
+                                                    centre, zoom, fx, fy } (ours: zoom about that card point: zoomMap)
 Card.canvas: HTMLCanvasElement                      a 2D canvas the caller places in the card's art layer, under its
                                                     overlays (badges, plates, names, bubbles); its CSS box is the card's
                                                     art window: w = its width for the §4.1 framing (ResizeObserver)
