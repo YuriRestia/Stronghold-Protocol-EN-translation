@@ -1947,12 +1947,19 @@ container `dyn/arts/dynchars/char_1038_whitw2/dyn_illust_char_1038_whitw2_2.pref
 `extract.py --only dynillust` (`tools/local-extract/dynillust.py`), opt-in like fx. Units: Unity units and the
 client's pixels as stored; seconds; Unity's frames (§33.2).
 
+A bundle can hold other prefabs beside the card's: `sp_dyn_illust_<key>` (a `DynIllustSpecial` with
+`LipSyncSpineBlendAnimation` and its own lip-sync data, skeleton and separator: `char_003_kalts_sale#14`,
+`char_1041_angel2_iteration#6`, `char_1045_svash2_sale#20`), `dyn_entrance_<key>` (`DynIllustStartPlay`) and
+`dyn_portrait_<key>` (a SkeletonGraphic) [src: official arts/dynchars/*.ab containers]. Everything below comes from
+the `dyn_illust_<key>` prefab's own tree only; the others are not extracted. The card prefabs have no lip-sync data
+(`DynIllust`, not `DynIllustSpecial`), so the lip-sync blend never applies to them.
+
 **Files** (`public/assets/local/dynillust/<dir>/`, `<dir>` = `fx_file(key)`, §33.1):
 
 | file | content |
 |---|---|
 | `illust.json` | the index below |
-| `<stem>.skel` or `<stem>.json` | the skeleton TextAsset as stored: binary 3.8, or Spine JSON (4 of the 98: `char_4058_pepe_2` — Pepe's E2 art, O6 —, `char_4058_pepe_sightseer#2`, `char_1016_agoat2_epoque#34`, `char_1020_reed2_summer#17`); all 3.8.99. Of the 98, 2 use `DynIllustSpecial` (`char_1045_svash2_sale#20`, `char_1041_angel2_iteration#6`) and none a SkeletonGraphic |
+| `<stem>.skel` or `<stem>.json` | the skeleton TextAsset as stored: binary 3.8, or Spine JSON (4 of the 98: `char_4058_pepe_2` — Pepe's E2 art, O6 —, `char_4058_pepe_sightseer#2`, `char_1016_agoat2_epoque#34`, `char_1020_reed2_summer#17`); all 3.8.99. All 98 card prefabs use `DynIllust` and a SkeletonAnimation, none `DynIllustSpecial` or a SkeletonGraphic |
 | `<stem>.atlas` | the atlas text, `size:` per page, no `pma` (`normalize_atlas`, §13) |
 | `p/<page>.webp`, `p/half/<page>.webp` | atlas pages as stored: the RGB unchanged, A from the `[alpha]` texture (`merge_alpha`); WebP lossy q90, alpha 100, `exact` (the RGB under A = 0 kept); half = exactly w/2 × h/2 |
 | `fx.json` | the effect layer: one §33.4 descriptor of the whole prefab tree, holder effects included (root = node 0 = the skeleton's node; its Spine renderers are drawn from `spine`, not as effect renderers) |
@@ -2014,7 +2021,7 @@ settings sit under `meshGenerator.settings` — and its SkeletonDataAsset):
 | `animation`, `loop`, `timeScale`, `skin` | start animation (`Idle`), bool, number, skin name (`''` = default) | `_animationName`, `loop`, `timeScale`, `initialSkinName` |
 | `flipX`, `flipY`, `pmaVertexColors`, `tintBlack`, `zSpacing`, `useClipping` | bool, number | same names on SkeletonAnimation (SkeletonGraphic: `meshGenerator.settings`; its `startingAnimation` / `startingLoop` give `animation` / `loop`) |
 | `blendModes` | `{ requires, applyAdditive, additive, multiply, screen }`, each list `[{ page, material }]` (material: index into `fx.json` `materials`) | `blendModeMaterials` |
-| `separator: { slots: [name], parts: [node], copyPropertyBlock, copyMeshRendererFlags } \| null` | slot names split the skeleton mesh; `parts[i]` draws submesh range i with its node's `meshRenderer.m_SortingOrder` | `SkeletonAnimation.separatorSlotNames`, `SkeletonRenderSeparator.partsRenderers` |
+| `separator: { slots: [name], parts: [node], copyPropertyBlock, copyMeshRendererFlags } \| null` | slot names split the skeleton mesh; `parts[i]` draws submesh range i with its node's `meshRenderer.m_SortingOrder` | `SkeletonAnimation.separatorSlotNames`, the SkeletonRenderSeparator whose `skeletonRenderer` is `DynIllust._skeleton`, its `partsRenderers` |
 | `followers: [{ node, bone, xy, z, rotation, flip, localScale, appliedLocalScale, axis }]` | the node follows that bone | `BoneFollower` (`boneName`, `followXYPosition`, `followZPosition`, `followBoneRotation`, `followSkeletonFlip`, `followLocalScale`, `useAppliedLocalScale`, `maintainedAxisOrientation`) |
 
 Animation names are the client's `DynIllustActNames`: `Idle`, `Special`, `Interact`, `Start` [src: official dump.cs
