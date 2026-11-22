@@ -37,6 +37,7 @@ uniform sampler2D uDeform;
 uniform sampler2D uSlots;
 uniform vec4 uRows;
 uniform mat3 uXform;  // skeleton px (y down) → clip
+uniform float uDepth; // the skeleton plane's clip-space z (render/dynillust/framing.js cardViewProj: Unity z / ZR)
 uniform vec4 uColor;
 varying vec2 vTextureCoord;
 varying vec4 vColor;
@@ -58,12 +59,29 @@ void main(void) {
     vec2 t = fetch(uBones, 2.0 * w.x + 1.0, uRows.x).xy;
     p += (vec2(m.x * l.x + m.z * l.y, m.y * l.x + m.w * l.y) + t) * w.w;
   }
-  gl_Position = vec4((uXform * vec3(p, 1.0)).xy, 0.0, 1.0);
+  gl_Position = vec4((uXform * vec3(p, 1.0)).xy, uDepth, 1.0);
   vColor = fetch(uSlots, 2.0 * aSlot, uRows.w) * uColor;
   vDark = fetch(uSlots, 2.0 * aSlot + 1.0, uRows.w).rgb;
   vTextureCoord = aUv;
   vTextureId = aPage;
 }`;
+
+/**
+ * The GL depth function of a material pass's ZTest name (the fx.json names, Unity's CompareFunction), or null for no
+ * depth test (Disabled, Always, or none given).
+ */
+export function depthFunc(gl, zTest) {
+  switch (zTest) {
+    case 'Less': return gl.LESS;
+    case 'LessEqual': return gl.LEQUAL;
+    case 'Equal': return gl.EQUAL;
+    case 'GreaterEqual': return gl.GEQUAL;
+    case 'Greater': return gl.GREATER;
+    case 'NotEqual': return gl.NOTEQUAL;
+    case 'Never': return gl.NEVER;
+    default: return null;
+  }
+}
 
 /** Most atlas pages one draw samples (WebGL2's fragment texture-unit minimum); more → pixi-spine draws it. */
 const MAX_PAGES = 16;
@@ -112,6 +130,7 @@ function programsFor(gl, pages) {
     a: { weight: gl.getAttribLocation(main, 'aWeight'), uv: gl.getAttribLocation(main, 'aUv'), slot: gl.getAttribLocation(main, 'aSlot'), page: gl.getAttribLocation(main, 'aPage') },
     u: {
       bones: u('uBones'), weights: u('uWeights'), deform: u('uDeform'), slots: u('uSlots'), rows: u('uRows'), xform: u('uXform'),
+      depth: u('uDepth'),
       // the fragment stage's uniforms, by spine-shader.js's names (SPINE_UNIFORMS)
       samplers: u('uSamplers'), color: u('uColor'), mode: u('uMode'), bleed: u('uBleed'), tintBlack: u('uTintBlack'),
       useGray: u('uUseGray'), grayScale: u('uGrayScale'), black: u('uBlack'),
@@ -362,8 +381,14 @@ export class GpuSkeleton {
     this._dirty(d);
   }
 
-  /** Draw the draw-order positions from..to (inclusive) with the skeleton display's world transform `wt`. */
-  draw(from, to, wt, W, H) {
+  /**
+   * Draw the draw-order positions from..to (inclusive) with the skeleton display's world transform `wt`. `depth`
+   * ({ z, test, write } or null): the skeleton plane's clip z and its material's ZTest / ZWrite, so the effects' depth
+   * written before it (an opaque-queue mesh, drawn first) hides it where they are nearer, as the official Spine
+   * material does (every one of the 98: ZTest LessEqual, ZWrite Off) [src: official fx.json materials of each
+   * illustration's spine.materials, passes[0]]; null: no depth test (as pixi-spine draws).
+   */
+  draw(from, to, wt, W, H, depth = null) {
     const gl = this.gl, pr = this.pr, u = pr.u;
     if (!this.order || to < from) return;
     gl.useProgram(pr.main);
@@ -374,6 +399,7 @@ export class GpuSkeleton {
     X[3] = 2 * wt.c / W; X[4] = -2 * wt.d / H; X[5] = 0;
     X[6] = 2 * wt.tx / W - 1; X[7] = 1 - 2 * wt.ty / H; X[8] = 1;
     gl.uniformMatrix3fv(u.xform, false, X);
+    gl.uniform1f(u.depth, depth && Number.isFinite(depth.z) ? depth.z : 0);
     const tex = [[this.bonesTex.tex, u.bones], [this.weightsTex.tex, u.weights], [this.deformTex.tex, u.deform], [this.slotsTex.tex, u.slots]];
     // pages first: a page Pixi has not uploaded yet goes up through its texture system on unit 0
     for (let p = 0; p < pr.units.length; p++) {
@@ -385,7 +411,10 @@ export class GpuSkeleton {
     for (let i = 0; i < 4; i++) { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, tex[i][0]); gl.uniform1i(tex[i][1], i); }
     gl.uniform4f(u.rows, this.bonesTex.h, this.weightsTex.h, this.deformTex.h, this.slotsTex.h);
     gl.enable(gl.BLEND);
-    gl.disable(gl.DEPTH_TEST);
+    const fn = depth ? depthFunc(gl, depth.test) : null;
+    this._depthOn = !!fn;
+    if (fn) { gl.enable(gl.DEPTH_TEST); gl.depthFunc(fn); gl.depthMask(!!depth.write); }
+    else gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.CULL_FACE);
     let runFirst = -1, runCount = 0, runRoute = null, clipEnd = null;
     const flush = () => {
@@ -415,6 +444,7 @@ export class GpuSkeleton {
     flush();
     if (clipEnd) this._clipEnd();
     gl.bindVertexArray(null);
+    if (this._depthOn) { gl.disable(gl.DEPTH_TEST); gl.depthMask(true); this._depthOn = false; }
   }
 
   _material(route) {
@@ -457,7 +487,10 @@ export class GpuSkeleton {
     gl.stencilFunc(gl.ALWAYS, 0, 1);
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.INVERT);
     gl.stencilMask(1);
+    // the clip polygon marks the stencil whatever lies in front of it: the depth test applies to the slots it clips
+    if (this._depthOn) gl.disable(gl.DEPTH_TEST);
     gl.drawArrays(gl.TRIANGLES, 0, o / 2);
+    if (this._depthOn) gl.enable(gl.DEPTH_TEST);
     gl.colorMask(true, true, true, true);
     gl.stencilFunc(gl.EQUAL, 1, 1);
     gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);

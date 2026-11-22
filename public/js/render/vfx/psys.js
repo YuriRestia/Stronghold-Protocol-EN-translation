@@ -521,11 +521,18 @@ export class PSys {
     if (!this.started) { this.started = true; a = 0; this._burstFrom = -1e-9; }
     // a non-looping system emits during its duration only
     const D = def.duration;
+    const a0 = a;
     while (a < b) {
       const loopStart = this.loops * D;
       const segEnd = Math.min(b, loopStart + D);
       const la = a - loopStart, lb = segEnd - loopStart;
-      this._emitSpan(la, lb, b - a > 0 ? (segEnd - a) / (b - a) : 1, prewarm);
+      // (fork) a loop boundary inside the step splits the emission; what one piece emits also lives through the rest
+      // of the step (b − segEnd), as in the engine, which runs each piece's simulate → emit → start in turn [src:
+      // official UnityPlayer.dll ParticleSystem::Update1Incremental 0x1ad1616–0x1ad18b4, its loop over sub-steps].
+      // Without it a particle born at a loop's end was the rest of the step too young, outlived its successor's
+      // birth, and a one-particle system with life = duration = 1 / rate (Nightingale's Iakhu of Flows gold bars,
+      // BG_xian/jinshu: life 1, rate 1, loop 1) was empty for a whole second now and then.
+      this._emitSpan(la, lb, b - segEnd, b - a0, prewarm);
       a = segEnd;
       if (segEnd >= loopStart + D - 1e-9) {
         if (!def.looping) { this.emitting = false; break; }
@@ -536,8 +543,11 @@ export class PSys {
     }
   }
 
-  /** Emission inside one loop iteration from local time la to lb. */
-  _emitSpan(la, lb, _share, prewarm) {
+  /**
+   * Emission inside one loop iteration from local time la to lb; `tail`: the rest of the step after lb (its
+   * particles are that much older at the step's end), `stepLen`: the step's emitting time (for the motion fraction).
+   */
+  _emitSpan(la, lb, tail, stepLen, prewarm) {
     const def = this.def, E = def.emission, D = def.duration;
     const tau = Math.min(1, lb / D);
     const span = lb - la;
@@ -576,14 +586,17 @@ export class PSys {
     // ParticleSystem::Update1Incremental 0x1ad173a–0x1ad1864 (UpdateModulesIncremental, whose SimulateParticles kills
     // the dead, then EmitOverTime, then StartParticles)]
     const kOff = toEmit >= 1e-4 ? 1 / toEmit : 1;
+    const along = (age) => (stepLen > 0 ? Math.min(1, Math.max(0, 1 - age / stepLen)) : 1);
     for (let j = 0; j < n && !full(); j++) {
       const k = Math.min(1, Math.max(1e-6, (j + this.acc) * kOff));
-      this._spawn(tau, k * span, 1 - k, 0, 0, null);
+      const age = k * span + tail;
+      this._spawn(tau, age, along(age), 0, 0, null);
     }
     // rate over distance: spread over the step, the i-th of nd (nd − i) / nd of it old, along the emitter's motion
     for (let i = 0; i < nd && !full(); i++) {
       const f = (i + 1) / nd;
-      this._spawn(tau, (1 - f) * span, f, 0, 0, null);
+      const age = (1 - f) * span + tail;
+      this._spawn(tau, age, along(age), 0, 0, null);
     }
     // bursts
     for (let bi = 0; bi < E.bursts.length; bi++) {
@@ -598,7 +611,7 @@ export class PSys {
         if (tf < la - 1e-9 && !(la === 0 && tf <= 1e-9)) continue; // passed while not emitting (a late start)
         if (B.prob < 1 && this.rng.next() >= B.prob) continue;
         const c = Math.round(B.count.at(Math.min(1, tf / D), this.rng.next()) * this.emissionScale);
-        for (let i = 0; i < c && !full(); i++) this._spawn(tau, Math.max(0, lb - tf), 1, i, c, null);
+        for (let i = 0; i < c && !full(); i++) this._spawn(tau, Math.max(0, lb - tf) + tail, 1, i, c, null);
       }
     }
   }
