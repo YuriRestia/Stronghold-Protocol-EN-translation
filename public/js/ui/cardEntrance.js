@@ -350,6 +350,95 @@ export function drawMattes(cv, kind, t, scale, urls) {
   return true;
 }
 
+// ---- one picture dissolved away (ui/dynCards.js: the room cards' switch to their animated illustrations) ------------
+
+/**
+ * The material a picture dissolves away with: the result card's own `complete_up_bg_dissolve` (UI-DoubleDissolve, mask
+ * `img_uifx_basicmask_03` over the quad, smooth 0.5, threshold driven by the vertex colour's red) [src: MAT above].
+ */
+const DISSOLVE_MAT = 'complete_up_bg_dissolve';
+
+/** Load what a dissolve needs (the shader and its mask); resolves to the mask's URL, rejects without WebGL2 or the sprite. */
+export function loadDissolve(m = data.get('assets')) {
+  const mask = uiUrl(m, SPRITES[MAT[DISSOLVE_MAT].t1]);
+  if (!mask) return Promise.reject(new Error('no dissolve mask'));
+  if (!glInit()) return Promise.reject(new Error('no WebGL2'));
+  return texture(mask, false).then(() => mask);
+}
+
+/**
+ * The picture to dissolve: `src` (a canvas: the whole box as it shows) on the GPU, flipped as the sprites are; `pic` (a
+ * previous result) is reused. Returns { tex, mask, w, h }, or null without WebGL2.
+ */
+export function dissolvePicture(src, mask, pic = null) {
+  if (!glInit()) return null;
+  const t = pic?.tex || gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  for (const [p, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, p, v);
+  return { tex: t, mask, w: src.width, h: src.height };
+}
+
+/** Free a dissolvePicture's texture. */
+export function freeDissolvePicture(pic) {
+  if (pic?.tex && gl) { try { gl.deleteTexture(pic.tex); } catch { /* the context is gone */ } }
+}
+
+/**
+ * The picture's crop as CSS `object-fit: cover` shows it in a w × h box at object-position (px, py) (0–1): the texture
+ * coordinates of the box's left / right / top / bottom edges (v down from the picture's top).
+ */
+export function coverUv(iw, ih, w, h, px = 0.5, py = 0.5) {
+  const s = Math.max(w / iw, h / ih), dw = iw * s, dh = ih * s;
+  const x = (w - dw) * px, y = (h - dh) * py;
+  return { u0: -x / dw, u1: (w - x) / dw, t0: -y / dh, t1: (h - y) / dh };
+}
+
+/**
+ * Draw `pic` (dissolvePicture: the whole box) into the 2D canvas `target` (w × h device px), dissolved by `drive`
+ * 0 (whole) … 1 (gone): the material's threshold is drive × 2 − 1 [src: FS mask(), _ImageControl].
+ */
+export function drawDissolve(target, pic, drive, w, h) {
+  if (!glInit() || !pic?.tex) return false;
+  const tm = textures.get(`${pic.mask}|false`);
+  if (!tm || tm.then) return false;
+  const tp = pic, uv = { u0: 0, u1: 1, t0: 0, t1: 1 };
+  const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h));
+  const c = gl.canvas;
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const m = MAT[DISSOLVE_MAT];
+  gl.useProgram(prog);
+  gl.viewport(0, 0, W, H);
+  gl.uniform2f(loc.u_view, 1, 1);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  // the quad is the whole box (y up); the picture was uploaded flipped (v up = 1 − its top-down t)
+  const u0 = uv.u0, u1 = uv.u1, vb = 1 - uv.t1, vt = 1 - uv.t0;
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, u0, vb, 0, 0, 1, 0, u1, vb, 1, 0, 1, 1, u1, vt, 1, 1,
+    0, 0, u0, vb, 0, 0, 1, 1, u1, vt, 1, 1, 0, 1, u0, vt, 0, 1]), gl.STREAM_DRAW);
+  gl.enableVertexAttribArray(loc.a_pos); gl.vertexAttribPointer(loc.a_pos, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(loc.a_uv); gl.vertexAttribPointer(loc.a_uv, 2, gl.FLOAT, false, 24, 8);
+  gl.enableVertexAttribArray(loc.a_quv); gl.vertexAttribPointer(loc.a_quv, 2, gl.FLOAT, false, 24, 16);
+  const bind = (unit, t2, u) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u, unit); };
+  bind(0, tp.tex, loc.u_main); bind(1, tm.tex, loc.u_d1); bind(2, null, loc.u_d2);
+  // vertex colour: r drives mask 1; g 0 keeps mask 2 (white) whole (threshold −1)
+  gl.uniform4fv(loc.u_vcol, [Math.max(0, Math.min(1, drive)), 0, 1, 1]);
+  gl.uniform4fv(loc.u_st1, m.st1); gl.uniform4fv(loc.u_st2, m.st2);
+  gl.uniform3fv(loc.u_color, m.col);
+  for (const [u, val] of [['u_ic', m.ic], ['u_ci', m.ci], ['u_c1', m.c1], ['u_s1', m.s1], ['u_r1', m.r1], ['u_c2', m.c2], ['u_s2', m.s2], ['u_r2', m.r2], ['u_add', 0]]) gl.uniform1f(loc[u], val);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  if (target.width !== W || target.height !== H) { target.width = W; target.height = H; }
+  const ctx = target.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(c, 0, 0);
+  return true;
+}
+
 // ---- the card ------------------------------------------------------------------------------------------------------
 
 /**
