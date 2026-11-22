@@ -46,6 +46,28 @@ async function pageTexture(P, fetchFn, url, half) {
 }
 
 /**
+ * Pixi's Assets forgets skeleton `url`: its parse (cache), its load promise, and the resolver's entries. The resolver's
+ * asset (`_assetMap`) holds the request's `data`, this load's atlas, and Assets.load only registers an asset whose alias
+ * is new (`resolver.hasKey(alias) || this.add(o)`), so the next load of the URL — a key released, then shown again —
+ * parsed the skeleton against the first load's atlas, whose pages release() had destroyed: it drew black (Dev 52,
+ * 2026-11-23: a whole Grand Alliance page after Next then Prev) [src: public/vendor/pixi.min.js Assets.load, Resolver.add
+ * `this._assetMap[y] = g`, Resolver.resolve `_resolverHash`].
+ */
+function forgetSkeleton(P, url) {
+  const A = P.Assets;
+  if (!A) return;
+  const keys = [url];
+  if (globalThis.location) keys.push(new URL(url, globalThis.location.href).href);
+  try { A.cache.remove(url); } catch { /* not cached */ }
+  // the loader keys its promises by the absolute URL
+  try { const pc = A.loader && A.loader.promiseCache; if (pc) for (const k of keys) delete pc[k]; } catch { /* no promise cache */ }
+  try {
+    const r = A.resolver;
+    for (const k of keys) { if (r && r._assetMap) delete r._assetMap[k]; if (r && r._resolverHash) delete r._resolverHash[k]; }
+  } catch { /* no resolver maps */ }
+}
+
+/**
  * An illustration's load groups (illust.json `load` [src: doc §33.19 Load]): the group of an effect texture, mesh or
  * node, and `never`, the groups a card never plays (START, INTERACTION). Without `load`, everything is IDLE.
  */
@@ -100,14 +122,8 @@ export async function loadIllust(illustUrl, o = {}) {
   // and the entry is dropped once loaded, so the next prepare parses again from the browser's HTTP cache
   const skelUrl = fileUrl(dir, entry, sp.skeleton) + (o.half ? '?tier=half' : '');
   let res;
-  try { res = await P.Assets.load({ src: skelUrl, data: { spineAtlas: atlas } }); } finally {
-    try { P.Assets.cache.remove(skelUrl); } catch { /* not cached */ }
-    try {
-      // the loader keys its promises by the absolute URL
-      const pc = P.Assets.loader && P.Assets.loader.promiseCache;
-      if (pc) { delete pc[skelUrl]; if (globalThis.location) delete pc[new URL(skelUrl, globalThis.location.href).href]; }
-    } catch { /* no promise cache */ }
-  }
+  forgetSkeleton(P, skelUrl);
+  try { res = await P.Assets.load({ src: skelUrl, data: { spineAtlas: atlas } }); } finally { forgetSkeleton(P, skelUrl); }
   const spineData = res && (res.spineData || res);
   if (!spineData || !spineData.animations) throw new Error('dynillust skeleton failed ' + sp.skeleton);
   // the effect layer: its files join the library's list, then the descriptor compiles against it
