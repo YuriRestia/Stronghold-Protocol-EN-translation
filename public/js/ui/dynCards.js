@@ -262,7 +262,9 @@ export function IllustArt({ art, animate, wait = 'now', class: cls = '', childre
     }).catch((err) => { console.warn('[dynillust] card', err); if (live) setState('off'); });
     // every card on the screen waits for the same moment and then loads at once (the renderer fetches and builds them in
     // parallel); a loadLater task per card made them load one by one — its queue runs one task at a time
-    if (wait === 'settled') opening.then(() => whenScreenSettled()).then(() => { if (live) go(); });
+    // the renderer's code (PIXI, pixi-spine — main.js prefetched their files after the entry film — the module and the
+    // index) gets ready during that wait; only the illustrations' own files wait for the screen
+    if (wait === 'settled') opening.then(() => { readyStage().catch(() => {}); return whenScreenSettled(); }).then(() => { if (live) go(); });
     else go();
     return () => {
       live = false;
