@@ -33,6 +33,7 @@ import { FxGL } from '../vfx/gl.js';
 import { FrameData } from '../vfx/geom.js';
 import { FxLibrary } from '../vfx/library.js';
 import { resetPixi } from '../vfx/system.js';
+import { setPrewarmSink } from '../vfx/psys.js';
 
 /** Largest side of the shared canvas (px): 8 phone-size cards fit with room to spare. */
 export const MAX_CANVAS = 4096;
@@ -52,6 +53,8 @@ export const LATE_FADE_S = 0.15;
 export const STAGE_BUDGET_MS = 8;
 /** Frames a card waits for a layout size before it reports 'ready' unstaged (it then builds at its first draw). */
 export const STAGE_SIZE_FRAMES = 30;
+/** Particle prewarm simulated per staging piece, ms (Card._stage; at least one step of a system). */
+export const PREWARM_SLICE_MS = 4;
 /** Effect texture pixels one staging piece uploads (one 1024 × 1024 texture; renderer _texPieces). */
 export const UPLOAD_PIECE_PX = 1 << 20;
 
@@ -506,6 +509,8 @@ export class Card {
     if (!this.canvas || !S._ensureGL() || S.lost || this.state === 'unmounted') return prep;
     let waited = 0, slot = null;
     const progsReady = () => !S.glr || (prep.progs || []).every(([kind, mat]) => { S.glr.program(kind, mat); return !S.glr.building(kind, mat); });
+    const prewarms = [];   // particle systems whose prewarm waits for the slices below (psys.js setPrewarmSink)
+    const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
     return S._enqueue([
       () => {
         if (this.state === 'unmounted') return true;
@@ -514,8 +519,28 @@ export class Card {
         return ++waited >= STAGE_SIZE_FRAMES;
       },
       () => {
-        // the first step: OnEnable (Idle), the effects switched on and prewarmed
-        if (slot && !slot.held && !slot.warmed && slot.paused) { slot.resume(); slot.step(0); slot.held = true; S._warming.add(slot); }
+        // the first step: OnEnable (Idle), the effects switched on; their prewarms wait for the next piece
+        if (slot && !slot.held && !slot.warmed && slot.paused) {
+          slot.resume();
+          // (`slicePrewarm: false`: each prewarm in one go, for checks that compare the two)
+          if (S.opts.slicePrewarm !== false) setPrewarmSink((sys) => prewarms.push(sys));
+          try { slot.step(0); } finally { setPrewarmSink(null); }
+          slot.held = true;
+        }
+        return true;
+      },
+      () => {
+        // the prewarms, PREWARM_SLICE_MS at a time (the same steps as one loop: psys.js prewarmStep), then the warm-up
+        // draw. A slot stepped meanwhile (another card of it went live) finishes them itself (PSys.update).
+        if (!slot || this.state === 'unmounted') return true;
+        const t0 = clock();
+        while (prewarms.length) {
+          const left = PREWARM_SLICE_MS - (clock() - t0);
+          if (left <= 0) return false;
+          if (!prewarms[0].prewarmStep(left)) return false;
+          prewarms.shift();
+        }
+        if (slot.held) S._warming.add(slot);
         return true;
       },
       // drawn once (the next frame's _draw), and every shader built
@@ -595,7 +620,8 @@ class Slot {
     if (S.opts.gpuSkin !== false && S.renderer && gpuSkinSupported(S.renderer.gl)) {
       try { this.skel.enableGpu(new GpuSkeleton(S.renderer, this.skel.spine, look)); } catch (err) { console.warn('[dynillust] GPU skinning off', err); }
     }
-    this.fx = prep.fxDef ? new IllustEffects(prep.fxDef, { lib: S.lib, lite: false, ...d.effects }) : null;
+    // (`fxSeed`: one particle seed for every slot, for checks that compare two stages; random otherwise)
+    this.fx = prep.fxDef ? new IllustEffects(prep.fxDef, { lib: S.lib, lite: false, ...d.effects, seed: S.opts.fxSeed }) : null;
     if (this.fx) this.fx.fx.place({ pos: d.root.pos });
     this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: d.instance, now: () => this.time });
     // the special idle waits for its files (Stage._warmLater)

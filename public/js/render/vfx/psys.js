@@ -48,6 +48,16 @@ const mm = (v, d = 0) => new MinMax(v, d);
 export const PREWARM_CAP = 120;
 
 /**
+ * (fork) While set, a system that starts with a prewarm hands itself to this function instead of simulating it at
+ * once, and its owner finishes it in slices (PSys.prewarmStep). The animated illustrations' staging sets it around a
+ * card's first step, so one card's prewarm no longer takes one 37–93 ms frame [src: notes dev55-renderer-flip-trace.md
+ * §1]. Battle effects never set it.
+ */
+let prewarmSink = null;
+/** @param {((sys: PSys) => void) | null} fn */
+export function setPrewarmSink(fn) { prewarmSink = fn || null; }
+
+/**
  * (fork) How long a prewarmed system is simulated before its first frame — the client engine's rule (UnityPlayer.dll
  * ParticleSystem::ComputePrewarmStartParameters): the longest start lifetime, rounded up to whole loops, so the system
  * stands complete as it starts (one loop when the lifetime is shorter). Lifetimes far past the loop (999 s halos) stop
@@ -389,18 +399,40 @@ export class PSys {
     if (this.def.prewarm && this.emitting) {
       // as if it had already run (Unity: the start delay does not apply with prewarm)
       // (fork) prewarmS: whole loops up to the longest start lifetime, the client engine's rule (prewarmSeconds)
-      const d = this.def.prewarmS || this.def.duration;
-      let t = 0;
-      while (t < d - 1e-6) { const s = Math.min(MAX_STEP, d - t); this._step(s, true); t += s; }
-      this.prevPos = null;
+      this._prewarm = { t: 0, d: this.def.prewarmS || this.def.duration, zero: null };
+      // a staging owner (setPrewarmSink) runs it later in slices (prewarmStep); otherwise all of it now
+      if (prewarmSink) prewarmSink(this);
+      else this.prewarmStep(Infinity);
     }
   }
 
+  /**
+   * Run the pending prewarm for up to `budgetMs` (at least one step); true once it is done. The same MAX_STEP steps
+   * as one loop, in the same order, so the particles end the same. A zero-length update that came while it was
+   * pending (the owner's first step(0)) is applied after it, as it would have been.
+   */
+  prewarmStep(budgetMs) {
+    const w = this._prewarm;
+    if (!w) return true;
+    const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const t0 = budgetMs === Infinity ? 0 : now();
+    while (w.t < w.d - 1e-6) {
+      const s = Math.min(MAX_STEP, w.d - w.t);
+      this._step(s, true); w.t += s;
+      if (budgetMs !== Infinity && now() - t0 >= budgetMs && w.t < w.d - 1e-6) return false;
+    }
+    this._prewarm = null;
+    this.prevPos = null;
+    if (w.zero) this.update(0, w.zero.frame);
+    return true;
+  }
+
   /** Stop emitting; live particles finish their lives (Unity's StopEmitting). */
-  stopEmitting() { this.emitting = false; this.pending.length = 0; }
+  stopEmitting() { if (this._prewarm) this.prewarmStep(Infinity); this.emitting = false; this.pending.length = 0; }
 
   /** Kill every particle (and orphaned trail) now. */
   clear() {
+    this._prewarm = null;
     this.count = 0;
     this.orphans.length = 0;
     this.pending.length = 0;
@@ -435,6 +467,12 @@ export class PSys {
   /** Advance by dt battle seconds (frame: this frame's render matrix, see setFrame). */
   update(dt, frame) {
     if (!this.playing) return;
+    if (this._prewarm) {
+      // a zero-length update waits for the prewarm (see prewarmStep); a real one finishes it first
+      // (the frame is copied: an effect reuses one frame object for all its systems)
+      if (!(dt > 0)) { this._prewarm.zero = { frame: frame ? { m: Float64Array.from(frame.m), scale: frame.scale.slice() } : null }; return; }
+      this.prewarmStep(Infinity);
+    }
     const prev = this.prevPos ? [this.prevPos[0], this.prevPos[1], this.prevPos[2]] : null;
     if (frame) this.setFrame(frame);
     const sdt = dt * this.def.simSpeed;

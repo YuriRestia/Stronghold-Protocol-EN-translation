@@ -32,6 +32,9 @@
   card of the page has appeared, and never the tap and entry effects a card does not play (31 MB over all 98
   illustrations). A Grand Alliance page of 8 cards appears 8–18 % sooner; a special idle whose files are not in yet
   plays as soon as they are [src: notes dev50-l2d-perf-report.md §Load groups].
+- A card's particle warm-up (the prewarm that makes a looping effect start full) runs in 4 ms slices before the card
+  is ready, instead of one 37–93 ms frame per card; the particles end exactly the same. Long tasks while a page's cards
+  load roughly halve at 4K and on a slowed CPU [src: notes dev50-l2d-perf-report.md §Sliced prewarm].
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays
   counted from each switch-on, nodes that follow skeleton bones). Battle effects are unchanged.
 
