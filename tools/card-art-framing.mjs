@@ -217,7 +217,10 @@ async function capture() {
   const T0 = Date.now(), LIMIT = 20 * 60e3, BYTES = 200e6;
   let bytes = 0;
   const boxes = {};
-  const url = (pg) => `${BASE}/dev/dyn-review.html?screen=room&page=${pg}&shot=1&lang=en&device=pc&tier=full&framing=card`;
+  // --zoom Z: the card framing zoomed out by Z about the card centre, so the whole illustration is in view (a tight crop
+  // matched Chongyue's E2 art at 5.6× its size, score 0.41; zoomed out to 0.35, 0.96, 2026-11-23)
+  const ZOOM = Number(arg('--zoom')) || 1;
+  const url = (pg) => `${BASE}/dev/dyn-review.html?screen=room&page=${pg}&shot=1&lang=en&device=pc&tier=full&framing=card${ZOOM !== 1 ? `&zoomall=${ZOOM}` : ''}`;
   let browser = null;
   try {
     const list = PAGES ? PAGES.split(',').map(Number) : Array.from({ length: 30 }, (_, i) => i + 1);
@@ -250,7 +253,7 @@ async function capture() {
         if (bytes > BYTES) throw new Error('capture size cap');
         const key = info.keys[i];
         fs.writeFileSync(path.join(DIR, `${key.replace(/#/g, '~')}.jpg`), buf);
-        boxes[key] = { w: b.width, h: b.height };
+        boxes[key] = { w: b.width, h: b.height, zoom: ZOOM };
       }
       fs.writeFileSync(path.join(DIR, 'boxes.json'), JSON.stringify(boxes));
       console.log(`page ${pg}/${info.n}: ${info.keys.join(' ')}`);
@@ -300,16 +303,21 @@ async function build() {
     if (Date.now() - T0 > LIMIT) { log('time cap'); break; }
     const art = artOfKey(assets, key);
     if (!art || !fs.existsSync(file(art))) { log(`${key}: no full art`); continue; }
-    let r = await register(sharp, path.join(DIR, `${key.replace(/#/g, '~')}.jpg`), file(art), { range: [0.3, 4], hang: 0.6 });
-    // a poor match: the illustration may be framed tighter than 4 card widths of its art (Chongyue's E2, 5.6): wider
+    // the art's width in capture widths scales with the capture's zoom (zoom 1: 0.3–4, Chongyue's E2 about 2 at 0.35)
+    const cz = box.zoom > 0 ? box.zoom : 1;
+    let r = await register(sharp, path.join(DIR, `${key.replace(/#/g, '~')}.jpg`), file(art), { range: [0.3 * Math.min(1, cz), 4 * cz], hang: 0.6 });
+    // a poor match: the illustration may be framed tighter than that: wider
     if (!r || r.score < RETRY) {
-      const w = await register(sharp, path.join(DIR, `${key.replace(/#/g, '~')}.jpg`), file(art), { range: [0.3, 8], hang: 0.6 });
+      const w = await register(sharp, path.join(DIR, `${key.replace(/#/g, '~')}.jpg`), file(art), { range: [0.3 * Math.min(1, cz), 8 * cz], hang: 0.6 });
       if (w && (!r || w.score > r.score)) r = w;
     }
     if (!r || r.score < MIN_SCORE) { log(`${key}: no match${r ? ` (score ${r.score})` : ''}`); continue; }
     // the capture is the card's box at deviceScaleFactor 1: template px = card px
     const sx = box.w / (await sharp(path.join(DIR, `${key.replace(/#/g, '~')}.jpg`)).metadata()).width;
-    out.registered[key] = { art: base(art), rect: toUnits({ x: r.x * sx, y: r.y * sx, w: r.w * sx, h: r.h * sx }, box.w, box.h), score: r.score };
+    // a zoomed capture (--zoom): back to the plain card framing, x1 = c + (x − c) / z about the card centre
+    const z = box.zoom > 0 ? box.zoom : 1, cx = box.w / 2, cy = box.h / 2;
+    const px = { x: cx + (r.x * sx - cx) / z, y: cy + (r.y * sx - cy) / z, w: (r.w * sx) / z, h: (r.h * sx) / z };
+    out.registered[key] = { art: base(art), rect: toUnits(px, box.w, box.h), score: r.score };
     log(`${key}: ${base(art)} score ${r.score} rect ${out.registered[key].rect.join(' ')}`);
   }
   // --keep-stills: the stills already written are kept; with --stills only the missing ones are framed
@@ -355,7 +363,16 @@ async function build() {
   const sepFile = arg('--separate');
   const userSep = sepFile && fs.existsSync(sepFile) ? JSON.parse(fs.readFileSync(sepFile, 'utf8')).separate || null : null;
   out.separate = Array.isArray(userSep) ? [...userSep].sort()
-    : [...new Set([...(prev.separate || []), ...Object.entries(out.registered).filter(([, e]) => e.score < SEPARATE_BELOW).map(([k]) => k)])].sort();
+    : Object.entries(out.registered).filter(([, e]) => e.score < SEPARATE_BELOW).map(([k]) => k).sort();
+  // --still-edits <dyn-card-framing-edits.json>: the user's move / zoom on a 2D art's own placement (`stills` of the
+  // review page's export), kept as `adjust` (zoom about (fx, fy) of the card) and applied by the cards
+  if (arg('--still-edits')) {
+    const se = JSON.parse(fs.readFileSync(arg('--still-edits'), 'utf8')).stills || {};
+    for (const [art, f] of Object.entries(se)) {
+      if (!out.stills[art] || !(f?.zoom > 0)) continue;
+      out.stills[art].adjust = { zoom: +f.zoom.toFixed(4), fx: +f.fx.toFixed(4), fy: +f.fy.toFixed(4) };
+    }
+  }
   const txt = `${JSON.stringify(out, null, 1)}\n`;
   if (txt.length > 400e3) throw new Error('table size cap');
   fs.writeFileSync(OUT, txt);

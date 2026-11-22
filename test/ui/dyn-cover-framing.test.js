@@ -50,7 +50,8 @@ test('data/dyn-card-framing.json: generated, one sane entry per illustration of 
   const keys = Object.keys(t.cards);
   assert.ok(keys.length >= 90, `${keys.length} illustrations`);
   for (const [k, c] of Object.entries(t.cards)) {
-    assert.ok(ZOOMS.includes(c.zoom), `${k} zoom ${c.zoom}`);
+    // the generated zoom steps, or a user's own framing (any zoom)
+    assert.ok(ZOOMS.includes(c.zoom) || (c.by === 'user' && c.zoom > 0), `${k} zoom ${c.zoom}`);
     assert.ok(Number.isFinite(c.fx) && Number.isFinite(c.fy), `${k} focus`);
   }
   // the same table the tool writes from a measurement
@@ -60,7 +61,11 @@ test('data/dyn-card-framing.json: generated, one sane entry per illustration of 
   // (its measured face framing kept as `face`, for the review page's Zoomed switch)
   assert.deepEqual(framingTable({ rows: [{ key: PLAIN[0], pick: { zoom: 1.35, fx: 0.4, fy: 0.1 } }] }).cards,
     { [PLAIN[0]]: { zoom: 1, fx: 0.5, fy: 0.5, face: { zoom: 1.35, fx: 0.4, fy: 0.1 } } });
-  for (const k of PLAIN) assert.ok(t.cards[k].zoom === 1 && t.cards[k].fx === 0.5 && t.cards[k].fy === 0.5, `${k} at the plain card framing`);
+  // (unless the user framed it by hand since: their framing wins, `by: 'user'`)
+  for (const k of PLAIN) assert.ok(t.cards[k].by === 'user' || (t.cards[k].zoom === 1 && t.cards[k].fx === 0.5 && t.cards[k].fy === 0.5), `${k} at the plain card framing`);
+  // the user's hand framings replace the measured ones
+  const ed = framingTable({ rows: [{ key: 'q', pick: { zoom: 1.2, fx: 0.5, fy: 0.3 } }] }, { exported: 'x', cards: { q: { zoom: 1.0023, fx: 2.78651, fy: -7.0493, edited: true }, r: { zoom: 2, fx: 0, fy: 0, edited: false } } });
+  assert.deepEqual(ed.cards, { q: { zoom: 1.0023, fx: 2.7865, fy: -7.0493, by: 'user' } });
   assert.equal(PLAIN.length, 23);
   // every illustration of the local index, when this checkout has one
   const local = path.join(ROOT, 'data/local-assets.json');

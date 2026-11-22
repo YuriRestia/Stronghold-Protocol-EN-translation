@@ -28,8 +28,10 @@ import { MirrorPolicy } from './network.mjs';
 import { validate } from './formats.mjs';
 import { guardDefaultFetch } from './env-proxy.mjs';
 
-/** Longest side of a converted artwork (px) and its WebP quality. */
-export const WEBP_MAX_SIDE = 1024;
+/** Longest side of a converted artwork (px) and its WebP quality. 2048 (the user's pick of 2026-11-23): a co-op room's
+ * wide card draws an outfit's full art 1,900–2,650 px wide on a 4K screen, which a 1024 copy showed soft; 2048 is about
+ * the official source's own resolution, so a larger copy would add bytes, not detail. */
+export const WEBP_MAX_SIDE = 2048;
 export const WEBP_QUALITY = 82;
 /** Conversions at once: a 2048² artwork decodes to ~16 MB, so 16 parallel downloads must not all decode together (a
  * small VPS runs the game beside the deploy). */

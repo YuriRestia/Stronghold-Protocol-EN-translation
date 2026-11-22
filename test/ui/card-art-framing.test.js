@@ -81,9 +81,11 @@ test('data/card-art-framing.json: generated; every full art framed on its own (s
   const t = JSON.parse(readFileSync(path.join(ROOT, 'data/card-art-framing.json'), 'utf8'));
   assert.match(t._source, /tools\/card-art-framing\.mjs: generated/);
   // the static art: linked to its illustration by default, its own placement for the listed exceptions (the user,
-  // 2026-11-23); Chongyue's E2 (a registration too poor to trust) among them
+  // 2026-11-23); registered on zoomed-out captures every match is trustworthy (Chongyue's E2: 0.41 on a tight crop,
+  // 0.96 zoomed out), so none is apart by default
   assert.equal(t.l2d, undefined);
-  assert.ok(Array.isArray(t.separate) && t.separate.includes('char_2024_chyue_2'), JSON.stringify(t.separate));
+  assert.ok(Array.isArray(t.separate), JSON.stringify(t.separate));
+  for (const [k, e] of Object.entries(t.registered)) assert.ok(e.score >= 0.8, `${k} registered at ${e.score}`);
   const framing = JSON.parse(readFileSync(path.join(ROOT, 'data/dyn-card-framing.json'), 'utf8')).cards;
   for (const key of Object.keys(framing)) {
     const art = path.basename(artOfKey(assets, key));

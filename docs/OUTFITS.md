@@ -75,11 +75,13 @@ outfits: {
 }
 ```
 
-- Files live under `public/assets/outfit/`: `avatar/`, `portrait/` (PNG), `art/` (WebP) and `spine/<skinId>/front|back/`.
+- Files live under `public/assets/outfit/`: `avatar/`, `portrait/` (PNG), `art2k/` (WebP) and `spine/<skinId>/front|back/`.
   The paths are `safeName`d (`#` → `_`).
-- The artwork is yuanyan's `skin/<portraitId>b.png` (~3 MB). The download converts it to WebP, fitted inside 1024 px
-  (~150–250 KB, alpha kept). The ledger records the converted size, so a re-run skips it. Without sharp, the job fails
-  and the next run retries it.
+- The artwork is yuanyan's `skin/<portraitId>b.png` (~3 MB). The download converts it to WebP, fitted inside 2048 px
+  (the user's pick of 2026-11-23: a co-op room's wide card draws it up to 2,650 px wide on a 4K screen), alpha kept. The
+  ledger records the converted size, so a re-run skips it; that is why the 2048 copies have their own folder (`art2k/`;
+  the 1024 copies in `art/` are no longer referenced, `--prune` removes them). Without sharp, the job fails and the next
+  run retries it.
 - Outfit voice sets sit in the voice trees (`audio.voice`, `voiceJp`, `voiceEn`, `voiceKr`) under their word key
   (`'char_4064_mlynar_epoque#28'`). The dump's folder keeps the `#` (URL-encoded `%23`); the local folder is
   `safeName`d. A dub that lacks a line leaves it out. CN-only outfits have no EN dub yet, so their EN tree misses them

@@ -229,6 +229,9 @@ let artTable = null;
 /** The review page's link override: (illustration key) → true (the 2D art has its own placement) | false | undefined. */
 let separateOverride = null;
 export function setCardArtSeparate(fn) { separateOverride = typeof fn === 'function' ? fn : null; }
+/** The review page's move / zoom on a 2D art's own placement: (art file) → { zoom, fx, fy } | undefined (the table's). */
+let adjustOverride = null;
+export function setCardArtAdjust(fn) { adjustOverride = typeof fn === 'function' ? fn : null; }
 let artLoad = null;
 export function loadCardArtFraming() {
   artLoad ||= Promise.all([
@@ -240,7 +243,7 @@ export function loadCardArtFraming() {
     // to still link the values since the mismatched ones are the exception")
     const m = new Map();
     const sep = new Set(Array.isArray(j?.separate) ? j.separate : []);
-    for (const [art, e] of Object.entries(j?.stills || {})) if (Array.isArray(e?.rect)) m.set(art, { art, own: e.rect, reg: null, key: null, separate: true });
+    for (const [art, e] of Object.entries(j?.stills || {})) if (Array.isArray(e?.rect)) m.set(art, { art, own: e.rect, adjust: e.adjust || null, reg: null, key: null, separate: true });
     for (const [key, e] of Object.entries(j?.registered || {})) {
       if (!e?.art || !Array.isArray(e.rect)) continue;
       m.set(e.art, { ...(m.get(e.art) || { art: e.art, own: null }), reg: e.rect, key, separate: sep.has(key) });
@@ -263,7 +266,9 @@ export function cardArtRect(entry, w, h) {
   const linked = !!(entry.key && entry.reg) && !(sepOv ?? entry.separate);
   const rect = linked ? entry.reg : entry.own || entry.reg;
   if (!rect) return null;
-  const f = linked ? coverValue(entry.key) : null;
+  // linked: the illustration's framing value; own placement: the user's move / zoom on it, if any
+  const ov = !linked && entry.art && adjustOverride ? adjustOverride(entry.art) : undefined;
+  const f = linked ? coverValue(entry.key) : ov !== undefined ? ov : entry.adjust || null;
   const zoom = f?.zoom || 1, fx = f?.fx ?? 0.5, fy = f?.fy ?? 0.5;
   const u = Math.min(w / 232, h / 458);
   const [L, T, W, H] = rect;

@@ -18,7 +18,7 @@ import { initLang } from '/js/ui/lang.js';
 import { ensurePixi } from '/js/render/app/pixi.js';
 import { SettleFlow } from '/js/screens/settle.js';
 import { RoomScreen } from '/js/screens/room.js';
-import { setDynModule, setDynQuality, setDynFraming, setCardArtSeparate } from '/js/ui/dynCards.js';
+import { setDynModule, setDynQuality, setDynFraming, setCardArtSeparate, setCardArtAdjust } from '/js/ui/dynCards.js';
 import { cardStore, CARD_KEY } from '/js/ui/seatArt.js';
 import { outfitStore } from '/js/ui/outfits.js';
 
@@ -58,8 +58,12 @@ const toFraming = ({ z, tx, ty }) => { const zz = Math.abs(1 - z) < 1e-3 ? (tx |
 const fromFraming = (f) => { const z = f?.zoom > 0 ? f.zoom : 1; return { z, tx: z === 1 ? 0 : f.fx * (1 - z), ty: z === 1 ? 0 : f.fy * (1 - z) }; };
 /** The table's framing of `key` (data/dyn-card-framing.json; zoom 1 = the plain card framing). */
 const tableFraming = (k) => { const c = TABLE[k]; return c && c.zoom > 0 ? { mode: 'card', zoom: c.zoom, fx: c.fx, fy: c.fy } : { mode: 'card', zoom: 1, fx: 0.5, fy: 0.5 }; };
-/** The framing a card shows now: the user's, else the table's (a still art's: none on top of its own placement). */
-const frameOf = (k) => framings[k] || (k.startsWith('still:') ? { mode: 'card', zoom: 1, fx: 0.5, fy: 0.5 } : tableFraming(k));
+/** The table's move / zoom on each 2D art's own placement (data/card-art-framing.json stills[art].adjust). */
+let STILL_ADJ = {};
+/** The framing a card shows now: the user's, else the table's (a still art's: its saved adjustment, else none). */
+const frameOf = (k) => framings[k] || (k.startsWith('still:')
+  ? (STILL_ADJ[k.slice(6)] ? { mode: 'card', ...STILL_ADJ[k.slice(6)] } : { mode: 'card', zoom: 1, fx: 0.5, fy: 0.5 })
+  : tableFraming(k));
 // the static art (the user, 2026-11-23: "how do I switch to the static art and edit it as well? im suspicious of the
 // crew's framing of them now"): STATIC shows every card's 2D art (动态立绘 off; an illustration's 2D art is placed with
 // the illustration's own framing, so editing it edits both), SET_STILLS pages through the still-only full arts, whose
@@ -95,18 +99,12 @@ async function stillEntries() {
   for (const [cid, rec] of Object.entries(o.defaults || {})) if (stills.has(base(rec?.art))) out.push({ key: cid, charId: cid, skinId: `${cid}#2`, still: base(rec.art) });
   return out.sort((a, b) => a.key.localeCompare(b.key));
 }
-/** A still card's edit on its 2D art: x' = z·x + t (card fractions), a transform about the card's top-left corner. */
-function applyStill(i, k) {
-  const seat = [...document.querySelectorAll('.rs-seats .rseat')].find((el) => el.style.getPropertyValue('--i').trim() === String(i));
-  const img = seat?.querySelector('.rseat__art img');
-  const box = img?.offsetParent;
-  if (!img || !box) return;
-  const { z, tx, ty } = fromFraming(frameOf(k));
-  img.style.transformOrigin = `${-img.offsetLeft}px ${-img.offsetTop}px`;
-  img.style.transform = z === 1 && !tx && !ty ? '' : `translate(${tx * box.clientWidth}px, ${ty * box.clientHeight}px) scale(${z})`;
-}
 /** The framing the cards mount with (setDynFraming): the URL's &fr / &framing first, then the user's; null = the table's. */
+// &zoomall=Z: every card at the card framing zoomed by Z about its centre (tools/card-art-framing.mjs --zoom: a zoomed-out
+// capture shows the whole illustration, which the full art matches far better than a tight crop — Chongyue's E2, 2026-11-23)
+const ZOOMALL = Number(P.get('zoomall')) || 0;
 const decideFraming = (k) => {
+  if (ZOOMALL > 0) return { mode: 'card', zoom: ZOOMALL, fx: 0.5, fy: 0.5 };
   if (FR.has(k)) return FR.get(k);
   if (FRAMING) return FRAMING;
   return framings[k] || null;
@@ -262,7 +260,7 @@ globalThis.__review = { special: () => act('special'), start: () => act('start')
  * the 2D art in static mode (a re-render: CardArt places it with the same value), or to a still's transform. */
 function applyFraming(k) {
   if (k.startsWith('still:')) {
-    (review.pages[review.page] || []).forEach((e, i) => { if (editKey(e) === k) applyStill(i, k); });
+    draw(); // the card places its 2D art with the edit (setCardArtAdjust)
     return;
   }
   const f = frameOf(k);
@@ -392,11 +390,6 @@ function placeEditor() {
     if (!t) continue;
     const r = art.getBoundingClientRect();
     Object.assign(t.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
-    // a still's edit survives the screen's re-renders; a linked card's 2D art carries none
-    if (t.dataset.k?.startsWith('still:')) { if (framings[t.dataset.k]) applyStill(i, t.dataset.k); } else {
-      const img = el.querySelector('.rseat__art img');
-      if (img?.style.transform) img.style.transform = '';
-    }
   }
 }
 
@@ -501,7 +494,10 @@ async function boot() {
     TABLE = await fetch('/data/dyn-card-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).then((j) => j?.cards || {}).catch(() => ({}));
     const art = await fetch('/data/card-art-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
     SEP_DEFAULT = new Set(Array.isArray(art?.separate) ? art.separate : []);
+    STILL_ADJ = Object.fromEntries(Object.entries(art?.stills || {}).filter(([, e]) => e?.adjust).map(([a, e]) => [a, e.adjust]));
     setCardArtSeparate((k) => (k in sepEdits ? !!sepEdits[k] : undefined));
+    // a still edit here places the card's 2D art itself (as the game would with it saved)
+    setCardArtAdjust((a) => framings[`still:${a}`] || undefined);
     setDynFraming(decideFraming);
   } else if (FR.size) setDynFraming((key) => FR.get(key) || FRAMING);
   else if (FRAMING) setDynFraming(FRAMING);
