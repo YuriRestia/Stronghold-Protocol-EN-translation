@@ -43,7 +43,13 @@
     .rvz { position: absolute; box-sizing: border-box; pointer-events: auto; cursor: grab; touch-action: none; border: 1px dashed transparent; }
     .rvz:hover { border-color: rgba(78, 216, 175, .55); }
     .rvz.is-drag { cursor: grabbing; border-color: #4ed8af; }
-    .rvz b { position: absolute; top: 6px; right: 6px; padding: 2px 7px; background: rgba(12, 16, 14, .85); border: 1px solid #2f3a35; color: #cfd8d4; font: 600 12px/1.3 sans-serif; pointer-events: none; }
+    .rvz label { position: absolute; top: 6px; right: 6px; display: flex; align-items: center; gap: 4px; padding: 2px 6px; background: rgba(12, 16, 14, .9); border: 1px solid #2f3a35; color: #cfd8d4; font: 600 12px/1.3 sans-serif; cursor: default; }
+    .rvz label span { color: #8fa39b; font-weight: 400; text-transform: uppercase; letter-spacing: .06em; font-size: 10px; }
+    .rvz label em { font-style: normal; display: flex; align-items: center; gap: 2px; color: #4ed8af; margin-right: 4px; }
+    .rvz label em input { width: auto; margin: 0; }
+    .rvz label input { width: 52px; padding: 1px 3px; background: #0b0e0d; border: 1px solid #3e4b45; color: #fff; font: 600 12px/1.3 sans-serif; text-align: right; }
+    .rvz label input:focus { outline: 1px solid #4ed8af; }
+    .rvz label i { font-style: normal; color: #4ed8af; }
     .rvbar.hidden ~ .rvzoom, .rvzoom.hidden { display: none; }
     .rvphone { position: fixed; inset: 0; display: grid; place-items: center; background: #050706; }
     .rvphone iframe { width: 812px; height: 375px; border: 1px solid #3e4b45; transform-origin: center; }

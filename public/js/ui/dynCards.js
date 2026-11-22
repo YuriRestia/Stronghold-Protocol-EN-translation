@@ -226,15 +226,25 @@ export function coverFramingNow(key) {
  * still-only art carries its own framing.
  */
 let artTable = null;
+/** The review page's link override: (illustration key) → true (the 2D art has its own placement) | false | undefined. */
+let separateOverride = null;
+export function setCardArtSeparate(fn) { separateOverride = typeof fn === 'function' ? fn : null; }
 let artLoad = null;
 export function loadCardArtFraming() {
   artLoad ||= Promise.all([
     fetch('/data/card-art-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     loadCoverFraming(),
   ]).then(([j]) => {
+    // per full art: its own face-framed placement (`stills`) and, for an illustration's art, its placement on the
+    // illustration (`registered`) — linked unless the illustration is listed in `separate` (the user, 2026-11-23: "a way
+    // to still link the values since the mismatched ones are the exception")
     const m = new Map();
-    for (const [key, e] of Object.entries(j?.l2d || {})) if (e?.art && Array.isArray(e.rect)) m.set(e.art, { rect: e.rect, key });
-    for (const [art, e] of Object.entries(j?.stills || {})) if (Array.isArray(e?.rect) && !m.has(art)) m.set(art, { rect: e.rect, key: null });
+    const sep = new Set(Array.isArray(j?.separate) ? j.separate : []);
+    for (const [art, e] of Object.entries(j?.stills || {})) if (Array.isArray(e?.rect)) m.set(art, { art, own: e.rect, reg: null, key: null, separate: true });
+    for (const [key, e] of Object.entries(j?.registered || {})) {
+      if (!e?.art || !Array.isArray(e.rect)) continue;
+      m.set(e.art, { ...(m.get(e.art) || { art: e.art, own: null }), reg: e.rect, key, separate: sep.has(key) });
+    }
     artTable = m;
   });
   return artLoad;
@@ -248,10 +258,15 @@ export function cardArtEntry(src) {
  * illustration's zoom about (fx, fy) of the card. */
 export function cardArtRect(entry, w, h) {
   if (!entry || !(w > 0 && h > 0)) return null;
-  const f = entry.key ? coverValue(entry.key) : null;
+  // linked: where the illustration draws, with its framing value; separate: the art's own placement
+  const sepOv = entry.key && separateOverride ? separateOverride(entry.key) : undefined;
+  const linked = !!(entry.key && entry.reg) && !(sepOv ?? entry.separate);
+  const rect = linked ? entry.reg : entry.own || entry.reg;
+  if (!rect) return null;
+  const f = linked ? coverValue(entry.key) : null;
   const zoom = f?.zoom || 1, fx = f?.fx ?? 0.5, fy = f?.fy ?? 0.5;
   const u = Math.min(w / 232, h / 458);
-  const [L, T, W, H] = entry.rect;
+  const [L, T, W, H] = rect;
   const cx = fx * w, cy = fy * h;
   const x = cx + (w / 2 + u * L - cx) * zoom, y = cy + (h / 2 + u * T - cy) * zoom;
   return { left: (100 * x) / w, top: (100 * y) / h, width: (100 * u * W * zoom) / w, height: (100 * u * H * zoom) / h };

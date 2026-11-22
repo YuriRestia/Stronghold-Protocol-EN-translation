@@ -18,7 +18,7 @@ import { initLang } from '/js/ui/lang.js';
 import { ensurePixi } from '/js/render/app/pixi.js';
 import { SettleFlow } from '/js/screens/settle.js';
 import { RoomScreen } from '/js/screens/room.js';
-import { setDynModule, setDynQuality, setDynFraming } from '/js/ui/dynCards.js';
+import { setDynModule, setDynQuality, setDynFraming, setCardArtSeparate } from '/js/ui/dynCards.js';
 import { cardStore, CARD_KEY } from '/js/ui/seatArt.js';
 import { outfitStore } from '/js/ui/outfits.js';
 
@@ -66,7 +66,24 @@ const frameOf = (k) => framings[k] || (k.startsWith('still:') ? { mode: 'card', 
 // edits are a move / zoom on top of their generated placement ('still:<art file>' keys), shown as a CSS transform here
 let STATIC = P.has('off');
 const SET_STILLS = P.get('set') === 'stills';
-const editKey = (e) => (e.still ? `still:${e.still}` : e.key);
+/** The full art file a card shows (its outfit's, else the operator's own). */
+const artBaseOf = (e) => {
+  if (e.still) return e.still;
+  const o = data.get('assets')?.outfits || {};
+  const u = e.skinId && e.skinId !== `${e.charId}#2` ? o.chars?.[e.skinId]?.art : o.defaults?.[e.charId]?.art;
+  return String(u || '').split('/').pop();
+};
+// linked or separate (the user, 2026-11-23: "a way to still link the values since the mismatched ones are the
+// exception"): an illustration's 2D art follows it (linked) unless the table's `separate` lists it or it is unlinked
+// here; kept in this browser, exported as `separate`
+const LINKS_KEY = 'dynReview.separate';
+let SEP_DEFAULT = new Set();
+const sepEdits = (() => { try { return JSON.parse(localStorage.getItem(LINKS_KEY) || '{}') || {}; } catch { return {}; } })();
+const saveSep = () => { try { localStorage.setItem(LINKS_KEY, JSON.stringify(sepEdits)); } catch { /* private mode */ } };
+const isSeparate = (k) => (k in sepEdits ? !!sepEdits[k] : SEP_DEFAULT.has(k));
+/** What a card's gestures edit: the illustration's framing (live, and a linked 2D art with it), or the 2D art's own
+ * placement (an unlinked one in static mode, still-only arts) — separate settings (the user, 2026-11-23). */
+const editKey = (e) => (e.still || (STATIC && isSeparate(e.key)) ? `still:${artBaseOf(e)}` : e.key);
 /** The still-only arts of data/card-art-framing.json as review entries: an outfit's (its id), else an operator's own. */
 async function stillEntries() {
   const t = await fetch('/data/card-art-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
@@ -225,9 +242,9 @@ function measure(secs = 5) {
 }
 /**
  * Another page without a reload (the user, 2026-11-23: "is there a way to click next that doesnt have to reload the whole
- * page"): the screen re-mounts with the page's cards and the URL's &page follows (a reload lands there). The pages left
- * behind stay loaded: freeing them (the renderer's release) and coming back drew the cards black (2026-11-23, reported to
- * the renderer's owner), and the 98 illustrations fit the review machine's GPU.
+ * page"): the screen re-mounts with the page's cards, the URL's &page follows (a reload lands there), and the renderer
+ * frees every illustration the new page does not show (coming back to a freed page drew it black until the loader's fix
+ * of 2026-11-23, Dev 50's 565bb529a).
  */
 function goPage(n) {
   if (!review || !(n >= 0 && n < review.pages.length) || n === review.page) return;
@@ -235,6 +252,7 @@ function goPage(n) {
   review.names = review.allNames[n] || [];
   const u = new URL(location.href); u.searchParams.set('page', String(n + 1)); history.replaceState(null, '', u);
   draw();
+  try { review.stage?.release?.(review.pages[n].map((e) => e.key)); } catch (err) { console.warn('[review] release', err); }
   renderBar(null);
   frameEditor();
 }
@@ -276,12 +294,43 @@ function frameEditor() {
       framings[k] = toFraming(v);
       if (!raf) raf = requestAnimationFrame(() => { raf = 0; applyFraming(k); label(el, k); });
     };
-    const label = (el, k) => { const b = el?.querySelector('b'); if (b) b.textContent = `${Math.round(frameOf(k).zoom * 100)}%${framings[k] ? ' ✎' : ''}`; };
+    // the zoom box (typed, to a tenth of a percent) follows the gestures unless it is being typed in
+    // the typed boxes (zoom %, X / Y: the move in % of the card) follow the gestures unless being typed in
+    const label = (el, k) => {
+      const v = fromFraming(frameOf(k));
+      const vals = { z: v.z * 100, x: v.tx * 100, y: v.ty * 100 };
+      for (const inp of el?.querySelectorAll('input[data-f]') || []) if (document.activeElement !== inp) inp.value = (+vals[inp.dataset.f].toFixed(1)).toString();
+      const m = el?.querySelector('i'); if (m) m.textContent = framings[k] ? '✎' : '';
+    };
+    // a typed value: the zoom about the card's centre (the position kept), or the move
+    layer.addEventListener('input', (ev) => {
+      const inp = ev.target.closest('input[data-f]'); const el = inp?.closest('.rvz'); const k = keyOf(el);
+      const n = Number(inp?.value);
+      if (!k || !Number.isFinite(n) || inp.value === '') return;
+      const v = fromFraming(frameOf(k));
+      if (inp.dataset.f === 'z') {
+        const z = n / 100;
+        if (!(z >= 0.3 && z <= 5)) return;
+        const qx = (0.5 - v.tx) / v.z, qy = (0.5 - v.ty) / v.z;
+        set(k, { z, tx: 0.5 - z * qx, ty: 0.5 - z * qy }, el);
+      } else set(k, { ...v, [inp.dataset.f === 'x' ? 'tx' : 'ty']: n / 100 }, el);
+    });
+    layer.addEventListener('change', (ev) => {
+      // the link: this illustration's 2D art follows it, or keeps its own placement
+      const box = ev.target.closest('input[data-link]');
+      if (box) {
+        sepEdits[box.dataset.link] = !box.checked;
+        saveSep(); draw(); renderBar(null); frameEditor();
+        return;
+      }
+      if (ev.target.closest('input')) done();
+    });
+    layer.addEventListener('keydown', (ev) => { if (ev.target.closest('input')) ev.stopPropagation(); });
     // the end of a gesture: kept, and the 2D art placed at the same value
     const done = () => { saveFramings(); draw(); renderBar(null); };
     layer.addEventListener('pointerdown', (ev) => {
       const el = ev.target.closest('.rvz'); const k = keyOf(el);
-      if (!k || ev.button !== 0 || ev.target.closest('button')) return;
+      if (!k || ev.button !== 0 || ev.target.closest('button, label')) return;
       el.setPointerCapture(ev.pointerId);
       drag = { k, el, x: ev.clientX, y: ev.clientY, v: fromFraming(frameOf(k)), r: el.getBoundingClientRect() };
       el.classList.add('is-drag');
@@ -313,7 +362,7 @@ function frameEditor() {
     }, { passive: false });
     layer.addEventListener('dblclick', (ev) => {
       const el = ev.target.closest('.rvz'); const k = keyOf(el);
-      if (!k) return;
+      if (!k || ev.target.closest('label')) return;
       delete framings[k];
       applyFraming(k); label(el, k); done();
     });
@@ -321,7 +370,16 @@ function frameEditor() {
     setInterval(placeEditor, 400);
   }
   const group = review.pages[review.page] || [];
-  layer.innerHTML = group.map((e, i) => { const k = editKey(e); return `<div class="rvz" data-i="${i}" data-k="${k}" title="Drag to move, wheel to zoom (Shift: finer), double-click to reset — ${review.names[i] || e.key}"><b>${Math.round(frameOf(k).zoom * 100)}%${framings[k] ? ' ✎' : ''}</b></div>`; }).join('');
+  layer.innerHTML = group.map((e, i) => {
+    const k = editKey(e);
+    const v = fromFraming(frameOf(k));
+    const num = (f, val, step) => `<input type="number" data-f="${f}" step="${step}" value="${+val.toFixed(1)}">`;
+    // static mode, an illustration's card: its link (checked = the 2D art follows the illustration)
+    const link = STATIC && !e.still ? `<em title="Linked: the static art follows the animation's framing"><input type="checkbox" data-link="${e.key}"${isSeparate(e.key) ? '' : ' checked'}>link</em>` : '';
+    const mode = k.startsWith('still:') ? 'static' : STATIC ? 'static = live' : 'live';
+    return `<div class="rvz" data-i="${i}" data-k="${k}" title="Drag to move, wheel to zoom (Shift: finer), type the values, double-click to reset — ${review.names[i] || e.key}">`
+      + `<label><span>${mode}</span>${link}zoom ${num('z', v.z * 100, 0.1)}% X ${num('x', v.tx * 100, 0.1)} Y ${num('y', v.ty * 100, 0.1)}<i>${framings[k] ? '✎' : ''}</i></label></div>`;
+  }).join('');
   placeEditor();
 }
 function placeEditor() {
@@ -334,8 +392,11 @@ function placeEditor() {
     if (!t) continue;
     const r = art.getBoundingClientRect();
     Object.assign(t.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
-    // a still's edit survives the screen's re-renders
-    if (t.dataset.k?.startsWith('still:') && framings[t.dataset.k]) applyStill(i, t.dataset.k);
+    // a still's edit survives the screen's re-renders; a linked card's 2D art carries none
+    if (t.dataset.k?.startsWith('still:')) { if (framings[t.dataset.k]) applyStill(i, t.dataset.k); } else {
+      const img = el.querySelector('.rseat__art img');
+      if (img?.style.transform) img.style.transform = '';
+    }
   }
 }
 
@@ -352,7 +413,9 @@ function exportFramings() {
   }
   const stills = {};
   for (const [k, f] of Object.entries(framings)) if (k.startsWith('still:')) stills[k.slice(6)] = { zoom: f.zoom, fx: f.fx, fy: f.fy, ...(names.has(k) ? { name: names.get(k) } : {}) };
-  const out = { exported: new Date().toISOString(), edited: Object.values(cards).filter((c) => c.edited).length, stillsEdited: Object.keys(stills).length, total: Object.keys(cards).length, cards, stills };
+  // the illustrations whose 2D art keeps its own placement (tools/card-art-framing.mjs --separate)
+  const separate = Object.keys(TABLE).filter(isSeparate).sort();
+  const out = { exported: new Date().toISOString(), edited: Object.values(cards).filter((c) => c.edited).length, stillsEdited: Object.keys(stills).length, total: Object.keys(cards).length, separate, cards, stills };
   const text = JSON.stringify(out, null, 1);
   navigator.clipboard?.writeText(text).catch(() => {});
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'dyn-card-framing-edits.json' });
@@ -436,6 +499,9 @@ async function boot() {
   settingsStore.set({ dynIllust: STATIC ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
   if (SCREEN !== 'result') {
     TABLE = await fetch('/data/dyn-card-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).then((j) => j?.cards || {}).catch(() => ({}));
+    const art = await fetch('/data/card-art-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+    SEP_DEFAULT = new Set(Array.isArray(art?.separate) ? art.separate : []);
+    setCardArtSeparate((k) => (k in sepEdits ? !!sepEdits[k] : undefined));
     setDynFraming(decideFraming);
   } else if (FR.size) setDynFraming((key) => FR.get(key) || FRAMING);
   else if (FRAMING) setDynFraming(FRAMING);
