@@ -244,8 +244,10 @@ export class FxGL {
     if (!src || !src.image) return null;
     const gl = this.gl, img = src.image;
     const size = img.height | 0;
-    if (!size || (img.width | 0) < size * 6 || typeof document === 'undefined') return null;
-    const cv = document.createElement('canvas');
+    // a page canvas, or an OffscreenCanvas in a Worker (the animated illustrations' render/dynillust/worker.js)
+    const hasDoc = typeof document !== 'undefined';
+    if (!size || (img.width | 0) < size * 6 || (!hasDoc && typeof OffscreenCanvas !== 'function')) return null;
+    const cv = hasDoc ? document.createElement('canvas') : new OffscreenCanvas(size, size);
     cv.width = size; cv.height = size;
     const cx = cv.getContext('2d');
     const tex = gl.createTexture();

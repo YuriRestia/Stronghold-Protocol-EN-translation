@@ -38,6 +38,10 @@
   illustration runs 40 hidden frames into its special idle on a throwaway copy. Cards whose special idles fall due in
   the same frame start them a frame apart. Pages take about 0.5 s longer to be ready (the user's call: "Wait until
   it's ready, then play the animation") [src: notes dev50-l2d-perf-report.md §Warm before ready].
+- The cards are drawn in three Workers, each with its own WebGL context, straight into the cards' canvases: loading,
+  warming and every animation frame leave the page's main thread, so the page and its menus stay smooth however heavy
+  the cards are. Browsers without Worker canvases draw on the main thread as before [src: notes
+  dev50-l2d-perf-report.md §Workers].
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays
   counted from each switch-on, nodes that follow skeleton bones). Battle effects are unchanged.
 

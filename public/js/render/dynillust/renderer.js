@@ -92,7 +92,9 @@ export class DynIllustStage {
     this._raf = 0;
     this._jobs = [];            // staging pieces (STAGE_BUDGET_MS): () => true when done, false to try again next frame
     this._warming = new Set();  // staged slots to draw once (not stepped) in the next frame: the warm-up draw
-    this.canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    // the shared GL canvas: off-page on the main thread, an OffscreenCanvas in a Worker (render/dynillust/worker.js)
+    this.canvas = typeof document !== 'undefined' ? document.createElement('canvas')
+      : typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(2, 2) : null;
     if (this.canvas) { this.canvas.width = 2; this.canvas.height = 2; }
     this.renderer = null;
     this.stage = null;
@@ -340,7 +342,11 @@ export class DynIllustStage {
     if (!this.cards.size) this.lib.dropImages();
   }
 
-  /** A card showing `key` (docs/design/vfx-format.md §33.19 Mount API). */
+  /**
+   * A card showing `key` (docs/design/vfx-format.md §33.19 Mount API). In a Worker (render/dynillust/worker.js) `o`
+   * also gives the card's `canvas` (an OffscreenCanvas the page transferred), `box` (its size in device px, kept
+   * current by the page) and `onOpacity` (the late fade, applied by the page to its canvas element).
+   */
   mount(key, o = {}) {
     const card = new Card(this, key, o);
     this.cards.add(card);
@@ -515,14 +521,19 @@ export class Card {
     this.slot = null;
     this.prep = null;
     this.w = 0; this.h = 0;
-    this.canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    this.box = Array.isArray(o.box) ? o.box : null;   // [w, h] device px from the page (Worker), else measured here
+    this.onOpacity = typeof o.onOpacity === 'function' ? o.onOpacity : null;
+    this.canvas = o.canvas || (typeof document !== 'undefined' ? document.createElement('canvas') : null);
     if (this.canvas) {
-      this.canvas.className = 'dynillust-canvas';
       this.canvas.width = 1; this.canvas.height = 1;
-      this.canvas.style.opacity = '0';
       this.ctx = this.canvas.getContext('2d');
-      this.canvas.__dynCard = this;
-      if (S.io) S.io.observe(this.canvas);
+      if (this.canvas.style) {
+        // a page element (not a Worker's OffscreenCanvas)
+        this.canvas.className = 'dynillust-canvas';
+        this.canvas.__dynCard = this;
+        if (S.io) S.io.observe(this.canvas);
+      }
+      this._opacity(0);
     }
     this.ready = S._prepare(key).then((prep) => this._stage(prep)).then((prep) => {
       if (this.state === 'unmounted') return false;
@@ -533,8 +544,9 @@ export class Card {
     }, () => { if (this.state !== 'unmounted') this._set('failed'); return false; });
   }
 
-  /** The canvas's CSS box in device px (capped at MAX_DPR): [w, h]. */
+  /** The canvas's CSS box in device px (capped at MAX_DPR): [w, h]; in a Worker, the size the page sent. */
   _measure() {
+    if (this.box || !this.canvas.getBoundingClientRect) return this.box || [0, 0];
     const r = this.canvas.getBoundingClientRect();
     const dpr = Math.min(MAX_DPR, Math.max(1, globalThis.devicePixelRatio || 1));
     return [Math.round(r.width * dpr), Math.round(r.height * dpr)];
@@ -598,6 +610,12 @@ export class Card {
     ]).then(() => (slot && this.state !== 'unmounted' ? S._warmSpecial(prep, this.key, slot.w, slot.h) : null)).then(() => prep);
   }
 
+  /** The canvas's opacity: on the element here, or through the page (onOpacity) for a Worker's card. */
+  _opacity(a) {
+    if (this.canvas && this.canvas.style) this.canvas.style.opacity = String(a);
+    else if (this.onOpacity) this.onOpacity(a);
+  }
+
   _set(st) {
     if (this.state === st) return;
     this.state = st;
@@ -609,7 +627,7 @@ export class Card {
     if (this.started || this.state === 'unmounted' || this.state === 'failed') return;
     this.started = true;
     if (this.state === 'ready') {
-      if (this.canvas) this.canvas.style.opacity = '1';
+      if (this.canvas) this._opacity(1);
       this._set('live');
       this.S._kick();
     }
@@ -626,7 +644,7 @@ export class Card {
     if (this.fade >= 0 && this.drawing) {
       this.fade += dt;
       const a = Math.min(1, this.fade / LATE_FADE_S);
-      this.canvas.style.opacity = String(a);
+      this._opacity(a);
       if (a >= 1) { this.fade = -1; this._set('live'); }
     }
   }
