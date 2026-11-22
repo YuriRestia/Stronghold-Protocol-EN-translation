@@ -289,9 +289,15 @@ export function CardArt({ src, fallback = null, class: cls = '' }) {
   const [bad, setBad] = useState(false);
   const [box, setBox] = useState(null);
   const ref = useRef(null);
-  useEffect(() => { if (!artTable) loadCardArtFraming().then(() => setReady(true)); }, []);
+  // the table may arrive between the first render and this effect: ready then, else when it loads (a card that only
+  // checked here stayed empty for good, 2026-11-23)
+  useEffect(() => {
+    let alive = true;
+    if (artTable) setReady(true); else loadCardArtFraming().then(() => { if (alive) setReady(true); });
+    return () => { alive = false; };
+  }, []);
   useEffect(() => { setBad(false); }, [src]);
-  const entry = ready && src && !bad ? cardArtEntry(src) : null;
+  const entry = (ready || artTable) && src && !bad ? cardArtEntry(src) : null;
   useEffect(() => {
     const el = ref.current?.offsetParent;
     if (!entry || !el) return undefined;
@@ -302,7 +308,7 @@ export function CardArt({ src, fallback = null, class: cls = '' }) {
     ro?.observe(el);
     return () => ro?.disconnect();
   }, [entry]);
-  if (!ready) return null;
+  if (!ready && !artTable) return null;
   if (!entry) return fallback;
   const p = box ? cardArtRect(entry, box[0], box[1]) : null;
   const style = p ? `inset:auto;left:${p.left}%;top:${p.top}%;width:${p.width}%;height:${p.height}%;max-width:none;object-fit:fill` : 'visibility:hidden';
