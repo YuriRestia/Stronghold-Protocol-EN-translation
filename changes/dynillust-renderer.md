@@ -55,6 +55,8 @@
   and effects carry on, no reload or restart.
 - A card mounted while its seat plays its entrance animation is staged at its real size: its size came from the
   scaled box (721 × 404 for a 720 × 403 card), so the card was built again, unwarmed, in its first live frame.
+- An outfit finds its illustration whatever the case of its id: 7 Ambience Synesthesia outfits are spelt in lowercase
+  in the illustration index, so a player wearing one never got the animation.
 - Switching the Live2D quality (Full ↔ Half) frees the other quality's illustrations from GPU memory as soon as no card
   shows them any more, instead of keeping them until the match starts.
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays

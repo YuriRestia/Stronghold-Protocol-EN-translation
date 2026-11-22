@@ -2100,7 +2100,7 @@ hasExitTime, conditions: [{ mode ('if' | 'ifNot' | 'greater' | 'less' | 'equals'
 ```
 dynIllustKey(charId, skinId | null) → key | null    the dynillust group of data/local-assets.json; skinId null = the
                                                     E2 art, the entry whose skinId is `<charId>#2`; null until that
-                                                    file is loaded: await Stage.index() first
+                                                    file is loaded: await Stage.index() first; ids match without case
 getDynIllustStage() → Stage                         one per page, made on first use: one WebGL context, offscreen
 Stage.index() → Promise<void>                       settles once data/local-assets.json is loaded (dynIllustKey's input)
 Stage.quality = 'full' | 'half'                     set from the D7 setting before preload

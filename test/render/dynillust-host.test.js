@@ -147,8 +147,8 @@ describe('DynIllustHost', () => {
     const p = H.diag();
     const w = FakeWorker.all[0];
     const ask = w.sent.find((m) => m.t === 'diag');
-    w.answer({ t: 'diag', rid: ask.rid, gl: 0, cards: [{ key: 'a', wh: [720, 403] }] });
-    assert.deepEqual(await p, [{ worker: 0, gl: 0, cards: [{ key: 'a', wh: [720, 403] }] }]);
+    w.answer({ t: 'diag', rid: ask.rid, gl: 0, stage: { r: [720, 403] }, cards: [{ key: 'a', wh: [720, 403] }] });
+    assert.deepEqual(await p, [{ worker: 0, gl: 0, stage: { r: [720, 403] }, cards: [{ key: 'a', wh: [720, 403] }] }]);
   });
 
   test('a card follows its Worker: states, ready(), start()', async () => {

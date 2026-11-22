@@ -276,7 +276,7 @@ export class DynIllustHost {
    */
   async diag() {
     const out = await Promise.all(this.workers.map((w) => this._ask(w, { t: 'diag' })));
-    return out.map((m, i) => ({ worker: i, gl: m.gl, cards: m.cards || [] }));
+    return out.map((m, i) => ({ worker: i, gl: m.gl, stage: m.stage || null, cards: m.cards || [] }));
   }
 
   stats() {

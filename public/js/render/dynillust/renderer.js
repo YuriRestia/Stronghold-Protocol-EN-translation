@@ -869,8 +869,10 @@ class Slot {
     items.length = 0;
     let seq = 0;
     // (`skelPart`, not `part`: the effect entries' own `part` names their renderer kind)
-    for (const p of this.skel.parts) items.push({ skelPart: p, layer: p.layer, order: p.order, queue: p.queue, dist: this.zRoot - this.camU[2], seq: seq++ });
-    if (this.fx && S.glr) this.fx.gather(this.basis, (e) => { e.seq = seq++; items.push(e); });
+    // (`S.debugHide`: 'skel' or 'fx' leaves that layer out, for checks of what draws a wrong picture; worker.js 'debug')
+    const hide = S.debugHide;
+    if (hide !== 'skel') for (const p of this.skel.parts) items.push({ skelPart: p, layer: p.layer, order: p.order, queue: p.queue, dist: this.zRoot - this.camU[2], seq: seq++ });
+    if (this.fx && S.glr && hide !== 'fx') this.fx.gather(this.basis, (e) => { e.seq = seq++; items.push(e); });
     items.sort(byUnityOrder);
     let w = 0, prev = null;
     for (const e of items) {

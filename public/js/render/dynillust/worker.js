@@ -102,7 +102,39 @@ function diagCard(c) {
     pages: c.prep ? [...c.prep.pages.values()].map((t) => [t.width, t.height, t.realWidth, t.realHeight, !!t.valid, !!t.destroyed]) : null,
     // the effect nodes drawing particles now: [node, particles] (at most 60)
     fx: s && s.fx ? liveNodes(s.fx.fx) : null,
+    // the card canvas's own pixels: mean |difference| of horizontal neighbours (green, every 4th row): a blurred copy is low
+    sharp: sharpness(c),
   };
+}
+
+function sharpness(c) {
+  if (!c.ctx || !(c.w > 1 && c.h > 1)) return null;
+  const d = c.ctx.getImageData(0, 0, c.w, c.h).data;
+  let sum = 0, n = 0;
+  for (let y = 0; y < c.h; y += 4) for (let x = 1; x < c.w; x++) { const o = (y * c.w + x) * 4; sum += Math.abs(d[o + 1] - d[o - 3]); n++; }
+  return n ? Math.round(sum / n * 100) / 100 : null;
+}
+
+/** The stage's canvas and context state (host.js diag): sizes, resolution, sampler bindings, one atlas page's sampling. */
+function diagStage() {
+  const r = stage.renderer;
+  if (!r) return null;
+  const gl = r.gl, out = { r: [r.width, r.height], res: r.resolution, view: [r.view.width, r.view.height], screen: [r.screen.width, r.screen.height] };
+  out.samplers = [];
+  for (let u = 0; u < 8; u++) out.samplers.push(gl.getParameter ? (gl.activeTexture(gl.TEXTURE0 + u), !!gl.getParameter(gl.SAMPLER_BINDING)) : null);
+  gl.activeTexture(gl.TEXTURE0);
+  // the first card's first atlas page: its GL texture's filters and levels
+  const c = [...cards.values()].find((x) => x.prep && x.prep.pages.size);
+  const bt = c && [...c.prep.pages.values()][0];
+  const g = bt && bt._glTextures && bt._glTextures[r.CONTEXT_UID];
+  if (g) {
+    gl.bindTexture(gl.TEXTURE_2D, g.texture);
+    const P = (k) => gl.getTexParameter(gl.TEXTURE_2D, k);
+    out.page = { key: c.key, size: [g.width, g.height], mip: g.mipmap, min: P(gl.TEXTURE_MIN_FILTER), base: P(gl.TEXTURE_BASE_LEVEL), max: P(gl.TEXTURE_MAX_LEVEL), minLod: P(gl.TEXTURE_MIN_LOD), maxLod: P(gl.TEXTURE_MAX_LOD) };
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    r.texture.reset?.();
+  }
+  return out;
 }
 
 function liveNodes(e) {
@@ -132,6 +164,7 @@ function handle(m) {
     }
     case 'box': { const c = cards.get(m.id); if (c) { c.box = [m.w, m.h]; stage._kick(); } break; }
     case 'framing': cards.get(m.id)?.setFraming(m.framing, m.centre); break;
+    case 'debug': stage.debugHide = m.hide || null; stage._kick(); break;
     case 'view': { const c = cards.get(m.id); if (c) { c.inView = !!m.v; stage._kick(); } break; }
     case 'start': cards.get(m.id)?.start(); break;
     case 'unmount': { const c = cards.get(m.id); cards.delete(m.id); c?.unmount(); break; }
@@ -147,7 +180,7 @@ function handle(m) {
       stage._kick();
       break;
     case 'frames': frames = m.on ? [] : null; break;
-    case 'diag': post({ t: 'diag', rid: m.rid, gl: stage.renderer?.gl?.getError?.() ?? null, cards: [...cards.values()].map(diagCard) }); break;
+    case 'diag': post({ t: 'diag', rid: m.rid, gl: stage.renderer?.gl?.getError?.() ?? null, stage: diagStage(), cards: [...cards.values()].map(diagCard) }); break;
     case 'frameLog': post({ t: 'frameLog', rid: m.rid, origin: performance.timeOrigin, frames: frames || [] }); if (frames) frames = []; break;
     default: break;
   }
