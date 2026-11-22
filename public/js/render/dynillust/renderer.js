@@ -140,7 +140,11 @@ export class DynIllustStage {
     this.canvas.addEventListener('webglcontextrestored', () => { this.lost = false; this.lib.forgetGpu(); this._kick(); });
     const gl = this.renderer.gl;
     if (gl && this.renderer.context?.webGLVersion === 2) {
-      try { this.glr = new FxGL(gl, this.lib); } catch (err) { console.warn('[dynillust] effects unavailable', err); }
+      // rtAlpha: the official illustration render texture's alpha is a transmittance (camera clear (0, 0, 0, 1), the
+      // card's UI/UI_RT_DYN_ILLUST adds RT.rgb + background × RT.a), so an eraser (Mask/Erase) makes pixels see-through;
+      // FxGL keeps the materials' alpha factors, turned into our coverage alpha [src: doc client.md §Official battle
+      // effects, Shaders; render/vfx/gl.js rtAlphaFactors]
+      try { this.glr = new FxGL(gl, this.lib, { rtAlpha: true }); } catch (err) { console.warn('[dynillust] effects unavailable', err); }
     }
     return true;
   }
