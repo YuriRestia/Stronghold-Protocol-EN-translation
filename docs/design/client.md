@@ -406,6 +406,20 @@ The 下一步 button maps the face of its 297×86 art (rows 1–68, columns 1–
 [ASSUMED] Browser title budgets and uniform shrinking accommodate translation and text-size expansion; they are
 not measurements of the official client.
 
+(fork) **Animated illustrations** (动态立绘; the user's decisions D1–D13 of 2026-11-22, crew-docs `l2d-art-proposal.md`;
+`ui/dynCards.js`, the renderer and format in vfx-format.md §33.19). The result cards (同盟), the room's seat cards and
+the Grand Alliance room's eight play the operator's official dynamic illustration — one component, `IllustArt`, around
+the card's 2D art, the same on the three screens (D5); no tap action (D9). Which illustration: the worn outfit, else the
+E2 art. Which cards: 设置「动态立绘」 (`dynIllust`) 关 / 仅自己 / 所有人, `auto` = 仅自己 on a phone (touch, shorter
+screen side under 600 px) and 所有人 elsewhere (D7); all eight Grand Alliance cards at once (D8). What a result card shows:
+设置「结算卡片立绘」 (`resultArt`, D6) — 名片干员 (the room card in its outfit, the default: the official card shows the
+player's assistant) or 阵容最强干员 (the final lineup's ace, `shared/resultAce.js`); an AI seat shows its ace. Both rows
+show only on a server whose index lists illustrations. Loading (D10 / D11): nothing during the match; the result cards'
+illustrations load from m.public `ending` (META §1) through the settlement pause, and `screens/game.js` keeps the match
+screen up after RESULT until they are ready, at most `RESULT_WAIT_MS` 3 s; the room's load after the screen has what it
+needs (`loadLater.js`) and after the entry film's files; a card not ready shows its 2D art and switches when ready. The
+strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`).
+
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
 
 A bond the mode never activates (标准: official `inactiveBondIdList`) reads 本局禁用 on shop / reward cards (struck through), detail chips and the popup — no 在场 count, no 当前效果 (§21.7); a strategy built around one carries a 本局禁用 tag and note in the strategy draft and stays selectable (bands.json `bondIds`, §21.26).
