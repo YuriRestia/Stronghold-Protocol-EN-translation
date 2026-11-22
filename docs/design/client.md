@@ -440,6 +440,11 @@ the renderer only through its mount API (vfx-format.md §33.19): one Stage for t
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
 with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a card appears and switches —
 straight into Idle, no intro, the official crossfade on a late switch (the user, 2026-11-22) — is the renderer's.
+Review (D12): `public/dev/dyn-review.html` puts every illustration of the server's index on the real screens — the result
+screen's team page 4 at a time, the room 4 seats, the Grand Alliance room 8 — with made-up players whose room card is that
+operator in that outfit, 动态立绘 on 所有人; PC or a landscape phone frame (half pages), page by page; review-only buttons
+play the special idle or Start now, replay the entrance, and throttle the connection (`&slow=<MB/s>`) to show the late
+switch; `__review.measure(s)` reports the frame intervals for the §7 gates and `&off` gives the 2D baseline.
 (fork) **The result card's entrance** (`ui/cardEntrance.js`, the user's go of 2026-11-22) is the client's own: the clip
 `auto_chess_settle_game_player_item_show` (25 float curves, 1.31667 s — a legacy clip runs to its last key) played once,
 linearly, after the card's place in the row × `_animDelay` 0.083 s (`_PlayShowCardAnim`, GameAssembly.dll 0x28E0C60). It
