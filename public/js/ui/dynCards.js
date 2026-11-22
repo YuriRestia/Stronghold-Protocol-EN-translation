@@ -216,7 +216,8 @@ function tierChanged() {
   clearTimeout(tierTimer);
   tierTimer = setTimeout(() => {
     const vals = [...wants.values()];
-    const next = qualityOverride || (vals.length ? (vals.includes('full') ? 'full' : 'half') : pageTier);
+    // the result screen with kept illustrations stays on the tier they were kept at (follow-up A: no reload of them)
+    const next = qualityOverride || resultPin || (vals.length ? (vals.includes('full') ? 'full' : 'half') : pageTier);
     if (next !== pageTier) { pageTier = next; dynTierStore.set({ tier: next }); }
   }, 0);
 }
@@ -253,13 +254,59 @@ export function illustKey(R, art) {
   try { return R.dynIllustKey(art.charId, art.outfit || null) || null; } catch { return null; }
 }
 
+// ---- the illustrations kept through the match for its result cards (follow-up A; the user's pick, 2026-11-23, via the
+// lead: "go with A") -----------------------------------------------------------------------------------------------
+
 /**
- * The match starts (screens/game.js): free every illustration no card still shows — nothing of them is held through
- * the match (the renderer's release(keep)). A page that never loaded the renderer does nothing.
+ * The most the kept illustrations may hold on the GPU through a match (MB): the battle renderer needs the GPU meanwhile.
+ * Measured per illustration: full median 40 MB, p90 67, max 123; half median 10, p90 17, max 31 [src: work/dev-55
+ * gpumem.json, 2026-11-23: every texture decoded RGBA8, no mipmaps].
  */
-export function releaseIllusts() {
+export const KEEP_CAP_MB = 160; // [ASSUMED: proposed to the user 2026-11-23, not yet OK'd — 4 cards at full or 16 at half, at the median]
+/**
+ * GPU bytes per downloaded byte, the measured 90th percentile, for an index entry without its own figure (full 4.3–18.9,
+ * median 8.9; half 1.3–8.7, median 3.3) [src: work/dev-55 gpumem.json vs data/local-assets.json bytes / bytesHalf].
+ */
+const GPU_PER_BYTE = Object.freeze({ full: 12.2, half: 4.7 });
+/** An index entry's GPU bytes at `tier`: its own figure (`gpu` / `gpuHalf`) when the index has one, else the bound. */
+export function keptGpuBytes(entry, tier) {
+  if (!entry) return Infinity;
+  const own = tier === 'half' ? entry.gpuHalf : entry.gpu;
+  if (own > 0) return own;
+  const b = tier === 'half' ? entry.bytesHalf : entry.bytes;
+  return b > 0 ? b * GPU_PER_BYTE[tier === 'half' ? 'half' : 'full'] : Infinity;
+}
+/** The keys to keep, in order (one's own card first), while their GPU bytes stay within the cap. */
+export function pickKept(keys, tier, entryOf, capMB = KEEP_CAP_MB) {
+  const keep = [];
+  let sum = 0;
+  for (const k of keys) {
+    const b = keptGpuBytes(entryOf(k), tier);
+    if (sum + b > capMB * 1048576) continue;
+    sum += b; keep.push(k);
+  }
+  return keep;
+}
+/** The tier the kept illustrations are at (the room's, setting included); the result screen stays on it. */
+let keptTier = null, resultPin = null;
+
+/**
+ * The match starts (screens/game.js): free every illustration except the result cards' own (`arts`, one's own first),
+ * kept at the room's tier within KEEP_CAP_MB, so the result screen shows them with no load. The rest load from m.public
+ * `ending` as before. A page that never loaded the renderer does nothing.
+ * @param {{ charId: string, outfit: string|null }[]} [arts]
+ */
+export function releaseIllusts(arts = []) {
+  keptTier = null; resultPin = null;
   if (!mod || mod === stub) return;
-  try { mod.getDynIllustStage().release([]); } catch (err) { console.warn('[dynillust] release', err); }
+  try {
+    const st = mod.getDynIllustStage(), tier = qualityOverride || pageTier;
+    const keys = [...new Set((arts || []).map((a) => illustKey(mod, a)).filter(Boolean))];
+    const g = data.get('local')?.groups?.dynillust || {};
+    const keep = keys.length ? pickKept(keys, tier, (k) => g[k]) : [];
+    st.release(keep);
+    if (keep.length) keptTier = tier;
+  } catch (err) { console.warn('[dynillust] release', err); }
 }
 
 /** Whether this server has any illustration (data/local-assets.json group `dynillust`): the settings rows show only then. */
@@ -291,8 +338,13 @@ export function startResultLoad(cardsOf) {
   const state = { pending: true, startedAt: Date.now() };
   resultLoad = state;
   const done = () => { if (state.pending) { state.pending = false; resultGateStore.set({ n: resultGateStore.get().n + 1 }); } };
-  // the result cards' tier from their size before they exist; the cards confirm it when they mount
-  if (!qualityOverride) { pageTier = resultCardTier(); dynTierStore.set({ tier: pageTier }); }
+  // the result cards' tier: the kept illustrations' (the room's), so they show with no load; else from the cards' size
+  // before they exist, which the cards confirm when they mount
+  if (!qualityOverride) {
+    resultPin = keptTier;
+    pageTier = keptTier || resultCardTier();
+    dynTierStore.set({ tier: pageTier });
+  }
   readyStage().then(({ R, st }) => {
     if (resultLoad !== state) return null;
     const cards = cardsOf().slice().sort((a, b) => Number(!!b.mine) - Number(!!a.mine));
@@ -313,6 +365,7 @@ export function resultWaitMs(resultAt, now = Date.now()) {
 /** Forget the match's result load (the next match began, or the page left the match). */
 export function endResultLoad() {
   resultLoad = null;
+  if (resultPin) { resultPin = null; tierChanged(); }
 }
 
 // ---- the result cards' entrance gate (the user, 2026-11-23, through the lead: "If an L2D is available, then it should

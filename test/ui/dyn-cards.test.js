@@ -138,6 +138,27 @@ test('the result screen waits for its cards (own card first), at most RESULT_WAI
   setDynModule(null);
 });
 
+test('follow-up A: the result cards\' illustrations are kept through the match, one\'s own first, within the GPU cap', async () => {
+  const { pickKept, keptGpuBytes, KEEP_CAP_MB } = await import('../../public/js/ui/dynCards.js');
+  const MB = 1048576;
+  // an index figure wins; else the download size times the measured bound; no entry: never kept
+  assert.equal(keptGpuBytes({ gpu: 40 * MB, bytes: 1 }, 'full'), 40 * MB);
+  assert.equal(keptGpuBytes({ gpuHalf: 10 * MB, bytesHalf: 1 }, 'half'), 10 * MB);
+  assert.ok(keptGpuBytes({ bytes: 5 * MB }, 'full') > 5 * MB * 8, 'the bound is above the median ratio');
+  assert.equal(keptGpuBytes(null, 'full'), Infinity);
+  // in order while they fit: a big one in the middle is skipped, a smaller one after it still kept
+  const entries = { own: { gpu: 60 * MB }, big: { gpu: 120 * MB }, other: { gpu: 50 * MB }, none: null };
+  const keep = pickKept(['own', 'big', 'other', 'none'], 'full', (k) => entries[k], 160);
+  assert.deepEqual(keep, ['own', 'other']);
+  assert.ok(KEEP_CAP_MB > 0);
+  // the renderer is told what to keep; without an index figure for a card, nothing is held (it loads at `ending`)
+  const fake = fakeModule(['char_a']);
+  setDynModule(fake);
+  releaseIllusts([{ charId: 'char_a', outfit: null }]);
+  assert.deepEqual(fake.st.releases.at(-1), []);
+  setDynModule(null);
+});
+
 test('a failed preload opens the result screen too (the cards keep their 2D art)', async () => {
   const fake = fakeModule(['char_a']);
   setDynModule(fake);

@@ -34,7 +34,7 @@ import { ResultView, resultBonds } from './result.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { t, shownName } from '../../../shared/i18n.js';
 import { aceOf } from '../../../shared/resultAce.js';
-import { IllustArt, resultCardArt, cardAnimates, useDynIllustMode, useMatchCards, startResultLoad, endResultLoad, makeEntranceGate } from '../ui/dynCards.js';
+import { IllustArt, resultCardArt, cardAnimates, useDynIllustMode, useMatchCards, startResultLoad, endResultLoad, makeEntranceGate, releaseIllusts } from '../ui/dynCards.js';
 import { settingsStore } from '../ui/settingsStore.js';
 import { useCardEntrance } from '../ui/cardEntrance.js';
 
@@ -546,6 +546,30 @@ function useTeamCardOpts(gd, myId) {
   const resultArt = useStore((s) => s.resultArt, Object.is, settingsStore);
   const mode = useDynIllustMode();
   return { gd, resultArt, mode, myId, cards };
+}
+
+/**
+ * (fork) Follow-up A (the user's pick, 2026-11-23): as the match starts, keep the illustrations the result cards will show —
+ * the room cards (名片干员, the default) of the players whose cards animate, one's own first — and free the rest
+ * (ui/dynCards.js releaseIllusts, within its GPU cap). With 阵容最强干员 the aces are unknown until `ending`: nothing is
+ * kept. Once per match screen.
+ * @param {any} pub m.public @param {string|null} myId
+ */
+export function useKeepResultArt(pub, myId) {
+  const gd = useGameData();
+  const opts = useTeamCardOpts(gd, myId);
+  const done = useRef(false);
+  const players = Array.isArray(pub?.players) ? pub.players : null;
+  useEffect(() => {
+    if (done.current || !gd.ready || !players) return;
+    done.current = true;
+    const arts = opts.resultArt === 'ace' ? [] : players
+      .map((p) => ({ ...teamCardArt(p, null, opts), mine: p.playerId === myId }))
+      .filter((x) => x.animate && x.art && !x.isAce)
+      .sort((a, b) => Number(b.mine) - Number(a.mine))
+      .map((x) => x.art);
+    releaseIllusts(arts);
+  }, [gd.ready, !!players]);
 }
 
 /**

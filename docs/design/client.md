@@ -445,7 +445,14 @@ E2 art. Which cards: 设置「动态立绘」 (`dynIllust`) 关 / 仅自己 / �
 screen side under 600 px) and 所有人 elsewhere (D7); all eight Grand Alliance cards at once (D8). What a result card shows:
 设置「结算卡片立绘」 (`resultArt`, D6) — 名片干员 (the room card in its outfit, the default: the official card shows the
 player's assistant) or 阵容最强干员 (the final lineup's ace, `shared/resultAce.js`); an AI seat shows its ace. Both rows
-show only on a server whose index lists illustrations. Loading (D10 / D11): nothing during the match; the result cards'
+show only on a server whose index lists illustrations. Loading (D10 / D11): nothing during the match. As the match
+starts, the room's illustrations are freed except the result cards' own (follow-up A, the user's pick of 2026-11-23:
+`screens/settle.js useKeepResultArt`, `releaseIllusts(arts)`): with 名片干员 the animating players' room cards, one's own
+first, kept at the room's tier (the 动态立绘画质 setting's, if set) while their GPU memory stays within `KEEP_CAP_MB`
+160 MB [ASSUMED: proposed, not yet OK'd] — each index entry's own `gpu` / `gpuHalf` figure, else its download size times
+the measured 90th-percentile ratio (full 12.2×, half 4.7×; per illustration full median 40 MB, half 10 MB [src: work/dev-55
+gpumem.json, 2026-11-23]); with 阵容最强干员 nothing (the aces are known only at `ending`). The result screen then stays
+on that tier (`resultPin`), so the kept cards show with no load. The rest of the result cards'
 illustrations load from m.public `ending` (META §1) through the settlement pause, and `screens/game.js` keeps the match
 screen up after RESULT until they are ready, at most `RESULT_WAIT_MS` 3 s; the room's load after the screen has what it
 needs (`loadLater.js` whenScreenSettled, all the room's cards together) and after the entry film's files, the renderer's
