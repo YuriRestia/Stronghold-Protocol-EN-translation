@@ -25,9 +25,8 @@ import { outfitStore } from '/js/ui/outfits.js';
 const P = new URLSearchParams(location.search);
 // &main: the cards drawn on the page's own thread, not in Workers (render/dynillust/index.js __dynMainThread)
 if (P.has('main')) globalThis.__dynMainThread = true;
-// &sparks=a|b: the show's ember style (ui/dynCards.js; A out of the sides, B a shower, the default)
-if (P.has('sparks')) globalThis.__dynSparks = P.get('sparks');
-const SCREEN =['result', 'room', 'ga'].includes(P.get('screen')) ? P.get('screen') : 'result';
+// &glow=0…4: the room cards' border glow look (ui/cardEntrance.js GLOW_STYLES; 0 the current one), for the user's pick
+if (P.has('glow')) globalThis.__dynGlow = P.get('glow');const SCREEN =['result', 'room', 'ga'].includes(P.get('screen')) ? P.get('screen') : 'result';
 const PER = SCREEN === 'ga' ? 8 : 4;
 const DEVICE = P.get('device') === 'phone' ? 'phone' : 'pc';
 const FRAME = P.has('frame');

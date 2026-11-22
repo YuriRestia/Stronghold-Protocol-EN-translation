@@ -462,13 +462,18 @@ and mask, additive on a canvas with `mix-blend-mode: plus-lighter`; the user's d
 bloom that moves on the boundary between old and new, … leaving the entire card artwork white glow before the glow fades
 away into the live2D"): a bright band on the dissolve's edge (the official `color_mask` layer's band construction: mask ×
 inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone, and
-embers (`makeSparks`, the user's "particle effects that runs with the border" and "fall out of the card itself"): born
-where the mask reads the glow's leading edge, over the old picture, gold and painted normally so the white glow does
-not swallow them, they fall under gravity out of the card on one page-wide layer over everything (`.dyn-embers`,
-cleared each frame, 1 × 1 when idle); style A thrown out of the card's sides, style B a shower down through it and out
-of its bottom (`SPARKS`; the review page's `&sparks=a|b`, B by default)
-[ASSUMED: the band's width and brightness, the glow and its fade, the embers tuned to the user's descriptions, not yet
-OK'd]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
+glitter (`makeSparks`, the user's "particle effects that runs with the border", "fall out of the card itself" and, of
+2026-11-23, "the glitter/sparkling shape", "dies faster and spawn less", "B … but having a bit of A"): four-ray
+sparkle stars, white with mint-cyan rays, twinkling, born where the mask reads the glow's leading edge over the old
+picture, painted normally so the white glow does not swallow them; most fall under gravity down through the card and
+out of its bottom, `sideShare` of them are thrown out of its sides, all on one page-wide layer over everything
+(`.dyn-embers`, cleared each frame, 1 × 1 when idle; `SPARKS`)
+[ASSUMED: the band's width and brightness, the glow and its fade, the glitter tuned to the user's descriptions, not yet
+OK'd]. The border's look is one of `GLOW_STYLES` (the user, 2026-11-23: the white glow "drowns out any particle
+effect"; proposals for the user's pick, the review page's `&glow=0…4`, 0 the one above): 1 a thin white edge in a teal
+halo with a short trail and no wash, 2 the old picture dimmed for 0.35 s before a softer white sweep, 3 a teal band with
+a white core and a teal wash (white glitter), 4 a burning orange edge that chars the picture ahead of it (ember glitter)
+[ASSUMED: proposals, not yet chosen]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
 the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); while they play, every card's dissolve
 and bloom are drawn in one GL pass a frame (`batchDissolve` / `batchBloom` / `flushBatch`, tiles in one canvas); a card
 that gave up shows `data-dyn="kept"`; the cards go

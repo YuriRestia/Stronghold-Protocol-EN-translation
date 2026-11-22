@@ -340,12 +340,12 @@ test('the border\'s sweep: slower than the official drive, starting just before 
   for (let s = 0; s < FLIP_SWEEP_S; s += FLIP_SWEEP_S / 20) assert.ok(sweepDrive(s + FLIP_SWEEP_S / 20) > sweepDrive(s));
 });
 
-test('embers live in page coordinates and fall: they keep moving and run out once births stop', () => {
-  for (const style of ['A', 'B']) {
-    const sp = makeSparks(style);
-    // no mask loaded in Node: no births, and stepping an empty list is harmless
-    sp.step(0.016, 0.5, true, { left: 100, top: 50, width: 200, height: 300 });
-    assert.equal(sp.count, 0);
-    assert.ok(SPARKS[style].gravity > 0 && SPARKS[style].max > 0, style);
-  }
+test('the glitter: mostly falling, some thrown out of the sides, short-lived and few', () => {
+  const sp = makeSparks();
+  // no mask loaded in Node: no births, and stepping an empty list is harmless
+  sp.step(0.016, 0.5, true, { left: 100, top: 50, width: 200, height: 300 });
+  assert.equal(sp.count, 0);
+  assert.ok(SPARKS.gravity > 0 && SPARKS.max > 0);
+  assert.ok(SPARKS.sideShare > 0 && SPARKS.sideShare < 0.5, 'mostly the shower (B), a bit of the side throw (A)');
+  assert.ok(SPARKS.life[1] < 0.9 && SPARKS.max <= 60, 'dies fast and spawns little (the user, 2026-11-23)');
 });

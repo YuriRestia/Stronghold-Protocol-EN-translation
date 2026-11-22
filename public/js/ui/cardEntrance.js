@@ -416,6 +416,33 @@ export const BLOOM = Object.freeze({ width: 0.2, band: 1, glow: 0.8, fadeS: 0.5 
 let bloomMask = null;
 
 /**
+ * The border glow's looks, for the user to choose from (2026-11-23: "the border glow and white glow of the card … just
+ * drowns out any particle effect"; the review page's `&glow=0…4`, 0 the current one). Bands are in mask units around
+ * the dissolve's edge (`lo` … `hi`, ramping over `soft`, `color` rgb, `a` alpha); `glow` the wash over what the edge
+ * passed (none: only the bands), faded over `fadeS` once the picture is gone; `dim` darkens the old picture to `to`
+ * over `s` seconds before the sweep starts; `char` darkens the old picture just ahead of the edge (a burn); `spark` the
+ * glitter's palette.
+ */
+const WHITE = [1, 1, 1], TEAL = [0.15, 0.8, 0.75];
+export const GLOW_STYLES = Object.freeze({ // [ASSUMED: proposals for the user's pick of 2026-11-23, not yet chosen]
+  0: { glow: { a: 0.8, color: WHITE }, fadeS: 0.5, bands: [{ lo: -0.2, hi: 0.2, soft: 0.2, color: WHITE, a: 1 }], spark: 'teal' },
+  1: { glow: null, fadeS: 0.25, spark: 'teal', bands: [
+    { lo: -0.3, hi: 0, soft: 0.17, color: [0.35, 0.85, 0.8], a: 0.45 },
+    { lo: -0.13, hi: 0.1, soft: 0.09, color: TEAL, a: 0.9 },
+    { lo: -0.035, hi: 0.035, soft: 0.035, color: WHITE, a: 1 }] },
+  2: { dim: { to: 0.45, s: 0.35 }, glow: { a: 0.3, color: WHITE }, fadeS: 0.35, spark: 'teal', bands: [
+    { lo: -0.16, hi: 0.16, soft: 0.16, color: WHITE, a: 1 }] },
+  3: { glow: { a: 0.4, color: [0.2, 0.72, 0.68] }, fadeS: 0.5, spark: 'white', bands: [
+    { lo: -0.22, hi: 0.2, soft: 0.2, color: TEAL, a: 1 },
+    { lo: -0.04, hi: 0.04, soft: 0.04, color: WHITE, a: 1 }] },
+  4: { char: { lo: 0, hi: 0.2, soft: 0.1, a: 0.92 }, glow: null, fadeS: 0.2, spark: 'ember', bands: [
+    { lo: -0.07, hi: 0.06, soft: 0.06, color: [1, 0.38, 0.06], a: 1 },
+    { lo: -0.02, hi: 0.025, soft: 0.025, color: [1, 0.88, 0.55], a: 1 }] },
+});
+/** The glow's look now (the review page's choice, else the current one). */
+export function glowStyle() { return GLOW_STYLES[globalThis.__dynGlow] || GLOW_STYLES[0]; }
+
+/**
  * Draw the bloom into the 2D canvas `target` (w × h device px), premultiplied and additive (the canvas composites with
  * `mix-blend-mode: plus-lighter`): `k` the dissolve's progress 0 … 1 (drawDissolve's drive), `glow` the glow's alpha
  * now, `band` the band's. The dissolve keeps the picture where the mask d > 2k − 1, its edge (half alpha) at
@@ -429,24 +456,28 @@ export function drawBloom(target, k, glow, band, w, h) {
 function tileBloom(it) {
   const tm = bloomMask ? textures.get(`${bloomMask}|false`) : null;
   if (!tm || tm.then) return false;
-  const edge = 2 * it.k - 0.75, bw = BLOOM.width;
-  // the shader's threshold is drive × 2 − 1: mask 1 = smoothstep((d − c1) / bw) with c1 = edge − bw (on above the
-  // edge… below it fades); mask 2 (inverted d) = smoothstep(((1 − d) − c2) / bw) with c2 = 1 − (edge + bw): on below the edge
-  const r = (edge - bw + 1) / 2, g = (1 - (edge + bw) + 1) / 2;
+  const edge = 2 * it.k - 0.75, S = glowStyle();
   gl.blendFunc(gl.ONE, gl.ONE);
-  const pass = (d1, alpha) => {
-    if (!(alpha > 0)) return;
-    // main texture white; mask 1 the noise (the band) or white (the glow: always on); mask 2 the noise, inverted
-    bindTex(0, null, loc.u_main); bindTex(1, d1, loc.u_d1); bindTex(2, tm.tex, loc.u_d2);
-    gl.uniform4fv(loc.u_vcol, [d1 ? r : 0, g, 0, alpha]);
-    gl.uniform4fv(loc.u_st1, [1, 1, 0, 0]); gl.uniform4fv(loc.u_st2, [1, 1, 0, 0]);
-    gl.uniform3fv(loc.u_color, [1, 1, 1]);
-    for (const [u, val] of [['u_ic', 1], ['u_ci', 1], ['u_c1', -1], ['u_s1', bw], ['u_r1', 0], ['u_c2', -1], ['u_s2', bw], ['u_r2', 1], ['u_add', 1]]) gl.uniform1f(loc[u], val);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-  };
-  pass(null, it.glow);
-  pass(tm.tex, it.band);
+  if (S.glow) maskPass(tm, null, -2, edge + BLOOM.width, BLOOM.width, S.glow.color, S.glow.a * it.glow);
+  for (const b of S.bands) maskPass(tm, tm.tex, edge + b.lo, edge + b.hi, b.soft, b.color, b.a * it.band);
   return true;
+}
+
+/**
+ * One additive pass of the shader through the mask: on where the mask's d is above `lo` and below `hi`, ramping over
+ * `soft` at both ends. The shader's threshold is drive × 2 − 1: mask 1 = smoothstep((d − c1) / soft) with c1 = lo (on
+ * above it); mask 2 (inverted d) = smoothstep(((1 − d) − c2) / soft) with c2 = 1 − hi (on below hi). `d1` null: mask 1
+ * white, always on (the glow over everything the edge passed).
+ */
+function maskPass(tm, d1, lo, hi, soft, color, alpha) {
+  if (!(alpha > 0)) return;
+  // main texture white; mask 1 the noise or white; mask 2 the noise, inverted
+  bindTex(0, null, loc.u_main); bindTex(1, d1, loc.u_d1); bindTex(2, tm.tex, loc.u_d2);
+  gl.uniform4fv(loc.u_vcol, [d1 ? (lo + 1) / 2 : 0, (2 - hi) / 2, 0, alpha]);
+  gl.uniform4fv(loc.u_st1, [1, 1, 0, 0]); gl.uniform4fv(loc.u_st2, [1, 1, 0, 0]);
+  gl.uniform3fv(loc.u_color, color);
+  for (const [u, val] of [['u_ic', 1], ['u_ci', 1], ['u_c1', -1], ['u_s1', soft], ['u_r1', 0], ['u_c2', -1], ['u_s2', soft], ['u_r2', 1], ['u_add', 1]]) gl.uniform1f(loc[u], val);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
 
 function bindTex(unit, t2, u) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u, unit); }
@@ -457,8 +488,8 @@ function bindTex(unit, t2, u) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTex
 // card's tiles into the canvas, draws them in one pass (a viewport and scissor per tile), then copies each tile out.
 const queue = [];
 /** Queue a card's dissolve frame (drawDissolve's arguments) for flushBatch. */
-export function batchDissolve(target, pic, drive, w, h) {
-  queue.push({ kind: 'dissolve', target, pic, drive, W: Math.max(1, Math.round(w)), H: Math.max(1, Math.round(h)) });
+export function batchDissolve(target, pic, drive, w, h, dim = 1) {
+  queue.push({ kind: 'dissolve', target, pic, drive, dim, W: Math.max(1, Math.round(w)), H: Math.max(1, Math.round(h)) });
 }
 /** Queue a card's bloom frame (drawBloom's arguments) for flushBatch. */
 export function batchBloom(target, k, glow, band, w, h) {
@@ -515,19 +546,21 @@ function flushTiles(items) {
 // old and new in the glow … Currently it looks too bland and 'clean'") -------------------------------------------------
 
 /**
- * Embers that fall out of the card (the user, 2026-11-22: "I expected it to fall out of the card itself, and currently
- * it's swallowed up in the glow"), drawn on one page-wide layer over everything, so they leave the card, as warm embers
- * painted normally (not added: an added spark is lost in the white glow). Born on the glow's leading edge, where the
- * mask reads `lead` past the dissolve's edge, over the old picture. Two styles to choose from:
- *   A, out of the sides: born near the card's left and right edges, thrown outward and up, then falling;
- *   B, an ember shower: born all along the border, falling down through the card and out of its bottom.
- * `rate` births per second per card while the border moves, `life` s / `size` CSS px ranges, `vx` / `vy` CSS px per
- * second at birth (A: `vx` outward), `gravity` CSS px/s², `side` (A) the share of the card's width at each edge births
- * keep to, `near` how close to the birth line's value a point must read, `max` live embers per card.
+ * Glitter that falls out of the card (the user, 2026-11-22: "I expected it to fall out of the card itself, and currently
+ * it's swallowed up in the glow"; 2026-11-23: "a star … the glitter/sparkling shape", "a better color", "dies faster and
+ * spawn less", "B looks better, but having a bit of A would make it better"), drawn on one page-wide layer over
+ * everything, so it leaves the card, painted normally (not added: an added spark is lost in the white glow). Born on the
+ * glow's leading edge, where the mask reads `lead` past the dissolve's edge, over the old picture. Most fall down through
+ * the card and out of its bottom (B); `sideShare` of them are born near the card's left and right edges (`side`, the
+ * share of the width) and thrown outward and up (A: `sideVx` outward, `sideVy`). `rate` births per second per card
+ * while the border moves, `life` s / `size` (the star's ray, a share of the card's height: the co-op rooms' wide cards
+ * are 2–3 × the tall ones) ranges, `vx` / `vy` CSS px per second at birth, `gravity` CSS px/s², `twinkle` the flicker's
+ * rate (Hz), `near` how close to the birth line's value a point must read, `max` live stars per card.
  */
-export const SPARKS = Object.freeze({ // [ASSUMED: tuned to the user's descriptions of 2026-11-22, not yet OK'd on the clip]
-  A: { rate: 110, life: [0.7, 1.3], size: [2, 4.5], vx: [150, 420], vy: [-320, -80], gravity: 1100, side: 0.16, near: 0.05, lead: 0.2, max: 160 },
-  B: { rate: 130, life: [0.9, 1.5], size: [1.8, 4], vx: [-60, 60], vy: [-40, 90], gravity: 700, near: 0.04, lead: 0.2, max: 180 },
+export const SPARKS = Object.freeze({ // [ASSUMED: tuned to the user's descriptions of 2026-11-22/23, not yet OK'd on the clip]
+  rate: 38, life: [0.35, 0.7], size: [0.025, 0.05], vx: [-50, 50], vy: [-30, 80], gravity: 650,
+  sideShare: 0.3, side: 0.16, sideVx: [140, 360], sideVy: [-280, -90],
+  twinkle: [6, 11], near: 0.04, lead: 0.2, max: 45,
 });
 
 /** The dissolve mask's red channel on the CPU, top row first (texture rows are uploaded flipped: row = y / H of the box). */
@@ -549,24 +582,50 @@ function maskPixels(url) {
 /** The dissolve edge's mask value at progress k (drawBloom, drawDissolve: half alpha at d = 2k − 0.75). */
 export const edgeOf = (k) => 2 * k - 0.75;
 
-let dot = null;
-/** An ember: a pale core, gold, an orange rim fading out (painted over: visible on the white glow and the dark room). */
-function sparkDot() {
-  if (dot || typeof OffscreenCanvas !== 'function') return dot;
-  const c = new OffscreenCanvas(32, 32), g = c.getContext('2d');
-  const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
-  grad.addColorStop(0, 'rgba(255,250,228,1)'); grad.addColorStop(0.3, 'rgba(255,206,112,0.95)'); grad.addColorStop(0.65, 'rgba(255,150,52,0.4)'); grad.addColorStop(1, 'rgba(255,120,30,0)');
-  g.fillStyle = grad; g.fillRect(0, 0, 32, 32);
-  return (dot = c);
+const stars = new Map();
+const STAR_PX = 64;
+/** The glitter's palettes (GLOW_STYLES spark): its halo and its rays' stops past the white core. */
+const SPARK_PALETTES = {
+  teal: { halo: ['rgba(60,215,195,0.7)', 'rgba(40,190,180,0.3)', 'rgba(30,170,165,0)'], rays: ['190,255,240', '50,205,190', '25,160,160'] },
+  white: { halo: ['rgba(235,245,255,0.75)', 'rgba(200,225,255,0.3)', 'rgba(190,215,255,0)'], rays: ['250,252,255', '215,232,255', '180,205,255'] },
+  ember: { halo: ['rgba(255,170,60,0.7)', 'rgba(255,120,30,0.3)', 'rgba(240,90,20,0)'], rays: ['255,240,200', '255,170,60', '235,90,20'] },
+};
+/**
+ * A glitter star: four thin pinched rays (a sparkle, not a five-pointed star) and a shorter diagonal pair, a white core,
+ * the rays mint-cyan deepening to teal at the tips (the cards' teal; painted over, so they read on the white glow too)
+ * and a teal halo.
+ */
+function sparkStar(palette = 'teal') {
+  if (stars.has(palette) || typeof OffscreenCanvas !== 'function') return stars.get(palette) || null;
+  const P = SPARK_PALETTES[palette] || SPARK_PALETTES.teal;
+  const c = new OffscreenCanvas(STAR_PX, STAR_PX), g = c.getContext('2d'), m = STAR_PX / 2;
+  const halo = g.createRadialGradient(m, m, 0, m, m, m * 0.5);
+  halo.addColorStop(0, P.halo[0]); halo.addColorStop(0.5, P.halo[1]); halo.addColorStop(1, P.halo[2]);
+  g.fillStyle = halo; g.fillRect(0, 0, STAR_PX, STAR_PX);
+  // a ray pair: tips at `len` on both axes, the sides pinched in to `waist` (quadratic curves through the centre's side)
+  const rays = (len, waist, rot, alpha) => {
+    g.save(); g.translate(m, m); g.rotate(rot);
+    const fill = g.createRadialGradient(0, 0, 0, 0, 0, len);
+    fill.addColorStop(0, `rgba(255,255,255,${alpha})`); fill.addColorStop(0.22, `rgba(${P.rays[0]},${alpha})`);
+    fill.addColorStop(0.6, `rgba(${P.rays[1]},${alpha * 0.95})`); fill.addColorStop(1, `rgba(${P.rays[2]},0)`);
+    g.fillStyle = fill;
+    g.beginPath(); g.moveTo(0, -len);
+    g.quadraticCurveTo(waist, -waist, len, 0); g.quadraticCurveTo(waist, waist, 0, len);
+    g.quadraticCurveTo(-waist, waist, -len, 0); g.quadraticCurveTo(-waist, -waist, 0, -len);
+    g.fill(); g.restore();
+  };
+  rays(m * 0.98, m * 0.07, 0, 1);
+  rays(m * 0.5, m * 0.06, Math.PI / 4, 0.8);
+  stars.set(palette, c);
+  return c;
 }
 
 /**
- * A card's embers in page coordinates: `step` them by dt s with the border at progress k (births only while `born`) over
- * the card's box `{ left, top, width, height }` (CSS px), `draw` them on the page-wide layer (device px = CSS × dpr).
- * @param {'A'|'B'} style
+ * A card's glitter in page coordinates: `step` it by dt s with the border at progress k (births only while `born`) over
+ * the card's box `{ left, top, width, height }` (CSS px), `draw` it on the page-wide layer (device px = CSS × dpr).
  */
-export function makeSparks(style = 'B') {
-  const P = SPARKS[style] || SPARKS.B;
+export function makeSparks(palette = glowStyle().spark) {
+  const P = SPARKS;
   const list = [];
   let acc = 0;
   const rnd = (a) => a[0] + Math.random() * (a[1] - a[0]);
@@ -583,26 +642,34 @@ export function makeSparks(style = 'B') {
       if (e < -P.near || e > 1 + P.near) return;
       acc += P.rate * dt;
       for (let tries = 0; acc >= 1 && tries < 400 && list.length < P.max; tries++) {
+        const thrown = Math.random() < P.sideShare;
         let x = Math.random();
-        if (style === 'A') x = x < 0.5 ? x * 2 * P.side : 1 - (x - 0.5) * 2 * P.side;
+        if (thrown) x = x < 0.5 ? x * 2 * P.side : 1 - (x - 0.5) * 2 * P.side;
         const y = Math.random();
         const d = maskPx.r[Math.min(maskPx.h - 1, (y * maskPx.h) | 0) * maskPx.w + Math.min(maskPx.w - 1, (x * maskPx.w) | 0)] / 255;
         if (Math.abs(d - e) > P.near) continue;
-        const vx = style === 'A' ? (x < 0.5 ? -1 : 1) * rnd(P.vx) : rnd(P.vx);
-        list.push({ x: box.left + x * box.width, y: box.top + y * box.height, vx, vy: rnd(P.vy), age: 0, life: rnd(P.life), size: rnd(P.size) });
+        const vx = thrown ? (x < 0.5 ? -1 : 1) * rnd(P.sideVx) : rnd(P.vx);
+        list.push({ x: box.left + x * box.width, y: box.top + y * box.height, vx, vy: rnd(thrown ? P.sideVy : P.vy), age: 0,
+          life: rnd(P.life), size: rnd(P.size) * box.height, rot: Math.random() * Math.PI / 2, spin: (Math.random() - 0.5) * 3, tw: rnd(P.twinkle) * 2 * Math.PI, ph: Math.random() * 6.3 });
         acc -= 1;
       }
       if (acc > 1) acc = 1;
     },
     draw(ctx, dpr) {
-      const img = sparkDot();
+      const img = sparkStar(palette);
       if (!img || !list.length) return;
       for (const s of list) {
         const t = s.age / s.life;
-        const r = s.size * dpr * (1 - 0.4 * t);
-        ctx.globalAlpha = 1 - t * t;
-        ctx.drawImage(img, s.x * dpr - r * 2, s.y * dpr - r * 2, r * 4, r * 4);
+        // a quick flare in, a twinkle, then shrinking out
+        const flick = 0.75 + 0.25 * Math.sin(s.ph + s.age * s.tw);
+        const r = s.size * dpr * Math.min(1, t * 8) * (1 - 0.6 * t) * flick;
+        if (r < 0.3) continue;
+        ctx.globalAlpha = (1 - t * t) * (0.8 + 0.2 * flick);
+        const a = s.rot + s.spin * s.age, cs = Math.cos(a), sn = Math.sin(a);
+        ctx.setTransform(cs, sn, -sn, cs, s.x * dpr, s.y * dpr);
+        ctx.drawImage(img, -r, -r, 2 * r, 2 * r);
       }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
     },
   };
@@ -657,9 +724,21 @@ function tileDissolve(it) {
   // vertex colour: r drives mask 1; g 0 keeps mask 2 (white) whole (threshold −1)
   gl.uniform4fv(loc.u_vcol, [Math.max(0, Math.min(1, it.drive)), 0, 1, 1]);
   gl.uniform4fv(loc.u_st1, m.st1); gl.uniform4fv(loc.u_st2, m.st2);
-  gl.uniform3fv(loc.u_color, m.col);
+  // the glow look's dim (darkens the old picture: its colour, premultiplied, times the factor)
+  const dim = it.dim > 0 && it.dim < 1 ? it.dim : 1;
+  gl.uniform3fv(loc.u_color, m.col.map((c) => c * dim));
   for (const [u, val] of [['u_ic', m.ic], ['u_ci', m.ci], ['u_c1', m.c1], ['u_s1', m.s1], ['u_r1', m.r1], ['u_c2', m.c2], ['u_s2', m.s2], ['u_r2', m.r2], ['u_add', 0]]) gl.uniform1f(loc[u], val);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
+  // the burn look: the old picture darkened just ahead of the edge (its colour times 1 − the pass, alpha kept)
+  const ch = glowStyle().char;
+  if (ch && bloomMask && it.drive > 0) {
+    const bt = textures.get(`${bloomMask}|false`);
+    if (bt && !bt.then) {
+      const edge = 2 * it.drive - 0.75;
+      gl.blendFuncSeparate(gl.ZERO, gl.ONE_MINUS_SRC_COLOR, gl.ZERO, gl.ONE);
+      maskPass(bt, bt.tex, edge + ch.lo, edge + ch.hi, ch.soft, WHITE, ch.a);
+    }
+  }
   return true;
 }
 
