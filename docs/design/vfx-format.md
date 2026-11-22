@@ -1952,7 +1952,7 @@ client's pixels as stored; seconds; Unity's frames (§33.2).
 | file | content |
 |---|---|
 | `illust.json` | the index below |
-| `<stem>.skel` or `<stem>.json` | the skeleton TextAsset as stored: binary 3.8, or Spine JSON (Pepe's E2 art, O6) |
+| `<stem>.skel` or `<stem>.json` | the skeleton TextAsset as stored: binary 3.8, or Spine JSON (4 of the 98: `char_4058_pepe_2` — Pepe's E2 art, O6 —, `char_4058_pepe_sightseer#2`, `char_1016_agoat2_epoque#34`, `char_1020_reed2_summer#17`); all 3.8.99. Of the 98, 2 use `DynIllustSpecial` (`char_1045_svash2_sale#20`, `char_1041_angel2_iteration#6`) and none a SkeletonGraphic |
 | `<stem>.atlas` | the atlas text, `size:` per page, no `pma` (`normalize_atlas`, §13) |
 | `p/<page>.webp`, `p/half/<page>.webp` | atlas pages as stored: the RGB unchanged, A from the `[alpha]` texture (`merge_alpha`); WebP lossy q90, alpha 100, `exact` (the RGB under A = 0 kept); half = exactly w/2 × h/2 |
 | `fx.json` | the effect layer: one §33.4 descriptor of the whole prefab tree, holder effects included (root = node 0 = the skeleton's node; its Spine renderers are drawn from `spine`, not as effect renderers) |
@@ -1985,11 +1985,18 @@ the `dynillust` group; a keyed or sharded run replaces only its own entries.
   bundle: 'arts/dynchars/<key>.ab', client (CN client version), files: { rel: { hash, bytes } },
   bytes: { full, half }                       sum of what the full / half tier downloads
   spine: Spine, framing: Framing, actions: Actions,
-  fx: { file: 'fx.json', textures: { key: Texture }, meshes: { key: Mesh }, paths: { 'a/b/c': node } } }
+  fx: { file: 'fx.json', textures: { key: Texture }, meshes: { key: Mesh }, paths: { 'a/b/c': node }, posWS: [node] } }
 ```
 
 `fx.textures` / `fx.meshes` are §33.8 / §33.9 entries with paths relative to `<dir>`; `fx.paths` maps a node's path
-(GameObject names from the root, `/`-joined; the root is `''`) to its id, the first node when names repeat.
+(GameObject names from the root, `/`-joined; the root is `''`) to its id, the first node when names repeat. Three
+additions to the §33 files, in the illustrations only (the battle effects' files stay as they are):
+
+| addition | content | official source |
+|---|---|---|
+| mesh `tangents?` | `[x, y, z, w, …]`, 4 floats per vertex, next to `normals` (Particles-Poker-Reflect normal-maps with them, its `uv1` as before) | the Mesh's tangent channel |
+| cube texture | a Cubemap a material uses (`_CubeMap` of Particles-Poker-Reflect, Lee's Trust Your Eyes) is one image of its 6 faces side by side in Unity's face order `+X −X +Y −Y +Z −Z`, each face decoded as a Texture2D (rows top-down); its entry adds `cube: true`, `faces`, and `w` / `h` are one face's size; no half copy. Before, such a slot was `tex: null` | `Cubemap` (`m_ImageCount` 6), the material's `m_TexEnvs` |
+| `fx.posWS` | the nodes carrying `Torappu.Fx.FxGetParticleSystemPosWS`: it sets `_ParticleSystemPositionWS` to the system's world position, which the GrabPass shaders read in `_DirMode` 2; 11 of the 98 have some | [src: official dump.cs FxGetParticleSystemPosWS] |
 
 **Spine** (the skeleton renderer `DynIllust._skeleton` on node 0 — a SkeletonAnimation, or a SkeletonGraphic, whose mesh
 settings sit under `meshGenerator.settings` — and its SkeletonDataAsset):
@@ -2036,7 +2043,7 @@ AutoChessSettleGameTeamPlayerCardView._RenderIllust 0x28E17E9; notes dev50-l2d-o
 | `animators: [{ node, controller, parameters, layers }]` | the Animator's state machine, below | `_animators[]` and their AnimatorControllers |
 | `fixFxDelay`, `animTimeFixed` | bool | `_fixFxDelay`, `_animTimeFixed` |
 | `extraTracks: [{ track, animation }]` | Spine track ≥ 2 | `_extraTrackAnimations` (`EXTRA_TRACK_START_INDEX` = 2) |
-| `cameraShakes: [{ node, …fields }]` | the behaviour's own scalar fields as stored (delay, duration, strength, vibrato, randomness, fadeOut) | `FxDynIllustCameraShake` on that node |
+| `cameraShakes: [{ node, enabled, trigs: [{ delay, duration, strength: [x, y, z], vibrato, randomness, fadeOut }] }]` | s, Unity units, as stored; 1 of the 98 has one (Hoshiguma the Breacher's E2 art: 4) | `FxDynIllustCameraShake._shakeTrigs` on that node |
 
 An animator entry: `parameters: [{ name, type ('trigger' | 'bool' | 'float' | 'int'), default }]`; `layers: [{
 defaultState, states: [{ name, clip (index into fx.json clips | null), speed, transitions: [Transition] }],
@@ -2049,8 +2056,10 @@ hasExitTime, conditions: [{ mode ('if' | 'ifNot' | 'greater' | 'less' | 'equals'
 
 ```
 dynIllustKey(charId, skinId | null) → key | null    the dynillust group of data/local-assets.json; skinId null = the
-                                                    E2 art, the entry whose skinId is `<charId>#2`
+                                                    E2 art, the entry whose skinId is `<charId>#2`; null until that
+                                                    file is loaded: await Stage.index() first
 getDynIllustStage() → Stage                         one per page, made on first use: one WebGL context, offscreen
+Stage.index() → Promise<void>                       settles once data/local-assets.json is loaded (dynIllustKey's input)
 Stage.quality = 'full' | 'half'                     set from the D7 setting before preload
 Stage.preload(keys) → Promise<void>                 D10: download, decode, build, upload, warm; started when the final
                                                     battle ends (m.public `ending`) or a room opens; settles when every
@@ -2069,17 +2078,22 @@ Card.unmount()
 Skin ids: the 26 E2 illustrations of the CN skin table are all `<charId>#2`; no `#1` (default) skin has one
 [src: official skin_table.json, gamedata@17759cc8 charSkins dynIllustId]. The stage renders each illustration offscreen
 and copies its region into `Card.canvas` every drawn frame, as the client renders each illustration by its own camera
-into a render texture [src: official dump.cs DynIllustMgr RT_WIDTH, RT_HEIGHT]; how (and its measured cost for 8 cards)
-is the renderer's (WP2). One key mounted on several cards is drawn once (spec §4.3); a hidden page or a canvas out of
-view pauses its card and frees its slot.
+into a render texture [src: official dump.cs DynIllustMgr RT_WIDTH, RT_HEIGHT]. As built (WP2): one offscreen WebGL
+context and a `drawImage` copy into each card's canvas, 0.1 ms median / 0.3 ms p95 a frame for 8 cards [src: Dev 50's
+measurement, 2026-11-22]. One key mounted on several cards is drawn once (spec §4.3); a hidden page or a canvas out of
+view pauses its card and frees its slot. A screen awaits `getDynIllustStage().index()` before it calls
+`dynIllustKey`.
 
 | `Card.state` | meaning | the caller |
 |---|---|---|
-| `loading` | not drawable yet; `Card.canvas` transparent | shows its 2D art |
-| `ready` | drawable, `start()` not called; canvas transparent | shows its 2D art |
-| `live` | drawn at alpha 1, looping `Idle` and the action flow (WP3) | hides its 2D art |
-| `failed` | will not draw (missing file, decode or GL error) | keeps its 2D art; may drop the card |
-| `unmounted` | `unmount()` was called | — |
+| `loading` | not drawable yet; `Card.canvas` at opacity 0 | shows its 2D art |
+| `ready` | preloaded and drawable, `start()` not called; canvas at opacity 0 | shows its 2D art |
+| `live` | canvas at opacity 1, looping `Idle` and the action flow (WP3) | hides its 2D art |
+| `failed` | never drawable (missing file, decode or GL error) | keeps its 2D art; may drop the card |
+| `unmounted` | after `unmount()` | — |
+
+Transitions: `loading` → `ready` (preloaded); `ready` → `live` on `start()`; `start()` while `loading` keeps
+`loading` until ready, then the 0.15 s fade, then `live`; `loading` → `failed`; any → `unmounted`.
 
 `start()` on a `ready` card: alpha 1 at once and straight into looping `Idle`, no fade and no `Start` — the official
 card activates with `SafeActivate(fastMode: true)`, which sets alpha 1 and goes to Idle (O1, the user's decision of
