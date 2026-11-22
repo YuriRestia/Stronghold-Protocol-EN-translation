@@ -1505,7 +1505,7 @@
 /* the dissolve (ui/dynCards.js FLIP_DISSOLVE_S, cardEntrance.js drawDissolve): the 2D art redrawn on a canvas over the
    illustration, which shows at once behind it; the 2D art itself hides at once */
 .dyn-art__dissolve { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; }
-/* the official card's white wash over the illustration as it appears (cardEntrance.js drawWash): additive */
+/* the white bloom on the dissolve's edge and its glow (cardEntrance.js drawBloom): additive */
 .dyn-art__wash { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; mix-blend-mode: plus-lighter; }
 .dyn-art--dissolve.is-live .dyn-art__live, .dyn-art--dissolve.is-live .dyn-art__bg { animation: none; }
 .dyn-art--dissolve.is-live .dyn-art__still > * { transition: none; }

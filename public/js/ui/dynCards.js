@@ -28,7 +28,7 @@ import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
-import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, drawWash, ANIM_DELAY_S } from './cardEntrance.js';
+import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, drawBloom, BLOOM, ANIM_DELAY_S } from './cardEntrance.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -308,7 +308,7 @@ export function endResultLoad() {
  * L2D", the user, 2026-11-22). A card that swaps alone waits for its own smooth frames the same way.
  */
 export const FLIP_FADE_S = 0.15; // the fallback without the dissolve: the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
-export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x1495060]; also the white wash's span (cardEntrance.js WASH_S)
+export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x1495060]
 /** The stagger between the group's cards: the result row's step [src: ui/cardEntrance.js ANIM_DELAY_S, official _animDelay]. */
 export const FLIP_STEP_S = ANIM_DELAY_S;
 export const GROUP_CAP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — 8 s covers a typical PC's cold Grand Alliance load, 4.9–5.3 s measured at 1080p]
@@ -523,8 +523,8 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       setReveal('dissolve');
       setCovered(true);
     };
-    // the show, `delay` ms from now (the group's stagger): the 2D art dissolves away and the official card's white wash
-    // sweeps over the card (drawWash, its own canvas, added with plus-lighter), both over FLIP_DISSOLVE_S
+    // the show, `delay` ms from now (the group's stagger): the 2D art dissolves away over FLIP_DISSOLVE_S with a white
+    // bloom on its edge and a glow behind it that fades after (cardEntrance.js drawBloom, its own canvas, plus-lighter)
     const showNow = (delay = 0) => {
       const cv = dis.current, wc = wash.current;
       const size = isCovered && cv ? compose() : null;
@@ -534,19 +534,20 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
         if (drawnKey === picKey || drawDissolve(cv, pic, 0, W, H)) {
           setShown(true);
           const t0 = performance.now() + Math.max(0, delay);
-          let washing = false;
+          let blooming = false, dissolved = false;
           const step = () => {
             raf = 0;
             if (!live) return;
             const s = (performance.now() - t0) / 1000;
             if (s >= 0) {
-              const k = s / FLIP_DISSOLVE_S;
-              drawDissolve(cv, pic, k, W, H);
-              if (wc && drawWash(wc, s, W, H) && !washing) { washing = true; wc.style.opacity = '1'; }
-              if (k >= 1) {
-                cv.style.opacity = '0'; cv.width = 1; cv.height = 1;
+              const k = Math.min(1, s / FLIP_DISSOLVE_S);
+              if (!dissolved) drawDissolve(cv, pic, k, W, H);
+              if (k >= 1 && !dissolved) { dissolved = true; cv.style.opacity = '0'; cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
+              // the bloom: a band on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
+              const glow = BLOOM.glow * (k < 1 ? 1 : Math.max(0, 1 - (s - FLIP_DISSOLVE_S) / BLOOM.fadeS));
+              if (wc && drawBloom(wc, k, glow, k < 1 ? BLOOM.band : 0, W, H) && !blooming) { blooming = true; wc.style.opacity = '1'; }
+              if (dissolved && !(glow > 0)) {
                 if (wc) { wc.style.opacity = '0'; wc.width = 1; wc.height = 1; }
-                freeDissolvePicture(pic); pic = null;
                 return;
               }
             }

@@ -453,10 +453,13 @@ official card's dissolve (the user's pick of 2026-11-22): the illustration and i
 2D art, and the art box as it shows — its background, then the 2D art at its object-fit cover crop and filter, composed
 on a canvas while the cards wait — dissolves away over
 `DYN_ILLUST_INIT_SECONDS` 0.5 s (`FLIP_DISSOLVE_S`) through the result card's own `complete_up_bg_dissolve` material and
-mask (`ui/cardEntrance.js drawDissolve`, the entrance's shader), while the official card's white wash over its
-illustration plays on top — its `color_mask` layer (additive `char_color_mask`, white at 0.282, both masks
-`img_uifx_basicmask_03`, the second inverted) on its own clip curves from 0.1667 s for 0.5 s (`drawWash`, a canvas with
-`mix-blend-mode: plus-lighter`); the cards go one after another in page order, the result row's 0.083 s apart
+mask (`ui/cardEntrance.js drawDissolve`, the entrance's shader), with a white bloom on top (`drawBloom`, the same shader
+and mask, additive on a canvas with `mix-blend-mode: plus-lighter`; the user's direction of 2026-11-22: "a white bright
+bloom that moves on the boundary between old and new, … leaving the entire card artwork white glow before the glow fades
+away into the live2D"): a bright band on the dissolve's edge (the official `color_mask` layer's band construction: mask ×
+inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone
+[ASSUMED: the band's width and brightness, the glow and its fade tuned to that description, not yet OK'd]; the cards go
+one after another in page order, the result row's 0.083 s apart
 (`FLIP_STEP_S` = `_animDelay`; the user, 2026-11-22: "one player card at a time, in quick succession"). The official card
 has no switch from 2D to its illustration; this reuses its reveal. Without WebGL2, the sprites or under reduced motion,
 the 0.15 s controller fade (`FLIP_FADE_S`). A page not smooth `FLIP_GIVE_UP_MS` 3 s after the start keeps its 2D art and

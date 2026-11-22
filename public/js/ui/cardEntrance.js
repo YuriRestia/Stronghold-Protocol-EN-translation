@@ -358,51 +358,43 @@ export function drawMattes(cv, kind, t, scale, urls) {
  */
 const DISSOLVE_MAT = 'complete_up_bg_dissolve';
 
-/**
- * Load what a dissolve needs (the shader, its mask, the white wash's sprite); resolves to the mask's URL, rejects without
- * WebGL2 or a sprite.
- */
+/** Load what a dissolve needs (the shader and its mask); resolves to the mask's URL, rejects without WebGL2 or the sprite. */
 export function loadDissolve(m = data.get('assets')) {
   const mask = uiUrl(m, SPRITES[MAT[DISSOLVE_MAT].t1]);
-  const wash = uiUrl(m, SPRITES[WASH_LAYER.sprite]);
-  if (!mask || !wash) return Promise.reject(new Error('no dissolve mask or wash sprite'));
+  if (!mask) return Promise.reject(new Error('no dissolve mask'));
   if (!glInit()) return Promise.reject(new Error('no WebGL2'));
-  washUrl = wash;
-  washMask = uiUrl(m, SPRITES[MAT[WASH_LAYER.mat].t1]);
-  return Promise.all([texture(mask, false), texture(wash, false), texture(washMask, false)]).then(() => mask);
+  bloomMask = mask;
+  return texture(mask, false).then(() => mask);
 }
 
 /**
- * The white wash the official card plays over its illustration as it appears: the `color_mask` layer (additive,
- * `char_color_mask` sprite, white, alpha 0.282, both masks `img_uifx_basicmask_03`, the second inverted: a band at the
- * dissolve edge that sweeps over the character and burns out) [src: GROUPS.tail color_mask, MAT.char_color_mask,
- * SHOW_CLIP group_char_matte/color_mask], played from clip time WASH_T0 for WASH_S — the span its curves move
- * (0.1667 … 0.6667 s).
+ * The bloom on the dissolve (the user's direction of 2026-11-22: "a white bright bloom that moves on the boundary between
+ * old and new, … leaving the entire card artwork white glow before the glow fades away into the live2D already
+ * showing"): additive white through the same shader and mask as the dissolve — a band on the dissolve's edge (mask 1 ×
+ * the inverted mask 2, the official `color_mask` layer's band construction [src: MAT.char_color_mask r2 1]) and a glow
+ * over what the edge has passed, then a fade. `width` is the band's half-width in mask units, `band` / `glow` its
+ * alpha and the glow's, `fadeS` the glow's fade after the dissolve.
  */
-const WASH_LAYER = GROUPS.tail[0];
-export const WASH_T0 = 0.166667;
-export const WASH_S = 0.5;
-/** The card's illustration window (group_char: 232 × 458 at (0, −14)) the wash's rect is placed against [src: official [uc]autochessouter.ab group_char]. */
-const CHAR_WIN = { pos: [0, -14], size: [232, 458] };
-let washUrl = null, washMask = null;
+export const BLOOM = Object.freeze({ width: 0.2, band: 1, glow: 0.8, fadeS: 0.5 }); // [ASSUMED: tuned to the user's description of 2026-11-22, not yet OK'd on the clip]
+let bloomMask = null;
 
 /**
- * Draw the wash at `t` s into the dissolve (0 … WASH_S) into the 2D canvas `target` (w × h device px, the art box standing
- * for the illustration window), premultiplied and additive: the canvas composites with `mix-blend-mode: plus-lighter`.
+ * Draw the bloom into the 2D canvas `target` (w × h device px), premultiplied and additive (the canvas composites with
+ * `mix-blend-mode: plus-lighter`): `k` the dissolve's progress 0 … 1 (drawDissolve's drive), `glow` the glow's alpha
+ * now, `band` the band's. The dissolve keeps the picture where the mask d > 2k − 1, its edge (half alpha) at
+ * d = 2k − 0.75 [src: drawDissolve, DISSOLVE_MAT s1 0.5]; the band peaks there, the glow covers d below it.
  */
-export function drawWash(target, t, w, h) {
-  if (!glInit() || !washUrl || !washMask) return false;
-  const tm = textures.get(`${washMask}|false`), tw = textures.get(`${washUrl}|false`);
-  if (!tm || tm.then || !tw || tw.then) return false;
+export function drawBloom(target, k, glow, band, w, h) {
+  if (!glInit() || !bloomMask) return false;
+  const tm = textures.get(`${bloomMask}|false`);
+  if (!tm || tm.then) return false;
   const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h));
   const c = gl.canvas;
   if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
-  const st = layerState(WASH_LAYER, sampleShow(WASH_T0 + Math.max(0, Math.min(WASH_S, t))));
-  const m = MAT[WASH_LAYER.mat];
-  // the layer's rect in the window's 0–1 box (y up)
-  const wx0 = CHAR_WIN.pos[0] - CHAR_WIN.size[0] / 2, wy0 = CHAR_WIN.pos[1] - CHAR_WIN.size[1] / 2;
-  const x0 = (st.pos[0] - st.size[0] * WASH_LAYER.pivot[0] - wx0) / CHAR_WIN.size[0], x1 = x0 + st.size[0] / CHAR_WIN.size[0];
-  const y0 = (st.pos[1] - st.size[1] * WASH_LAYER.pivot[1] - wy0) / CHAR_WIN.size[1], y1 = y0 + st.size[1] / CHAR_WIN.size[1];
+  const edge = 2 * k - 0.75, bw = BLOOM.width;
+  // the shader's threshold is drive × 2 − 1: mask 1 = smoothstep((d − c1) / bw) with c1 = edge − bw (on above the
+  // edge… below it fades); mask 2 (inverted d) = smoothstep(((1 − d) − c2) / bw) with c2 = 1 − (edge + bw): on below the edge
+  const r = (edge - bw + 1) / 2, g = (1 - (edge + bw) + 1) / 2;
   gl.useProgram(prog);
   gl.viewport(0, 0, W, H);
   gl.uniform2f(loc.u_view, 1, 1);
@@ -411,18 +403,24 @@ export function drawWash(target, t, w, h) {
   gl.blendFunc(gl.ONE, gl.ONE);
   gl.clearColor(0, 0, 0, 0);
   gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([x0, y0, 0, 0, 0, 0, x1, y0, 1, 0, 1, 0, x1, y1, 1, 1, 1, 1,
-    x0, y0, 0, 0, 0, 0, x1, y1, 1, 1, 1, 1, x0, y1, 0, 1, 0, 1]), gl.STREAM_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1]), gl.STREAM_DRAW);
   gl.enableVertexAttribArray(loc.a_pos); gl.vertexAttribPointer(loc.a_pos, 2, gl.FLOAT, false, 24, 0);
   gl.enableVertexAttribArray(loc.a_uv); gl.vertexAttribPointer(loc.a_uv, 2, gl.FLOAT, false, 24, 8);
   gl.enableVertexAttribArray(loc.a_quv); gl.vertexAttribPointer(loc.a_quv, 2, gl.FLOAT, false, 24, 16);
   const bind = (unit, t2, u) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u, unit); };
-  bind(0, tw.tex, loc.u_main); bind(1, tm.tex, loc.u_d1); bind(2, tm.tex, loc.u_d2);
-  gl.uniform4fv(loc.u_vcol, st.color);
-  gl.uniform4fv(loc.u_st1, m.st1); gl.uniform4fv(loc.u_st2, m.st2);
-  gl.uniform3fv(loc.u_color, m.col);
-  for (const [u, val] of [['u_ic', m.ic], ['u_ci', m.ci], ['u_c1', m.c1], ['u_s1', m.s1], ['u_r1', m.r1], ['u_c2', m.c2], ['u_s2', m.s2], ['u_r2', m.r2], ['u_add', 1]]) gl.uniform1f(loc[u], val);
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  const pass = (d1, alpha) => {
+    if (!(alpha > 0)) return;
+    // main texture white; mask 1 the noise (the band) or white (the glow: always on); mask 2 the noise, inverted
+    bind(0, null, loc.u_main); bind(1, d1, loc.u_d1); bind(2, tm.tex, loc.u_d2);
+    gl.uniform4fv(loc.u_vcol, [d1 ? r : 0, g, 0, alpha]);
+    gl.uniform4fv(loc.u_st1, [1, 1, 0, 0]); gl.uniform4fv(loc.u_st2, [1, 1, 0, 0]);
+    gl.uniform3fv(loc.u_color, [1, 1, 1]);
+    for (const [u, val] of [['u_ic', 1], ['u_ci', 1], ['u_c1', -1], ['u_s1', bw], ['u_r1', 0], ['u_c2', -1], ['u_s2', bw], ['u_r2', 1], ['u_add', 1]]) gl.uniform1f(loc[u], val);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  };
+  pass(null, glow);
+  pass(tm.tex, band);
   if (target.width !== W || target.height !== H) { target.width = W; target.height = H; }
   const ctx = target.getContext('2d');
   ctx.clearRect(0, 0, W, H);
