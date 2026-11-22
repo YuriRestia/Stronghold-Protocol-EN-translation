@@ -434,7 +434,8 @@ player's assistant) or 阵容最强干员 (the final lineup's ace, `shared/resul
 show only on a server whose index lists illustrations. Loading (D10 / D11): nothing during the match; the result cards'
 illustrations load from m.public `ending` (META §1) through the settlement pause, and `screens/game.js` keeps the match
 screen up after RESULT until they are ready, at most `RESULT_WAIT_MS` 3 s; the room's load after the screen has what it
-needs (`loadLater.js`) and after the entry film's files; a card not ready shows its 2D art and switches when ready. The
+needs (`loadLater.js` whenScreenSettled, all the room's cards together) and after the entry film's files, the renderer's
+code getting ready during that wait; a card not ready shows its 2D art and switches when ready. The
 strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
 the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
@@ -444,7 +445,7 @@ Review (D12): `public/dev/dyn-review.html` puts every illustration of the server
 screen's team page 4 at a time, the room 4 seats, the Grand Alliance room 8 — with made-up players whose room card is that
 operator in that outfit, 动态立绘 on 所有人; PC or a landscape phone frame (half pages), page by page; review-only buttons
 play the special idle or Start now, replay the entrance, and throttle the connection (`&slow=<MB/s>`) to show the late
-switch; `__review.measure(s)` reports the frame intervals for the §7 gates and `&off` gives the 2D baseline.
+switch; `&tier=half|full` picks the page tier on any device (the half-size comparison); `__review.measure(s)` reports the frame intervals for the §7 gates and `&off` gives the 2D baseline.
 (fork) **The result card's entrance** (`ui/cardEntrance.js`, the user's go of 2026-11-22) is the client's own: the clip
 `auto_chess_settle_game_player_item_show` (25 float curves, 1.31667 s — a legacy clip runs to its last key) played once,
 linearly, after the card's place in the row × `_animDelay` 0.083 s (`_PlayShowCardAnim`, GameAssembly.dll 0x28E0C60). It

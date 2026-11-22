@@ -29,6 +29,8 @@ const DEVICE = P.get('device') === 'phone' ? 'phone' : 'pc';
 const FRAME = P.has('frame');
 const SLOW = Math.max(0, Number(P.get('slow')) || 0); // MB/s, 0 = the connection as it is
 const SHOT = P.has('shot');
+// &tier=half|full: the renderer's page tier on any device (the half-size art comparison); default as in the game
+const TIER = ['half', 'full'].includes(P.get('tier')) ? P.get('tier') : null;
 const app = document.getElementById('app');
 const bar = document.getElementById('rvbar');
 
@@ -172,6 +174,7 @@ function renderBar(target) {
     + '<span class="sep"></span>' + btn('‹ Prev', false, 'prev') + `<span>${total ? page + 1 : 0} / ${total}</span>` + btn('Next ›', false, 'next')
     + '<span class="sep"></span>' + btn('Special idle now', false, 'special') + btn('Start now', false, 'start') + btn('Replay entrance', false, 'replay')
     + btn(SLOW ? `Slow ${SLOW} MB/s` : 'Slow connection', !!SLOW, 'slow')
+    + btn(TIER === 'half' ? 'Half-size art' : 'Half-size art: off', TIER === 'half', 'tier')
     + `<span class="names">${review ? (review.pages[page] || []).map((e, i) => `${i + 1}. ${review.allNames[page]?.[i] || e.charId}`).join(' · ') : 'loading…'}</span>`;
   bar.onclick = (ev) => {
     const a = ev.target.closest('button')?.dataset.act;
@@ -181,6 +184,7 @@ function renderBar(target) {
     else if (a === 'prev') go({ page: Math.max(1, page) });
     else if (a === 'next') go({ page: Math.min(total, page + 2) });
     else if (a === 'slow') go({ slow: SLOW ? null : 1 });
+    else if (a === 'tier') go({ tier: TIER === 'half' ? null : 'half' });
     else call(a)();
   };
 }
@@ -210,7 +214,8 @@ async function boot() {
     clock: { offset: 0, rtt: 20, synced: true } });
   // 动态立绘 on every card, the result cards' default art (the room card), not saved
   settingsStore.set({ dynIllust: P.has('off') ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
-  if (FRAME) setDynQuality('half');
+  if (TIER) setDynQuality(TIER);
+  else if (FRAME) setDynQuality('half');
   // the page's language as the game picks it (?lang=, a stored choice, else English: ui/lang.js START_LANG)
   await initLang().catch((err) => console.warn('[review] language setup failed', err));
   NAMES = await fetch('/dev/dyn-review-names.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
