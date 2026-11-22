@@ -40,10 +40,11 @@
     /* the zoom / unzoomed switch above each wide card (the user, 2026-11-23) */
     .rvzoom { position: fixed; inset: 0; z-index: 190; pointer-events: none; }
     /* the hand-framing box over each wide card: drag to move, wheel to zoom, double-click to reset (the user, 2026-11-23) */
-    .rvz { position: absolute; box-sizing: border-box; pointer-events: auto; cursor: grab; touch-action: none; border: 1px dashed transparent; }
-    .rvz:hover { border-color: rgba(78, 216, 175, .55); }
-    .rvz.is-drag { cursor: grabbing; border-color: #4ed8af; }
-    .rvz label { position: absolute; top: 6px; right: 6px; display: flex; align-items: center; gap: 4px; padding: 2px 6px; background: rgba(12, 16, 14, .9); border: 1px solid #2f3a35; color: #cfd8d4; font: 600 12px/1.3 sans-serif; cursor: default; }
+    /* the box itself is invisible over the art (the user, 2026-11-23: "move that control thing outside of the artwork so I can
+       have the full view"); its controls sit on the name plate under the card */
+    .rvz { position: absolute; box-sizing: border-box; pointer-events: auto; cursor: grab; touch-action: none; }
+    .rvz.is-drag { cursor: grabbing; }
+    .rvz label { position: absolute; top: calc(100% + 4px); right: 4px; display: flex; align-items: center; gap: 4px; padding: 2px 6px; background: rgba(12, 16, 14, .9); border: 1px solid #2f3a35; color: #cfd8d4; font: 600 12px/1.3 sans-serif; cursor: default; }
     .rvz label span { color: #8fa39b; font-weight: 400; text-transform: uppercase; letter-spacing: .06em; font-size: 10px; }
     .rvz label em { font-style: normal; display: flex; align-items: center; gap: 2px; color: #4ed8af; margin-right: 4px; }
     .rvz label em input { width: auto; margin: 0; }
