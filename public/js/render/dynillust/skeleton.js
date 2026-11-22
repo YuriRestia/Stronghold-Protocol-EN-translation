@@ -277,7 +277,8 @@ export class IllustSkeleton {
 
   /** Render part `p`'s slot containers with Pixi (from inside the Spine display's render). */
   renderPart(renderer, p) {
-    if (this.gpu) { this.gpu.draw(p.from, p.to, this.spine.worldTransform, renderer.width, renderer.height); return; }
+    // `depth` (renderer.js Slot): the skeleton plane's clip z and its Spine material's ZTest / ZWrite
+    if (this.gpu) { this.gpu.draw(p.from, p.to, this.spine.worldTransform, renderer.width, renderer.height, this.depth || null); return; }
     const ch = this.spine.children;
     for (let i = p.from; i <= p.to && i < ch.length; i++) ch[i].render(renderer);
   }

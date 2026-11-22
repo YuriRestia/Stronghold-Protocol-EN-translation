@@ -111,7 +111,7 @@ export async function loadIllust(illustUrl, o = {}) {
   const spineData = res && (res.spineData || res);
   if (!spineData || !spineData.animations) throw new Error('dynillust skeleton failed ' + sp.skeleton);
   // the effect layer: its files join the library's list, then the descriptor compiles against it
-  let fxDef = null;
+  let fxDef = null, skelDepth = null;
   if (o.lib && entry.fx && entry.fx.file) {
     const lib = o.lib;
     await lib.init();
@@ -128,11 +128,23 @@ export async function loadIllust(illustUrl, o = {}) {
     const meshes = (desc.meshes || []).filter((m) => !groups.never.has(groups.mesh(m)));
     await Promise.all(meshes.map((m) => lib.loadMesh(m, entry.key || illustUrl))); // owner: library.js _limit
     fxDef = compileEffect(desc, lib);
+    skelDepth = spineDepth(desc, sp);
     // node 0 is the skeleton's node and the separator parts are its renderers: drawn from `spine`, never as effects
     const own = new Set([0, ...((sp.separator && sp.separator.parts) || []), ...((sp.renderers || []).map((r) => r.node))]);
     for (const n of own) for (const list of [fxDef.mesh, fxDef.skinned, fxDef.psr, fxDef.trail, fxDef.line]) if (list && n < list.length) list[n] = null;
   }
-  return { entry, dir, spineData, pages, fxDef };
+  return { entry, dir, spineData, pages, fxDef, skelDepth };
+}
+
+/**
+ * The skeleton material's depth state, { zTest, zWrite } (fx.json pass names), or null: its atlas material's first
+ * pass (`spine.look.material.index`, else `spine.materials[0]`, an index into fx.json `materials`). All 98: ZTest
+ * LessEqual, ZWrite Off [src: official fx.json materials of each illustration's spine.materials, passes[0]].
+ */
+export function spineDepth(desc, sp) {
+  const i = Number.isInteger(sp?.look?.material?.index) ? sp.look.material.index : sp?.materials?.[0];
+  const pass = Number.isInteger(i) ? desc?.materials?.[i]?.passes?.[0] : null;
+  return pass && pass.zTest ? { zTest: pass.zTest, zWrite: !!pass.zWrite } : null;
 }
 
 /** The renderer's entry fields from an illust.json (render/dynillust/renderer.js Slot). */

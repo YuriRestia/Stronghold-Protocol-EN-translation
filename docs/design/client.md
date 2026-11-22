@@ -210,6 +210,14 @@ history and the open points: DESIGN §32.14.25.
   so those slots blend normally), with spine-unity's vertex colours (PMA bytes, an additive slot's alpha 0). It also
   clips only while a slot shows its clipping attachment: pixi-spine kept a clip after an animation swapped it for a
   mesh and masked every later slot (Hazy Jade's eyes, brows and props: the blank face).
+  (fork, 2026-11-23) An illustration draws as the engine's forward loop does: every renderer whose material queue is
+  at most 2500 in an opaque pass first, then the rest by sorting layer, order, queue and depth
+  (`render/dynillust/renderer.js byUnityOrder`) [src: official UnityPlayer.dll 2021.3.39 game build:
+  BuildRenderObjectData `cmp ebp, 0x9c4`; DoRenderLoop's opaque then transparent DoForwardShaderRenderLoop]; the
+  skeleton, on the GPU path, sits at its root's depth and tests it as its Spine material says (all 98: ZTest
+  LessEqual, ZWrite Off; `loader.js spineDepth`), so W's Elite 2 bullets (3D/Toon, queue 2000, ZWrite On) hide it
+  where they are nearer and it hides them where they are behind it. 3D/Toon reads no vertex colour (the official
+  program's inputs: position, UV, normal), so those bullets appear and vanish without a fade, as in the game.
 - **Wiring** (`wiring.js FxWiring`, from index.json §33.12). An attack: its cast rows on the attacker — the
   ON_CAST_START ones when the attack's wind-up starts its Spine clip (`app.js onUpcoming` → `castStart`, as far into the
   effect as the clip started), the ON_SPELL_ON ones at the 'atk' event; a NONE row's first slot, a directional row's
