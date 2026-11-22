@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
   setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle, cardTier, HALF_MAX_SCALE,
-  FLIP_FADE_S, FLIP_DISSOLVE_S, FLIP_SMOOTH_MS, FLIP_SMOOTH_FRAMES, FLIP_GIVE_UP_MS, joinGroup, groupState, leaveGroup, objectPosition,
+  FLIP_FADE_S, FLIP_DISSOLVE_S, FLIP_STEP_S, FLIP_SMOOTH_MS, FLIP_SMOOTH_FRAMES, FLIP_GIVE_UP_MS, joinGroup, groupState, leaveGroup, objectPosition,
 } from '../../public/js/ui/dynCards.js';
 import { coverUv } from '../../public/js/ui/cardEntrance.js';
 
@@ -240,6 +240,23 @@ test('the group shows only after FLIP_SMOOTH_FRAMES smooth frames in a row with 
     assert.equal(started, false);
     for (const x of [...g, e]) leaveGroup(x);
     assert.equal(F.frames.size, 0);
+  } finally { F.restore(); }
+});
+
+test('the group shows one card after another in page order, the result row\'s step apart', () => {
+  const F = fakeFrames();
+  try {
+    assert.equal(FLIP_STEP_S, 0.083);
+    const shown = [];
+    // page order by a fake compareDocumentPosition: a lower index comes first (FOLLOWING = 4)
+    const el = (i) => ({ i, compareDocumentPosition: (o) => (o.i > i ? 4 : 2) });
+    const mk = (n, i) => ({ card: { start() {} }, show: (d) => shown.push([n, Math.round(d)]), state: 'loading', alone: false, el: el(i) });
+    const g = [mk('c', 2), mk('a', 0), mk('b', 1)];
+    for (const e of g) joinGroup(e);
+    for (const e of g) groupState(e, 'ready');
+    for (let i = 0; i < 4 + FLIP_SMOOTH_FRAMES; i++) F.tick();
+    assert.deepEqual(shown, [['a', 0], ['b', 83], ['c', 166]]);
+    for (const e of g) leaveGroup(e);
   } finally { F.restore(); }
 });
 

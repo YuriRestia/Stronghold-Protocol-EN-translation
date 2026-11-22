@@ -358,12 +358,76 @@ export function drawMattes(cv, kind, t, scale, urls) {
  */
 const DISSOLVE_MAT = 'complete_up_bg_dissolve';
 
-/** Load what a dissolve needs (the shader and its mask); resolves to the mask's URL, rejects without WebGL2 or the sprite. */
+/**
+ * Load what a dissolve needs (the shader, its mask, the white wash's sprite); resolves to the mask's URL, rejects without
+ * WebGL2 or a sprite.
+ */
 export function loadDissolve(m = data.get('assets')) {
   const mask = uiUrl(m, SPRITES[MAT[DISSOLVE_MAT].t1]);
-  if (!mask) return Promise.reject(new Error('no dissolve mask'));
+  const wash = uiUrl(m, SPRITES[WASH_LAYER.sprite]);
+  if (!mask || !wash) return Promise.reject(new Error('no dissolve mask or wash sprite'));
   if (!glInit()) return Promise.reject(new Error('no WebGL2'));
-  return texture(mask, false).then(() => mask);
+  washUrl = wash;
+  washMask = uiUrl(m, SPRITES[MAT[WASH_LAYER.mat].t1]);
+  return Promise.all([texture(mask, false), texture(wash, false), texture(washMask, false)]).then(() => mask);
+}
+
+/**
+ * The white wash the official card plays over its illustration as it appears: the `color_mask` layer (additive,
+ * `char_color_mask` sprite, white, alpha 0.282, both masks `img_uifx_basicmask_03`, the second inverted: a band at the
+ * dissolve edge that sweeps over the character and burns out) [src: GROUPS.tail color_mask, MAT.char_color_mask,
+ * SHOW_CLIP group_char_matte/color_mask], played from clip time WASH_T0 for WASH_S — the span its curves move
+ * (0.1667 … 0.6667 s).
+ */
+const WASH_LAYER = GROUPS.tail[0];
+export const WASH_T0 = 0.166667;
+export const WASH_S = 0.5;
+/** The card's illustration window (group_char: 232 × 458 at (0, −14)) the wash's rect is placed against [src: official [uc]autochessouter.ab group_char]. */
+const CHAR_WIN = { pos: [0, -14], size: [232, 458] };
+let washUrl = null, washMask = null;
+
+/**
+ * Draw the wash at `t` s into the dissolve (0 … WASH_S) into the 2D canvas `target` (w × h device px, the art box standing
+ * for the illustration window), premultiplied and additive: the canvas composites with `mix-blend-mode: plus-lighter`.
+ */
+export function drawWash(target, t, w, h) {
+  if (!glInit() || !washUrl || !washMask) return false;
+  const tm = textures.get(`${washMask}|false`), tw = textures.get(`${washUrl}|false`);
+  if (!tm || tm.then || !tw || tw.then) return false;
+  const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h));
+  const c = gl.canvas;
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const st = layerState(WASH_LAYER, sampleShow(WASH_T0 + Math.max(0, Math.min(WASH_S, t))));
+  const m = MAT[WASH_LAYER.mat];
+  // the layer's rect in the window's 0–1 box (y up)
+  const wx0 = CHAR_WIN.pos[0] - CHAR_WIN.size[0] / 2, wy0 = CHAR_WIN.pos[1] - CHAR_WIN.size[1] / 2;
+  const x0 = (st.pos[0] - st.size[0] * WASH_LAYER.pivot[0] - wx0) / CHAR_WIN.size[0], x1 = x0 + st.size[0] / CHAR_WIN.size[0];
+  const y0 = (st.pos[1] - st.size[1] * WASH_LAYER.pivot[1] - wy0) / CHAR_WIN.size[1], y1 = y0 + st.size[1] / CHAR_WIN.size[1];
+  gl.useProgram(prog);
+  gl.viewport(0, 0, W, H);
+  gl.uniform2f(loc.u_view, 1, 1);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([x0, y0, 0, 0, 0, 0, x1, y0, 1, 0, 1, 0, x1, y1, 1, 1, 1, 1,
+    x0, y0, 0, 0, 0, 0, x1, y1, 1, 1, 1, 1, x0, y1, 0, 1, 0, 1]), gl.STREAM_DRAW);
+  gl.enableVertexAttribArray(loc.a_pos); gl.vertexAttribPointer(loc.a_pos, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(loc.a_uv); gl.vertexAttribPointer(loc.a_uv, 2, gl.FLOAT, false, 24, 8);
+  gl.enableVertexAttribArray(loc.a_quv); gl.vertexAttribPointer(loc.a_quv, 2, gl.FLOAT, false, 24, 16);
+  const bind = (unit, t2, u) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u, unit); };
+  bind(0, tw.tex, loc.u_main); bind(1, tm.tex, loc.u_d1); bind(2, tm.tex, loc.u_d2);
+  gl.uniform4fv(loc.u_vcol, st.color);
+  gl.uniform4fv(loc.u_st1, m.st1); gl.uniform4fv(loc.u_st2, m.st2);
+  gl.uniform3fv(loc.u_color, m.col);
+  for (const [u, val] of [['u_ic', m.ic], ['u_ci', m.ci], ['u_c1', m.c1], ['u_s1', m.s1], ['u_r1', m.r1], ['u_c2', m.c2], ['u_s2', m.s2], ['u_r2', m.r2], ['u_add', 1]]) gl.uniform1f(loc[u], val);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  if (target.width !== W || target.height !== H) { target.width = W; target.height = H; }
+  const ctx = target.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(c, 0, 0);
+  return true;
 }
 
 /**

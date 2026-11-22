@@ -28,7 +28,7 @@ import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
-import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture } from './cardEntrance.js';
+import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, drawWash, ANIM_DELAY_S } from './cardEntrance.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -308,7 +308,9 @@ export function endResultLoad() {
  * L2D", the user, 2026-11-22). A card that swaps alone waits for its own smooth frames the same way.
  */
 export const FLIP_FADE_S = 0.15; // the fallback without the dissolve: the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
-export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x1495060]
+export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x1495060]; also the white wash's span (cardEntrance.js WASH_S)
+/** The stagger between the group's cards: the result row's step [src: ui/cardEntrance.js ANIM_DELAY_S, official _animDelay]. */
+export const FLIP_STEP_S = ANIM_DELAY_S;
 export const GROUP_CAP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — 8 s covers a typical PC's cold Grand Alliance load, 4.9–5.3 s measured at 1080p]
 /** A smooth frame: 30 fps, the flip's gate (no frame over 33 ms: the lead's brief of 2026-11-22), +1 ms of frame-timer jitter as the review page's gates allow [src: public/dev/dyn-review.js measure]. */
 export const FLIP_SMOOTH_MS = 1000 / 30 + 1;
@@ -317,7 +319,12 @@ export const FLIP_GIVE_UP_MS = 3000; // [ASSUMED: proposed to the user 2026-11-2
 let group = null; // { entries: Set, flipped, timer, check, hold, wait, gaveUp }
 
 function startCard(e) { try { e.card?.start(); } catch (err) { console.warn('[dynillust] start', err); } }
-function showCard(e) { try { e.show?.(); } catch (err) { console.warn('[dynillust] show', err); } }
+function showCard(e, delay = 0) { try { e.show?.(delay); } catch (err) { console.warn('[dynillust] show', err); } }
+/** Page order (a card's 2D art element `e.el`): the stagger runs as the cards read, left to right, top to bottom. */
+function byPage(a, b) {
+  if (!a.el || !b.el || typeof a.el.compareDocumentPosition !== 'function') return 0;
+  return a.el.compareDocumentPosition(b.el) & 4 ? -1 : 1; // Node.DOCUMENT_POSITION_FOLLOWING
+}
 function giveUpCard(e) { try { e.giveUp?.(); } catch (err) { console.warn('[dynillust] give up', err); } }
 
 /**
@@ -334,7 +341,13 @@ function whenSmooth(entries, onGiveUp) {
     else { n++; smooth = n >= 2 && t - last <= FLIP_SMOOTH_MS ? smooth + 1 : 0; last = t; }
     const cur = entries.filter((e) => !e.gone);
     if (!cur.length) { done = true; return; }
-    if (smooth >= FLIP_SMOOTH_FRAMES && cur.every((e) => e.prepared !== false)) { done = true; for (const e of cur) showCard(e); return; }
+    if (smooth >= FLIP_SMOOTH_FRAMES && cur.every((e) => e.prepared !== false)) {
+      done = true;
+      // one card after another, the result row's step apart (the user, 2026-11-22: "one player card at a time, in quick
+      // succession")
+      cur.slice().sort(byPage).forEach((e, i) => showCard(e, i * FLIP_STEP_S * 1000));
+      return;
+    }
     if (t0 && t - t0 >= FLIP_GIVE_UP_MS) { done = true; for (const e of cur) giveUpCard(e); onGiveUp?.(); return; }
     id = requestAnimationFrame(tick);
   };
@@ -437,7 +450,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
   // the dissolve's first frame (the art box itself) covers the card while it waits: the illustration and its background
   // are already in place under it, so the show only starts the dissolve (no DOM switch in that frame)
   const [covered, setCovered] = useState(false);
-  const root = useRef(null), dis = useRef(null);
+  const root = useRef(null), dis = useRef(null), wash = useRef(null);
   useEffect(() => {
     setState(on ? 'loading' : 'off');
     setShown(wait !== 'settled');
@@ -445,7 +458,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
     setCovered(false);
     if (!on) return undefined;
     let card = null, live = true, kept = false, raf = 0, cur = 'loading', isCovered = false;
-    const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false, prepared: false, show: () => { if (live) showNow(); }, giveUp: () => keep2d() } : null;
+    const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false, prepared: false, show: (delay) => { if (live) showNow(delay); }, giveUp: () => keep2d() } : null;
     // a page that never got smooth: the card keeps its 2D art and its illustration stops (no low-FPS illustration)
     const keep2d = () => {
       if (!live || kept) return;
@@ -486,6 +499,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       const cs = img && globalThis.getComputedStyle ? globalThis.getComputedStyle(img) : null;
       if (!img || !cs || cs.objectFit !== 'cover' || reducedMotion()) { entry.prepared = true; return; }
       entry.img = img;
+      entry.el = img;
       // the card background the illustration shows over (BACKDROP) decoded now, not in the frame the cards show
       const bgUrl = backdrop ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
       const bgImg = bgUrl && typeof Image === 'function' ? Object.assign(new Image(), { src: bgUrl }) : null;
@@ -509,23 +523,34 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       setReveal('dissolve');
       setCovered(true);
     };
-    const showNow = () => {
-      const cv = dis.current;
+    // the show, `delay` ms from now (the group's stagger): the 2D art dissolves away and the official card's white wash
+    // sweeps over the card (drawWash, its own canvas, added with plus-lighter), both over FLIP_DISSOLVE_S
+    const showNow = (delay = 0) => {
+      const cv = dis.current, wc = wash.current;
       const size = isCovered && cv ? compose() : null;
       if (size) {
         const { W, H } = size;
         // the box changed size since: its first frame again
         if (drawnKey === picKey || drawDissolve(cv, pic, 0, W, H)) {
           setShown(true);
-          const t0 = performance.now();
+          const t0 = performance.now() + Math.max(0, delay);
+          let washing = false;
           const step = () => {
             raf = 0;
             if (!live) return;
-            const k = (performance.now() - t0) / (FLIP_DISSOLVE_S * 1000);
-            drawDissolve(cv, pic, k, W, H);
-            if (k < 1) { raf = requestAnimationFrame(step); return; }
-            cv.style.opacity = '0'; cv.width = 1; cv.height = 1;
-            freeDissolvePicture(pic); pic = null;
+            const s = (performance.now() - t0) / 1000;
+            if (s >= 0) {
+              const k = s / FLIP_DISSOLVE_S;
+              drawDissolve(cv, pic, k, W, H);
+              if (wc && drawWash(wc, s, W, H) && !washing) { washing = true; wc.style.opacity = '1'; }
+              if (k >= 1) {
+                cv.style.opacity = '0'; cv.width = 1; cv.height = 1;
+                if (wc) { wc.style.opacity = '0'; wc.width = 1; wc.height = 1; }
+                freeDissolvePicture(pic); pic = null;
+                return;
+              }
+            }
+            raf = requestAnimationFrame(step);
           };
           raf = requestAnimationFrame(step);
           return;
@@ -565,7 +590,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
     <div class="dyn-art__still">${children}</div>
     ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg)}></i></div>` : null}
     ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
-    ${on && wait === 'settled' ? html`<canvas class="dyn-art__dissolve" ref=${dis} aria-hidden="true"></canvas>` : null}
+    ${on && wait === 'settled' ? html`<canvas class="dyn-art__dissolve" ref=${dis} aria-hidden="true"></canvas><canvas class="dyn-art__wash" ref=${wash} aria-hidden="true"></canvas>` : null}
   </div>`;
 }
 

@@ -453,7 +453,12 @@ official card's dissolve (the user's pick of 2026-11-22): the illustration and i
 2D art, and the art box as it shows — its background, then the 2D art at its object-fit cover crop and filter, composed
 on a canvas while the cards wait — dissolves away over
 `DYN_ILLUST_INIT_SECONDS` 0.5 s (`FLIP_DISSOLVE_S`) through the result card's own `complete_up_bg_dissolve` material and
-mask (`ui/cardEntrance.js drawDissolve`, the entrance's shader); without WebGL2, the mask sprite or under reduced motion,
+mask (`ui/cardEntrance.js drawDissolve`, the entrance's shader), while the official card's white wash over its
+illustration plays on top — its `color_mask` layer (additive `char_color_mask`, white at 0.282, both masks
+`img_uifx_basicmask_03`, the second inverted) on its own clip curves from 0.1667 s for 0.5 s (`drawWash`, a canvas with
+`mix-blend-mode: plus-lighter`); the cards go one after another in page order, the result row's 0.083 s apart
+(`FLIP_STEP_S` = `_animDelay`; the user, 2026-11-22: "one player card at a time, in quick succession"). The official card
+has no switch from 2D to its illustration; this reuses its reveal. Without WebGL2, the sprites or under reduced motion,
 the 0.15 s controller fade (`FLIP_FADE_S`). A page not smooth `FLIP_GIVE_UP_MS` 3 s after the start keeps its 2D art and
 stops the illustrations, later cards on it too ("I reject low FPS L2D") [ASSUMED: proposed, not yet OK'd]. A failed card
 keeps its 2D and holds nobody; past `GROUP_CAP_MS` 8 s from the first card's mount [ASSUMED: proposed, not yet OK'd] the
