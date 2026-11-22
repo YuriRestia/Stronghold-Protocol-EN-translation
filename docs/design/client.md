@@ -453,10 +453,10 @@ Workers, in every Worker's card-frame log too (`whenSmooth`, read every 250 ms w
 [ASSUMED: proposed, not yet OK'd]. Showing is the
 official card's dissolve (the user's pick of 2026-11-22): the illustration and its background appear at once behind the
 2D art, and the art box as it shows — its background, then the 2D art at its object-fit cover crop and filter, composed
-on a canvas while the cards wait — dissolves away over `FLIP_SWEEP_S` 1 s, twice the official
-`DYN_ILLUST_INIT_SECONDS` 0.5 s (`FLIP_DISSOLVE_S`; the user, 2026-11-22: "make the border glow move slower"), its
-drive from `FLIP_SWEEP_K0` 0.25, where the bloom's band first reaches the card (`sweepDrive`) [ASSUMED: the 1 s, not yet
-OK'd], through the result card's own `complete_up_bg_dissolve` material and
+on a canvas while the cards wait — dissolves away over `FLIP_SWEEP_S` 0.35 s (the user's value of 2026-11-23, after
+1 s, 0.67 s and the official `DYN_ILLUST_INIT_SECONDS` 0.5 s, `FLIP_DISSOLVE_S`), its drive across the look's range
+from where its bands first reach the card to where they leave it (`sweepDrive`, `sweepRange`), through the result
+card's own `complete_up_bg_dissolve` material and
 mask (`ui/cardEntrance.js drawDissolve`, the entrance's shader), with a white bloom on top (`drawBloom`, the same shader
 and mask, additive on a canvas with `mix-blend-mode: plus-lighter`; the user's direction of 2026-11-22: "a white bright
 bloom that moves on the boundary between old and new, … leaving the entire card artwork white glow before the glow fades
@@ -473,7 +473,16 @@ OK'd]. The border's look is one of `GLOW_STYLES` (the user, 2026-11-23: the whit
 effect"; proposals for the user's pick, the review page's `&glow=0…4`, 0 the one above): 1 a thin white edge in a teal
 halo with a short trail and no wash, 2 the old picture dimmed for 0.35 s before a softer white sweep, 3 a teal band with
 a white core and a teal wash (white glitter), 4 a burning orange edge that chars the picture ahead of it (ember glitter)
-[ASSUMED: proposals, not yet chosen]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
+[ASSUMED: proposals]. The cards use look 5 (`GLOW_DEFAULT`, the user's pick of 2026-11-23: "1 + 2 + 3, but the color
+matches the theme color", then "the edge should be half as thin … cleaner and more elegant", "why do I see a 2nd
+line?", "good enough for now"): the old picture dims to 75 % over 0.2 s, then one thin white line in a narrow mint
+(`#4ed8af`) rim sweeps it away over a faint mint wash, with white glitter born on the line. One line: the bands and the
+dissolve read a smoothed copy of the official mask (box-blurred, 15 % of the raw mask kept, a half-float texture),
+since the raw mask's noise repeats each value in patches and drew stray second lines; the dissolve under it is tight
+(smooth 0.06, the official material's 0.5) [ASSUMED: the widths, the dim, the wash, not yet OK'd as numbers]. The
+show's set-up happens while the cards load, one card a frame: the shared GL canvas is grown for every card
+(`reserveTiles`) and the glitter's layer is made and drawn once; at the cover or the show the same work cost the show's
+first frames 60 ms of script and 125–180 ms of rendering. The shared canvas is shrunk 2 s after the last card. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
 the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); while they play, every card's dissolve
 and bloom are drawn in one GL pass a frame (`batchDissolve` / `batchBloom` / `flushBatch`, tiles in one canvas); a card
 that gave up shows `data-dyn="kept"`; the cards go

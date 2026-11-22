@@ -28,7 +28,7 @@ import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
-import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, BLOOM, glowStyle, makeSparks, ANIM_DELAY_S } from './cardEntrance.js';
+import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, BLOOM, glowStyle, sweepRange, makeSparks, warmSparks, ANIM_DELAY_S } from './cardEntrance.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -310,14 +310,17 @@ export function endResultLoad() {
 export const FLIP_FADE_S = 0.15; // the fallback without the dissolve: the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
 export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x1495060]
 /**
- * The border's sweep: slower than the official drive (the user, 2026-11-22: "make the border glow move slower"), and
- * from FLIP_SWEEP_K0, where the bloom's band first reaches the card (edgeOf(k) + BLOOM.width = 0 at k 0.275), so no part
- * of it is spent before the border shows.
+ * The border's sweep: the user's 0.35 s (2026-11-23: "the effect should only take 0.35s", after 1 s, 0.67 s and the
+ * official 0.5 s), over the look's drive range (cardEntrance.js sweepRange: from where its bands reach the card to where
+ * they leave it), so the whole of it is the line crossing the card.
  */
-export const FLIP_SWEEP_S = 1; // [ASSUMED: the user's "move slower" of 2026-11-22, 2× the official 0.5 s, not yet OK'd on the clip]
-export const FLIP_SWEEP_K0 = 0.25;
-/** The dissolve's drive `s` seconds into the show (FLIP_SWEEP_K0 … 1 over FLIP_SWEEP_S). */
-export const sweepDrive = (s) => FLIP_SWEEP_K0 + (1 - FLIP_SWEEP_K0) * Math.min(1, Math.max(0, s) / FLIP_SWEEP_S);
+export const FLIP_SWEEP_S = 0.35; // the user's value of 2026-11-23 (official DYN_ILLUST_INIT_SECONDS 0.5, FLIP_DISSOLVE_S)
+/** The dissolve's drive `s` seconds into the show: across the look's range over FLIP_SWEEP_S, then 1 (all gone). */
+export function sweepDrive(s, S = glowStyle()) {
+  if (s >= FLIP_SWEEP_S) return 1;
+  const [a, b] = sweepRange(S);
+  return a + (b - a) * Math.max(0, s) / FLIP_SWEEP_S;
+}
 /** The stagger between the group's cards: the result row's step [src: ui/cardEntrance.js ANIM_DELAY_S, official _animDelay]. */
 export const FLIP_STEP_S = ANIM_DELAY_S;
 export const GROUP_CAP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — 8 s covers a typical PC's cold Grand Alliance load, 4.9–5.3 s measured at 1080p]
@@ -359,15 +362,23 @@ function embers() {
   const L = emberLayer, dpr = globalThis.devicePixelRatio || 1;
   const w = Math.max(1, Math.round((globalThis.innerWidth || 1) * dpr)), h = Math.max(1, Math.round((globalThis.innerHeight || 1) * dpr));
   if (!L.c.isConnected) doc.body.append(L.c);
-  if (L.c.width !== w || L.c.height !== h) { L.c.width = w; L.c.height = h; L.ctx = null; }
+  if (L.c.width !== w || L.c.height !== h) { L.c.width = w; L.c.height = h; L.ctx = null; L.warm = false; }
   L.ctx ||= L.c.getContext('2d');
   L.ctx?.clearRect(0, 0, w, h);
   L.dpr = dpr;
   return L.ctx ? L : null;
 }
+/** The glitter's layer made full size and drawn once (a canvas layer is set up on its first real draw), if it is not. */
+function warmLayer() {
+  if (emberLayer && emberLayer.c.width > 1 && emberLayer.warm) return;
+  try {
+    const layer = embers();
+    if (layer) { warmSparks(layer.ctx); layer.warm = true; }
+  } catch (err) { console.warn('[dynillust] warm', err); }
+}
 // idle: 1 × 1 but kept in the page (adding a page-wide layer at a show would cost that frame a style and layout pass)
 function emberIdle() {
-  if (emberLayer && emberLayer.c.width > 1) { emberLayer.c.width = 1; emberLayer.c.height = 1; emberLayer.ctx = null; }
+  if (emberLayer && emberLayer.c.width > 1) { emberLayer.c.width = 1; emberLayer.c.height = 1; emberLayer.ctx = null; emberLayer.warm = false; }
 }
 function runTransitions() {
   transRaf = 0;
@@ -377,9 +388,12 @@ function runTransitions() {
   const layer = transitions.size ? embers() : null;
   for (const tr of [...transitions]) { try { if (!tr.after(layer)) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
   if (transitions.size) transRaf = requestAnimationFrame(runTransitions);
-  else emberIdle();
+  // the layer freed a moment later, off the animation (a resize in the show's last frame is a long frame)
+  else { layer?.ctx.clearRect(0, 0, layer.c.width, layer.c.height); setTimeout(() => { if (!transitions.size) emberIdle(); }, 2000); }
 }
 function addTransition(tr) {
+  // a User Timing mark per show (`dyn-show`): the frame checks measure from it
+  if (!transitions.size) try { performance.mark('dyn-show'); } catch { /* no User Timing */ }
   transitions.add(tr);
   if (!transRaf) transRaf = requestAnimationFrame(runTransitions);
 }
@@ -566,6 +580,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
       if (dis.current) dis.current.style.opacity = '0';
       if (wash.current) wash.current.style.opacity = '0';
+      if (!reserveTiles(dis) && !transitions.size) emberIdle();
       isCovered = false;
       setCovered(false);
       setState('kept'); // data-dyn="kept": the 2D art stays (not 'off': the illustration was there and gave up)
@@ -617,6 +632,12 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
               entry.mask = mask;
               // the dissolve's first frame drawn now on the (still invisible) canvas
               const size = compose();
+              // the show's set-up, here while the cards still load (one card a frame): the shared GL canvas grown for
+              // this card too (before this card's first draw, which then touches the grown buffer), and the glitter's
+              // layer made and drawn once. Done at the cards' cover or just before the show it cost 60 ms of script
+              // and 125–180 ms of rendering in the show's first frames (work/dev-55 co-*.json, 2026-11-23); here it
+              // falls before the smooth frames the show waits for
+              if (size) { reserveTiles(dis, size.W, size.H); warmLayer(); }
               if (size && dis.current && drawDissolve(dis.current, pic, 0, size.W, size.H)) { drawnKey = picKey; cover(); }
             } finally { entry.prepared = true; }
           });
@@ -662,7 +683,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
               // the glow's look (GLOW_STYLES): a dim of the old picture first, then the sweep
               const dimS = G.dim?.s || 0, sw = s - dimS;
               const dim = G.dim ? 1 - (1 - G.dim.to) * Math.min(1, s / dimS) : 1;
-              k = sweepDrive(sw);
+              k = sweepDrive(sw, G);
               if (!dissolved) batchDissolve(cv, pic, k, W, H, dim);
               // the bloom: bands on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
               glow = k < 1 ? 1 : Math.max(0, 1 - (sw - FLIP_SWEEP_S) / G.fadeS);
@@ -678,6 +699,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
               if (k >= 1 && !dissolved) { dissolved = true; cv.style.opacity = '0'; cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
               if (dissolved && !(glow > 0) && !sparks.count) {
                 if (wc) { wc.style.opacity = '0'; wc.width = 1; wc.height = 1; }
+                reserveTiles(dis);
                 return false;
               }
               return true;
@@ -708,6 +730,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       live = false;
       if (raf) cancelAnimationFrame(raf);
       if (trans) { transitions.delete(trans); trans = null; }
+      if (!reserveTiles(dis) && !transitions.size) emberIdle();
       freeDissolvePicture(pic); pic = null;
       if (entry) leaveGroup(entry);
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }

@@ -400,7 +400,8 @@ export function loadDissolve(m = data.get('assets')) {
     bloomMask = mask;
     // texture() hands back the loaded texture itself once it is cached (a promise only while it loads); the sparks read the
     // mask's pixels once
-    return Promise.all([texture(mask, false), maskPixels(mask)]).then(() => mask);
+    // (and the smoothed copy built now, while the cards wait: a 128 px blur, not at the show)
+    return Promise.all([texture(mask, false), maskPixels(mask)]).then(() => { buildSoftMask(); return mask; });
   });
 }
 
@@ -424,6 +425,8 @@ let bloomMask = null;
  * glitter's palette.
  */
 const WHITE = [1, 1, 1], TEAL = [0.15, 0.8, 0.75];
+/** The game's mint accent `#4ed8af` [src: docs/design/client.md §10 Look & feel]. */
+const MINT = [0x4e / 255, 0xd8 / 255, 0xaf / 255];
 export const GLOW_STYLES = Object.freeze({ // [ASSUMED: proposals for the user's pick of 2026-11-23, not yet chosen]
   0: { glow: { a: 0.8, color: WHITE }, fadeS: 0.5, bands: [{ lo: -0.2, hi: 0.2, soft: 0.2, color: WHITE, a: 1 }], spark: 'teal' },
   1: { glow: null, fadeS: 0.25, spark: 'teal', bands: [
@@ -438,9 +441,21 @@ export const GLOW_STYLES = Object.freeze({ // [ASSUMED: proposals for the user's
   4: { char: { lo: 0, hi: 0.2, soft: 0.1, a: 0.92 }, glow: null, fadeS: 0.2, spark: 'ember', bands: [
     { lo: -0.07, hi: 0.06, soft: 0.06, color: [1, 0.38, 0.06], a: 1 },
     { lo: -0.02, hi: 0.025, soft: 0.025, color: [1, 0.88, 0.55], a: 1 }] },
+  // the user's pick of 2026-11-23: "1 + 2 + 3, but the color matches the theme color" — the old picture dims, then a thin
+  // white edge in a mint halo with a short mint trail sweeps it away over a faint mint wash; white glitter
+  // then "the edge should be half as thin, … cleaner and more elegant", and "why do I see a 2nd line?" (the official
+  // mask is noise on a slope: the same value comes back in patches, each its own line): one line on a smoothed copy of
+  // the mask (`soft`), a tight dissolve under it (`dissolveSoft`, the official material's is 0.5), no trail, a faint
+  // wash starting at the line (`glowReach`), the glitter born on the line (`sparkLead`), a lighter dim
+  5: { soft: true, dissolveSoft: 0.06, glowReach: 0.02, sparkLead: 0.01, reach: 0.05,
+    dim: { to: 0.75, s: 0.2 }, glow: { a: 0.15, color: MINT }, fadeS: 0.3, spark: 'white', bands: [
+      { lo: -0.035, hi: 0.025, soft: 0.025, color: MINT, a: 0.8 },
+      { lo: -0.01, hi: 0.01, soft: 0.01, color: WHITE, a: 1 }] },
 });
-/** The glow's look now (the review page's choice, else the current one). */
-export function glowStyle() { return GLOW_STYLES[globalThis.__dynGlow] || GLOW_STYLES[0]; }
+/** The look the cards use (the user's pick, 5); the review page's `&glow=0…4` shows the others. */
+export const GLOW_DEFAULT = 5;
+/** The glow's look now (the review page's choice, else the default). */
+export function glowStyle() { return GLOW_STYLES[globalThis.__dynGlow] || GLOW_STYLES[GLOW_DEFAULT]; }
 
 /**
  * Draw the bloom into the 2D canvas `target` (w × h device px), premultiplied and additive (the canvas composites with
@@ -456,10 +471,10 @@ export function drawBloom(target, k, glow, band, w, h) {
 function tileBloom(it) {
   const tm = bloomMask ? textures.get(`${bloomMask}|false`) : null;
   if (!tm || tm.then) return false;
-  const edge = 2 * it.k - 0.75, S = glowStyle();
+  const S = glowStyle(), edge = edgeOf(it.k, S), mk = lookMask(S, tm), gr = S.glowReach ?? BLOOM.width;
   gl.blendFunc(gl.ONE, gl.ONE);
-  if (S.glow) maskPass(tm, null, -2, edge + BLOOM.width, BLOOM.width, S.glow.color, S.glow.a * it.glow);
-  for (const b of S.bands) maskPass(tm, tm.tex, edge + b.lo, edge + b.hi, b.soft, b.color, b.a * it.band);
+  if (S.glow) maskPass(mk, null, -2, edge + gr, gr, S.glow.color, S.glow.a * it.glow);
+  for (const b of S.bands) maskPass(mk, mk.tex, edge + b.lo, edge + b.hi, b.soft, b.color, b.a * it.band);
   return true;
 }
 
@@ -501,18 +516,60 @@ export function flushBatch() { return flushTiles(queue.splice(0)); }
 /** The quad over a whole tile (y up), its picture and mask UVs 0–1 (the picture was uploaded flipped). */
 const TILE_QUAD = new Float32Array([0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1]);
 const MAX_SIDE = 4096;
-function flushTiles(items) {
-  if (!items.length || !glInit()) return false;
-  // shelf-pack the tiles (rows of at most MAX_SIDE)
+/** Shelf-pack tiles (rows of at most MAX_SIDE), tallest first, so a set and its subsets pack alike; sets it.x / it.y. */
+function packTiles(items) {
   let x = 0, y = 0, rowH = 0, CW = 1, CH = 1;
-  for (const it of items) {
+  for (const it of [...items].sort((a, b) => b.H - a.H || b.W - a.W)) {
     if (x + it.W > MAX_SIDE) { x = 0; y += rowH; rowH = 0; }
     it.x = x; it.y = y; x += it.W; rowH = Math.max(rowH, it.H);
     CW = Math.max(CW, x); CH = Math.max(CH, y + rowH);
   }
+  return { CW, CH };
+}
+/** Grow the shared canvas to CW × CH (never shrunk while in use: a resize reallocates the drawing buffer). */
+function growCanvas(CW, CH) {
   const c = gl.canvas;
-  // grown, never shrunk while in use: a resize reallocates the drawing buffer
   if (c.width < CW || c.height < CH) { c.width = Math.max(c.width, CW); c.height = Math.max(c.height, CH); }
+}
+/**
+ * The cards about to show (each a dissolve and a bloom tile of W × H device px): the shared canvas is sized for all of
+ * them now, while they wait, so it never grows during the show (a growth reallocates it: 46–100 ms frames as the
+ * staggered cards joined, work/dev-55 wf-1440 / wf-4k, 2026-11-23). `W` 0 drops the card. Returns how many cards are
+ * still reserved.
+ */
+const reserved = new Map();
+let shrinkTimer = 0;
+/** How long after the last card the shared canvas is shrunk (ms): past the screen's settling, a design choice. */
+const SHRINK_AFTER_MS = 2000;
+export function reserveTiles(token, W = 0, H = 0, { grow = true } = {}) {
+  if (W > 0 && H > 0) reserved.set(token, { W: Math.round(W), H: Math.round(H) }); else reserved.delete(token);
+  if (!gl) return reserved.size;
+  clearTimeout(shrinkTimer);
+  // a group's cards record their tiles one by one and grow the canvas once (growReserved): each growth reallocates it
+  if (!grow && reserved.size) return reserved.size;
+  // nobody waiting or showing: give the memory back (8 wide cards at 4K held about 4050 × 5040 px, ~80 MB) a moment
+  // later, off the animation (the resize in the show's last frame cost it 47–70 ms, work/dev-55 wf-1440 / wf-4k); a
+  // later draw (a result card's entrance) grows it again to what it needs
+  if (!reserved.size) {
+    shrinkTimer = setTimeout(() => { if (!reserved.size && !queue.length && gl) { gl.canvas.width = 1; gl.canvas.height = 1; } }, SHRINK_AFTER_MS);
+    return 0;
+  }
+  growReserved();
+  return reserved.size;
+}
+/** Grow the shared canvas once for every reserved card (reserveTiles with `grow: false` records only). */
+export function growReserved() {
+  if (!reserved.size || !glInit()) return;
+  const items = [];
+  for (const r of reserved.values()) items.push({ ...r }, { ...r });
+  const { CW, CH } = packTiles(items);
+  growCanvas(CW, CH);
+}
+function flushTiles(items) {
+  if (!items.length || !glInit()) return false;
+  const { CW, CH } = packTiles(items);
+  const c = gl.canvas;
+  growCanvas(CW, CH);
   gl.useProgram(prog);
   gl.uniform2f(loc.u_view, 1, 1);
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -579,8 +636,72 @@ function maskPixels(url) {
   }).catch(() => null);
 }
 
-/** The dissolve edge's mask value at progress k (drawBloom, drawDissolve: half alpha at d = 2k − 0.75). */
-export const edgeOf = (k) => 2 * k - 0.75;
+/**
+ * The dissolve edge's mask value at progress k: half alpha at d = 2k − 1 + smooth / 2 (the official material's smooth
+ * 0.5: 2k − 0.75; a look's own `dissolveSoft` otherwise).
+ */
+export const edgeOf = (k, S = glowStyle()) => 2 * k - 1 + (S.dissolveSoft ?? DISSOLVE_SMOOTH) / 2;
+/** The official dissolve material's smooth [src: MAT DISSOLVE_MAT s1]. */
+const DISSOLVE_SMOOTH = 0.5;
+/**
+ * The drive range a look's sweep runs over: from where its bands first reach the card (edge −reach) to where they
+ * leave it (edge 1 + reach), so none of the sweep's time is spent off the card.
+ */
+export function sweepRange(S = glowStyle()) {
+  const off = (S.dissolveSoft ?? DISSOLVE_SMOOTH) / 2, reach = S.reach ?? BLOOM.width;
+  return [(-reach + 1 - off) / 2, (1 + reach + 1 - off) / 2];
+}
+
+/**
+ * The look's smoothed mask (GLOW_STYLES `soft`): the official mask's 128 px copy box-blurred (two passes each way,
+ * SOFT_BLUR_PX), a little of the raw mask kept for an organic edge (SOFT_RAW), stretched back to 0 … 1; on the GPU as a
+ * half-float texture (8-bit steps showed as stairs on a line this thin) and on the CPU for the glitter's births.
+ */
+const SOFT_BLUR_PX = 10, SOFT_RAW = 0.15;
+let softMask = null;
+function buildSoftMask() {
+  if (!maskPx || !gl) return null;
+  if (softMask?.url === maskPx.url) return softMask;
+  const { w, h, r } = maskPx;
+  const a = Float32Array.from(r, (v) => v / 255);
+  // a running-sum box (one add and one subtract per pixel: the direct sum took a 45 ms task, work/dev-55 la.json)
+  const box = (src, horiz) => {
+    const out = new Float32Array(w * h), R = SOFT_BLUR_PX;
+    const lines = horiz ? h : w, len = horiz ? w : h;
+    const at = (line, i) => (horiz ? line * w + i : i * w + line);
+    for (let line = 0; line < lines; line++) {
+      let s = 0, n = 0;
+      for (let i = 0; i <= Math.min(R, len - 1); i++) { s += src[at(line, i)]; n++; }
+      for (let i = 0; i < len; i++) {
+        out[at(line, i)] = s / n;
+        const add = i + R + 1, drop = i - R;
+        if (add < len) { s += src[at(line, add)]; n++; }
+        if (drop >= 0) { s -= src[at(line, drop)]; n--; }
+      }
+    }
+    return out;
+  };
+  let b = a;
+  for (let p = 0; p < 2; p++) b = box(box(b, true), false);
+  const mix = b.map((v, i) => SOFT_RAW * a[i] + (1 - SOFT_RAW) * v);
+  let lo = 1, hi = 0;
+  for (const v of mix) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  const cpu = mix.map((v) => (v - lo) / Math.max(1e-6, hi - lo));
+  // the GPU copy flipped as the sprites are (texture(): imageOrientation flipY)
+  const up = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) up.set(cpu.subarray(y * w, y * w + w), (h - 1 - y) * w);
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, w, h, 0, gl.RED, gl.FLOAT, up);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  softMask = { url: maskPx.url, tex: t, px: { w, h, f: cpu } };
+  return softMask;
+}
+/** The mask a look's bands and dissolve read: the smoothed one for a `soft` look, else the official texture `tm`. */
+function lookMask(S, tm) { return (S.soft && buildSoftMask()) || tm; }
 
 const stars = new Map();
 const STAR_PX = 64;
@@ -621,6 +742,19 @@ function sparkStar(palette = 'teal') {
 }
 
 /**
+ * Draw one star, invisibly, into the glitter's page-wide layer while the cards wait: the browser sets a canvas layer up
+ * on its first real draw, and the first star at the show cost a 96–113 ms frame (work/dev-55 wf-1440 / wf-4k, 2026-11-23).
+ */
+export function warmSparks(ctx, palette = glowStyle().spark) {
+  const img = sparkStar(palette);
+  if (!img || !ctx) return;
+  ctx.globalAlpha = 0.01;
+  ctx.drawImage(img, 0, 0, 2, 2);
+  ctx.globalAlpha = 1;
+  ctx.clearRect(0, 0, 2, 2);
+}
+
+/**
  * A card's glitter in page coordinates: `step` it by dt s with the border at progress k (births only while `born`) over
  * the card's box `{ left, top, width, height }` (CSS px), `draw` it on the page-wide layer (device px = CSS × dpr).
  */
@@ -638,7 +772,9 @@ export function makeSparks(palette = glowStyle().spark) {
         if (s.age >= s.life) list.splice(i, 1);
       }
       if (!born || !maskPx || !box) return;
-      const e = edgeOf(k) + P.lead;
+      // the look's mask (the smoothed one for a `soft` look: born on its one line) and lead
+      const S = glowStyle(), soft = S.soft ? buildSoftMask()?.px : null;
+      const e = edgeOf(k, S) + (S.sparkLead ?? P.lead);
       if (e < -P.near || e > 1 + P.near) return;
       acc += P.rate * dt;
       for (let tries = 0; acc >= 1 && tries < 400 && list.length < P.max; tries++) {
@@ -646,7 +782,8 @@ export function makeSparks(palette = glowStyle().spark) {
         let x = Math.random();
         if (thrown) x = x < 0.5 ? x * 2 * P.side : 1 - (x - 0.5) * 2 * P.side;
         const y = Math.random();
-        const d = maskPx.r[Math.min(maskPx.h - 1, (y * maskPx.h) | 0) * maskPx.w + Math.min(maskPx.w - 1, (x * maskPx.w) | 0)] / 255;
+        const at = Math.min(maskPx.h - 1, (y * maskPx.h) | 0) * maskPx.w + Math.min(maskPx.w - 1, (x * maskPx.w) | 0);
+        const d = soft ? soft.f[at] : maskPx.r[at] / 255;
         if (Math.abs(d - e) > P.near) continue;
         const vx = thrown ? (x < 0.5 ? -1 : 1) * rnd(P.sideVx) : rnd(P.vx);
         list.push({ x: box.left + x * box.width, y: box.top + y * box.height, vx, vy: rnd(thrown ? P.sideVy : P.vy), age: 0,
@@ -718,23 +855,23 @@ function tileDissolve(it) {
   const pic = it.pic;
   const tm = pic?.tex ? textures.get(`${pic.mask}|false`) : null;
   if (!tm || tm.then) return false;
-  const m = MAT[DISSOLVE_MAT];
+  const m = MAT[DISSOLVE_MAT], S = glowStyle(), mk = lookMask(S, tm);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-  bindTex(0, pic.tex, loc.u_main); bindTex(1, tm.tex, loc.u_d1); bindTex(2, null, loc.u_d2);
+  bindTex(0, pic.tex, loc.u_main); bindTex(1, mk.tex, loc.u_d1); bindTex(2, null, loc.u_d2);
   // vertex colour: r drives mask 1; g 0 keeps mask 2 (white) whole (threshold −1)
   gl.uniform4fv(loc.u_vcol, [Math.max(0, Math.min(1, it.drive)), 0, 1, 1]);
   gl.uniform4fv(loc.u_st1, m.st1); gl.uniform4fv(loc.u_st2, m.st2);
   // the glow look's dim (darkens the old picture: its colour, premultiplied, times the factor)
   const dim = it.dim > 0 && it.dim < 1 ? it.dim : 1;
   gl.uniform3fv(loc.u_color, m.col.map((c) => c * dim));
-  for (const [u, val] of [['u_ic', m.ic], ['u_ci', m.ci], ['u_c1', m.c1], ['u_s1', m.s1], ['u_r1', m.r1], ['u_c2', m.c2], ['u_s2', m.s2], ['u_r2', m.r2], ['u_add', 0]]) gl.uniform1f(loc[u], val);
+  for (const [u, val] of [['u_ic', m.ic], ['u_ci', m.ci], ['u_c1', m.c1], ['u_s1', S.dissolveSoft ?? m.s1], ['u_r1', m.r1], ['u_c2', m.c2], ['u_s2', m.s2], ['u_r2', m.r2], ['u_add', 0]]) gl.uniform1f(loc[u], val);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
   // the burn look: the old picture darkened just ahead of the edge (its colour times 1 − the pass, alpha kept)
   const ch = glowStyle().char;
   if (ch && bloomMask && it.drive > 0) {
     const bt = textures.get(`${bloomMask}|false`);
     if (bt && !bt.then) {
-      const edge = 2 * it.drive - 0.75;
+      const edge = edgeOf(it.drive, glowStyle());
       gl.blendFuncSeparate(gl.ZERO, gl.ONE_MINUS_SRC_COLOR, gl.ZERO, gl.ONE);
       maskPass(bt, bt.tex, edge + ch.lo, edge + ch.hi, ch.soft, WHITE, ch.a);
     }
