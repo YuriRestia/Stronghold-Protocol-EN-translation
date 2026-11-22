@@ -29,6 +29,12 @@ export function workerCount() {
 }
 /** A Worker that has not booted after this long counts as failed, ms. */
 export const DYN_BOOT_MS = 15000;
+/**
+ * A card's fixed drawing cost in download-size terms (DynIllustHost._cost): page 6's per-card frame times fit
+ * 0.402 ms + 0.251 ms per MB of half-tier download, i.e. the fixed part is worth 1.6 MB [src: notes
+ * dev50-l2d-perf-report.md §Cost per card].
+ */
+export const CARD_FIXED_BYTES = 1.6e6;
 
 /** Whether this browser can draw the cards in Workers. */
 export function workersSupported() {
@@ -80,7 +86,8 @@ export class DynIllustHost {
   }
 
   _spawn(url, i) {
-    const rec = { i, w: null, alive: false, keys: new Set(), origin: 0, ok: null };
+    // keys: what it has loaded (its cache); active: key → _cost of what it draws now; load: their sum
+    const rec = { i, w: null, alive: false, keys: new Set(), active: new Map(), load: 0, origin: 0, ok: null };
     rec.ok = new Promise((resolve) => {
       let done = false;
       const end = (alive) => { if (done) return; done = true; rec.alive = alive; if (!alive) { try { rec.w?.terminate(); } catch { /* gone */ } } resolve(alive); };
@@ -88,7 +95,8 @@ export class DynIllustHost {
       const timer = setTimeout(() => { console.warn('[dynillust] Worker boot timed out'); end(false); }, DYN_BOOT_MS);
       rec.w.onmessage = (e) => {
         const m = e.data || {};
-        if (m.t === 'ok') { clearTimeout(timer); rec.origin = m.origin; end(true); return; }
+        // ok: the Worker's renderer started and drew its test square (m.probe, the pixel read back)
+        if (m.t === 'ok') { clearTimeout(timer); rec.origin = m.origin; rec.probe = m.probe || null; end(true); return; }
         if (m.t === 'fail') { clearTimeout(timer); console.warn('[dynillust] Worker could not start:', m.message); end(false); return; }
         this._message(rec, m);
       };
@@ -157,14 +165,43 @@ export class DynIllustHost {
 
   entryOf(key) { return this._group ? this._group[key] : undefined; }
 
-  /** The Worker that draws `key`: its own, else the one with the fewest illustrations. */
+  /**
+   * An illustration's drawing cost, estimated before it loads, in bytes: its download size at the stage's quality
+   * (the manifest's `bytes` / `bytesHalf`) plus CARD_FIXED_BYTES. On Grand Alliance page 6 a card's frame time fit
+   * fixed + per-MB (r² 0.73), the fixed part worth about 1.6 MB [src: notes dev50-l2d-perf-report.md §Cost per card].
+   */
+  _cost(key) {
+    if (this.opts.split === 'count') return 1;   // (`split: 'count'`: by count, for checks that compare the two)
+    const e = this.entryOf(key);
+    const b = e && (this._quality === 'half' ? e.bytesHalf || e.bytes : e.bytes);
+    return (b > 0 ? b : 0) + CARD_FIXED_BYTES;
+  }
+
+  /**
+   * The Worker that draws `key`: the one that has it (its files and GPU textures are there), else the one with the
+   * least to draw now. A Worker's load counts only the illustrations it draws or has just preloaded (`active`), not
+   * the ones it keeps cached from an earlier page: those made a swap from page 5 to page 6 pile 3 heavy cards on one
+   * Worker (61 fps) [src: notes dev50-l2d-perf-report.md §Workers, step 3].
+   */
   _route(key) {
     let w = this.byKey.get(key);
-    if (w && w.alive) return w;
-    w = null;
-    for (const x of this.workers) if (x.alive && (!w || x.keys.size < w.keys.size)) w = x;
-    if (w) { w.keys.add(key); this.byKey.set(key, w); }
+    if (!(w && w.alive)) {
+      w = null;
+      for (const x of this.workers) if (x.alive && (!w || x.load < w.load)) w = x;
+      if (!w) return null;
+      w.keys.add(key);
+      this.byKey.set(key, w);
+    }
+    if (!w.active.has(key)) { const c = this._cost(key); w.active.set(key, c); w.load += c; }
     return w;
+  }
+
+  /** `key` no longer drawn by `w` (no card of it left there): its cost leaves the Worker's load. */
+  _idle(w, key) {
+    if (!w || !w.active.has(key)) return;
+    for (const c of this.cards) if (c.key === key && c.worker === w && c.state !== 'unmounted') return;
+    w.load -= w.active.get(key);
+    w.active.delete(key);
   }
 
   _ask(w, msg) {
@@ -178,7 +215,9 @@ export class DynIllustHost {
     await this.index();
     if (this.fallback) return this.fallback.preload(keys);
     const per = new Map();
-    for (const k of new Set((keys || []).filter(Boolean))) {
+    // the heaviest first: each then goes to the least loaded Worker (a better split than the screen's order)
+    const list = [...new Set((keys || []).filter(Boolean))].sort((a, b) => this._cost(b) - this._cost(a));
+    for (const k of list) {
       const w = this._route(k);
       if (!w) continue;
       if (!per.has(w)) per.set(w, []);
@@ -193,7 +232,12 @@ export class DynIllustHost {
     for (const c of this.cards) hold.add(c.key);
     for (const w of this.workers) {
       w.w.postMessage({ t: 'release', keep: [...hold] });
-      for (const k of [...w.keys]) if (!hold.has(k)) { w.keys.delete(k); if (this.byKey.get(k) === w) this.byKey.delete(k); }
+      for (const k of [...w.keys]) {
+        if (hold.has(k)) continue;
+        w.keys.delete(k);
+        if (w.active.has(k)) { w.load -= w.active.get(k); w.active.delete(k); }
+        if (this.byKey.get(k) === w) this.byKey.delete(k);
+      }
     }
     if (this.fallback) this.fallback.release(keep);
   }
@@ -216,17 +260,17 @@ export class DynIllustHost {
 
   /**
    * Measuring: `frames(true)` starts each Worker's log of its stage frames; `frameLog()` returns them, per Worker, as
-   * [start ms in this page's time, frame ms, live slots], and clears them.
+   * [start ms in this page's time, frame ms, live slots, drawn 1 / skipped by maxFps 0], and clears them.
    */
   frames(on) { for (const w of this.workers) w.w.postMessage({ t: 'frames', on: !!on }); }
   async frameLog() {
     const out = await Promise.all(this.workers.map((w) => this._ask(w, { t: 'frameLog' })));
     const base = typeof performance !== 'undefined' ? performance.timeOrigin : 0;
-    return out.map((m) => (m.frames || []).map(([t, ms, live]) => [+(t + (m.origin - base)).toFixed(2), ms, live]));
+    return out.map((m) => (m.frames || []).map(([t, ms, live, drawn]) => [+(t + (m.origin - base)).toFixed(2), ms, live, drawn]));
   }
 
   stats() {
-    return { workers: this.workers.length, fallback: !!this.fallback, cards: this.cards.size, keys: this.workers.map((w) => w.keys.size), quality: this._quality };
+    return { workers: this.workers.length, fallback: !!this.fallback, cards: this.cards.size, keys: this.workers.map((w) => w.keys.size), load: this.workers.map((w) => w.load), probe: this.workers.map((w) => w.probe), quality: this._quality };
   }
 
   destroy() {
@@ -262,7 +306,8 @@ class HostCard {
     this.ready = new Promise((r) => { resolve = r; });
     this._resolve = resolve;
     H.byId.set(this.id, this);
-    H.ready.then(() => this._place());
+    // routed once the index is in (the illustration's cost: DynIllustHost._cost)
+    H.ready.then(() => H.index()).then(() => this._place());
   }
 
   /** To the main-thread stage (fallback) or to this key's Worker, with the canvas transferred. */
@@ -325,7 +370,7 @@ class HostCard {
     H.ro?.unobserve(this.canvas);
     H.io?.unobserve(this.canvas);
     if (this.inner) this.inner.unmount();
-    else if (this.worker) this.worker.w.postMessage({ t: 'unmount', id: this.id });
+    else if (this.worker) { this.worker.w.postMessage({ t: 'unmount', id: this.id }); H._idle(this.worker, this.key); }
     this._ready(false);
   }
 }

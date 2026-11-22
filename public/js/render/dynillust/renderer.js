@@ -384,8 +384,23 @@ export class DynIllustStage {
   _frame(t) {
     this._raf = 0;
     if (this.destroyed || (!this.cards.size && !this._jobs.length)) { this.last = 0; return; }
-    if (this._hidden()) { for (const s of this.slots.values()) s.pause(); this.last = 0; return; }
+    if (this._hidden()) { for (const s of this.slots.values()) s.pause(); this.last = 0; this._capAt = 0; return; }
     const frameStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    // `maxFps`: the cards update and draw at most this often, as the official game caps its own frame rate (doc
+    // §33.19 Workers). A display frame closer than one interval (less half a display frame) to the last drawn one is
+    // skipped; the next drawn one steps by the real time since, so timing stays in real seconds. Staging still runs.
+    const capMs = this.opts.maxFps > 0 ? 1000 / this.opts.maxFps : 0;
+    if (capMs) {
+      const disp = this._rafT ? Math.min(t - this._rafT, capMs) : 0;
+      this._rafT = t;
+      if (this._capAt && t - this._capAt < capMs - disp / 2) {
+        if (this._jobs.length) this._runJobs(frameStart);
+        this._kick();
+        return;
+      }
+      // keep the cadence (the next one interval after this one), unless a long frame left it behind
+      this._capAt = this._capAt && t - this._capAt < 2 * capMs ? this._capAt + capMs : t;
+    }
     const now = this.opts.now ? this.opts.now() : t;
     const dt = this.last ? Math.max(0, (now - this.last) / 1000) : 0;
     this.last = now;
@@ -555,12 +570,15 @@ export class Card {
   /**
    * Build and warm this card's slot before the card reports 'ready' (STAGE_BUDGET_MS pieces): wait for a layout size,
    * build the slot, enable it and take its first step (the particle prewarm), draw it once offscreen, wait for its
-   * shaders. Resolves to `prep`. Without a canvas or a GL stage, or with no size after STAGE_SIZE_FRAMES frames, it
-   * resolves at once and the slot builds at its first draw, as before.
+   * shaders. Resolves to `prep`. Without a canvas, while the context is lost, or with no size after STAGE_SIZE_FRAMES
+   * frames, it resolves at once and the slot builds at its first draw, as before. A stage whose renderer cannot start
+   * (no WebGL, or a Pixi that needs eval under the site's CSP) rejects: the card is 'failed' and keeps its 2D art,
+   * instead of a 'live' card that never draws.
    */
   _stage(prep) {
     const S = this.S;
-    if (!this.canvas || !S._ensureGL() || S.lost || this.state === 'unmounted') return prep;
+    if (!this.canvas || S.lost || this.state === 'unmounted') return prep;
+    if (!S._ensureGL()) throw new Error('the illustration renderer did not start');
     let waited = 0, slot = null;
     const progsReady = () => !S.glr || (prep.progs || []).every(([kind, mat]) => { S.glr.program(kind, mat); return !S.glr.building(kind, mat); });
     const prewarms = [];   // particle systems whose prewarm waits for the slices below (psys.js setPrewarmSink)

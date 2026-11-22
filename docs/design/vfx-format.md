@@ -2132,9 +2132,9 @@ view pauses its card and frees its slot. A screen awaits `getDynIllustStage().in
 the stage runs in up to `DYN_WORKERS` (3) Workers (`render/dynillust/worker.js`), each with its own WebGL2 context on an
 OffscreenCanvas and its own frame loop. `Card.canvas` is still a page element; its drawing is transferred to the Worker
 that draws the card, so no card frame, load, staging piece or warm-up runs on the page's main thread. All cards of one
-illustration go to one Worker; a new illustration goes to the Worker with the fewest. The page reports each card's size
-(ResizeObserver: CSS px × the device pixel ratio, capped at 2), whether it is in view, whether the page is hidden, and
-applies the canvas opacity. Without that support, or when no Worker starts (no WebGL2 in a Worker, a script error, no
+illustration go to one Worker; a new one to the Worker whose illustrations download the least in all. The page sends
+each card's size (ResizeObserver: CSS px × the device pixel ratio, capped at 2), in view, page hidden; it applies the
+canvas opacity. Without that support, or when no Worker starts (no WebGL2 in a Worker, a script error, no
 answer within 15 s), the main-thread stage draws the cards, as before. A Worker that stops later fails its cards (the
 caller keeps their 2D art). `globalThis.__dynMainThread = true` before the first `getDynIllustStage()` forces the main
 thread.
