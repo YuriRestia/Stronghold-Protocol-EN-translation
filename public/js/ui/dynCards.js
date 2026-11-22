@@ -213,6 +213,20 @@ function setWant(token, tier) {
   tierChanged();
 }
 
+/**
+ * (fork) 设置「动态立绘画质」 (`dynQuality`: auto / half / full; the user, 2026-11-22): applied at load and on every change.
+ * A change re-mounts the cards at the new tier through dynTierStore, with no reload; only a change of this setting
+ * calls setDynQuality, so the review page's `&tier` stays as it set it.
+ */
+let settingQuality;
+function applySettingQuality(s) {
+  if (s.dynQuality === settingQuality) return;
+  settingQuality = s.dynQuality;
+  setDynQuality(settingQuality);
+}
+applySettingQuality(settingsStore.get());
+settingsStore.subscribe(applySettingQuality);
+
 async function readyStage(tier = qualityOverride || pageTier) {
   const R = await renderer();
   const st = R.getDynIllustStage();
