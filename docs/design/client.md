@@ -580,10 +580,12 @@ screen's team page 4 at a time, the room 4 seats, the Grand Alliance room 8 — 
 operator in that outfit, 动态立绘 on 所有人; PC or a landscape phone frame (half pages), page by page; review-only buttons
 play the special idle or Start now, replay the entrance, and throttle the connection (`&slow=<MB/s>`) to show the late
 switch; `&tier=half|full` picks the page tier on any device (the half-size comparison); `__review.measure(s)` reports the frame intervals for the §7 gates and `&off` gives the 2D baseline.
-On the room and Grand Alliance pages each wide card has a Zoomed / Unzoomed switch (the user, 2026-11-23): it reframes
-the mounted card in place (the renderer's `setFraming`, §33.19) and its 2D art with it, kept per illustration in the
-browser (`dynReview.zoomDecisions`) and exported as `dyn-zoom-decisions.json`; Prev / Next change the page without a
-reload, the illustrations of the page left behind freed.
+On the room and Grand Alliance pages each wide card can be framed by hand (the user, 2026-11-23: "drag and zoom the
+live2d to a good position and export all of them"): a drag moves it, the wheel zooms about the pointer, a double-click
+resets it to the table's; applied live to the running card (the renderer's `setFraming`, §33.19) and its 2D art, kept
+per illustration in the browser (`dynReview.framings`) and exported as `dyn-card-framing-edits.json` (the table's
+`cards` with `edited` marks). Prev / Next change the page without a reload; the pages left behind stay loaded (freeing
+them and coming back drew the cards black, 2026-11-23, with the renderer's owner).
 (fork) **The result card's entrance** (`ui/cardEntrance.js`, the user's go of 2026-11-22) is the client's own: the clip
 `auto_chess_settle_game_player_item_show` (25 float curves, 1.31667 s — a legacy clip runs to its last key) played once,
 linearly, after the card's place in the row × `_animDelay` 0.083 s (`_PlayShowCardAnim`, GameAssembly.dll 0x28E0C60). It

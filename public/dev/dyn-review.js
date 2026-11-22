@@ -18,7 +18,7 @@ import { initLang } from '/js/ui/lang.js';
 import { ensurePixi } from '/js/render/app/pixi.js';
 import { SettleFlow } from '/js/screens/settle.js';
 import { RoomScreen } from '/js/screens/room.js';
-import { setDynModule, setDynQuality, setDynFraming, coverFramingNow } from '/js/ui/dynCards.js';
+import { setDynModule, setDynQuality, setDynFraming } from '/js/ui/dynCards.js';
 import { cardStore, CARD_KEY } from '/js/ui/seatArt.js';
 import { outfitStore } from '/js/ui/outfits.js';
 
@@ -44,24 +44,27 @@ const FR = new Map((P.get('fr') || '').split('|').filter(Boolean).map((s) => {
 const app = document.getElementById('app');
 const bar = document.getElementById('rvbar');
 
-// ---- the zoom decisions (the user, 2026-11-23: "a toggle above each slot to switch between zoom and unzoomed and
-// something to let me quickly export my decision for each of them"): per illustration key, 'zoom' (the face framing of
-// data/dyn-card-framing.json — for a key kept plain, its measured `face`) or 'plain' (the card framing, no zoom), kept in
-// this browser; the wide cards (room, Grand Alliance) re-mount on a switch
-const DECIDE_KEY = 'dynReview.zoomDecisions';
+// ---- hand framing (the user, 2026-11-23: "have a way for me to drag and zoom the live2d to a good position and export
+// all of them for you"): on the room and Grand Alliance pages each wide card takes a drag (pan) and the mouse wheel (zoom
+// about the pointer); double-click resets it to the table's. The card framing is zoomed by z and moved by (tx, ty) card
+// fractions — x' = z·x + tx·w — kept as the renderer's { mode: 'card', zoom, fx, fy } (fx = tx / (1 − z)), applied live
+// to the running illustration (setFraming), kept per illustration key in this browser, exported as a framing table.
+const FRAMES_KEY = 'dynReview.framings';
 let TABLE = {};
-const decisions = (() => { try { return JSON.parse(localStorage.getItem(DECIDE_KEY) || '{}') || {}; } catch { return {}; } })();
-const saveDecisions = () => { try { localStorage.setItem(DECIDE_KEY, JSON.stringify(decisions)); } catch { /* private mode */ } };
-/** The face framing of `key` (zoom > 1), or null when the face framing is the plain one. */
-const faceOf = (k) => { const c = TABLE[k]; const f = c?.face || c; return f && f.zoom > 1 ? { mode: 'card', zoom: f.zoom, fx: f.fx, fy: f.fy } : null; };
-/** What a card shows now: the decision, else the table's. */
-const stateOf = (k) => decisions[k] || ((TABLE[k]?.zoom || 1) > 1 ? 'zoom' : 'plain');
-/** The framing the cards mount with (setDynFraming): the URL's &fr / &framing first, then a decision; null = the table's. */
+const framings = (() => { try { return JSON.parse(localStorage.getItem(FRAMES_KEY) || '{}') || {}; } catch { return {}; } })();
+const saveFramings = () => { try { localStorage.setItem(FRAMES_KEY, JSON.stringify(framings)); } catch { /* private mode */ } };
+/** zoom / pan (z, tx, ty) ↔ the renderer's zoom about a point; z kept off 1 by a hair so a pan at 1× stays representable. */
+const toFraming = ({ z, tx, ty }) => { const zz = Math.abs(1 - z) < 1e-3 ? (tx || ty ? 1.001 : 1) : z; return zz === 1 ? { mode: 'card', zoom: 1, fx: 0.5, fy: 0.5 } : { mode: 'card', zoom: +zz.toFixed(4), fx: +(tx / (1 - zz)).toFixed(4), fy: +(ty / (1 - zz)).toFixed(4) }; };
+const fromFraming = (f) => { const z = f?.zoom > 0 ? f.zoom : 1; return { z, tx: z === 1 ? 0 : f.fx * (1 - z), ty: z === 1 ? 0 : f.fy * (1 - z) }; };
+/** The table's framing of `key` (data/dyn-card-framing.json; zoom 1 = the plain card framing). */
+const tableFraming = (k) => { const c = TABLE[k]; return c && c.zoom > 0 ? { mode: 'card', zoom: c.zoom, fx: c.fx, fy: c.fy } : { mode: 'card', zoom: 1, fx: 0.5, fy: 0.5 }; };
+/** The framing a card shows now: the user's, else the table's. */
+const frameOf = (k) => framings[k] || tableFraming(k);
+/** The framing the cards mount with (setDynFraming): the URL's &fr / &framing first, then the user's; null = the table's. */
 const decideFraming = (k) => {
   if (FR.has(k)) return FR.get(k);
   if (FRAMING) return FRAMING;
-  if (!decisions[k]) return null;
-  return decisions[k] === 'plain' ? 'card' : faceOf(k) || 'card';
+  return framings[k] || null;
 };
 
 const go = (patch) => { const u = new URL(location.href); for (const [k, v] of Object.entries(patch)) { if (v == null) u.searchParams.delete(k); else u.searchParams.set(k, String(v)); } u.searchParams.delete('frame'); location.href = u.toString(); };
@@ -194,8 +197,9 @@ function measure(secs = 5) {
 }
 /**
  * Another page without a reload (the user, 2026-11-23: "is there a way to click next that doesnt have to reload the whole
- * page"): the screen re-mounts with the page's cards, the URL's &page follows (a reload lands there), and the renderer
- * frees every illustration the new page does not show.
+ * page"): the screen re-mounts with the page's cards and the URL's &page follows (a reload lands there). The pages left
+ * behind stay loaded: freeing them (the renderer's release) and coming back drew the cards black (2026-11-23, reported to
+ * the renderer's owner), and the 98 illustrations fit the review machine's GPU.
  */
 function goPage(n) {
   if (!review || !(n >= 0 && n < review.pages.length) || n === review.page) return;
@@ -203,48 +207,80 @@ function goPage(n) {
   review.names = review.allNames[n] || [];
   const u = new URL(location.href); u.searchParams.set('page', String(n + 1)); history.replaceState(null, '', u);
   draw();
-  try { review.stage?.release?.(review.pages[n].map((e) => e.key)); } catch (err) { console.warn('[review] release', err); }
   renderBar(null);
-  zoomToggles();
+  frameEditor();
 }
 globalThis.__review = { special: () => act('special'), start: () => act('start'), replay: () => { replay++; draw(); }, state: () => review, measure, goPage };
 
-/** The switches on the wide cards: Zoomed / Unzoomed per card, ✓ once decided here; at each card's top right. */
-function zoomToggles() {
+/** Apply `key`'s framing to its running cards now (the renderer's setFraming: the camera moves, nothing restarts). */
+function applyFraming(k) {
+  const f = frameOf(k);
+  for (const c of review.stage?.cards || []) if (c.key === k) c.setFraming?.(f);
+}
+
+/**
+ * The hand-framing layer over the wide cards: a box per card that takes a drag (pan) and the wheel (zoom about the
+ * pointer); double-click resets to the table's value. The zoom shows at its corner, ✎ once set here.
+ */
+function frameEditor() {
   if (SHOT || FRAME || SCREEN === 'result' || !review) return;
   let layer = document.querySelector('.rvzoom');
   if (!layer) {
     layer = Object.assign(document.createElement('div'), { className: 'rvzoom' });
     document.body.append(layer);
-    layer.addEventListener('click', (ev) => {
-      const b = ev.target.closest('button[data-k]');
-      if (!b || b.disabled) return;
-      const k = b.dataset.k;
-      decisions[k] = b.dataset.v;
-      saveDecisions();
-      // the mounted cards reframed in place (the renderer's setFraming: the camera moves, nothing reloads or restarts);
-      // the 2D art re-renders at the same value. A renderer without it: the screen re-mounts.
-      const cards = [...(review.stage?.cards || [])].filter((c) => c.key === k);
-      if (cards.length && cards.every((c) => typeof c.setFraming === 'function')) {
-        for (const c of cards) c.setFraming(...coverFramingNow(k));
-        draw();
-      } else { replay++; draw(); }
-      renderBar(null); zoomToggles();
+    let drag = null, raf = 0;
+    const keyOf = (el) => el?.closest('.rvz')?.dataset.k;
+    // a gesture: the view (z, tx, ty) changed for `k` — live on the running cards (one setFraming a frame)
+    const set = (k, v, el) => {
+      framings[k] = toFraming(v);
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; applyFraming(k); label(el, k); });
+    };
+    const label = (el, k) => { const b = el?.querySelector('b'); if (b) b.textContent = `${Math.round(frameOf(k).zoom * 100)}%${framings[k] ? ' ✎' : ''}`; };
+    // the end of a gesture: kept, and the 2D art placed at the same value
+    const done = () => { saveFramings(); draw(); renderBar(null); };
+    layer.addEventListener('pointerdown', (ev) => {
+      const el = ev.target.closest('.rvz'); const k = keyOf(el);
+      if (!k || ev.button !== 0 || ev.target.closest('button')) return;
+      el.setPointerCapture(ev.pointerId);
+      drag = { k, el, x: ev.clientX, y: ev.clientY, v: fromFraming(frameOf(k)), r: el.getBoundingClientRect() };
+      el.classList.add('is-drag');
+    });
+    layer.addEventListener('pointermove', (ev) => {
+      if (!drag) return;
+      const { k, el, v, r } = drag;
+      set(k, { z: v.z, tx: v.tx + (ev.clientX - drag.x) / r.width, ty: v.ty + (ev.clientY - drag.y) / r.height }, el);
+    });
+    const up = () => { if (!drag) return; drag.el.classList.remove('is-drag'); drag = null; done(); };
+    layer.addEventListener('pointerup', up);
+    layer.addEventListener('pointercancel', up);
+    let wheelT = 0;
+    layer.addEventListener('wheel', (ev) => {
+      const el = ev.target.closest('.rvz'); const k = keyOf(el);
+      if (!k) return;
+      ev.preventDefault();
+      const r = el.getBoundingClientRect();
+      const v = fromFraming(frameOf(k));
+      const z = Math.min(3, Math.max(0.6, v.z * Math.exp(-ev.deltaY * 0.0015)));
+      // the point under the pointer stays put: p = z·q + t
+      const px = (ev.clientX - r.left) / r.width, py = (ev.clientY - r.top) / r.height;
+      const qx = (px - v.tx) / v.z, qy = (py - v.ty) / v.z;
+      set(k, { z, tx: px - z * qx, ty: py - z * qy }, el);
+      clearTimeout(wheelT); wheelT = setTimeout(done, 300);
+    }, { passive: false });
+    layer.addEventListener('dblclick', (ev) => {
+      const el = ev.target.closest('.rvz'); const k = keyOf(el);
+      if (!k) return;
+      delete framings[k];
+      applyFraming(k); label(el, k); done();
     });
     // the cards rise in and the window resizes: follow them
-    setInterval(placeToggles, 400);
+    setInterval(placeEditor, 400);
   }
   const group = review.pages[review.page] || [];
-  layer.innerHTML = group.map((e, i) => {
-    const s = stateOf(e.key), can = !!faceOf(e.key);
-    return `<div class="rvz" data-i="${i}" title="${review.names[i] || e.key}">`
-      + `<button type="button" data-k="${e.key}" data-v="zoom" class="${s === 'zoom' ? 'on' : ''}"${can ? '' : ' disabled title="The face is already on its line: no zoom to choose"'}>Zoomed</button>`
-      + `<button type="button" data-k="${e.key}" data-v="plain" class="${s === 'plain' ? 'on' : ''}">Unzoomed</button>`
-      + `${decisions[e.key] ? '<i>✓</i>' : ''}</div>`;
-  }).join('');
-  placeToggles();
+  layer.innerHTML = group.map((e, i) => `<div class="rvz" data-i="${i}" data-k="${e.key}" title="Drag to move, wheel to zoom, double-click to reset — ${review.names[i] || e.key}"><b>${Math.round(frameOf(e.key).zoom * 100)}%${framings[e.key] ? ' ✎' : ''}</b></div>`).join('');
+  placeEditor();
 }
-function placeToggles() {
+function placeEditor() {
   const layer = document.querySelector('.rvzoom');
   if (!layer) return;
   for (const el of document.querySelectorAll('.rs-seats .rseat')) {
@@ -253,23 +289,27 @@ function placeToggles() {
     const art = el.querySelector('.rseat__art') || el;
     if (!t) continue;
     const r = art.getBoundingClientRect();
-    // inside the card's top edge, at its right: clear of the squad heading lines and the host's crown
-    Object.assign(t.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px` });
+    Object.assign(t.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
   }
 }
 
-/** Every illustration's decision, as a file and on the clipboard: key, name, zoomed / unzoomed, decided by you or the table's. */
-function exportDecisions() {
+/** Every illustration's framing as a file and on the clipboard: the cards table of data/dyn-card-framing.json (zoom,
+ * fx, fy), with `edited` on the ones set here and the names. */
+function exportFramings() {
   const names = new Map(review.pages.flatMap((pg, p) => pg.map((e, i) => [e.key, review.allNames[p]?.[i] || e.key])));
-  const rows = review.pages.flat().map((e) => ({ key: e.key, name: names.get(e.key), choice: stateOf(e.key) === 'zoom' ? 'zoomed' : 'unzoomed', by: decisions[e.key] ? 'you' : 'default' }));
-  const out = { exported: new Date().toISOString(), decided: rows.filter((r) => r.by === 'you').length, total: rows.length, rows };
+  const cards = {};
+  for (const e of review.pages.flat()) {
+    const f = frameOf(e.key);
+    cards[e.key] = { zoom: f.zoom, fx: f.fx, fy: f.fy, edited: !!framings[e.key], name: names.get(e.key) };
+  }
+  const out = { exported: new Date().toISOString(), edited: Object.values(cards).filter((c) => c.edited).length, total: Object.keys(cards).length, cards };
   const text = JSON.stringify(out, null, 1);
   navigator.clipboard?.writeText(text).catch(() => {});
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'dyn-zoom-decisions.json' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'dyn-card-framing-edits.json' });
   document.body.append(a); a.click(); a.remove();
   return out;
 }
-globalThis.__review.exportDecisions = exportDecisions;
+globalThis.__review.exportFramings = exportFramings;
 
 const viewportText = () => `Window ${innerWidth}×${innerHeight} @${+(devicePixelRatio || 1).toFixed(3)}`;
 addEventListener('resize', () => { const el = bar?.querySelector('[data-vp]'); if (el) el.textContent = viewportText(); });
@@ -287,7 +327,7 @@ function renderBar(target) {
     + '<span class="sep"></span>' + btn('Special idle now', false, 'special') + btn('Start now', false, 'start') + btn('Replay entrance', false, 'replay')
     + btn(SLOW ? `Slow ${SLOW} MB/s` : 'Slow connection', !!SLOW, 'slow')
     + btn(TIER === 'half' ? 'Half-size art' : 'Half-size art: off', TIER === 'half', 'tier')
-    + (SCREEN !== 'result' ? '<span class="sep"></span>' + btn(`Export zoom decisions (${Object.keys(decisions).length})`, false, 'export') + btn('Clear decisions', false, 'clear') : '')
+    + (SCREEN !== 'result' ? '<span class="sep"></span>' + btn(`Export framings (${Object.keys(framings).length} edited)`, false, 'export') + btn('Clear my framings', false, 'clear') : '')
     // the window as this browser sees it (CSS px and the pixel ratio): the screens the review captures are taken at
     + `<span class="sep"></span><span data-vp>${viewportText()}</span>`
     + `<span class="names">${review ? (review.pages[page] || []).map((e, i) => `${i + 1}. ${review.allNames[page]?.[i] || e.charId}`).join(' · ') : 'loading…'}</span>`;
@@ -303,11 +343,14 @@ function renderBar(target) {
     }
     else if (a === 'slow') go({ slow: SLOW ? null : 1 });
     else if (a === 'tier') go({ tier: TIER === 'half' ? null : 'half' });
-    else if (a === 'export') exportDecisions();
+    else if (a === 'export') exportFramings();
     else if (a === 'clear') {
-      if (!confirm('Clear every zoom decision made on this page?')) return;
-      for (const k of Object.keys(decisions)) delete decisions[k];
-      saveDecisions(); replay++; draw(); renderBar(null); zoomToggles();
+      if (!confirm('Clear every framing you set on this page (all illustrations)?')) return;
+      const keys = Object.keys(framings);
+      for (const k of keys) delete framings[k];
+      saveFramings();
+      for (const k of keys) applyFraming(k);
+      draw(); renderBar(null); frameEditor();
     } else call(a)();
   };
 }
@@ -365,6 +408,6 @@ async function boot() {
   review = { pages, page, stage, allNames, names: allNames[page] || [] };
   draw();
   renderBar(null);
-  zoomToggles();
+  frameEditor();
 }
 boot().catch((err) => console.error('[review] boot failed', err));
