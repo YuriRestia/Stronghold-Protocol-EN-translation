@@ -104,6 +104,10 @@ function diagCard(c) {
     fx: s && s.fx ? liveNodes(s.fx.fx) : null,
     // the card canvas's own pixels: mean |difference| of horizontal neighbours (green, every 4th row): a blurred copy is low
     sharp: sharpness(c),
+    // the GPU skeleton's atlas pages: [ours (this card's prep), destroyed] per page
+    skelPages: s && s.skel.gpu && c.prep ? s.skel.gpu.pages.map((bt) => [[...c.prep.pages.values()].includes(bt), !!bt.destroyed]) : null,
+    // the slot was built from this card's prep (its data), and its id
+    slotPrep: s && c.prep ? s.data === c.prep.data : null,    slotId: s ? s.id : null,
   };
 }
 
@@ -127,12 +131,34 @@ function diagStage() {
   const c = [...cards.values()].find((x) => x.prep && x.prep.pages.size);
   const bt = c && [...c.prep.pages.values()][0];
   const g = bt && bt._glTextures && bt._glTextures[r.CONTEXT_UID];
+  out.slots = [...stage.slots.values()].map((s) => [s.id, s.cards.size]);
+  out.cache = [...stage.cache.keys()];
+  // Pixi's asset cache: the skeleton entries it still holds
+  try {
+    const A = globalThis.PIXI.Assets, skel = (k) => /\.(skel|json|atlas)/.test(String(k));
+    const m = A.cache._cache, pc = A.loader && A.loader.promiseCache, rc = A.resolver && (A.resolver._resolverHash || A.resolver._cache);
+    out.assetSkel = {
+      cache: m ? [...m.keys()].filter(skel).length : null,
+      promise: pc ? Object.keys(pc).filter(skel).slice(0, 3) : null,
+      resolver: rc ? Object.keys(rc).filter(skel).length : null,
+      parsers: (A.loader && A.loader.parsers || []).map((p) => p.extension && p.extension.name || p.name).filter(Boolean).slice(0, 20),
+    };
+  } catch (e) { out.assetSkel = String(e); }
+  out.pageGl = bt ? { has: !!g, dirty: g ? [g.dirtyId, bt.dirtyId] : null, valid: bt.valid, res: bt.resource && bt.resource.constructor && bt.resource.constructor.name, src: bt.resource && bt.resource.source ? [bt.resource.source.width, bt.resource.source.height] : null } : null;
   if (g) {
     gl.bindTexture(gl.TEXTURE_2D, g.texture);
     const P = (k) => gl.getTexParameter(gl.TEXTURE_2D, k);
-    out.page = { key: c.key, size: [g.width, g.height], mip: g.mipmap, min: P(gl.TEXTURE_MIN_FILTER), base: P(gl.TEXTURE_BASE_LEVEL), max: P(gl.TEXTURE_MAX_LEVEL), minLod: P(gl.TEXTURE_MIN_LOD), maxLod: P(gl.TEXTURE_MAX_LOD) };
+    out.page = { key: c.key, size: [g.width, g.height], mip: g.mipmap, isTex: gl.isTexture(g.texture), min: P(gl.TEXTURE_MIN_FILTER), base: P(gl.TEXTURE_BASE_LEVEL), max: P(gl.TEXTURE_MAX_LEVEL) };
+    // the texel at the page's centre (level 0), through a throwaway framebuffer
+    const fb = gl.createFramebuffer(), px = new Uint8Array(4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, g.texture, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) { gl.readPixels(g.width >> 1, g.height >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); out.page.texel = [...px]; }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteFramebuffer(fb);
     gl.bindTexture(gl.TEXTURE_2D, null);
     r.texture.reset?.();
+    r.framebuffer?.reset?.();
   }
   return out;
 }

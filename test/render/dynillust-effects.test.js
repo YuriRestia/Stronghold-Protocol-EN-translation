@@ -112,6 +112,41 @@ describe('loader.js (illust.json, §33.19)', () => {
       if (hadBitmap) globalThis.createImageBitmap = hadBitmap; else delete globalThis.createImageBitmap;
     }
   });
+
+  test('a skeleton loaded again (released, then shown) parses against its own atlas, not the first load\'s', async () => {
+    // Pixi's Assets.load registers an asset only when its alias is new; the resolver then hands back the first
+    // registration's `data` [src: public/vendor/pixi.min.js Assets.load `resolver.hasKey(alias) || this.add(o)`]
+    const atlases = [], _assetMap = {}, _resolverHash = {}, promiseCache = {};
+    class BaseTexture { constructor(img, o) { this.resolution = o.resolution; } }
+    const P = {
+      ALPHA_MODES: { PMA: 2 }, MIPMAP_MODES: { ON: 2 }, BaseTexture,
+      spine: { TextureAtlas: class { constructor(text, pageCb, done) { this.pages = []; atlases.push(this); pageCb('pg.png', (t) => this.pages.push({ baseTexture: t })); done(this); } } },
+      Assets: {
+        cache: { remove() {} }, loader: { promiseCache }, resolver: { _assetMap, _resolverHash },
+        load: async ({ src, data }) => {
+          if (!_assetMap[src]) _assetMap[src] = [{ src, data }];
+          const used = _resolverHash[src] || (_resolverHash[src] = _assetMap[src][0]);
+          promiseCache[src] = 1;
+          return { spineData: { animations: [], atlas: used.data.spineAtlas } };
+        },
+      },
+    };
+    const files = { 'a.atlas': { hash: '1111111111111111' }, 's.skel': { hash: '2222222222222222' }, 'p/pg.webp': { hash: '3333333333333333' } };
+    const entry = { format: 'dynillust', files, spine: { atlas: 'a.atlas', skeleton: 's.skel', pages: [{ name: 'pg.png', file: 'p/pg.webp' }] } };
+    const fetchFn = async () => ({ ok: true, json: async () => entry, text: async () => 'atlas', blob: async () => ({}) });
+    const hadBitmap = globalThis.createImageBitmap;
+    globalThis.createImageBitmap = async () => ({});
+    try {
+      const a = await loadIllust('/assets/local/dynillust/k/illust.json', { P, fetch: fetchFn });
+      const b = await loadIllust('/assets/local/dynillust/k/illust.json', { P, fetch: fetchFn });
+      assert.equal(atlases.length, 2);
+      assert.equal(a.spineData.atlas, atlases[0]);
+      assert.equal(b.spineData.atlas, atlases[1], 'the second load parsed against the first load\'s atlas');
+      assert.deepEqual([Object.keys(_assetMap), Object.keys(_resolverHash), Object.keys(promiseCache)], [[], [], []]);
+    } finally {
+      if (hadBitmap) globalThis.createImageBitmap = hadBitmap; else delete globalThis.createImageBitmap;
+    }
+  });
 });
 
 const node = (id, parent, extra = {}) => ({ id, name: 'n' + id, parent, children: [], active: true, pos: [0, 0, 0], rot: [0, 0, 0, 1], scale: [1, 1, 1], ...extra });

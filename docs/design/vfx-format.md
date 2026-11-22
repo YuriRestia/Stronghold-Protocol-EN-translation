@@ -1943,7 +1943,12 @@ The animated official illustrations on the result, room and Grand Alliance cards
 `arts/dynchars/<key>.ab`: a Spine 3.8 skeleton on the prefab root plus an effect layer (particles, meshes, animators,
 backgrounds) in the §33.4 format. `<key>` is the official `skin_table.charSkins[skinId].dynIllustId` minus its
 `dyn_illust_` prefix (`char_1038_whitw2_2`, `char_1038_whitw2_sale#15`) [src: official skin_table.json dynIllustId;
-container `dyn/arts/dynchars/char_1038_whitw2/dyn_illust_char_1038_whitw2_2.prefab`]. Extractor:
+container `dyn/arts/dynchars/char_1038_whitw2/dyn_illust_char_1038_whitw2_2.prefab`]. Bundle files and container
+paths are lower case, so `key` (and `<dir>`) is lower case too (`char_172_svrash_ambiencesynesthesia#4`); `skinId`
+keeps the official case from the prefab's GameObject name (`dyn_illust_char_172_svrash_ambienceSynesthesia#4` →
+`char_172_svrash@ambienceSynesthesia#4`), and every outfit `skinId` must be exactly an id of `data/outfits.json`
+(the run logs any that is not; `test/local-extract-dynillust.test.js` checks the index) [src: official
+arts/dynchars/char_172_svrash_ambiencesynesthesia#4.ab prefab m_Name; data/outfits.json]. Extractor:
 `extract.py --only dynillust` (`tools/local-extract/dynillust.py`), opt-in like fx. Units: Unity units and the
 client's pixels as stored; seconds; Unity's frames (§33.2).
 

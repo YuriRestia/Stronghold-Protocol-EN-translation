@@ -55,6 +55,9 @@
   and effects carry on, no reload or restart.
 - A card mounted while its seat plays its entrance animation is staged at its real size: its size came from the
   scaled box (721 × 404 for a 720 × 403 card), so the card was built again, unwarmed, in its first live frame.
+- An illustration freed by release() and shown again draws its art: Pixi kept the first load's atlas for the skeleton's
+  URL, so the second load drew the skeleton against freed pages, black (a whole Grand Alliance page after Next then
+  Prev).
 - An outfit finds its illustration whatever the case of its id: 7 Ambience Synesthesia outfits are spelt in lowercase
   in the illustration index, so a player wearing one never got the animation.
 - Switching the Live2D quality (Full ↔ Half) frees the other quality's illustrations from GPU memory as soon as no card
