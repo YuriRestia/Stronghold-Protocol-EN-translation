@@ -18,7 +18,7 @@ import { initLang } from '/js/ui/lang.js';
 import { ensurePixi } from '/js/render/app/pixi.js';
 import { SettleFlow } from '/js/screens/settle.js';
 import { RoomScreen } from '/js/screens/room.js';
-import { setDynModule, setDynQuality } from '/js/ui/dynCards.js';
+import { setDynModule, setDynQuality, setDynFraming } from '/js/ui/dynCards.js';
 import { cardStore, CARD_KEY } from '/js/ui/seatArt.js';
 import { outfitStore } from '/js/ui/outfits.js';
 
@@ -34,6 +34,8 @@ const SLOW = Math.max(0, Number(P.get('slow')) || 0); // MB/s, 0 = the connectio
 const SHOT = P.has('shot');
 // &tier=half|full: the renderer's page tier on any device (the half-size art comparison); default as in the game
 const TIER = ['half', 'full'].includes(P.get('tier')) ? P.get('tier') : null;
+// &framing=card|home|home-illust: every card's framing (dynCards.js setDynFraming; the framing comparison stills)
+const FRAMING = ['card', 'home', 'home-illust'].includes(P.get('framing')) ? P.get('framing') : null;
 const app = document.getElementById('app');
 const bar = document.getElementById('rvbar');
 
@@ -224,6 +226,7 @@ async function boot() {
     clock: { offset: 0, rtt: 20, synced: true } });
   // 动态立绘 on every card, the result cards' default art (the room card), not saved
   settingsStore.set({ dynIllust: P.has('off') ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
+  if (FRAMING) setDynFraming(FRAMING);
   if (TIER) setDynQuality(TIER);
   else if (FRAME) setDynQuality('half');
   // the page's language as the game picks it (?lang=, a stored choice, else English: ui/lang.js START_LANG)
