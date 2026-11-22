@@ -408,6 +408,11 @@ span.settle__nexticon .icon { width: .34rem; height: .34rem; }
 .steam__outcome, .steam__rounds, .steam__when, .sbtn { animation: steam-bar 420ms var(--ease-out) 520ms both; }
 @keyframes steam-bar { from { opacity: 0; transform: translateY(.2rem); } }
 
+/* (fork) the 同盟 page mounted ahead of its turn (screens/settle.js TeamPage `shown`): hidden under the intro and 个人战报
+   while its cards' illustrations get live, its CSS entrance held at its first frame until it shows */
+.steam.is-pre { visibility: hidden; pointer-events: none; z-index: -1; }
+.steam.is-pre, .steam.is-pre * { animation-play-state: paused; }
+
 /* (fork) the black cover the result screen waits behind while its cards' illustrations load (screens/settle.js
    ResultCover): over everything, fades in, holds black with a small spinner, fades out over the result screen */
 .rcover { position: fixed; inset: 0; z-index: 10001; display: grid; place-items: center; background: #000;

@@ -631,22 +631,31 @@ function TeamCard({ p, i, gd, self, victory, raw, opts, gate = null }) {
   </article>`;
 }
 
-function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDetail, version = null, detailOpen = false }) {
-  const rounds = useCountUp(r.roundsPassed, { ms: 900, delay: 450 });
+/**
+ * The 同盟 page. `shown` false: mounted ahead of its turn, hidden and inert behind the intro and 个人战报 (SettleFlow), so
+ * its cards' illustrations are live by the time it shows; its entrance, its count-up, its sound and its CSS entrance all
+ * wait for `shown` (the user, 2026-11-23, through the lead: no result page waiting on screen for its L2Ds).
+ */
+function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDetail, version = null, detailOpen = false, shown = true }) {
+  const rounds = useCountUp(r.roundsPassed, { ms: 900, delay: 450, run: shown });
   const backRef = useRef(null);
   const rawOf = (pid) => (Array.isArray(res?.players) ? res.players.find((x) => x && x.playerId === pid) : null) || null;
   const self = r.players.find((p) => p.playerId === myId) || null;
   const cardOpts = useTeamCardOpts(gd, myId);
   const bg = self?.left ? 'quit' : r.victory ? 'success' : 'fail';
-  // (fork) the cards' entrance gate: the cards join in their effects, which run before this page's; opened once they have
+  // (fork) the cards' entrance gate: the cards join in their effects, which run before this page's (joined); it opens
+  // when the page shows, and the entrance plays then — at once when the cards went live while it was hidden
   const gate = useMemo(() => makeEntranceGate(), []);
-  useEffect(() => { gate.open(); return () => gate.dispose(); }, []);
+  useEffect(() => { gate.joined(); return () => gate.dispose(); }, []);
+  useEffect(() => { if (shown) gate.open(); }, [shown]);
   useEffect(() => {
+    if (!shown) return undefined;
     audio.sfx('settlementTeam');
     const id = setTimeout(() => backRef.current?.focus({ preventScroll: true }), 900);
     return () => clearTimeout(id);
-  }, []);
-  return html`<section class=${cx('steam', r.victory ? 'is-win' : 'is-lose')} data-testid="settle-team">
+  }, [shown]);
+  return html`<section class=${cx('steam', r.victory ? 'is-win' : 'is-lose', !shown && 'is-pre')} data-testid=${shown ? 'settle-team' : 'settle-team-pre'}
+    aria-hidden=${shown ? null : 'true'} inert=${!shown}>
     <div class="steam__bg" aria-hidden="true"><${Sprite} k=${`settle/settlemen_teamshow_${bg}`} /></div>
     <div class="settle__stage">
       <${Logo} />
@@ -714,7 +723,7 @@ export function SettleFlow({ res, pub = null, myId = null, content = null, backL
   return html`<div ref=${rootRef} class=${cx('screen', 'result', 'settle', `settle--${page}`)} data-testid="settle">
     ${page === 'intro' ? html`<${SettleIntro} players=${r.players} myId=${myId} lose=${lose} onDone=${() => setPage('self')} />` : null}
     ${page === 'self' ? html`<${SelfPage} r=${r} res=${res} raw=${rawSelf} self=${self} gd=${gd} prog=${prog} content=${content} version=${version} onNext=${() => setPage('team')} />` : null}
-    ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} content=${content} version=${version} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} detailOpen=${detail} />` : null}
+    <${TeamPage} key="team" r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} content=${content} version=${version} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} detailOpen=${detail} shown=${page === 'team'} />
     ${detail ? html`<div class="settle__detail" data-testid="settle-detail">
       <${ResultView} res=${res} pub=${pub} myId=${myId} quiet=${true} slot=${false} damage=${true} content=${content} version=${version} backLabel=${t('返回')} onBack=${() => setDetail(false)} /></div>` : null}
   </div>`;

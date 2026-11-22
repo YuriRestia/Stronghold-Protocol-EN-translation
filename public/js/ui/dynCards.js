@@ -541,44 +541,60 @@ export const RESULT_MOUNT_MIN_MS = 2000; // [ASSUMED: proposed to the user 2026-
 
 /**
  * One result page's gate: its animating cards join (IllustArt `gate`), each settles when its illustration is live or
- * failed (or it has none); `ready` resolves when all have, or at the give-up — then the still-loading ones keep their 2D
- * art for good (`abandon`: no later switch, the entrance plays once). `open()` once the page's cards have joined (a page
- * with no animating card opens at once). `now` / `endingAt` for tests.
+ * failed (or it has none); at the give-up the still-loading ones keep their 2D art for good (`abandon`: no later switch,
+ * the entrance plays once). `joined()` once the page's cards have joined; `open()` once the page shows (it implies
+ * joined): `ready` resolves when it is open and every card has settled. A page mounted hidden ahead of its turn (the team
+ * page behind a seat's intro and own page, screens/settle.js) gets its cards live while hidden and plays its entrance the
+ * moment it shows. `now` / `endingAt` for tests.
  */
 export function makeEntranceGate({ now = Date.now(), endingAt = resultLoad?.startedAt || 0 } = {}) {
   const pending = new Map(); // token → abandon
-  let done = false, opened = false, resolve;
+  let done = false, joined = false, opened = false, settled = false, gaveUp = 0, resolve;
   const ready = new Promise((r) => { resolve = r; });
+  // the cards' first frames: a result cover that is up waits for them (gateWaitStore)
   gateWaitStore.set({ n: gateWaitStore.get().n + 1 });
-  const leave = () => gateWaitStore.set({ n: Math.max(0, gateWaitStore.get().n - 1) });
+  const allSettled = () => {
+    if (settled) return;
+    settled = true;
+    gateWaitStore.set({ n: Math.max(0, gateWaitStore.get().n - 1) });
+  };
   const finish = () => {
     if (done) return;
     done = true;
-    leave();
     clearTimeout(timer);
-    const gaveUp = pending.size;
-    for (const abandon of pending.values()) { try { abandon?.(); } catch (err) { console.warn('[dynillust] give up', err); } }
-    pending.clear();
+    allSettled();
     // a User Timing mark (`dyn-result-gate`, detail: cards given up): the result timing checks measure from it
     try { performance.mark('dyn-result-gate', { detail: { gaveUp } }); } catch { /* no User Timing */ }
     resolve();
   };
+  const check = () => {
+    if (!joined || pending.size) return;
+    allSettled();
+    if (opened) finish();
+  };
+  const giveUp = () => {
+    gaveUp = pending.size;
+    for (const abandon of pending.values()) { try { abandon?.(); } catch (err) { console.warn('[dynillust] give up', err); } }
+    pending.clear();
+    joined = true;
+    check();
+  };
   const budget = Math.max(RESULT_MOUNT_MIN_MS, (endingAt > 0 ? endingAt + RESULT_GIVE_UP_MS : now + RESULT_GIVE_UP_MS) - now);
-  const timer = setTimeout(finish, budget);
-  const check = () => { if (opened && !pending.size) finish(); };
+  const timer = setTimeout(giveUp, budget);
   return {
     ready,
     budget,
     get done() { return done; },
-    join(token, abandon) { if (!done) pending.set(token, abandon); },
+    join(token, abandon) { if (!done && !settled) pending.set(token, abandon); },
     settle(token) { pending.delete(token); check(); },
-    open() { opened = true; check(); },
-    dispose() { clearTimeout(timer); if (!done) { done = true; leave(); } },
+    joined() { joined = true; check(); },
+    open() { joined = true; opened = true; check(); },
+    dispose() { clearTimeout(timer); allSettled(); done = true; },
   };
 }
 /**
- * How many result pages' entrance gates are still waiting: a result cover that is up (screens/settle.js useResultHold)
- * stays over a page whose cards are still getting their first frames, so the page shows with its entrance, not before.
+ * How many result pages' entrance gates still wait for their cards' first frames: a result cover that is up
+ * (screens/settle.js useResultHold) stays over them, so every page shows with its entrance, not before.
  */
 export const gateWaitStore = createStore({ n: 0 });
 

@@ -485,7 +485,11 @@ over a page whose cards are still getting their first frames (a spectator's 同�
 `gateWaitStore`) and fades out over the result screen as its entrance starts; its fades are the flow's own page change
 (`RESULT_COVER_FADE_MS` = `LEAVE_MS`), none under reduced motion. No cover when the illustrations are in by the end of
 the pause (kept through the match, follow-up A, or loaded during it). At the give-up a card still loading keeps its 2D
-art at once (`resultKeyReady`). Measured with the game's hold on the review page (pages 3 and 5, 4 cards, cold / warm /
+art at once (`resultKeyReady`). A seat's 同盟 page is mounted from the result screen's start, hidden and inert behind the
+intro and 个人战报 (`TeamPage` `shown`; its count-up, sound and CSS entrance wait for it), so its cards are live by the
+time it shows: its entrance gate opens when it shows (`joined()` / `open()`), and the entrance played 5–7 ms after
+下一步's page change instead of being held up to about 0.5 s on screen (the lead's go of 2026-11-23, after the user's
+correction above) [src: work/dev-55 sf-1440.json / sf-4k.json, pages 3 and 5, cold and warm, 2319 × 1356 @1 and @1.5]. Measured with the game's hold on the review page (pages 3 and 5, 4 cards, cold / warm /
 kept, 2319 × 1356 @1 and @1.5) [src: work/dev-55 rc-*.json, 2026-11-23]: from the local server every case opened 5–12 ms
 after the pause, no cover; on a 4 MB/s link (the review page's `&slow`) page 3 cold showed the cover 984–1214 ms and warm
 804–805 ms, the result screen 3.39–3.78 s after `ending`, kept and page 5 none. The room's load after the screen has what it

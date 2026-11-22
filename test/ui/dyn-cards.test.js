@@ -387,6 +387,42 @@ test('动态立绘画质 drives the page tier with no reload: Half / Full force 
   }
 });
 
+test('a team page mounted hidden: its cards go live while hidden (the cover\'s wait ends), its entrance waits for the page to show', async (t) => {
+  const { makeEntranceGate, gateWaitStore, RESULT_GIVE_UP_MS } = await import('../../public/js/ui/dynCards.js');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const flush = () => new Promise((r) => { setImmediate(r); });
+  const n0 = gateWaitStore.get().n;
+  const g = makeEntranceGate({ now: 1000, endingAt: 1000 });
+  let played = false;
+  g.ready.then(() => { played = true; });
+  const a = {}, b = {}, lost = [];
+  g.join(a, () => lost.push('a')); g.join(b, () => lost.push('b'));
+  g.joined();
+  assert.equal(gateWaitStore.get().n, n0 + 1, 'its cards still getting their first frames: a cover that is up waits');
+  g.settle(a); g.settle(b); await flush();
+  assert.equal(gateWaitStore.get().n, n0, 'all live: the cover may go');
+  assert.equal(played, false, 'hidden: no entrance yet');
+  t.mock.timers.tick(RESULT_GIVE_UP_MS * 2); await flush();
+  assert.equal(played, false, 'the give-up does not play a hidden page');
+  assert.deepEqual(lost, []);
+  g.open(); await flush();
+  assert.equal(played, true, 'shown: the entrance plays at once');
+  g.dispose();
+  // a card still loading at the give-up while the page is hidden keeps its 2D art; the page plays when shown
+  const h = makeEntranceGate({ now: 1000, endingAt: 1000 });
+  let hp = false;
+  h.ready.then(() => { hp = true; });
+  h.join({}, () => lost.push('slow'));
+  h.joined();
+  t.mock.timers.tick(RESULT_GIVE_UP_MS); await flush();
+  assert.deepEqual(lost, ['slow']);
+  assert.equal(gateWaitStore.get().n, n0);
+  assert.equal(hp, false);
+  h.open(); await flush();
+  assert.equal(hp, true);
+  h.dispose();
+});
+
 test('the result page\'s entrance gate: opens once every animating card is live or failed, at once without one, and gives up for good', async (t) => {
   const { makeEntranceGate, RESULT_GIVE_UP_MS, RESULT_MOUNT_MIN_MS } = await import('../../public/js/ui/dynCards.js');
   t.mock.timers.enable({ apis: ['setTimeout'] });
