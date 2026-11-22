@@ -262,7 +262,7 @@ export const resultGateStore = createStore({ n: 0 });
  */
 export function startResultLoad(cardsOf) {
   endResultLoad();
-  const state = { pending: true };
+  const state = { pending: true, startedAt: Date.now() };
   resultLoad = state;
   const done = () => { if (state.pending) { state.pending = false; resultGateStore.set({ n: resultGateStore.get().n + 1 }); } };
   // the result cards' tier from their size before they exist; the cards confirm it when they mount
@@ -287,6 +287,53 @@ export function resultWaitMs(resultAt, now = Date.now()) {
 /** Forget the match's result load (the next match began, or the page left the match). */
 export function endResultLoad() {
   resultLoad = null;
+}
+
+// ---- the result cards' entrance gate (the user, 2026-11-23, through the lead: "If an L2D is available, then it should
+// wait for the l2d to be ready instead of rushing ahead with the static art, cause the animation there is only made to
+// play once, with no second shot") ------------------------------------------------------------------------------------
+
+/**
+ * How long after the server's `ending` the result cards may wait for their illustrations, all waits included (the
+ * settlement pause, the result screen's hold, the cards' first frames): one budget, never a second wait on top.
+ */
+export const RESULT_GIVE_UP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-23, not yet OK'd — measured basis in the report]
+/** The least a team page that mounts late (its tab opened afterwards) still gives its cards' first frames (ms). */
+export const RESULT_MOUNT_MIN_MS = 2000; // [ASSUMED: proposed to the user 2026-11-23, not yet OK'd — measured basis in the report]
+
+/**
+ * One result page's gate: its animating cards join (IllustArt `gate`), each settles when its illustration is live or
+ * failed (or it has none); `ready` resolves when all have, or at the give-up — then the still-loading ones keep their 2D
+ * art for good (`abandon`: no later switch, the entrance plays once). `open()` once the page's cards have joined (a page
+ * with no animating card opens at once). `now` / `endingAt` for tests.
+ */
+export function makeEntranceGate({ now = Date.now(), endingAt = resultLoad?.startedAt || 0 } = {}) {
+  const pending = new Map(); // token → abandon
+  let done = false, opened = false, resolve;
+  const ready = new Promise((r) => { resolve = r; });
+  const finish = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    const gaveUp = pending.size;
+    for (const abandon of pending.values()) { try { abandon?.(); } catch (err) { console.warn('[dynillust] give up', err); } }
+    pending.clear();
+    // a User Timing mark (`dyn-result-gate`, detail: cards given up): the result timing checks measure from it
+    try { performance.mark('dyn-result-gate', { detail: { gaveUp } }); } catch { /* no User Timing */ }
+    resolve();
+  };
+  const budget = Math.max(RESULT_MOUNT_MIN_MS, (endingAt > 0 ? endingAt + RESULT_GIVE_UP_MS : now + RESULT_GIVE_UP_MS) - now);
+  const timer = setTimeout(finish, budget);
+  const check = () => { if (opened && !pending.size) finish(); };
+  return {
+    ready,
+    budget,
+    get done() { return done; },
+    join(token, abandon) { if (!done) pending.set(token, abandon); },
+    settle(token) { pending.delete(token); check(); },
+    open() { opened = true; check(); },
+    dispose() { clearTimeout(timer); },
+  };
 }
 
 // ---- the room's group flip (the user, 2026-11-22: "keep placeholder and flip at the same time") ------------------------
@@ -503,8 +550,10 @@ export function leaveGroup(e) {
  * @param {{ art: { charId: string, outfit: string|null } | null, animate: boolean, wait?: 'now'|'settled', backdrop?: boolean, class?: string, children?: any }} props
  *   wait: 'now' mounts at once (the result screen: loaded in the pause), 'settled' once the screen has what it needs (room)
  *   backdrop: the official card background behind the live illustration (BACKDROP; a tall card of the official shape)
+ *   gate: the result page's entrance gate (makeEntranceGate): the card joins it, settles once live or failed, and at
+ *   its give-up keeps its 2D art for good
  */
-export function IllustArt({ art, animate, wait = 'now', backdrop = false, class: cls = '', children }) {
+export function IllustArt({ art, animate, wait = 'now', backdrop = false, gate = null, class: cls = '', children }) {
   const on = !!(animate && art);
   const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
@@ -672,13 +721,27 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
     };
     const go = () => readyStage(tier).then(({ R, st }) => {
       const key = live ? illustKey(R, art) : null;
-      if (!key || !host.current) { if (live) setState('off'); return null; }
+      if (!key || !host.current) { if (live) setState('off'); gate?.settle(gateTok); return null; }
       // the renderer's card: its own 2D canvas in the art window, under the card's overlays (§33.19); 'live' = drawn
-      card = st.mount(key, { onState: (s) => { if (!live || kept) return; cur = s; setState(s); if (entry) { groupState(entry, s); if (s === 'live') cover(); } } });
+      card = st.mount(key, { onState: (s) => {
+        if (!live || kept) return;
+        cur = s; setState(s);
+        if (entry) { groupState(entry, s); if (s === 'live') cover(); }
+        if (s === 'live' || s === 'failed') gate?.settle(gateTok);
+      } });
       if (card.canvas) host.current.append(card.canvas);
       if (entry) { entry.card = card; prepare(); joinGroup(entry); } else card.start();
       return card.ready;
-    }).catch((err) => { console.warn('[dynillust] card', err); if (live) setState('off'); });
+    }).catch((err) => { console.warn('[dynillust] card', err); if (live) setState('off'); gate?.settle(gateTok); });
+    // the result page's gate: this card holds the page's entrance until live or failed; at the gate's give-up it keeps
+    // its 2D art for good (the entrance plays once, never a switch after it)
+    const gateTok = {};
+    gate?.join(gateTok, () => {
+      if (!live || kept) return;
+      kept = true;
+      try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
+      setState('kept');
+    });
     // every card on the screen waits for the same moment and then loads at once (the renderer fetches and builds them in
     // parallel); a loadLater task per card made them load one by one — its queue runs one task at a time
     // the renderer's code (PIXI, pixi-spine — main.js prefetched their files after the entry film — the module and the
@@ -687,6 +750,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
     else go();
     return () => {
       live = false;
+      gate?.settle(gateTok);
       if (raf) cancelAnimationFrame(raf);
       if (trans) { transitions.delete(trans); trans = null; }
       reserveTiles(dis);

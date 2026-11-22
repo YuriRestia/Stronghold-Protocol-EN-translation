@@ -759,10 +759,15 @@ function tileDissolve(it) {
  * `index × ANIM_DELAY_S`. Drives the card's CSS variables (--ce-a its opacity, --ce-root / --ce-card the illustration's
  * and the name card's offsets in px, --ce-round the rounds group's opacity) and draws the mattes into the card's two
  * `.tcard__ce` canvases. Under reduced motion the card shows the clip's last frame at once. Returns false — and the card
- * keeps its own look — when the manifest lacks a sprite or the page has no WebGL2.
- * @param {{ current: HTMLElement|null }} ref the card @param {{ index: number, kind: 'complete'|'normal' }} o
+ * keeps its own look — when the manifest lacks a sprite or the page has no WebGL2. With `gate` (a promise: the result
+ * page's entrance gate, ui/dynCards.js makeEntranceGate) the card holds the clip's first frame (unseen: alpha 0) until
+ * it resolves — its illustration live, failed or given up — and plays from then, so the one-shot entrance plays with the
+ * illustration (the user, 2026-11-23: "it should wait for the l2d to be ready instead of rushing ahead with the static
+ * art").
+ * @param {{ current: HTMLElement|null }} ref the card
+ * @param {{ index: number, kind: 'complete'|'normal', gate?: Promise<any>|null }} o
  */
-export function useCardEntrance(ref, { index, kind }) {
+export function useCardEntrance(ref, { index, kind, gate = null }) {
   const [urls] = useState(() => {
     const u = entranceSprites();
     try { return u && glInit() ? u : null; } catch (err) { console.warn('[cardEntrance] WebGL2', err); return null; }
@@ -774,7 +779,7 @@ export function useCardEntrance(ref, { index, kind }) {
     const head = el.querySelector('.tcard__head');
     const bg = el.querySelector('.tcard__cardbg');
     if (bg) { bg.style.borderImageSource = `url("${urls.card_bg}")`; bg.style.borderImageSlice = `${CARD_BG.border.top} ${CARD_BG.border.right} ${CARD_BG.border.bottom} ${CARD_BG.border.left} fill`; }
-    const t0 =performance.now() + Math.max(0, index) * ANIM_DELAY_S * 1000;
+    let t0 = performance.now() + Math.max(0, index) * ANIM_DELAY_S * 1000;
     let raf = 0, ready = false, now = 0, live = true;
     const apply = (t) => {
       now = t;
@@ -801,7 +806,16 @@ export function useCardEntrance(ref, { index, kind }) {
       apply(Math.max(0, t));
       if (t < CLIP_LENGTH_S) raf = requestAnimationFrame(tick);
     };
-    if (reducedMotion()) apply(CLIP_LENGTH_S); else tick();
+    if (reducedMotion()) apply(CLIP_LENGTH_S);
+    else if (gate) {
+      // held on the first frame until the page's illustrations are ready, then the row's stagger from that moment
+      apply(0);
+      Promise.resolve(gate).then(() => {
+        if (!live) return;
+        t0 = performance.now() + Math.max(0, index) * ANIM_DELAY_S * 1000;
+        tick();
+      });
+    } else tick();
     loadEntrance(urls).then(() => { if (live) { ready = true; apply(now); } }, (err) => console.warn('[cardEntrance] sprites', err));
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => apply(now)) : null;
     ro?.observe(el);

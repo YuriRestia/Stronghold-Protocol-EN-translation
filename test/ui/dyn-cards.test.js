@@ -307,6 +307,49 @@ test('the border\'s sweep: the user\'s 0.35 s, the whole of it the line crossing
   }
 });
 
+test('the result page\'s entrance gate: opens once every animating card is live or failed, at once without one, and gives up for good', async (t) => {
+  const { makeEntranceGate, RESULT_GIVE_UP_MS, RESULT_MOUNT_MIN_MS } = await import('../../public/js/ui/dynCards.js');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const flush = () => new Promise((r) => { setImmediate(r); });
+  // two animating cards: the gate waits for both
+  let g = makeEntranceGate({ now: 1000, endingAt: 1000 });
+  let opened = false;
+  g.ready.then(() => { opened = true; });
+  const a = {}, b = {}, gaveUp = [];
+  g.join(a, () => gaveUp.push('a')); g.join(b, () => gaveUp.push('b'));
+  g.open(); await flush();
+  assert.equal(opened, false);
+  g.settle(a); await flush();
+  assert.equal(opened, false);
+  g.settle(b); await flush();
+  assert.equal(opened, true);
+  assert.deepEqual(gaveUp, [], 'nobody given up when all are ready');
+  g.dispose();
+  // a page with no animating card opens as soon as it is opened
+  g = makeEntranceGate({ now: 1000, endingAt: 1000 });
+  opened = false; g.ready.then(() => { opened = true; });
+  g.open(); await flush();
+  assert.equal(opened, true);
+  // one card never ready: at the give-up (counted from the ending) it is abandoned (keeps its 2D art) and the page plays
+  g = makeEntranceGate({ now: 1000, endingAt: 1000 });
+  assert.equal(g.budget, RESULT_GIVE_UP_MS);
+  opened = false; g.ready.then(() => { opened = true; });
+  const c = {}; const lost = [];
+  g.join(c, () => lost.push('c'));
+  g.open();
+  t.mock.timers.tick(RESULT_GIVE_UP_MS - 1); await flush();
+  assert.equal(opened, false);
+  t.mock.timers.tick(1); await flush();
+  assert.equal(opened, true);
+  assert.deepEqual(lost, ['c']);
+  g.join({}, () => lost.push('late')); g.settle({});
+  assert.deepEqual(lost, ['c'], 'a card joining after the give-up is not held');
+  // one budget with the waits before: a page mounted long after the ending still gives its cards' first frames the minimum
+  g = makeEntranceGate({ now: 1000 + RESULT_GIVE_UP_MS * 3, endingAt: 1000 });
+  assert.equal(g.budget, RESULT_MOUNT_MIN_MS);
+  g.dispose();
+});
+
 test('the cards\' look: the user\'s pick, one thin line on the smoothed mask, no glitter', async () => {
   const ce = await import('../../public/js/ui/cardEntrance.js');
   const S = GLOW_STYLES[ce.GLOW_DEFAULT];

@@ -443,7 +443,18 @@ show only on a server whose index lists illustrations. Loading (D10 / D11): noth
 illustrations load from m.public `ending` (META §1) through the settlement pause, and `screens/game.js` keeps the match
 screen up after RESULT until they are ready, at most `RESULT_WAIT_MS` 3 s; the room's load after the screen has what it
 needs (`loadLater.js` whenScreenSettled, all the room's cards together) and after the entry film's files, the renderer's
-code getting ready during that wait; a card not ready shows its 2D art and switches when ready.
+code getting ready during that wait; a room card not ready shows its 2D art and switches when ready. A result card's
+one-shot entrance waits for its illustration instead (the user, 2026-11-23: "If an L2D is available, then it should wait
+for the l2d to be ready instead of rushing ahead with the static art, cause the animation there is only made to play
+once"): the team page's cards join one gate (`makeEntranceGate`), each settling once its illustration is live or failed
+(or it has none), and every card's entrance starts from the gate's opening with the row's stagger, held on its first,
+unseen frame until then (`useCardEntrance` `gate`). Static art only for a card without an illustration, one that failed,
+or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending`, all waits counted (the settlement
+pause, the screen's hold, the cards' first frames), at least `RESULT_MOUNT_MIN_MS` 2 s after a team page that mounts
+late [ASSUMED: both proposed, not yet OK'd]; such a card keeps its 2D art for good, no switch after its entrance.
+Measured on the review page (renderer booted, local server, 4 cards, 1440p and 4K): the load 0.70–0.99 s from files not
+yet fetched, 0.45–0.65 s from the HTTP cache, mount to the gate's opening 0.36–0.41 s / 0.27–0.33 s, 0.23–0.25 s with
+the illustrations still in the renderer [src: work/dev-55 rw-1440.json / rw-4k.json, 2026-11-23].
 The room's and the Grand Alliance room's cards switch together (the user, 2026-11-22: keep the placeholders and flip at
 the same time; `joinGroup`): each keeps its 2D art until every card on the screen is ready or failed, then all start in
 one frame behind their 2D art ("wait until it's ready, then play the animation and switch the live 2d in in the back"),
@@ -492,9 +503,9 @@ flip; the result cards do not group (D11). The
 strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
 the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
-with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a result card appears and
-switches — straight into Idle, no intro, the official crossfade on a late switch (the user, 2026-11-22) — is the
-renderer's; the room cards' dissolve (above) is the client's.
+with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a result card's illustration
+appears — straight into Idle, no intro (the user, 2026-11-22) — is the renderer's; it no longer switches late on screen
+(its entrance waits, above); the room cards' dissolve (above) is the client's.
 An illustration's see-through pixels (its erasers) show the official card background, which both official cards draw
 before the illustration (group_bg/bg, the same 9-slice `bg_normal2` / `card_bg`): behind the result card the real one
 (below), and on a tall card of the official shape (the solo room's) `IllustArt backdrop`, mapped onto the art window as the
