@@ -46,6 +46,21 @@ async function pageTexture(P, fetchFn, url, half) {
 }
 
 /**
+ * An illustration's load groups (illust.json `load` [src: doc §33.19 Load]): the group of an effect texture, mesh or
+ * node, and `never`, the groups a card never plays (START, INTERACTION). Without `load`, everything is IDLE.
+ */
+export function loadGroups(entry) {
+  const L = (entry && entry.load) || {};
+  const tex = L.textures || {}, mesh = L.meshes || {}, nodes = Array.isArray(L.nodes) ? L.nodes : [];
+  return {
+    never: new Set(Array.isArray(L.cardNever) ? L.cardNever : []),
+    texture: (k) => tex[k] || 'IDLE',
+    mesh: (k) => mesh[k] || 'IDLE',
+    node: (i) => nodes[i] || 'IDLE',
+  };
+}
+
+/**
  * Load illustration `illustUrl` (the manifest's path). `lib`: the stage's FxLibrary (its file list gets this
  * illustration's textures and meshes). Returns { entry, dir, spineData, pages, fxDef }.
  * @param {{ P?: any, fetch?: typeof fetch, lib?: any, half?: boolean, texInfo?: Record<string, any> }} o
@@ -107,7 +122,11 @@ export async function loadIllust(illustUrl, o = {}) {
     }
     for (const [k, m] of Object.entries(entry.fx.meshes || {})) g['fx/mesh'][k] = { path: fileUrl(dir, entry, m.file) };
     const desc = await okFetch(fetchFn, fileUrl(dir, entry, entry.fx.file), 'json');
-    await Promise.all((desc.meshes || []).map((m) => lib.loadMesh(m, entry.key || illustUrl))); // owner: library.js _limit
+    // a card never plays START or INTERACTION: their meshes stay unloaded (their nodes are never switched on). The
+    // special idle's meshes load now: the compile reads a particle system's emitter mesh.
+    const groups = loadGroups(entry);
+    const meshes = (desc.meshes || []).filter((m) => !groups.never.has(groups.mesh(m)));
+    await Promise.all(meshes.map((m) => lib.loadMesh(m, entry.key || illustUrl))); // owner: library.js _limit
     fxDef = compileEffect(desc, lib);
     // node 0 is the skeleton's node and the separator parts are its renderers: drawn from `spine`, never as effects
     const own = new Set([0, ...((sp.separator && sp.separator.parts) || []), ...((sp.renderers || []).map((r) => r.node))]);
