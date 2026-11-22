@@ -66,12 +66,18 @@ async function installRenderer() {
   return st;
 }
 
-/** The illustration's name: the operator's, and the outfit's (else E2). */
+/**
+ * The illustration's name, in English from the official EN game data by id (dyn-review-names.json, written by
+ * tools/dyn-review-names.mjs): the operator's and the outfit's, 'Elite 2 art', or a CN-only outfit's EN brand and number.
+ * A skin the file lacks (a newer extraction): the game data's names in the page's language.
+ */
+let NAMES = {};
 function nameOf(e) {
+  const n = NAMES[e.skinId];
+  if (n) return `${n.op} · ${n.outfit}${n.cnOnly ? ' (CN only)' : ''}`;
   const chess = data.list('chess').find((c) => c && c.charId === e.charId) || Object.values(data.get('backups')?.units || {}).find((u) => u && u.charId === e.charId);
-  const op = chess?.name || e.charId;
-  const outfit = e.skinId === `${e.charId}#2` ? 'E2' : data.lookup('outfits', e.skinId)?.name || e.skinId;
-  return `${op} · ${outfit}`;
+  const outfit = e.skinId === `${e.charId}#2` ? 'Elite 2 art' : data.lookup('outfits', e.skinId)?.name || e.skinId;
+  return `${chess?.name || e.charId} · ${outfit}`;
 }
 
 function fakeRoom(group, ids) {
@@ -205,7 +211,9 @@ async function boot() {
   // 动态立绘 on every card, the result cards' default art (the room card), not saved
   settingsStore.set({ dynIllust: P.has('off') ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
   if (FRAME) setDynQuality('half');
-  if (P.has('lang')) await initLang().catch((err) => console.warn('[review] language setup failed', err));
+  // the page's language as the game picks it (?lang=, a stored choice, else English: ui/lang.js START_LANG)
+  await initLang().catch((err) => console.warn('[review] language setup failed', err));
+  NAMES = await fetch('/dev/dyn-review-names.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
   await data.loadAll([...GAME_FILES, 'outfits']);
   installDeviceSupport();
   const stage = await installRenderer();
