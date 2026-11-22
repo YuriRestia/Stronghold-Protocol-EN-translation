@@ -1961,7 +1961,7 @@ the `dyn_illust_<key>` prefab's own tree only; the others are not extracted. The
 | `illust.json` | the index below |
 | `<stem>.skel` or `<stem>.json` | the skeleton TextAsset as stored: binary 3.8, or Spine JSON (4 of the 98: `char_4058_pepe_2` — Pepe's E2 art, O6 —, `char_4058_pepe_sightseer#2`, `char_1016_agoat2_epoque#34`, `char_1020_reed2_summer#17`); all 3.8.99. All 98 card prefabs use `DynIllust` and a SkeletonAnimation, none `DynIllustSpecial` or a SkeletonGraphic |
 | `<stem>.atlas` | the atlas text, `size:` per page, no `pma` (`normalize_atlas`, §13) |
-| `p/<page>.webp`, `p/half/<page>.webp` | atlas pages as stored: the RGB unchanged, A from the `[alpha]` texture (`merge_alpha`); WebP lossy q90, alpha 100, `exact` (the RGB under A = 0 kept); half = exactly w/2 × h/2, each texel the premultiplied mean of its 2 × 2 source texels (`half_page`: a premultiplied page averaged per channel; a straight page premultiplied, averaged, divided back) |
+| `p/<page>.webp`, `p/half/<page>.webp` | atlas pages as stored: the RGB unchanged, A from the `[alpha]` texture (`merge_alpha`); WebP lossy q90, alpha 100, `exact` (the RGB under A = 0 kept); half = exactly w/2 × h/2, each texel the premultiplied mean of its 2 × 2 source texels (`half_page`: a premultiplied page averaged per channel; a straight page premultiplied, averaged, divided back where the half texel has alpha, and the plain mean of the source colour where it is fully transparent, so the colour the client bled into transparent texels — read by bilinear sampling at every edge — survives) |
 | `fx.json` | the effect layer: one §33.4 descriptor of the whole prefab tree, holder effects included (root = node 0 = the skeleton's node; its Spine renderers are drawn from `spine`, not as effect renderers) |
 | `tex/<key>.webp`, `tex/half/<key>.webp`, `mesh/<key>.json` | the descriptor's textures (§33.8) and meshes (§33.9) |
 
@@ -1992,8 +1992,28 @@ the `dynillust` group; a keyed or sharded run replaces only its own entries.
   bundle: 'arts/dynchars/<key>.ab', client (CN client version), files: { rel: { hash, bytes } },
   bytes: { full, half }                       sum of what the full / half tier downloads
   spine: Spine, framing: Framing, actions: Actions,
-  fx: { file: 'fx.json', textures: { key: Texture }, meshes: { key: Mesh }, paths: { 'a/b/c': node }, posWS: [node] } }
+  fx: { file: 'fx.json', textures: { key: Texture }, meshes: { key: Mesh }, paths: { 'a/b/c': node }, posWS: [node] },
+  load: Load }
 ```
+
+**Load** (what to load first; derived from the official data, not a client field):
+
+```
+{ groups: ['IDLE', 'SPECIAL_IDLE', 'START', 'INTERACTION'],   load order; IDLE also holds every always-on part
+  cardNever: ['START', 'INTERACTION'],                         a result / room card never plays them (O1; D9: no tap)
+  nodes: [group per fx.json node], textures: { key: group }, meshes: { key: group },
+  bytes: { group: { full, half } },                            the texture and mesh files of each group
+  firstLoad: { full, half } }                                  skeleton + atlas + pages + fx.json + the IDLE group's files
+```
+
+A node takes the group of the nearest node (itself or an ancestor) that an action switches on: an `ActionParticle`
+(or holder effect) of that action [src: official DynIllust._particles, DynIllustEffectHolder._action], or a
+`GameObject.m_IsActive` curve of a clip in an Animator state of that group (the default state is IDLE; a transition on
+`OnSpecial` / `OnStart` / `OnInteract` / `OnIdle` gives its target that group, one without a trigger passes its
+source's on) [src: the AnimatorControllers' states and transitions, §33.19 Actions]; a node no action switches on is
+always on (IDLE). A file takes the earliest group of the nodes that use it, and a file no node names stays in IDLE.
+A card loads IDLE first and SPECIAL_IDLE later, and never needs START or INTERACTION. Not computed: parts outside the
+232 × 458 window for a whole action (particles move; no safe static bound).
 
 `fx.textures` / `fx.meshes` are §33.8 / §33.9 entries with paths relative to `<dir>`; `fx.paths` maps a node's path
 (GameObject names from the root, `/`-joined; the root is `''`) to its id, the first node when names repeat. Three

@@ -525,7 +525,8 @@ class Slot {
     this.data = d;
     const look = sk.look;
     const make = S.spineFactory ? (sd) => S.spineFactory(P, sd, look) : null;
-    this.skel = new IllustSkeleton(prep.spineData, { ...sk, makeSpine: make });
+    // (`pruneTimelines: false`: keep the constant timelines, for checks that compare the two)
+    this.skel = new IllustSkeleton(prep.spineData, { ...sk, makeSpine: make, prune: S.opts.pruneTimelines !== false });
     // GPU skinning (render/dynillust/gpuskin.js) on WebGL2; pixi-spine's CPU meshes otherwise (or with gpuSkin: false)
     if (S.opts.gpuSkin !== false && S.renderer && gpuSkinSupported(S.renderer.gl)) {
       try { this.skel.enableGpu(new GpuSkeleton(S.renderer, this.skel.spine, look)); } catch (err) { console.warn('[dynillust] GPU skinning off', err); }
