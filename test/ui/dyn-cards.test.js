@@ -7,10 +7,10 @@ import {
   RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
   setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle, cardTier, HALF_MAX_SCALE,
   FLIP_FADE_S, FLIP_DISSOLVE_S, FLIP_STEP_S, FLIP_SMOOTH_MS, FLIP_SMOOTH_FRAMES, FLIP_GIVE_UP_MS, joinGroup, groupState, leaveGroup, objectPosition,
-  FLIP_SWEEP_S, FLIP_SWEEP_K0, sweepDrive, dynTierStore, setDynQuality,
+  FLIP_SWEEP_S, sweepDrive, dynTierStore, setDynQuality,
 } from '../../public/js/ui/dynCards.js';
 import { settingsStore } from '../../public/js/ui/settingsStore.js';
-import { coverUv, edgeOf, BLOOM, makeSparks, SPARKS } from '../../public/js/ui/cardEntrance.js';
+import { coverUv, edgeOf, sweepRange, GLOW_STYLES, BLOOM } from '../../public/js/ui/cardEntrance.js';
 
 test('the tier by card size: half up to one device px per official unit of the 232 × 458 window, full above', () => {
   assert.equal(HALF_MAX_SCALE, 1);
@@ -135,6 +135,27 @@ test('the result screen waits for its cards (own card first), at most RESULT_WAI
   releaseIllusts();
   assert.deepEqual(fake.st.releases, [[]], 'the match starts: everything no card shows is freed');
   endResultLoad();
+  setDynModule(null);
+});
+
+test('follow-up A: the result cards\' illustrations are kept through the match, one\'s own first, within the GPU cap', async () => {
+  const { pickKept, keptGpuBytes, KEEP_CAP_MB } = await import('../../public/js/ui/dynCards.js');
+  const MB = 1048576;
+  // an index figure wins; else the download size times the measured bound; no entry: never kept
+  assert.equal(keptGpuBytes({ gpu: 40 * MB, bytes: 1 }, 'full'), 40 * MB);
+  assert.equal(keptGpuBytes({ gpuHalf: 10 * MB, bytesHalf: 1 }, 'half'), 10 * MB);
+  assert.ok(keptGpuBytes({ bytes: 5 * MB }, 'full') > 5 * MB * 8, 'the bound is above the median ratio');
+  assert.equal(keptGpuBytes(null, 'full'), Infinity);
+  // in order while they fit: a big one in the middle is skipped, a smaller one after it still kept
+  const entries = { own: { gpu: 60 * MB }, big: { gpu: 120 * MB }, other: { gpu: 50 * MB }, none: null };
+  const keep = pickKept(['own', 'big', 'other', 'none'], 'full', (k) => entries[k], 160);
+  assert.deepEqual(keep, ['own', 'other']);
+  assert.ok(KEEP_CAP_MB > 0);
+  // the renderer is told what to keep; without an index figure for a card, nothing is held (it loads at `ending`)
+  const fake = fakeModule(['char_a']);
+  setDynModule(fake);
+  releaseIllusts([{ charId: 'char_a', outfit: null }]);
+  assert.deepEqual(fake.st.releases.at(-1), []);
   setDynModule(null);
 });
 
@@ -294,6 +315,20 @@ test('the dissolve\'s crop is the 2D art\'s object-fit: cover at its object-posi
   assert.ok(Math.abs(w.u0 - 0.25) < 1e-9 && Math.abs(w.u1 - 0.75) < 1e-9 && Math.abs(w.t0) < 1e-9 && Math.abs(w.t1 - 1) < 1e-9, JSON.stringify(w));
 });
 
+test('the border\'s sweep: the user\'s 0.35 s, the whole of it the line crossing the card, ending with the picture gone', () => {
+  assert.equal(FLIP_SWEEP_S, 0.35);
+  for (const key of Object.keys(GLOW_STYLES)) {
+    const S = GLOW_STYLES[key], reach = S.reach ?? BLOOM.width;
+    const [a, b] = sweepRange(S);
+    assert.equal(sweepDrive(0, S), a, key);
+    assert.equal(sweepDrive(-1, S), a, key);
+    assert.equal(sweepDrive(FLIP_SWEEP_S, S), 1, key);
+    // the band's leading side reaches the card (mask 0) at the start and leaves it (mask 1) at the end
+    assert.ok(Math.abs(edgeOf(a, S) + reach) < 1e-9 && Math.abs(edgeOf(b, S) - 1 - reach) < 1e-9, key);
+    for (let s = 0; s + FLIP_SWEEP_S / 20 < FLIP_SWEEP_S; s += FLIP_SWEEP_S / 20) assert.ok(sweepDrive(s + FLIP_SWEEP_S / 20, S) > sweepDrive(s, S), key);
+  }
+});
+
 test('settings: 动态立绘画质 keeps auto / half / full, junk or a profile saved before it takes auto', () => {
   assert.deepEqual([...DYN_QUALITY_SETTING], ['auto', 'half', 'full']);
   assert.equal(DEFAULT_SETTINGS.dynQuality, 'auto');
@@ -327,25 +362,55 @@ test('动态立绘画质 drives the page tier with no reload: Half / Full force 
   }
 });
 
-test('the border\'s sweep: slower than the official drive, starting just before the bloom reaches the card, ending with the picture gone', () => {
-  assert.ok(FLIP_SWEEP_S > FLIP_DISSOLVE_S);
-  assert.equal(sweepDrive(0), FLIP_SWEEP_K0);
-  assert.equal(sweepDrive(-1), FLIP_SWEEP_K0);
-  assert.equal(sweepDrive(FLIP_SWEEP_S), 1);
-  assert.equal(sweepDrive(FLIP_SWEEP_S * 3), 1);
-  // at the start the band's leading side is still below the card's lowest mask value (0), so none of the sweep is unseen
-  assert.ok(edgeOf(sweepDrive(0)) + BLOOM.width <= 0);
-  assert.ok(edgeOf(sweepDrive(0.02 * FLIP_SWEEP_S)) + BLOOM.width > 0 - 0.05);
-  // monotonic
-  for (let s = 0; s < FLIP_SWEEP_S; s += FLIP_SWEEP_S / 20) assert.ok(sweepDrive(s + FLIP_SWEEP_S / 20) > sweepDrive(s));
+test('the result page\'s entrance gate: opens once every animating card is live or failed, at once without one, and gives up for good', async (t) => {
+  const { makeEntranceGate, RESULT_GIVE_UP_MS, RESULT_MOUNT_MIN_MS } = await import('../../public/js/ui/dynCards.js');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const flush = () => new Promise((r) => { setImmediate(r); });
+  // two animating cards: the gate waits for both
+  let g = makeEntranceGate({ now: 1000, endingAt: 1000 });
+  let opened = false;
+  g.ready.then(() => { opened = true; });
+  const a = {}, b = {}, gaveUp = [];
+  g.join(a, () => gaveUp.push('a')); g.join(b, () => gaveUp.push('b'));
+  g.open(); await flush();
+  assert.equal(opened, false);
+  g.settle(a); await flush();
+  assert.equal(opened, false);
+  g.settle(b); await flush();
+  assert.equal(opened, true);
+  assert.deepEqual(gaveUp, [], 'nobody given up when all are ready');
+  g.dispose();
+  // a page with no animating card opens as soon as it is opened
+  g = makeEntranceGate({ now: 1000, endingAt: 1000 });
+  opened = false; g.ready.then(() => { opened = true; });
+  g.open(); await flush();
+  assert.equal(opened, true);
+  // one card never ready: at the give-up (counted from the ending) it is abandoned (keeps its 2D art) and the page plays
+  g = makeEntranceGate({ now: 1000, endingAt: 1000 });
+  assert.equal(g.budget, RESULT_GIVE_UP_MS);
+  opened = false; g.ready.then(() => { opened = true; });
+  const c = {}; const lost = [];
+  g.join(c, () => lost.push('c'));
+  g.open();
+  t.mock.timers.tick(RESULT_GIVE_UP_MS - 1); await flush();
+  assert.equal(opened, false);
+  t.mock.timers.tick(1); await flush();
+  assert.equal(opened, true);
+  assert.deepEqual(lost, ['c']);
+  g.join({}, () => lost.push('late')); g.settle({});
+  assert.deepEqual(lost, ['c'], 'a card joining after the give-up is not held');
+  // one budget with the waits before: a page mounted long after the ending still gives its cards' first frames the minimum
+  g = makeEntranceGate({ now: 1000 + RESULT_GIVE_UP_MS * 3, endingAt: 1000 });
+  assert.equal(g.budget, RESULT_MOUNT_MIN_MS);
+  g.dispose();
 });
 
-test('the glitter: mostly falling, some thrown out of the sides, short-lived and few', () => {
-  const sp = makeSparks();
-  // no mask loaded in Node: no births, and stepping an empty list is harmless
-  sp.step(0.016, 0.5, true, { left: 100, top: 50, width: 200, height: 300 });
-  assert.equal(sp.count, 0);
-  assert.ok(SPARKS.gravity > 0 && SPARKS.max > 0);
-  assert.ok(SPARKS.sideShare > 0 && SPARKS.sideShare < 0.5, 'mostly the shower (B), a bit of the side throw (A)');
-  assert.ok(SPARKS.life[1] < 0.9 && SPARKS.max <= 60, 'dies fast and spawns little (the user, 2026-11-23)');
+test('the cards\' look: the user\'s pick, one thin line on the smoothed mask, no glitter', async () => {
+  const ce = await import('../../public/js/ui/cardEntrance.js');
+  const S = GLOW_STYLES[ce.GLOW_DEFAULT];
+  assert.equal(ce.GLOW_DEFAULT, 5);
+  assert.ok(S.soft, 'one line: the smoothed mask');
+  const core = S.bands[S.bands.length - 1];
+  assert.ok(core.hi - core.lo <= 0.02, 'a thin core (the user: "half as thin")');
+  assert.equal(ce.makeSparks, undefined, 'the glitter was dropped (the user, 2026-11-23)');
 });

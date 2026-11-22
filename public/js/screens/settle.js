@@ -34,7 +34,7 @@ import { ResultView, resultBonds } from './result.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { t, shownName } from '../../../shared/i18n.js';
 import { aceOf } from '../../../shared/resultAce.js';
-import { IllustArt, resultCardArt, cardAnimates, useDynIllustMode, useMatchCards, startResultLoad, endResultLoad } from '../ui/dynCards.js';
+import { IllustArt, resultCardArt, cardAnimates, useDynIllustMode, useMatchCards, startResultLoad, endResultLoad, makeEntranceGate, releaseIllusts } from '../ui/dynCards.js';
 import { settingsStore } from '../ui/settingsStore.js';
 import { useCardEntrance } from '../ui/cardEntrance.js';
 
@@ -549,6 +549,30 @@ function useTeamCardOpts(gd, myId) {
 }
 
 /**
+ * (fork) Follow-up A (the user's pick, 2026-11-23): as the match starts, keep the illustrations the result cards will show —
+ * the room cards (名片干员, the default) of the players whose cards animate, one's own first — and free the rest
+ * (ui/dynCards.js releaseIllusts, within its GPU cap). With 阵容最强干员 the aces are unknown until `ending`: nothing is
+ * kept. Once per match screen.
+ * @param {any} pub m.public @param {string|null} myId
+ */
+export function useKeepResultArt(pub, myId) {
+  const gd = useGameData();
+  const opts = useTeamCardOpts(gd, myId);
+  const done = useRef(false);
+  const players = Array.isArray(pub?.players) ? pub.players : null;
+  useEffect(() => {
+    if (done.current || !gd.ready || !players) return;
+    done.current = true;
+    const arts = opts.resultArt === 'ace' ? [] : players
+      .map((p) => ({ ...teamCardArt(p, null, opts), mine: p.playerId === myId }))
+      .filter((x) => x.animate && x.art && !x.isAce)
+      .sort((a, b) => Number(b.mine) - Number(a.mine))
+      .map((x) => x.art);
+    releaseIllusts(arts);
+  }, [gd.ready, !!players]);
+}
+
+/**
  * (fork) D10: the moment m.public `ending` says the last battle is over, load the result cards' illustrations, through the
  * settlement pause (screens/game.js holds the result screen for them, ui/dynCards.js resultWaitMs). Once per match.
  * @param {any} pub m.public @param {string|null} myId
@@ -569,20 +593,22 @@ export function useResultPreload(pub, myId) {
   }, [ending, gd.ready]);
 }
 
-function TeamCard({ p, i, gd, self, victory, raw, opts }) {
+function TeamCard({ p, i, gd, self, victory, raw, opts, gate = null }) {
   const ace = aceOf(p.lineup);
   const { v, art, isAce, animate } = teamCardArt(p, ace, opts);
   const title = titleView(p, gd);
   const cleared = rowCleared(raw, p, victory);
   const band = p.bandId ? gd.band(p.bandId) : null;
   const cardRef = useRef(null);
-  const ce = useCardEntrance(cardRef, { index: i, kind: cleared ? 'complete' : 'normal' });
+  // (fork) the entrance plays once, with the illustration: it waits for the page's gate (every animating card live or
+  // failed, or the give-up; ui/dynCards.js makeEntranceGate)
+  const ce = useCardEntrance(cardRef, { index: i, kind: cleared ? 'complete' : 'normal', gate: gate?.ready || null });
   return html`<article ref=${cardRef} class=${cx('tcard', self && 'is-self', p.alive === false && 'is-dead', p.left && 'is-left', cleared ? 'is-clear' : 'is-fail', ce && 'has-ce')} style=${`--i:${i}`}>
     ${ce ? html`<i class="tcard__cardbg" aria-hidden="true"></i>` : null}
     ${ce ? html`<canvas class="tcard__ce" aria-hidden="true"></canvas><canvas class="tcard__ce tcard__ce--add" aria-hidden="true"></canvas>` : null}
     <header class="tcard__head" aria-hidden="true"><i class="tcard__pin"></i><span class="tcard__code"><i></i><i></i><i></i>STRONGHOLD PROTOCOL</span><span class="tcard__seat num">${pad2(p.seat + 1)}</span></header>
     <div class="tcard__art">
-      <${IllustArt} art=${art} animate=${animate} class="tcard__dyn">
+      <${IllustArt} art=${art} animate=${animate} gate=${gate} class="tcard__dyn">
         <${OperatorImage} m=${gd.m} chess=${art ? art.chess : v?.rec} ownerId=${p.playerId} skin=${isAce || !art ? ace?.skin : null} portrait avatarFallback portraitClass="tcard__img is-portrait" avatarClass="tcard__img is-avatar" fallback=${html`<span class="tcard__glyph">${[...(p.name || '?')][0]}</span>`} />
       </${IllustArt}>
       ${p.left ? html`<span class="tcard__cut">${t('连接中断')}</span>` : null}
@@ -611,6 +637,9 @@ function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDe
   const self = r.players.find((p) => p.playerId === myId) || null;
   const cardOpts = useTeamCardOpts(gd, myId);
   const bg = self?.left ? 'quit' : r.victory ? 'success' : 'fail';
+  // (fork) the cards' entrance gate: the cards join in their effects, which run before this page's; opened once they have
+  const gate = useMemo(() => makeEntranceGate(), []);
+  useEffect(() => { gate.open(); return () => gate.dispose(); }, []);
   useEffect(() => {
     audio.sfx('settlementTeam');
     const id = setTimeout(() => backRef.current?.focus({ preventScroll: true }), 900);
@@ -627,7 +656,7 @@ function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDe
         ? html`<${HScroll} class="steam__cards" viewClass="steam__view" label=${t('同盟成员')} prevLabel=${t('向左滚动玩家')} nextLabel=${t('向右滚动玩家')}
             reveal=".tcard.is-self" pageKeys=${!detailOpen} deps=${[r.players.length]}>
             <div class="steam__track" style=${`--n:${r.players.length}`}>
-              ${r.players.map((p, i) => html`<${TeamCard} key=${p.playerId} p=${p} i=${i} gd=${gd} self=${p.playerId === myId} victory=${r.victory} raw=${rawOf(p.playerId)} opts=${cardOpts} />`)}
+              ${r.players.map((p, i) => html`<${TeamCard} key=${p.playerId} p=${p} i=${i} gd=${gd} self=${p.playerId === myId} victory=${r.victory} raw=${rawOf(p.playerId)} opts=${cardOpts} gate=${gate} />`)}
             </div>
           </${HScroll}>`
         : html`<div class="steam__cards steam__cards--none"><p class="steam__none">${t('暂无结算数据')}</p></div>`}

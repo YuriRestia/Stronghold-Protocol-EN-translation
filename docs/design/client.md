@@ -455,11 +455,30 @@ E2 art. Which cards: 设置「动态立绘」 (`dynIllust`) 关 / 仅自己 / �
 screen side under 600 px) and 所有人 elsewhere (D7); all eight Grand Alliance cards at once (D8). What a result card shows:
 设置「结算卡片立绘」 (`resultArt`, D6) — 名片干员 (the room card in its outfit, the default: the official card shows the
 player's assistant) or 阵容最强干员 (the final lineup's ace, `shared/resultAce.js`); an AI seat shows its ace. Both rows
-show only on a server whose index lists illustrations. Loading (D10 / D11): nothing during the match; the result cards'
+show only on a server whose index lists illustrations. Loading (D10 / D11): nothing during the match. As the match
+starts, the room's illustrations are freed except the result cards' own (follow-up A, the user's pick of 2026-11-23:
+`screens/settle.js useKeepResultArt`, `releaseIllusts(arts)`): with 名片干员 the animating players' room cards, one's own
+first, kept at the room's tier (the 动态立绘画质 setting's, if set) while their GPU memory stays within `KEEP_CAP_MB`
+160 MB (the user's OK of 2026-11-23) — each index entry's own `gpu` / `gpuHalf` figure, else its download size times
+the measured 90th-percentile ratio (full 12.2×, half 4.7×; per illustration full median 40 MB, half 10 MB [src: work/dev-55
+gpumem.json, 2026-11-23]); with 阵容最强干员 nothing (the aces are known only at `ending`). The result screen then stays
+on that tier (`resultPin`), so the kept cards show with no load. The rest of the result cards'
 illustrations load from m.public `ending` (META §1) through the settlement pause, and `screens/game.js` keeps the match
 screen up after RESULT until they are ready, at most `RESULT_WAIT_MS` 3 s; the room's load after the screen has what it
 needs (`loadLater.js` whenScreenSettled, all the room's cards together) and after the entry film's files, the renderer's
-code getting ready during that wait; a card not ready shows its 2D art and switches when ready.
+code getting ready during that wait; a room card not ready shows its 2D art and switches when ready. A result card's
+one-shot entrance waits for its illustration instead (the user, 2026-11-23: "If an L2D is available, then it should wait
+for the l2d to be ready instead of rushing ahead with the static art, cause the animation there is only made to play
+once"): the team page's cards join one gate (`makeEntranceGate`), each settling once its illustration is live or failed
+(or it has none), and every card's entrance starts from the gate's opening with the row's stagger, held on its first,
+unseen frame until then (`useCardEntrance` `gate`). Static art only for a card without an illustration, one that failed,
+or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending` (the user's OK of 2026-11-23), all
+waits counted (the settlement pause, the screen's hold, the cards' first frames), at least `RESULT_MOUNT_MIN_MS` 2 s after
+a team page that mounts late [ASSUMED: proposed, not yet OK'd]; such a card keeps its 2D art for good, no switch after
+its entrance.
+Measured on the review page (renderer booted, local server, 4 cards, 1440p and 4K): the load 0.70–0.99 s from files not
+yet fetched, 0.45–0.65 s from the HTTP cache, mount to the gate's opening 0.36–0.41 s / 0.27–0.33 s, 0.23–0.25 s with
+the illustrations still in the renderer [src: work/dev-55 rw-1440.json / rw-4k.json, 2026-11-23].
 The room's and the Grand Alliance room's cards switch together (the user, 2026-11-22: keep the placeholders and flip at
 the same time; `joinGroup`): each keeps its 2D art until every card on the screen is ready or failed, then all start in
 one frame behind their 2D art ("wait until it's ready, then play the animation and switch the live 2d in in the back"),
@@ -469,27 +488,31 @@ Workers, in every Worker's card-frame log too (`whenSmooth`, read every 250 ms w
 [ASSUMED: proposed, not yet OK'd]. Showing is the
 official card's dissolve (the user's pick of 2026-11-22): the illustration and its background appear at once behind the
 2D art, and the art box as it shows — its background, then the 2D art at its object-fit cover crop and filter, composed
-on a canvas while the cards wait — dissolves away over `FLIP_SWEEP_S` 1 s, twice the official
-`DYN_ILLUST_INIT_SECONDS` 0.5 s (`FLIP_DISSOLVE_S`; the user, 2026-11-22: "make the border glow move slower"), its
-drive from `FLIP_SWEEP_K0` 0.25, where the bloom's band first reaches the card (`sweepDrive`) [ASSUMED: the 1 s, not yet
-OK'd], through the result card's own `complete_up_bg_dissolve` material and
+on a canvas while the cards wait — dissolves away over `FLIP_SWEEP_S` 0.35 s (the user's value of 2026-11-23, after
+1 s, 0.67 s and the official `DYN_ILLUST_INIT_SECONDS` 0.5 s, `FLIP_DISSOLVE_S`), its drive across the look's range
+from where its bands first reach the card to where they leave it (`sweepDrive`, `sweepRange`), through the result
+card's own `complete_up_bg_dissolve` material and
 mask (`ui/cardEntrance.js drawDissolve`, the entrance's shader), with a white bloom on top (`drawBloom`, the same shader
 and mask, additive on a canvas with `mix-blend-mode: plus-lighter`; the user's direction of 2026-11-22: "a white bright
 bloom that moves on the boundary between old and new, … leaving the entire card artwork white glow before the glow fades
 away into the live2D"): a bright band on the dissolve's edge (the official `color_mask` layer's band construction: mask ×
-inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone, and
-glitter (`makeSparks`, the user's "particle effects that runs with the border", "fall out of the card itself" and, of
-2026-11-23, "the glitter/sparkling shape", "dies faster and spawn less", "B … but having a bit of A"): four-ray
-sparkle stars, white with mint-cyan rays, twinkling, born where the mask reads the glow's leading edge over the old
-picture, painted normally so the white glow does not swallow them; most fall under gravity down through the card and
-out of its bottom, `sideShare` of them are thrown out of its sides, all on one page-wide layer over everything
-(`.dyn-embers`, cleared each frame, 1 × 1 when idle; `SPARKS`)
-[ASSUMED: the band's width and brightness, the glow and its fade, the glitter tuned to the user's descriptions, not yet
-OK'd]. The border's look is one of `GLOW_STYLES` (the user, 2026-11-23: the white glow "drowns out any particle
-effect"; proposals for the user's pick, the review page's `&glow=0…4`, 0 the one above): 1 a thin white edge in a teal
-halo with a short trail and no wash, 2 the old picture dimmed for 0.35 s before a softer white sweep, 3 a teal band with
-a white core and a teal wash (white glitter), 4 a burning orange edge that chars the picture ahead of it (ember glitter)
-[ASSUMED: proposals, not yet chosen]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
+inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone
+[ASSUMED: the band's width and brightness, the glow and its fade, tuned to the user's descriptions]. No particles: the
+glitter that once fell from the border, on a page-wide layer, was dropped (the user, 2026-11-23: "you may remove the
+glitter particles, it's useless now"). The border's look is one of `GLOW_STYLES` (the user, 2026-11-23: the white glow
+"drowns out any particle effect"; proposals for the user's pick, the review page's `&glow=0…4`, 0 the one above): 1 a
+thin white edge in a teal halo with a short trail and no wash, 2 the old picture dimmed for 0.35 s before a softer white
+sweep, 3 a teal band with a white core and a teal wash, 4 a burning orange edge that chars the picture ahead of it
+[ASSUMED: proposals]. The cards use look 5 (`GLOW_DEFAULT`, the user's pick of 2026-11-23: "1 + 2 + 3, but the color
+matches the theme color", then "the edge should be half as thin … cleaner and more elegant", "why do I see a 2nd
+line?", "good enough for now"): the old picture dims to 75 % over 0.2 s, then one thin white line in a narrow mint
+(`#4ed8af`) rim sweeps it away over a faint mint wash. One line: the bands and the
+dissolve read a smoothed copy of the official mask (box-blurred, 15 % of the raw mask kept, a half-float texture),
+since the raw mask's noise repeats each value in patches and drew stray second lines; the dissolve under it is tight
+(smooth 0.06, the official material's 0.5) [ASSUMED: the widths, the dim, the wash, not yet OK'd as numbers]. The
+show's set-up happens while the cards load, one card a frame: the shared GL canvas is grown for every card
+(`reserveTiles`); at the cover or the show the same work (with the glitter's layer, since dropped) cost the show's
+first frames 60 ms of script and 125–180 ms of rendering. The shared canvas is shrunk 2 s after the last card. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
 the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); while they play, every card's dissolve
 and bloom are drawn in one GL pass a frame (`batchDissolve` / `batchBloom` / `flushBatch`, tiles in one canvas); a card
 that gave up shows `data-dyn="kept"`; the cards go
@@ -504,9 +527,9 @@ flip; the result cards do not group (D11). The
 strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
 the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
-with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a result card appears and
-switches — straight into Idle, no intro, the official crossfade on a late switch (the user, 2026-11-22) — is the
-renderer's; the room cards' dissolve (above) is the client's.
+with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a result card's illustration
+appears — straight into Idle, no intro (the user, 2026-11-22) — is the renderer's; it no longer switches late on screen
+(its entrance waits, above); the room cards' dissolve (above) is the client's.
 An illustration's see-through pixels (its erasers) show the official card background, which both official cards draw
 before the illustration (group_bg/bg, the same 9-slice `bg_normal2` / `card_bg`): behind the result card the real one
 (below), and on a tall card of the official shape (the solo room's) `IllustArt backdrop`, mapped onto the art window as the

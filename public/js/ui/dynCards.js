@@ -28,7 +28,7 @@ import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
-import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, BLOOM, glowStyle, makeSparks, ANIM_DELAY_S } from './cardEntrance.js';
+import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, BLOOM, glowStyle, sweepRange, ANIM_DELAY_S } from './cardEntrance.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -336,7 +336,8 @@ function tierChanged() {
   clearTimeout(tierTimer);
   tierTimer = setTimeout(() => {
     const vals = [...wants.values()];
-    const next = qualityOverride || (vals.length ? (vals.includes('full') ? 'full' : 'half') : pageTier);
+    // the result screen with kept illustrations stays on the tier they were kept at (follow-up A: no reload of them)
+    const next = qualityOverride || resultPin || (vals.length ? (vals.includes('full') ? 'full' : 'half') : pageTier);
     if (next !== pageTier) { pageTier = next; dynTierStore.set({ tier: next }); }
   }, 0);
 }
@@ -373,13 +374,59 @@ export function illustKey(R, art) {
   try { return R.dynIllustKey(art.charId, art.outfit || null) || null; } catch { return null; }
 }
 
+// ---- the illustrations kept through the match for its result cards (follow-up A; the user's pick, 2026-11-23, via the
+// lead: "go with A") -----------------------------------------------------------------------------------------------
+
 /**
- * The match starts (screens/game.js): free every illustration no card still shows — nothing of them is held through
- * the match (the renderer's release(keep)). A page that never loaded the renderer does nothing.
+ * The most the kept illustrations may hold on the GPU through a match (MB): the battle renderer needs the GPU meanwhile.
+ * Measured per illustration: full median 40 MB, p90 67, max 123; half median 10, p90 17, max 31 [src: work/dev-55
+ * gpumem.json, 2026-11-23: every texture decoded RGBA8, no mipmaps].
  */
-export function releaseIllusts() {
+export const KEEP_CAP_MB = 160; // [ASSUMED: 4 cards at full or 16 at half, at the median; user OK 2026-11-23: "alright, 8s and 160mb"]
+/**
+ * GPU bytes per downloaded byte, the measured 90th percentile, for an index entry without its own figure (full 4.3–18.9,
+ * median 8.9; half 1.3–8.7, median 3.3) [src: work/dev-55 gpumem.json vs data/local-assets.json bytes / bytesHalf].
+ */
+const GPU_PER_BYTE = Object.freeze({ full: 12.2, half: 4.7 });
+/** An index entry's GPU bytes at `tier`: its own figure (`gpu` / `gpuHalf`) when the index has one, else the bound. */
+export function keptGpuBytes(entry, tier) {
+  if (!entry) return Infinity;
+  const own = tier === 'half' ? entry.gpuHalf : entry.gpu;
+  if (own > 0) return own;
+  const b = tier === 'half' ? entry.bytesHalf : entry.bytes;
+  return b > 0 ? b * GPU_PER_BYTE[tier === 'half' ? 'half' : 'full'] : Infinity;
+}
+/** The keys to keep, in order (one's own card first), while their GPU bytes stay within the cap. */
+export function pickKept(keys, tier, entryOf, capMB = KEEP_CAP_MB) {
+  const keep = [];
+  let sum = 0;
+  for (const k of keys) {
+    const b = keptGpuBytes(entryOf(k), tier);
+    if (sum + b > capMB * 1048576) continue;
+    sum += b; keep.push(k);
+  }
+  return keep;
+}
+/** The tier the kept illustrations are at (the room's, setting included); the result screen stays on it. */
+let keptTier = null, resultPin = null;
+
+/**
+ * The match starts (screens/game.js): free every illustration except the result cards' own (`arts`, one's own first),
+ * kept at the room's tier within KEEP_CAP_MB, so the result screen shows them with no load. The rest load from m.public
+ * `ending` as before. A page that never loaded the renderer does nothing.
+ * @param {{ charId: string, outfit: string|null }[]} [arts]
+ */
+export function releaseIllusts(arts = []) {
+  keptTier = null; resultPin = null;
   if (!mod || mod === stub) return;
-  try { mod.getDynIllustStage().release([]); } catch (err) { console.warn('[dynillust] release', err); }
+  try {
+    const st = mod.getDynIllustStage(), tier = qualityOverride || pageTier;
+    const keys = [...new Set((arts || []).map((a) => illustKey(mod, a)).filter(Boolean))];
+    const g = data.get('local')?.groups?.dynillust || {};
+    const keep = keys.length ? pickKept(keys, tier, (k) => g[k]) : [];
+    st.release(keep);
+    if (keep.length) keptTier = tier;
+  } catch (err) { console.warn('[dynillust] release', err); }
 }
 
 /** Whether this server has any illustration (data/local-assets.json group `dynillust`): the settings rows show only then. */
@@ -408,11 +455,16 @@ export const resultGateStore = createStore({ n: 0 });
  */
 export function startResultLoad(cardsOf) {
   endResultLoad();
-  const state = { pending: true };
+  const state = { pending: true, startedAt: Date.now() };
   resultLoad = state;
   const done = () => { if (state.pending) { state.pending = false; resultGateStore.set({ n: resultGateStore.get().n + 1 }); } };
-  // the result cards' tier from their size before they exist; the cards confirm it when they mount
-  if (!qualityOverride) { pageTier = resultCardTier(); dynTierStore.set({ tier: pageTier }); }
+  // the result cards' tier: the kept illustrations' (the room's), so they show with no load; else from the cards' size
+  // before they exist, which the cards confirm when they mount
+  if (!qualityOverride) {
+    resultPin = keptTier;
+    pageTier = keptTier || resultCardTier();
+    dynTierStore.set({ tier: pageTier });
+  }
   readyStage().then(({ R, st }) => {
     if (resultLoad !== state) return null;
     const cards = cardsOf().slice().sort((a, b) => Number(!!b.mine) - Number(!!a.mine));
@@ -433,6 +485,54 @@ export function resultWaitMs(resultAt, now = Date.now()) {
 /** Forget the match's result load (the next match began, or the page left the match). */
 export function endResultLoad() {
   resultLoad = null;
+  if (resultPin) { resultPin = null; tierChanged(); }
+}
+
+// ---- the result cards' entrance gate (the user, 2026-11-23, through the lead: "If an L2D is available, then it should
+// wait for the l2d to be ready instead of rushing ahead with the static art, cause the animation there is only made to
+// play once, with no second shot") ------------------------------------------------------------------------------------
+
+/**
+ * How long after the server's `ending` the result cards may wait for their illustrations, all waits included (the
+ * settlement pause, the result screen's hold, the cards' first frames): one budget, never a second wait on top.
+ */
+export const RESULT_GIVE_UP_MS = 8000; // [ASSUMED: proposed on a measured basis (work/dev-55 rw-*.json), user OK 2026-11-23: "alright, 8s and 160mb"]
+/** The least a team page that mounts late (its tab opened afterwards) still gives its cards' first frames (ms). */
+export const RESULT_MOUNT_MIN_MS = 2000; // [ASSUMED: proposed to the user 2026-11-23, not yet OK'd — measured basis in the report]
+
+/**
+ * One result page's gate: its animating cards join (IllustArt `gate`), each settles when its illustration is live or
+ * failed (or it has none); `ready` resolves when all have, or at the give-up — then the still-loading ones keep their 2D
+ * art for good (`abandon`: no later switch, the entrance plays once). `open()` once the page's cards have joined (a page
+ * with no animating card opens at once). `now` / `endingAt` for tests.
+ */
+export function makeEntranceGate({ now = Date.now(), endingAt = resultLoad?.startedAt || 0 } = {}) {
+  const pending = new Map(); // token → abandon
+  let done = false, opened = false, resolve;
+  const ready = new Promise((r) => { resolve = r; });
+  const finish = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    const gaveUp = pending.size;
+    for (const abandon of pending.values()) { try { abandon?.(); } catch (err) { console.warn('[dynillust] give up', err); } }
+    pending.clear();
+    // a User Timing mark (`dyn-result-gate`, detail: cards given up): the result timing checks measure from it
+    try { performance.mark('dyn-result-gate', { detail: { gaveUp } }); } catch { /* no User Timing */ }
+    resolve();
+  };
+  const budget = Math.max(RESULT_MOUNT_MIN_MS, (endingAt > 0 ? endingAt + RESULT_GIVE_UP_MS : now + RESULT_GIVE_UP_MS) - now);
+  const timer = setTimeout(finish, budget);
+  const check = () => { if (opened && !pending.size) finish(); };
+  return {
+    ready,
+    budget,
+    get done() { return done; },
+    join(token, abandon) { if (!done) pending.set(token, abandon); },
+    settle(token) { pending.delete(token); check(); },
+    open() { opened = true; check(); },
+    dispose() { clearTimeout(timer); },
+  };
 }
 
 // ---- the room's group flip (the user, 2026-11-22: "keep placeholder and flip at the same time") ------------------------
@@ -456,14 +556,17 @@ export function endResultLoad() {
 export const FLIP_FADE_S = 0.15; // the fallback without the dissolve: the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
 export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x1495060]
 /**
- * The border's sweep: slower than the official drive (the user, 2026-11-22: "make the border glow move slower"), and
- * from FLIP_SWEEP_K0, where the bloom's band first reaches the card (edgeOf(k) + BLOOM.width = 0 at k 0.275), so no part
- * of it is spent before the border shows.
+ * The border's sweep: the user's 0.35 s (2026-11-23: "the effect should only take 0.35s", after 1 s, 0.67 s and the
+ * official 0.5 s), over the look's drive range (cardEntrance.js sweepRange: from where its bands reach the card to where
+ * they leave it), so the whole of it is the line crossing the card.
  */
-export const FLIP_SWEEP_S = 1; // [ASSUMED: the user's "move slower" of 2026-11-22, 2× the official 0.5 s, not yet OK'd on the clip]
-export const FLIP_SWEEP_K0 = 0.25;
-/** The dissolve's drive `s` seconds into the show (FLIP_SWEEP_K0 … 1 over FLIP_SWEEP_S). */
-export const sweepDrive = (s) => FLIP_SWEEP_K0 + (1 - FLIP_SWEEP_K0) * Math.min(1, Math.max(0, s) / FLIP_SWEEP_S);
+export const FLIP_SWEEP_S = 0.35; // the user's value of 2026-11-23 (official DYN_ILLUST_INIT_SECONDS 0.5, FLIP_DISSOLVE_S)
+/** The dissolve's drive `s` seconds into the show: across the look's range over FLIP_SWEEP_S, then 1 (all gone). */
+export function sweepDrive(s, S = glowStyle()) {
+  if (s >= FLIP_SWEEP_S) return 1;
+  const [a, b] = sweepRange(S);
+  return a + (b - a) * Math.max(0, s) / FLIP_SWEEP_S;
+}
 /** The stagger between the group's cards: the result row's step [src: ui/cardEntrance.js ANIM_DELAY_S, official _animDelay]. */
 export const FLIP_STEP_S = ANIM_DELAY_S;
 export const GROUP_CAP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — 8 s covers a typical PC's cold Grand Alliance load, 4.9–5.3 s measured at 1080p]
@@ -487,45 +590,22 @@ function workerStage() {
 function showCard(e, delay = 0) { try { e.show?.(delay); } catch (err) { console.warn('[dynillust] show', err); } }
 /**
  * The cards' transitions in one pass a frame: each queues its dissolve and bloom tiles, one GL pass draws them all
- * (cardEntrance.js flushBatch), then each draws its embers on the page-wide layer and finishes (`after` false: done).
+ * (cardEntrance.js flushBatch), then each finishes (`after` false: done). No particles: the glitter was dropped (the
+ * user, 2026-11-23: "you may remove the glitter particles, it's useless now"), and its page-wide layer with it.
  */
 const transitions = new Set();
 let transRaf = 0;
-/** The embers' layer: one canvas over the whole page (they fall out of the cards), cleared each frame, 1 × 1 when idle. */
-let emberLayer = null;
-function embers() {
-  const doc = globalThis.document;
-  if (!doc?.body) return null;
-  if (!emberLayer) {
-    const c = doc.createElement('canvas');
-    c.className = 'dyn-embers';
-    c.setAttribute('aria-hidden', 'true');
-    emberLayer = { c, ctx: null };
-  }
-  const L = emberLayer, dpr = globalThis.devicePixelRatio || 1;
-  const w = Math.max(1, Math.round((globalThis.innerWidth || 1) * dpr)), h = Math.max(1, Math.round((globalThis.innerHeight || 1) * dpr));
-  if (!L.c.isConnected) doc.body.append(L.c);
-  if (L.c.width !== w || L.c.height !== h) { L.c.width = w; L.c.height = h; L.ctx = null; }
-  L.ctx ||= L.c.getContext('2d');
-  L.ctx?.clearRect(0, 0, w, h);
-  L.dpr = dpr;
-  return L.ctx ? L : null;
-}
-// idle: 1 × 1 but kept in the page (adding a page-wide layer at a show would cost that frame a style and layout pass)
-function emberIdle() {
-  if (emberLayer && emberLayer.c.width > 1) { emberLayer.c.width = 1; emberLayer.c.height = 1; emberLayer.ctx = null; }
-}
 function runTransitions() {
   transRaf = 0;
   const now = performance.now();
   for (const tr of [...transitions]) { try { if (!tr.queue(now)) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
   try { flushBatch(); } catch (err) { console.warn('[dynillust] transition', err); }
-  const layer = transitions.size ? embers() : null;
-  for (const tr of [...transitions]) { try { if (!tr.after(layer)) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
+  for (const tr of [...transitions]) { try { if (!tr.after()) transitions.delete(tr); } catch (err) { console.warn('[dynillust] transition', err); transitions.delete(tr); } }
   if (transitions.size) transRaf = requestAnimationFrame(runTransitions);
-  else emberIdle();
 }
 function addTransition(tr) {
+  // a User Timing mark per show (`dyn-show`): the frame checks measure from it
+  if (!transitions.size) try { performance.mark('dyn-show'); } catch { /* no User Timing */ }
   transitions.add(tr);
   if (!transRaf) transRaf = requestAnimationFrame(runTransitions);
 }
@@ -669,8 +749,10 @@ export function leaveGroup(e) {
  * @param {{ art: { charId: string, outfit: string|null } | null, animate: boolean, wait?: 'now'|'settled', backdrop?: boolean, class?: string, children?: any }} props
  *   wait: 'now' mounts at once (the result screen: loaded in the pause), 'settled' once the screen has what it needs (room)
  *   backdrop: the official card background behind the live illustration (BACKDROP; a tall card of the official shape)
+ *   gate: the result page's entrance gate (makeEntranceGate): the card joins it, settles once live or failed, and at
+ *   its give-up keeps its 2D art for good
  */
-export function IllustArt({ art, animate, wait = 'now', backdrop = false, framing = null, class: cls = '', children }) {
+export function IllustArt({ art, animate, wait = 'now', backdrop = false, framing = null, gate = null, class: cls = '', children }) {
   const on = !!(animate && art);
   const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
@@ -712,6 +794,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
       if (dis.current) dis.current.style.opacity = '0';
       if (wash.current) wash.current.style.opacity = '0';
+      reserveTiles(dis);
       isCovered = false;
       setCovered(false);
       setState('kept'); // data-dyn="kept": the 2D art stays (not 'off': the illustration was there and gave up)
@@ -773,6 +856,12 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
               entry.mask = mask;
               // the dissolve's first frame drawn now on the (still invisible) canvas
               const size = compose();
+              // the show's set-up, here while the cards still load (one card a frame): the shared GL canvas grown for
+              // this card too (before this card's first draw, which then touches the grown buffer). Done at the cards'
+              // cover or just before the show (with the glitter's page-wide layer, since dropped) it cost the show's
+              // first frames 60 ms of script and 125–180 ms of rendering (work/dev-55 co-*.json, 2026-11-23); here it
+              // falls before the smooth frames the show waits for
+              if (size) reserveTiles(dis, size.W, size.H);
               if (size && dis.current && drawDissolve(dis.current, pic, 0, size.W, size.H)) { drawnKey = picKey; cover(); }
             } finally { entry.prepared = true; }
           });
@@ -803,13 +892,9 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
           setShown(true);
           const t0 = performance.now() + Math.max(0, delay);
           let dissolved = false, lastS = 0, k = 0, glow = 0;
-          // the glitter: falling out of the card, some thrown out of its sides (cardEntrance.js SPARKS)
           const G = glowStyle();
-          const sparks = makeSparks(G.spark);
-          const r = cv.getBoundingClientRect();
-          const box = { left: r.left, top: r.top, width: r.width, height: r.height };
           if (wc && wc.style.opacity !== '1') wc.style.opacity = '1';
-          // one frame of this card in the shared pass (runTransitions): queue its tiles, then sparks and the end
+          // one frame of this card in the shared pass (runTransitions): queue its tiles, then the end
           trans = {
             queue(now) {
               if (!live) return false;
@@ -818,22 +903,20 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
               // the glow's look (GLOW_STYLES): a dim of the old picture first, then the sweep
               const dimS = G.dim?.s || 0, sw = s - dimS;
               const dim = G.dim ? 1 - (1 - G.dim.to) * Math.min(1, s / dimS) : 1;
-              k = sweepDrive(sw);
+              k = sweepDrive(sw, G);
               if (!dissolved) batchDissolve(cv, pic, k, W, H, dim);
               // the bloom: bands on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
               glow = k < 1 ? 1 : Math.max(0, 1 - (sw - FLIP_SWEEP_S) / G.fadeS);
               if (wc) batchBloom(wc, k, glow, k < 1 ? BLOOM.band : 0, W, H);
-              // the glitter: born on the border while it moves, then falling out of the card
-              sparks.step(Math.min(0.05, Math.max(0, s - lastS)), k, k < 1 && sw > 0, box);
               lastS = s;
               return true;
             },
-            after(layer) {
+            after() {
               if (!live || lastS <= 0) return true;
-              if (layer) sparks.draw(layer.ctx, layer.dpr);
               if (k >= 1 && !dissolved) { dissolved = true; cv.style.opacity = '0'; cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
-              if (dissolved && !(glow > 0) && !sparks.count) {
+              if (dissolved && !(glow > 0)) {
                 if (wc) { wc.style.opacity = '0'; wc.width = 1; wc.height = 1; }
+                reserveTiles(dis);
                 return false;
               }
               return true;
@@ -849,13 +932,27 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
     // the same values)
     const go = () => Promise.all([readyStage(tier), framing === 'cover' ? loadCardArtFraming() : null]).then(([{ R, st }]) => {
       const key = live ? illustKey(R, art) : null;
-      if (!key || !host.current) { if (live) setState('off'); return null; }
+      if (!key || !host.current) { if (live) setState('off'); gate?.settle(gateTok); return null; }
       // the renderer's card: its own 2D canvas in the art window, under the card's overlays (§33.19); 'live' = drawn
-      card = st.mount(key, { ...framingFor(key, framing), onState: (s) => { if (!live || kept) return; cur = s; setState(s); if (entry) { groupState(entry, s); if (s === 'live') cover(); } } });
+      card = st.mount(key, { ...framingFor(key, framing), onState: (s) => {
+        if (!live || kept) return;
+        cur = s; setState(s);
+        if (entry) { groupState(entry, s); if (s === 'live') cover(); }
+        if (s === 'live' || s === 'failed') gate?.settle(gateTok);
+      } });
       if (card.canvas) host.current.append(card.canvas);
       if (entry) { entry.card = card; prepare(); joinGroup(entry); } else card.start();
       return card.ready;
-    }).catch((err) => { console.warn('[dynillust] card', err); if (live) setState('off'); });
+    }).catch((err) => { console.warn('[dynillust] card', err); if (live) setState('off'); gate?.settle(gateTok); });
+    // the result page's gate: this card holds the page's entrance until live or failed; at the gate's give-up it keeps
+    // its 2D art for good (the entrance plays once, never a switch after it)
+    const gateTok = {};
+    gate?.join(gateTok, () => {
+      if (!live || kept) return;
+      kept = true;
+      try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
+      setState('kept');
+    });
     // every card on the screen waits for the same moment and then loads at once (the renderer fetches and builds them in
     // parallel); a loadLater task per card made them load one by one — its queue runs one task at a time
     // the renderer's code (PIXI, pixi-spine — main.js prefetched their files after the entry film — the module and the
@@ -864,8 +961,10 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
     else go();
     return () => {
       live = false;
+      gate?.settle(gateTok);
       if (raf) cancelAnimationFrame(raf);
       if (trans) { transitions.delete(trans); trans = null; }
+      reserveTiles(dis);
       freeDissolvePicture(pic); pic = null;
       if (entry) leaveGroup(entry);
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
