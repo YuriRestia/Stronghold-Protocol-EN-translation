@@ -27,7 +27,7 @@ import { IllustSkeleton } from './skeleton.js';
 import { DynIllustInstance } from './instance.js';
 import { CardIllustState } from './state.js';
 import { IllustEffects, illustBasis } from './effects.js';
-import { loadIllust, slotData } from './loader.js';
+import { loadIllust, loadGroups, slotData } from './loader.js';
 import { GpuSkeleton, gpuSkinSupported } from './gpuskin.js';
 import { FxGL } from '../vfx/gl.js';
 import { FrameData } from '../vfx/geom.js';
@@ -52,6 +52,8 @@ export const LATE_FADE_S = 0.15;
 export const STAGE_BUDGET_MS = 8;
 /** Frames a card waits for a layout size before it reports 'ready' unstaged (it then builds at its first draw). */
 export const STAGE_SIZE_FRAMES = 30;
+/** Effect texture pixels one staging piece uploads (one 1024 × 1024 texture; renderer _texPieces). */
+export const UPLOAD_PIECE_PX = 1 << 20;
 
 function byUnityOrder(a, b) {
   return (a.layer - b.layer) || (a.order - b.order) || (a.queue - b.queue) || (b.dist - a.dist) || (a.seq - b.seq);
@@ -82,6 +84,7 @@ export class DynIllustStage {
     this._raf = 0;
     this._jobs = [];            // staging pieces (STAGE_BUDGET_MS): () => true when done, false to try again next frame
     this._warming = new Set();  // staged slots to draw once (not stepped) in the next frame: the warm-up draw
+    this._laterWait = new Set(); // preps whose special-idle files wait for the stage's loading cards (_warmLater)
     this.canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
     if (this.canvas) { this.canvas.width = 2; this.canvas.height = 2; }
     this.renderer = null;
@@ -183,12 +186,23 @@ export class DynIllustStage {
     if (!this._ensureGL() || this.lost) return;
     const def = prep.fxDef, glr = this.glr;
     const half = this.quality === 'half';
+    // the load groups [src: doc §33.19 Load]: the IDLE group's textures before the card is ready, the special idle's
+    // after it goes live (_warmLater), START's and INTERACTION's never (a card never plays them)
+    const groups = loadGroups(prep.entry);
+    const first = [], later = [];
+    for (const k of (def && glr && def.textures) || []) {
+      const g = groups.texture(k);
+      if (groups.never.has(g)) continue;
+      (g === 'IDLE' ? first : later).push(k);
+    }
+    prep.later = later.length ? { keys: later, ready: false, started: false } : null;
     // one owner per illustration: the library shares its parallel loads between the cards in turn
-    if (def && glr) await Promise.all((def.textures || []).map((k) => this.lib.loadTexture(k, half, prep.entry && prep.entry.key)));
+    await Promise.all(first.map((k) => this.lib.loadTexture(k, half, prep.entry && prep.entry.key)));
     const progs = new Map();
     if (def && glr) {
       const add = (kind, mi) => { const mat = mi != null ? def.material(mi, false) : null; if (mat) progs.set(`${kind}|${mat.key}`, [kind, mat]); };
       for (let i = 0; i < def.n; i++) {
+        if (groups.never.has(groups.node(i))) continue;
         const pr = def.psr[i];
         if (pr && pr.enabled && pr.mode !== 'none') { add(pr.mode === 'mesh' ? 'mesh' : 'quad', pr.mats[0]); if (def.ps[i]?.trail) add('strip', pr.mats[1]); }
         if (def.mesh[i]) for (const mi of def.mesh[i].mats) add('mesh', mi);
@@ -203,9 +217,57 @@ export class DynIllustStage {
     if (def && glr) {
       // the builds start here and run on in the driver (KHR_parallel_shader_compile); several starts make one piece
       for (let i = 0; i < prep.progs.length; i += 4) { const some = prep.progs.slice(i, i + 4); pieces.push(gl1(() => { for (const [kind, mat] of some) glr.program(kind, mat); })); }
-      for (const k of def.textures || []) pieces.push(gl1(() => glr.texture(k, half)));
+      pieces.push(...this._texPieces(first, half));
     }
     await this._enqueue(pieces);
+  }
+
+  /**
+   * Staging pieces that upload effect textures `keys` (decoded already), several small ones per piece: at most
+   * UPLOAD_PIECE_PX pixels each, a larger texture alone. One upload per piece let a busy page take a frame per texture
+   * (staging runs at least one piece a frame, more only within STAGE_BUDGET_MS).
+   */
+  _texPieces(keys, half) {
+    const glr = this.glr, r = this.renderer, out = [];
+    let some = [], px = 0;
+    const flush = () => {
+      if (!some.length) return;
+      const ks = some;
+      out.push(() => { if (!this.lost && glr) for (const k of ks) { try { glr.texture(k, half); } catch { /* at its first draw */ } finally { resetPixi(r); } } return true; });
+      some = []; px = 0;
+    };
+    for (const k of keys) {
+      const im = this.lib.images.get(`${k}|${half ? 1 : 0}`)?.image;
+      const n = im ? (im.width || 1) * (im.height || 1) : UPLOAD_PIECE_PX;
+      if (px && px + n > UPLOAD_PIECE_PX) flush();
+      some.push(k); px += n;
+    }
+    flush();
+    return out;
+  }
+
+  /**
+   * The special idle's textures, once per illustration after its first card goes live: downloaded and decoded, then
+   * uploaded in staging pieces; `prep.later.ready` then lets the card play its special idle (Slot: the card state's
+   * `specialReady`). The first special idle comes 3 s or more after the card starts animating [src: state.js
+   * SP_IDLE_TIME.INIT], so it only waits, later than the official timing, when these files take longer than that.
+   * While another card of the stage still loads, they wait for it (_frame): on a slow CPU the first live cards'
+   * special files held back the rest of the page (time to live 7.6 → 9.4 s at CPU 4×) [src: notes
+   * dev50-l2d-perf-report.md §Load groups].
+   */
+  _warmLater(prep) {
+    const L = prep && prep.later;
+    if (!L || L.started) return;
+    let used = false;
+    for (const c of this.cards) if (c.prep === prep) used = true;
+    if (!used) { this._laterWait.delete(prep); return; }   // its cards left meanwhile: the next live card asks again
+    for (const c of this.cards) if (c.state === 'loading') { this._laterWait.add(prep); return; }
+    L.started = true;
+    this._laterWait.delete(prep);
+    const half = this.quality === 'half';
+    Promise.all(L.keys.map((k) => this.lib.loadTexture(k, half, prep.entry && prep.entry.key)))
+      .then(() => this._enqueue(this._texPieces(L.keys, half)))
+      .then(() => { L.ready = true; }, () => { L.ready = true; });
   }
 
   /** Queue staging pieces; settles once the last of them is done. */
@@ -299,6 +361,7 @@ export class DynIllustStage {
     this.time += dt;
     this.frameNo++;
     for (const c of this.cards) c.sync(dt);
+    if (this._laterWait.size) for (const p of [...this._laterWait]) this._warmLater(p);
     const live = [], warm = [];
     for (const slot of this.slots.values()) {
       let any = false;
@@ -463,6 +526,7 @@ export class Card {
   _set(st) {
     if (this.state === st) return;
     this.state = st;
+    if (st === 'live') this.S._warmLater(this.prep);   // the special idle's files, after the card shows
     if (this.onState) { try { this.onState(st); } catch (err) { console.error('[dynillust] onState', err); } }
   }
 
@@ -534,7 +598,8 @@ class Slot {
     this.fx = prep.fxDef ? new IllustEffects(prep.fxDef, { lib: S.lib, lite: false, ...d.effects }) : null;
     if (this.fx) this.fx.fx.place({ pos: d.root.pos });
     this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: d.instance, now: () => this.time });
-    this.card = new CardIllustState({ rng: S.opts.rng, onAction: S.opts.onAction ? (a) => S.opts.onAction(key, a) : null });
+    // the special idle waits for its files (Stage._warmLater)
+    this.card = new CardIllustState({ rng: S.opts.rng, onAction: S.opts.onAction ? (a) => S.opts.onAction(key, a) : null, specialReady: () => !prep.later || prep.later.ready });
     this.map = unityToCard(d.framing, w, h);
     const pos = d.root.pos, rs = d.root.scale;
     const sp = this.skel.spine;

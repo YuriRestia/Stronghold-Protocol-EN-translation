@@ -224,6 +224,21 @@ describe('state.js (UICharacterDynIllust)', () => {
     for (let k = 0; k < 40; k++) c.step(0.1);              // past 23 s of Idle
     assert.equal(c.r.inst.playingAction, ACTION.SPECIAL_IDLE);
   });
+  test('a special idle whose files still load waits, then plays at the first tick they are in', () => {
+    const r = rig({ Idle: 4, Special: 3 });
+    let ready = false;
+    const st = new CardIllustState({ rng: () => 0, specialReady: () => ready }); // INIT 3 s
+    r.inst.enable(); st.activate();
+    const step = (dt) => { st.tick(r.inst); r.advance(dt); };
+    step(0);
+    for (let k = 0; k < 50; k++) step(0.1);                // 5 s: past the 3 s target, files not in
+    assert.equal(r.inst.playingAction, ACTION.IDLE);
+    st.playSpecial(r.inst);                                // a review page's button waits too
+    assert.equal(r.inst.playingAction, ACTION.IDLE);
+    ready = true;
+    step(0);
+    assert.equal(r.inst.playingAction, ACTION.SPECIAL_IDLE);
+  });
   test('an instance already deep in Idle shifts the INIT range', () => {
     const r = rig({ Idle: 40, Special: 3 });
     r.inst.enable();

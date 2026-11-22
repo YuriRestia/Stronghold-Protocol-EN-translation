@@ -56,13 +56,17 @@ export function uniformSPActionTime(range, inst) {
 
 export class CardIllustState {
   /**
-   * @param {{ rng?: () => number, autoIdleSpecialDisable?: boolean, onAction?: (a: number) => void }} [o]
+   * @param {{ rng?: () => number, autoIdleSpecialDisable?: boolean, onAction?: (a: number) => void, specialReady?: () => boolean }} [o]
    * `onAction(action)`: told when the card itself starts an action (review pages log it).
+   * `specialReady()`: false while the special idle's files still load (renderer.js _warmLater); a timer that fires
+   * then waits, and the special idle plays at the first tick they are in (not an official rule: the client has every
+   * file before the card shows).
    */
   constructor(o = {}) {
     this.rng = o.rng || Math.random;
     this.autoIdleSpecialDisable = !!o.autoIdleSpecialDisable;
     this.onAction = o.onAction || null;
+    this.specialReady = typeof o.specialReady === 'function' ? o.specialReady : () => true;
     this.state = STATE.DEACTIVATED;
     this.timer = { has: false, min: 0, max: 0, target: 0 };
   }
@@ -97,7 +101,7 @@ export class CardIllustState {
     }
     if (s === STATE.IDLE) {
       if (this.autoIdleSpecialDisable || a !== ACTION.IDLE) return;
-      if (!this.timerFires(inst.playingTime)) return;
+      if (!this.timerFires(inst.playingTime) || !this.specialReady()) return;
       inst.changeAction(ACTION.SPECIAL_IDLE, 1);
       if (this.onAction) this.onAction(ACTION.SPECIAL_IDLE);
       this.resetTimer('RESUME', inst);
@@ -125,7 +129,7 @@ export class CardIllustState {
    */
   playSpecial(inst) {
     if (!inst || !inst.started) return;
-    if (this.state !== STATE.IDLE || inst.playingAction !== ACTION.IDLE) return;
+    if (this.state !== STATE.IDLE || inst.playingAction !== ACTION.IDLE || !this.specialReady()) return;
     inst.changeAction(ACTION.SPECIAL_IDLE, 1);
     if (this.onAction) this.onAction(ACTION.SPECIAL_IDLE);
     if (!this.autoIdleSpecialDisable) this.resetTimer('RESUME', inst);

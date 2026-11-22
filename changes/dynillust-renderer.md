@@ -28,6 +28,10 @@
 - Animation timelines that never move a bone are dropped once per skeleton (about half of all bone timelines), so the
   per-frame animation update costs about 15 % less CPU for the same pixels [src: notes dev50-l2d-perf-report.md
   §Constant timelines].
+- Cards load only what they show first: the idle's effect files before a card appears, the special idle's after every
+  card of the page has appeared, and never the tap and entry effects a card does not play (31 MB over all 98
+  illustrations). A Grand Alliance page of 8 cards appears 8–18 % sooner; a special idle whose files are not in yet
+  plays as soon as they are [src: notes dev50-l2d-perf-report.md §Load groups].
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays
   counted from each switch-on, nodes that follow skeleton bones). Battle effects are unchanged.
 
