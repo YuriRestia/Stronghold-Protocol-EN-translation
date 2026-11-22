@@ -56,6 +56,18 @@ describe('framing.js (official card framing)', () => {
     const a = unityToCard(f, 232, 458), b = unityToCard(f, 464, 916);
     assert.ok(Math.abs(b.scale - 2 * a.scale) < 1e-9 && Math.abs(b.x0 - 2 * a.x0) < 1e-9 && Math.abs(b.y0 - 2 * a.y0) < 1e-9);
   });
+  test('a short card (Grand Alliance at 1546 × 905: 280 × 256) contains the whole official window, centred', () => {
+    // [src: notes dev49-l2d-review-findings.md §4]
+    const m = unityToCard(f, 280, 256), u = 256 / 458, a = unityToCard(f, 232, 458);
+    assert.ok(Math.abs(m.scale - u * a.scale) < 1e-9);
+    assert.ok(Math.abs(m.y0 - u * a.y0) < 1e-9);
+    assert.ok(Math.abs(m.x0 - (140 + u * (a.x0 - 116))) < 1e-9);
+  });
+  test('a tall card (Grand Alliance at 3840 × 2160: 245 × 594) fits by width, the official window centred vertically', () => {
+    const m = unityToCard(f, 245, 594), u = 245 / 232, a = unityToCard(f, 232, 458);
+    assert.ok(Math.abs(m.scale - u * a.scale) < 1e-9);
+    assert.ok(Math.abs(m.y0 - ((594 - 458 * u) / 2 + u * a.y0)) < 1e-9);
+  });
   test('a card wider than the official window fits it by height, centred: the same vertical range', () => {
     // the Grand Alliance card ≈ 0.65 wide [src: notes dev49-l2d-review-findings.md §1]
     const a = unityToCard(f, 232, 458), b = unityToCard(f, 298, 458);

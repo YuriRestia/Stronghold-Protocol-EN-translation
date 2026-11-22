@@ -9,9 +9,10 @@
 //   0x14463BF (edx = 0); UICharacterDynIllust.ApplySkinOffset 0x1492685; card _RenderIllust 0x28E17E9–0x28E1815].
 //   Card art window 232 × 458 UI px, centred, holder `root` at (0, −39) from its centre, scale 0.73 [src: official
 //   [uc]autochessouter.ab auto_chess_settle_game_player_item group_char, root].
-//   Our cards are wider than the official window (result ≈ 0.62, Grand Alliance ≈ 0.65 against 0.507), so a card fits
-//   the official window by HEIGHT and centres it: the official vertical range exactly, more art at the sides (fitting
-//   by width cut the bottom ~20 %) [src: notes dev49-l2d-review-findings.md §1].
+//   Our art windows differ in shape from the official one and change with the screen (Grand Alliance at 1546 × 905:
+//   280 × 256 CSS px, at 3840 × 2160: 245 × 594), so a card CONTAINS the official window: the largest 232 × 458 box
+//   that fits, centred; a slot of another shape only adds art around it [src: notes dev49-l2d-review-findings.md §1,
+//   §4 (measured on the review page, device=pc)].
 //
 // unityToCard() is the whole mapping from the illustration's Unity frame (the prefab root's parent space: the root at
 // its authored position, y up) to card pixels (y down). The skeleton, every effect and the background share it.
@@ -36,14 +37,14 @@ export const ADJUST = Object.freeze({ DEFAULT: 0, SKIN: 1, HOME_PAGE: 2 });
  */
 export function unityToCard(f, w, h) {
   const adj = pickAdjust(f, f.type ?? ADJUST.DEFAULT);
-  // UI px → card px: the official window's height fills the card's (see the header); x centred
-  const u = h / CARD_UI_H;
+  // UI px → card px: the official window contained in the card, centred (see the header)
+  const u = Math.min(w / CARD_UI_W, h / CARD_UI_H);
   // 10: DynIllustBase's own default `_cameraSize` [src: official GameAssembly.dll DynIllustBase..ctor 0x1442F39]
   const cs = Number(f.cameraSize) > 0 ? Number(f.cameraSize) : 10;
   // world units → UI units of the RawImage: the camera's 2·cs units span the image's `size` UI px
   const k = adj.size / (2 * cs);
   const scale = u * HOLDER_SCALE * k;
-  const ax = w / 2, ay = CARD_TOP * u;
+  const ax = w / 2, ay = (h - CARD_UI_H * u) / 2 + CARD_TOP * u;
   return {
     scale,
     x0: ax + u * HOLDER_SCALE * adj.ox,
