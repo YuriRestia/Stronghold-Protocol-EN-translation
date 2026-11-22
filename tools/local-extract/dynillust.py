@@ -46,6 +46,7 @@ ENV_BATCH = 8               # illustrations per UnityPy environment (shared bund
 # side-by-side comparisons (extract.py GUIDE_WEBP_OPTIONS, DIRECT_WEBP)
 # `exact`: the RGB under transparent texels is kept as stored (the shader multiplies or not by its keywords)
 PAGE_WEBP = {'quality': 90, 'method': 4, 'alpha_quality': 100, 'exact': True}
+PAGE_WEBP_LOSSLESS = {'lossless': True, 'quality': 100, 'method': 4, 'exact': True}   # premultiplied half pages
 KEY_RE = re.compile(r'^(char_\d+_[a-z0-9]+)_(.+)$')
 ACTIONS = {-1: 'NONE', 0: 'IDLE', 1: 'SPECIAL_IDLE', 2: 'START', 3: 'INTERACTION'}   # official dump.cs DynIllustAction
 ADJUST = ('DEFAULT', 'SKIN', 'HOME_PAGE')                                         # official dump.cs DynIllustAdjustType
@@ -555,7 +556,9 @@ def write_spine(env, sda_file, sda, writer, helpers, log, key):
         writer.put(full, buf.getvalue())
         small = half_page(img, straight.get(name, False))
         buf = io.BytesIO()
-        small.save(buf, 'WEBP', **PAGE_WEBP)
+        # a premultiplied half page is lossless: lossy WebP's 4:2:0 colour subsampling spreads colour past the alpha
+        # edges (rgb > a), pale fringes again at half size (Goldenglow summer#12: 3.0 % unencoded, 5.9 % at q90)
+        small.save(buf, 'WEBP', **(PAGE_WEBP if straight.get(name, False) else PAGE_WEBP_LOSSLESS))
         writer.put(half, buf.getvalue())
         out_pages.append({'name': name, 'file': full, 'half': half, 'w': img.width, 'h': img.height,
                           'pma': not straight.get(name, False)})
