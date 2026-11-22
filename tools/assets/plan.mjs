@@ -623,12 +623,13 @@ function nativeVoiceAlt(asset, dir) {
 }
 
 /**
- * Full artwork (yuanyan `skin/<portraitId>b.png`, ~3 MB) → `outfit/art/<name>.webp`, converted at download time
- * (downloader.mjs convertImage: ≤ 1024 px, ~150 KB). `ids` = candidate portrait ids, best first (one file).
+ * Full artwork (yuanyan `skin/<portraitId>b.png`, ~3 MB) → `outfit/art2k/<name>.webp`, converted at download time
+ * (downloader.mjs convertImage: ≤ 2048 px). A folder of its own since the 2048 copies (2026-11-23): in `outfit/art/` the
+ * ledger kept the 1024 copies already on disk. `ids` = candidate portrait ids, best first (one file).
  */
 function artAlt(name, ids) {
   const urls = ids.map((id) => joinUrl(RAW.yuanyan, `skin/${id}b.png`));
-  return { ...alt(`outfit/art/${safeName(name)}.webp`, urls), from: 'png' };
+  return { ...alt(`outfit/art2k/${safeName(name)}.webp`, urls), from: 'png' };
 }
 
 /**

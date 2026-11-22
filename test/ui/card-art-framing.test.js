@@ -24,15 +24,21 @@ test('card units: the tool\'s round trip, and the card\'s box (cardArtRect) the 
   for (const k of ['x', 'y', 'w', 'h']) assert.ok(near(back[k], r[k], 0.02), `${k} ${back[k]} vs ${r[k]}`);
   // a still: no zoom of its own, the box in % of the card
   const rect = toUnits(r, w, h);
-  const p = cardArtRect({ rect, key: null }, w, h);
+  const p = cardArtRect({ own: rect, key: null }, w, h);
   assert.ok(near(p.left, (100 * back.x) / w) && near(p.top, (100 * back.y) / h) && near(p.width, (100 * back.w) / w) && near(p.height, (100 * back.h) / h));
   // the same box on a Grand Alliance card (1.6): the same height, the sides cropped (units from the centre, u = h / 458)
-  const g = cardArtRect({ rect, key: null }, h * 1.6, h);
+  const g = cardArtRect({ own: rect, key: null }, h * 1.6, h);
   assert.ok(near(g.height, p.height) && near(g.top, p.top));
   assert.equal(cardArtRect(null, w, h), null);
   // the cover's helper: css px, null without a placement (the table not loaded here)
   assert.equal(staticPlacement('/assets/outfit/art/none.webp', w, h), null);
-  assert.equal(cardArtRect({ rect, key: null }, 0, h), null);
+  assert.equal(cardArtRect({ own: rect, key: null }, 0, h), null);
+  // an illustration's art: linked, the registered box (its illustration's framing value on top); separate, its own box
+  const reg = toUnits({ x: 10, y: 20, w: 600, h: 500 }, w, h);
+  const linked = cardArtRect({ own: rect, reg, key: 'k_unknown', separate: false }, w, h);
+  assert.ok(near(linked.left, (100 * fromUnits(reg, w, h).x) / w, 0.01), 'linked: the registered box (no table value: zoom 1)');
+  const apart = cardArtRect({ own: rect, reg, key: 'k_unknown', separate: true }, w, h);
+  assert.ok(near(apart.left, p.left), 'separate: its own box');
 });
 
 test('a still full art is framed on its face: the line, the head inside, the smallest zoom that covers', () => {
@@ -71,22 +77,25 @@ test('chessFullArtUrl: the outfit\'s full art, else the default; none for a skin
   assert.equal(chessFullArtUrl(assets, { charId: 'char_nobody' }, { outfit: null }), null);
 });
 
-test('data/card-art-framing.json: generated; every framed illustration registered, the stills framed', () => {
+test('data/card-art-framing.json: generated; every full art framed on its own (static and live apart), registrations kept', () => {
   const t = JSON.parse(readFileSync(path.join(ROOT, 'data/card-art-framing.json'), 'utf8'));
   assert.match(t._source, /tools\/card-art-framing\.mjs: generated/);
+  // the static art: linked to its illustration by default, its own placement for the listed exceptions (the user,
+  // 2026-11-23); registered on zoomed-out captures every match is trustworthy (Chongyue's E2: 0.41 on a tight crop,
+  // 0.96 zoomed out), so none is apart by default
+  assert.equal(t.l2d, undefined);
+  assert.ok(Array.isArray(t.separate), JSON.stringify(t.separate));
+  for (const [k, e] of Object.entries(t.registered)) assert.ok(e.score >= 0.8, `${k} registered at ${e.score}`);
   const framing = JSON.parse(readFileSync(path.join(ROOT, 'data/dyn-card-framing.json'), 'utf8')).cards;
   for (const key of Object.keys(framing)) {
-    const e = t.l2d[key];
-    assert.ok(e, `${key} registered`);
-    assert.equal(e.art, path.basename(artOfKey(assets, key)), key);
-    assert.ok(e.rect.length === 4 && e.rect[2] > 0 && e.rect[3] > 0, key);
+    const art = path.basename(artOfKey(assets, key));
+    const s = t.stills[art];
+    assert.ok(s, `${key}: its full art ${art} framed as a still`);
+    assert.ok(s.rect.length === 4 && s.rect[2] > 0 && s.rect[3] > 0, art);
+    // the registration on the illustration, kept for reference
+    assert.equal(t.registered[key]?.art, art, `${key} registered`);
   }
-  const arts = new Set(Object.values(t.l2d).map((e) => e.art));
-  for (const [art, e] of Object.entries(t.stills)) {
-    assert.ok(!arts.has(art), `${art}: an illustration's art is placed by its illustration`);
-    assert.ok(e.rect.length === 4 && e.rect[2] > 0 && e.rect[3] > 0, art);
-  }
-  // the full arts this checkout has: each placed once
-  const dir = path.join(ROOT, 'public/assets/outfit/art');
-  if (existsSync(dir)) assert.ok(Object.keys(t.stills).length + arts.size >= 400, `${Object.keys(t.stills).length} stills`);
+  for (const [art, e] of Object.entries(t.stills)) assert.ok(e.rect.length === 4 && e.rect[2] > 0 && e.rect[3] > 0, art);
+  // the full arts this checkout has
+  if (existsSync(path.join(ROOT, 'public/assets/outfit/art'))) assert.ok(Object.keys(t.stills).length >= 500, `${Object.keys(t.stills).length} stills`);
 });

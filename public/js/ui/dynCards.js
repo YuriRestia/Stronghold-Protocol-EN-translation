@@ -221,15 +221,28 @@ export function coverFramingNow(key) {
  * still-only art carries its own framing.
  */
 let artTable = null;
+/** The review page's link override: (illustration key) → true (the 2D art has its own placement) | false | undefined. */
+let separateOverride = null;
+export function setCardArtSeparate(fn) { separateOverride = typeof fn === 'function' ? fn : null; }
+/** The review page's move / zoom on a 2D art's own placement: (art file) → { zoom, fx, fy } | undefined (the table's). */
+let adjustOverride = null;
+export function setCardArtAdjust(fn) { adjustOverride = typeof fn === 'function' ? fn : null; }
 let artLoad = null;
 export function loadCardArtFraming() {
   artLoad ||= Promise.all([
     fetch('/data/card-art-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     loadCoverFraming(),
   ]).then(([j]) => {
+    // per full art: its own face-framed placement (`stills`) and, for an illustration's art, its placement on the
+    // illustration (`registered`) — linked unless the illustration is listed in `separate` (the user, 2026-11-23: "a way
+    // to still link the values since the mismatched ones are the exception")
     const m = new Map();
-    for (const [key, e] of Object.entries(j?.l2d || {})) if (e?.art && Array.isArray(e.rect)) m.set(e.art, { rect: e.rect, key });
-    for (const [art, e] of Object.entries(j?.stills || {})) if (Array.isArray(e?.rect) && !m.has(art)) m.set(art, { rect: e.rect, key: null });
+    const sep = new Set(Array.isArray(j?.separate) ? j.separate : []);
+    for (const [art, e] of Object.entries(j?.stills || {})) if (Array.isArray(e?.rect)) m.set(art, { art, own: e.rect, adjust: e.adjust || null, reg: null, key: null, separate: true });
+    for (const [key, e] of Object.entries(j?.registered || {})) {
+      if (!e?.art || !Array.isArray(e.rect)) continue;
+      m.set(e.art, { ...(m.get(e.art) || { art: e.art, own: null }), reg: e.rect, key, separate: sep.has(key) });
+    }
     artTable = m;
   });
   return artLoad;
@@ -243,10 +256,17 @@ export function cardArtEntry(src) {
  * illustration's zoom about (fx, fy) of the card. */
 export function cardArtRect(entry, w, h) {
   if (!entry || !(w > 0 && h > 0)) return null;
-  const f = entry.key ? coverValue(entry.key) : null;
+  // linked: where the illustration draws, with its framing value; separate: the art's own placement
+  const sepOv = entry.key && separateOverride ? separateOverride(entry.key) : undefined;
+  const linked = !!(entry.key && entry.reg) && !(sepOv ?? entry.separate);
+  const rect = linked ? entry.reg : entry.own || entry.reg;
+  if (!rect) return null;
+  // linked: the illustration's framing value; own placement: the user's move / zoom on it, if any
+  const ov = !linked && entry.art && adjustOverride ? adjustOverride(entry.art) : undefined;
+  const f = linked ? coverValue(entry.key) : ov !== undefined ? ov : entry.adjust || null;
   const zoom = f?.zoom || 1, fx = f?.fx ?? 0.5, fy = f?.fy ?? 0.5;
   const u = Math.min(w / 232, h / 458);
-  const [L, T, W, H] = entry.rect;
+  const [L, T, W, H] = rect;
   const cx = fx * w, cy = fy * h;
   const x = cx + (w / 2 + u * L - cx) * zoom, y = cy + (h / 2 + u * T - cy) * zoom;
   return { left: (100 * x) / w, top: (100 * y) / h, width: (100 * u * W * zoom) / w, height: (100 * u * H * zoom) / h };
@@ -269,9 +289,15 @@ export function CardArt({ src, fallback = null, class: cls = '' }) {
   const [bad, setBad] = useState(false);
   const [box, setBox] = useState(null);
   const ref = useRef(null);
-  useEffect(() => { if (!artTable) loadCardArtFraming().then(() => setReady(true)); }, []);
+  // the table may arrive between the first render and this effect: ready then, else when it loads (a card that only
+  // checked here stayed empty for good, 2026-11-23)
+  useEffect(() => {
+    let alive = true;
+    if (artTable) setReady(true); else loadCardArtFraming().then(() => { if (alive) setReady(true); });
+    return () => { alive = false; };
+  }, []);
   useEffect(() => { setBad(false); }, [src]);
-  const entry = ready && src && !bad ? cardArtEntry(src) : null;
+  const entry = (ready || artTable) && src && !bad ? cardArtEntry(src) : null;
   useEffect(() => {
     const el = ref.current?.offsetParent;
     if (!entry || !el) return undefined;
@@ -282,7 +308,7 @@ export function CardArt({ src, fallback = null, class: cls = '' }) {
     ro?.observe(el);
     return () => ro?.disconnect();
   }, [entry]);
-  if (!ready) return null;
+  if (!ready && !artTable) return null;
   if (!entry) return fallback;
   const p = box ? cardArtRect(entry, box[0], box[1]) : null;
   const style = p ? `inset:auto;left:${p.left}%;top:${p.top}%;width:${p.width}%;height:${p.height}%;max-width:none;object-fit:fill` : 'visibility:hidden';

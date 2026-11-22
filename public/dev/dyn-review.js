@@ -18,7 +18,7 @@ import { initLang } from '/js/ui/lang.js';
 import { ensurePixi } from '/js/render/app/pixi.js';
 import { SettleFlow } from '/js/screens/settle.js';
 import { RoomScreen } from '/js/screens/room.js';
-import { setDynModule, setDynQuality, setDynFraming, coverFramingNow } from '/js/ui/dynCards.js';
+import { setDynModule, setDynQuality, setDynFraming, setCardArtSeparate, setCardArtAdjust } from '/js/ui/dynCards.js';
 import { cardStore, CARD_KEY } from '/js/ui/seatArt.js';
 import { outfitStore } from '/js/ui/outfits.js';
 
@@ -44,24 +44,70 @@ const FR = new Map((P.get('fr') || '').split('|').filter(Boolean).map((s) => {
 const app = document.getElementById('app');
 const bar = document.getElementById('rvbar');
 
-// ---- the zoom decisions (the user, 2026-11-23: "a toggle above each slot to switch between zoom and unzoomed and
-// something to let me quickly export my decision for each of them"): per illustration key, 'zoom' (the face framing of
-// data/dyn-card-framing.json — for a key kept plain, its measured `face`) or 'plain' (the card framing, no zoom), kept in
-// this browser; the wide cards (room, Grand Alliance) re-mount on a switch
-const DECIDE_KEY = 'dynReview.zoomDecisions';
+// ---- hand framing (the user, 2026-11-23: "have a way for me to drag and zoom the live2d to a good position and export
+// all of them for you"): on the room and Grand Alliance pages each wide card takes a drag (pan) and the mouse wheel (zoom
+// about the pointer); double-click resets it to the table's. The card framing is zoomed by z and moved by (tx, ty) card
+// fractions — x' = z·x + tx·w — kept as the renderer's { mode: 'card', zoom, fx, fy } (fx = tx / (1 − z)), applied live
+// to the running illustration (setFraming), kept per illustration key in this browser, exported as a framing table.
+const FRAMES_KEY = 'dynReview.framings';
 let TABLE = {};
-const decisions = (() => { try { return JSON.parse(localStorage.getItem(DECIDE_KEY) || '{}') || {}; } catch { return {}; } })();
-const saveDecisions = () => { try { localStorage.setItem(DECIDE_KEY, JSON.stringify(decisions)); } catch { /* private mode */ } };
-/** The face framing of `key` (zoom > 1), or null when the face framing is the plain one. */
-const faceOf = (k) => { const c = TABLE[k]; const f = c?.face || c; return f && f.zoom > 1 ? { mode: 'card', zoom: f.zoom, fx: f.fx, fy: f.fy } : null; };
-/** What a card shows now: the decision, else the table's. */
-const stateOf = (k) => decisions[k] || ((TABLE[k]?.zoom || 1) > 1 ? 'zoom' : 'plain');
-/** The framing the cards mount with (setDynFraming): the URL's &fr / &framing first, then a decision; null = the table's. */
+const framings = (() => { try { return JSON.parse(localStorage.getItem(FRAMES_KEY) || '{}') || {}; } catch { return {}; } })();
+const saveFramings = () => { try { localStorage.setItem(FRAMES_KEY, JSON.stringify(framings)); } catch { /* private mode */ } };
+/** zoom / pan (z, tx, ty) ↔ the renderer's zoom about a point; z kept off 1 by a hair so a pan at 1× stays representable. */
+const toFraming = ({ z, tx, ty }) => { const zz = Math.abs(1 - z) < 1e-3 ? (tx || ty ? 1.001 : 1) : z; return zz === 1 ? { mode: 'card', zoom: 1, fx: 0.5, fy: 0.5 } : { mode: 'card', zoom: +zz.toFixed(4), fx: +(tx / (1 - zz)).toFixed(4), fy: +(ty / (1 - zz)).toFixed(4) }; };
+const fromFraming = (f) => { const z = f?.zoom > 0 ? f.zoom : 1; return { z, tx: z === 1 ? 0 : f.fx * (1 - z), ty: z === 1 ? 0 : f.fy * (1 - z) }; };
+/** The table's framing of `key` (data/dyn-card-framing.json; zoom 1 = the plain card framing). */
+const tableFraming = (k) => { const c = TABLE[k]; return c && c.zoom > 0 ? { mode: 'card', zoom: c.zoom, fx: c.fx, fy: c.fy } : { mode: 'card', zoom: 1, fx: 0.5, fy: 0.5 }; };
+/** The table's move / zoom on each 2D art's own placement (data/card-art-framing.json stills[art].adjust). */
+let STILL_ADJ = {};
+/** The framing a card shows now: the user's, else the table's (a still art's: its saved adjustment, else none). */
+const frameOf = (k) => framings[k] || (k.startsWith('still:')
+  ? (STILL_ADJ[k.slice(6)] ? { mode: 'card', ...STILL_ADJ[k.slice(6)] } : { mode: 'card', zoom: 1, fx: 0.5, fy: 0.5 })
+  : tableFraming(k));
+// the static art (the user, 2026-11-23: "how do I switch to the static art and edit it as well? im suspicious of the
+// crew's framing of them now"): STATIC shows every card's 2D art (动态立绘 off; an illustration's 2D art is placed with
+// the illustration's own framing, so editing it edits both), SET_STILLS pages through the still-only full arts, whose
+// edits are a move / zoom on top of their generated placement ('still:<art file>' keys), shown as a CSS transform here
+let STATIC = P.has('off');
+const SET_STILLS = P.get('set') === 'stills';
+/** The full art file a card shows (its outfit's, else the operator's own). */
+const artBaseOf = (e) => {
+  if (e.still) return e.still;
+  const o = data.get('assets')?.outfits || {};
+  const u = e.skinId && e.skinId !== `${e.charId}#2` ? o.chars?.[e.skinId]?.art : o.defaults?.[e.charId]?.art;
+  return String(u || '').split('/').pop();
+};
+// linked or separate (the user, 2026-11-23: "a way to still link the values since the mismatched ones are the
+// exception"): an illustration's 2D art follows it (linked) unless the table's `separate` lists it or it is unlinked
+// here; kept in this browser, exported as `separate`
+const LINKS_KEY = 'dynReview.separate';
+let SEP_DEFAULT = new Set();
+const sepEdits = (() => { try { return JSON.parse(localStorage.getItem(LINKS_KEY) || '{}') || {}; } catch { return {}; } })();
+const saveSep = () => { try { localStorage.setItem(LINKS_KEY, JSON.stringify(sepEdits)); } catch { /* private mode */ } };
+const isSeparate = (k) => (k in sepEdits ? !!sepEdits[k] : SEP_DEFAULT.has(k));
+/** What a card's gestures edit: the illustration's framing (live, and a linked 2D art with it), or the 2D art's own
+ * placement (an unlinked one in static mode, still-only arts) — separate settings (the user, 2026-11-23). */
+const editKey = (e) => (e.still || (STATIC && isSeparate(e.key)) ? `still:${artBaseOf(e)}` : e.key);
+/** The still-only arts of data/card-art-framing.json as review entries: an outfit's (its id), else an operator's own. */
+async function stillEntries() {
+  const t = await fetch('/data/card-art-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const stills = new Set(Object.keys(t?.stills || {}));
+  const o = data.get('assets')?.outfits || {};
+  const base = (u) => String(u || '').split('/').pop();
+  const out = [];
+  for (const [id, rec] of Object.entries(o.chars || {})) if (stills.has(base(rec?.art))) out.push({ key: id, charId: id.split('@')[0], skinId: id, still: base(rec.art) });
+  for (const [cid, rec] of Object.entries(o.defaults || {})) if (stills.has(base(rec?.art))) out.push({ key: cid, charId: cid, skinId: `${cid}#2`, still: base(rec.art) });
+  return out.sort((a, b) => a.key.localeCompare(b.key));
+}
+/** The framing the cards mount with (setDynFraming): the URL's &fr / &framing first, then the user's; null = the table's. */
+// &zoomall=Z: every card at the card framing zoomed by Z about its centre (tools/card-art-framing.mjs --zoom: a zoomed-out
+// capture shows the whole illustration, which the full art matches far better than a tight crop — Chongyue's E2, 2026-11-23)
+const ZOOMALL = Number(P.get('zoomall')) || 0;
 const decideFraming = (k) => {
+  if (ZOOMALL > 0) return { mode: 'card', zoom: ZOOMALL, fx: 0.5, fy: 0.5 };
   if (FR.has(k)) return FR.get(k);
   if (FRAMING) return FRAMING;
-  if (!decisions[k]) return null;
-  return decisions[k] === 'plain' ? 'card' : faceOf(k) || 'card';
+  return framings[k] || null;
 };
 
 const go = (patch) => { const u = new URL(location.href); for (const [k, v] of Object.entries(patch)) { if (v == null) u.searchParams.delete(k); else u.searchParams.set(k, String(v)); } u.searchParams.delete('frame'); location.href = u.toString(); };
@@ -105,7 +151,7 @@ async function installRenderer() {
  */
 let NAMES = {};
 function nameOf(e) {
-  const n = NAMES[e.skinId];
+  const n = NAMES[e.skinId] || NAMES[String(e.skinId || '').toLowerCase()];
   if (n) return `${n.op} · ${n.outfit}${n.cnOnly ? ' (CN only)' : ''}`;
   const chess = data.list('chess').find((c) => c && c.charId === e.charId) || Object.values(data.get('backups')?.units || {}).find((u) => u && u.charId === e.charId);
   const outfit = e.skinId === `${e.charId}#2` ? 'Elite 2 art' : data.lookup('outfits', e.skinId)?.name || e.skinId;
@@ -195,7 +241,8 @@ function measure(secs = 5) {
 /**
  * Another page without a reload (the user, 2026-11-23: "is there a way to click next that doesnt have to reload the whole
  * page"): the screen re-mounts with the page's cards, the URL's &page follows (a reload lands there), and the renderer
- * frees every illustration the new page does not show.
+ * frees every illustration the new page does not show (coming back to a freed page drew it black until the loader's fix
+ * of 2026-11-23, Dev 50's 565bb529a).
  */
 function goPage(n) {
   if (!review || !(n >= 0 && n < review.pages.length) || n === review.page) return;
@@ -205,46 +252,135 @@ function goPage(n) {
   draw();
   try { review.stage?.release?.(review.pages[n].map((e) => e.key)); } catch (err) { console.warn('[review] release', err); }
   renderBar(null);
-  zoomToggles();
+  frameEditor();
 }
 globalThis.__review = { special: () => act('special'), start: () => act('start'), replay: () => { replay++; draw(); }, state: () => review, measure, goPage };
 
-/** The switches on the wide cards: Zoomed / Unzoomed per card, ✓ once decided here; at each card's top right. */
-function zoomToggles() {
+/** Apply `key`'s framing now: to its running cards (the renderer's setFraming: the camera moves, nothing restarts), to
+ * the 2D art in static mode (a re-render: CardArt places it with the same value), or to a still's transform. */
+function applyFraming(k) {
+  if (k.startsWith('still:')) {
+    draw(); // the card places its 2D art with the edit (setCardArtAdjust)
+    return;
+  }
+  const f = frameOf(k);
+  for (const c of review.stage?.cards || []) if (c.key === k) c.setFraming?.(f);
+  if (STATIC) draw();
+}
+/** Static art on / off in place: the cards re-mount as 2D art or as illustrations (loaded ones come back at once). */
+function setStatic(on) {
+  STATIC = on;
+  settingsStore.set({ dynIllust: on ? 'off' : 'all' });
+  const u = new URL(location.href); if (on) u.searchParams.set('off', '1'); else u.searchParams.delete('off'); history.replaceState(null, '', u);
+  replay++; draw(); renderBar(null); frameEditor();
+}
+
+/**
+ * The hand-framing layer over the wide cards: a box per card that takes a drag (pan) and the wheel (zoom about the
+ * pointer); double-click resets to the table's value. The zoom shows at its corner, ✎ once set here.
+ */
+function frameEditor() {
   if (SHOT || FRAME || SCREEN === 'result' || !review) return;
   let layer = document.querySelector('.rvzoom');
   if (!layer) {
     layer = Object.assign(document.createElement('div'), { className: 'rvzoom' });
     document.body.append(layer);
-    layer.addEventListener('click', (ev) => {
-      const b = ev.target.closest('button[data-k]');
-      if (!b || b.disabled) return;
-      const k = b.dataset.k;
-      decisions[k] = b.dataset.v;
-      saveDecisions();
-      // the mounted cards reframed in place (the renderer's setFraming: the camera moves, nothing reloads or restarts);
-      // the 2D art re-renders at the same value. A renderer without it: the screen re-mounts.
-      const cards = [...(review.stage?.cards || [])].filter((c) => c.key === k);
-      if (cards.length && cards.every((c) => typeof c.setFraming === 'function')) {
-        for (const c of cards) c.setFraming(...coverFramingNow(k));
-        draw();
-      } else { replay++; draw(); }
-      renderBar(null); zoomToggles();
+    let drag = null, raf = 0;
+    const keyOf = (el) => el?.closest('.rvz')?.dataset.k;
+    // a gesture: the view (z, tx, ty) changed for `k` — live on the running cards (one setFraming a frame)
+    const set = (k, v, el) => {
+      framings[k] = toFraming(v);
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; applyFraming(k); label(el, k); });
+    };
+    // the zoom box (typed, to a tenth of a percent) follows the gestures unless it is being typed in
+    // the typed boxes (zoom %, X / Y: the move in % of the card) follow the gestures unless being typed in
+    const label = (el, k) => {
+      const v = fromFraming(frameOf(k));
+      const vals = { z: v.z * 100, x: v.tx * 100, y: v.ty * 100 };
+      for (const inp of el?.querySelectorAll('input[data-f]') || []) if (document.activeElement !== inp) inp.value = (+vals[inp.dataset.f].toFixed(1)).toString();
+      const m = el?.querySelector('i'); if (m) m.textContent = framings[k] ? '✎' : '';
+    };
+    // a typed value: the zoom about the card's centre (the position kept), or the move
+    layer.addEventListener('input', (ev) => {
+      const inp = ev.target.closest('input[data-f]'); const el = inp?.closest('.rvz'); const k = keyOf(el);
+      const n = Number(inp?.value);
+      if (!k || !Number.isFinite(n) || inp.value === '') return;
+      const v = fromFraming(frameOf(k));
+      if (inp.dataset.f === 'z') {
+        const z = n / 100;
+        if (!(z >= 0.3 && z <= 5)) return;
+        const qx = (0.5 - v.tx) / v.z, qy = (0.5 - v.ty) / v.z;
+        set(k, { z, tx: 0.5 - z * qx, ty: 0.5 - z * qy }, el);
+      } else set(k, { ...v, [inp.dataset.f === 'x' ? 'tx' : 'ty']: n / 100 }, el);
+    });
+    layer.addEventListener('change', (ev) => {
+      // the link: this illustration's 2D art follows it, or keeps its own placement
+      const box = ev.target.closest('input[data-link]');
+      if (box) {
+        sepEdits[box.dataset.link] = !box.checked;
+        saveSep(); draw(); renderBar(null); frameEditor();
+        return;
+      }
+      if (ev.target.closest('input')) done();
+    });
+    layer.addEventListener('keydown', (ev) => { if (ev.target.closest('input')) ev.stopPropagation(); });
+    // the end of a gesture: kept, and the 2D art placed at the same value
+    const done = () => { saveFramings(); draw(); renderBar(null); };
+    layer.addEventListener('pointerdown', (ev) => {
+      const el = ev.target.closest('.rvz'); const k = keyOf(el);
+      if (!k || ev.button !== 0 || ev.target.closest('button, label')) return;
+      el.setPointerCapture(ev.pointerId);
+      drag = { k, el, x: ev.clientX, y: ev.clientY, v: fromFraming(frameOf(k)), r: el.getBoundingClientRect() };
+      el.classList.add('is-drag');
+    });
+    layer.addEventListener('pointermove', (ev) => {
+      if (!drag) return;
+      const { k, el, v, r } = drag;
+      set(k, { z: v.z, tx: v.tx + (ev.clientX - drag.x) / r.width, ty: v.ty + (ev.clientY - drag.y) / r.height }, el);
+    });
+    const up = () => { if (!drag) return; drag.el.classList.remove('is-drag'); drag = null; done(); };
+    layer.addEventListener('pointerup', up);
+    layer.addEventListener('pointercancel', up);
+    let wheelT = 0;
+    layer.addEventListener('wheel', (ev) => {
+      const el = ev.target.closest('.rvz'); const k = keyOf(el);
+      if (!k) return;
+      ev.preventDefault();
+      const r = el.getBoundingClientRect();
+      const v = fromFraming(frameOf(k));
+      // fine steps (the user, 2026-11-23: "skipping too many steps"): 2 % a wheel notch (deltaY 100), 0.5 % with Shift;
+      // a notch is clamped to one step whatever the device reports
+      const notch = Math.max(-1, Math.min(1, (ev.deltaMode === 1 ? ev.deltaY * 33 : ev.deltaY) / 100));
+      const z = Math.min(3, Math.max(0.6, v.z * Math.exp(-notch * (ev.shiftKey ? 0.005 : 0.02))));
+      // the point under the pointer stays put: p = z·q + t
+      const px = (ev.clientX - r.left) / r.width, py = (ev.clientY - r.top) / r.height;
+      const qx = (px - v.tx) / v.z, qy = (py - v.ty) / v.z;
+      set(k, { z, tx: px - z * qx, ty: py - z * qy }, el);
+      clearTimeout(wheelT); wheelT = setTimeout(done, 300);
+    }, { passive: false });
+    layer.addEventListener('dblclick', (ev) => {
+      const el = ev.target.closest('.rvz'); const k = keyOf(el);
+      if (!k || ev.target.closest('label')) return;
+      delete framings[k];
+      applyFraming(k); label(el, k); done();
     });
     // the cards rise in and the window resizes: follow them
-    setInterval(placeToggles, 400);
+    setInterval(placeEditor, 400);
   }
   const group = review.pages[review.page] || [];
   layer.innerHTML = group.map((e, i) => {
-    const s = stateOf(e.key), can = !!faceOf(e.key);
-    return `<div class="rvz" data-i="${i}" title="${review.names[i] || e.key}">`
-      + `<button type="button" data-k="${e.key}" data-v="zoom" class="${s === 'zoom' ? 'on' : ''}"${can ? '' : ' disabled title="The face is already on its line: no zoom to choose"'}>Zoomed</button>`
-      + `<button type="button" data-k="${e.key}" data-v="plain" class="${s === 'plain' ? 'on' : ''}">Unzoomed</button>`
-      + `${decisions[e.key] ? '<i>✓</i>' : ''}</div>`;
+    const k = editKey(e);
+    const v = fromFraming(frameOf(k));
+    const num = (f, val, step) => `<input type="number" data-f="${f}" step="${step}" value="${+val.toFixed(1)}">`;
+    // static mode, an illustration's card: its link (checked = the 2D art follows the illustration)
+    const link = STATIC && !e.still ? `<em title="Linked: the static art follows the animation's framing"><input type="checkbox" data-link="${e.key}"${isSeparate(e.key) ? '' : ' checked'}>link</em>` : '';
+    const mode = k.startsWith('still:') ? 'static' : STATIC ? 'static = live' : 'live';
+    return `<div class="rvz" data-i="${i}" data-k="${k}" title="Drag to move, wheel to zoom (Shift: finer), type the values, double-click to reset — ${review.names[i] || e.key}">`
+      + `<label><span>${mode}</span>${link}zoom ${num('z', v.z * 100, 0.1)}% X ${num('x', v.tx * 100, 0.1)} Y ${num('y', v.ty * 100, 0.1)}<i>${framings[k] ? '✎' : ''}</i></label></div>`;
   }).join('');
-  placeToggles();
+  placeEditor();
 }
-function placeToggles() {
+function placeEditor() {
   const layer = document.querySelector('.rvzoom');
   if (!layer) return;
   for (const el of document.querySelectorAll('.rs-seats .rseat')) {
@@ -253,23 +389,33 @@ function placeToggles() {
     const art = el.querySelector('.rseat__art') || el;
     if (!t) continue;
     const r = art.getBoundingClientRect();
-    // inside the card's top edge, at its right: clear of the squad heading lines and the host's crown
-    Object.assign(t.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px` });
+    Object.assign(t.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
   }
 }
 
-/** Every illustration's decision, as a file and on the clipboard: key, name, zoomed / unzoomed, decided by you or the table's. */
-function exportDecisions() {
-  const names = new Map(review.pages.flatMap((pg, p) => pg.map((e, i) => [e.key, review.allNames[p]?.[i] || e.key])));
-  const rows = review.pages.flat().map((e) => ({ key: e.key, name: names.get(e.key), choice: stateOf(e.key) === 'zoom' ? 'zoomed' : 'unzoomed', by: decisions[e.key] ? 'you' : 'default' }));
-  const out = { exported: new Date().toISOString(), decided: rows.filter((r) => r.by === 'you').length, total: rows.length, rows };
+/** Every illustration's framing as a file and on the clipboard: the cards table of data/dyn-card-framing.json (zoom,
+ * fx, fy), with `edited` on the ones set here and the names. */
+function exportFramings() {
+  const names = new Map(review.pages.flatMap((pg, p) => pg.map((e, i) => [editKey(e), review.allNames[p]?.[i] || e.key])));
+  // every illustration of the table (whichever set this page shows), and the still arts edited here: a move / zoom
+  // (zoom, fx, fy about the card) on top of the art's generated placement
+  const cards = {};
+  for (const k of Object.keys(TABLE).sort()) {
+    const f = frameOf(k);
+    cards[k] = { zoom: f.zoom, fx: f.fx, fy: f.fy, edited: !!framings[k], ...(names.has(k) ? { name: names.get(k) } : {}) };
+  }
+  const stills = {};
+  for (const [k, f] of Object.entries(framings)) if (k.startsWith('still:')) stills[k.slice(6)] = { zoom: f.zoom, fx: f.fx, fy: f.fy, ...(names.has(k) ? { name: names.get(k) } : {}) };
+  // the illustrations whose 2D art keeps its own placement (tools/card-art-framing.mjs --separate)
+  const separate = Object.keys(TABLE).filter(isSeparate).sort();
+  const out = { exported: new Date().toISOString(), edited: Object.values(cards).filter((c) => c.edited).length, stillsEdited: Object.keys(stills).length, total: Object.keys(cards).length, separate, cards, stills };
   const text = JSON.stringify(out, null, 1);
   navigator.clipboard?.writeText(text).catch(() => {});
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'dyn-zoom-decisions.json' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'dyn-card-framing-edits.json' });
   document.body.append(a); a.click(); a.remove();
   return out;
 }
-globalThis.__review.exportDecisions = exportDecisions;
+globalThis.__review.exportFramings = exportFramings;
 
 const viewportText = () => `Window ${innerWidth}×${innerHeight} @${+(devicePixelRatio || 1).toFixed(3)}`;
 addEventListener('resize', () => { const el = bar?.querySelector('[data-vp]'); if (el) el.textContent = viewportText(); });
@@ -287,7 +433,9 @@ function renderBar(target) {
     + '<span class="sep"></span>' + btn('Special idle now', false, 'special') + btn('Start now', false, 'start') + btn('Replay entrance', false, 'replay')
     + btn(SLOW ? `Slow ${SLOW} MB/s` : 'Slow connection', !!SLOW, 'slow')
     + btn(TIER === 'half' ? 'Half-size art' : 'Half-size art: off', TIER === 'half', 'tier')
-    + (SCREEN !== 'result' ? '<span class="sep"></span>' + btn(`Export zoom decisions (${Object.keys(decisions).length})`, false, 'export') + btn('Clear decisions', false, 'clear') : '')
+    + (SCREEN !== 'result' ? '<span class="sep"></span>'
+      + btn('Static art', STATIC, 'static') + btn(SET_STILLS ? 'Still-only arts' : 'Still-only arts: off', SET_STILLS, 'stills')
+      + btn(`Export framings (${Object.keys(framings).length} edited)`, false, 'export') + btn('Clear my framings', false, 'clear') : '')
     // the window as this browser sees it (CSS px and the pixel ratio): the screens the review captures are taken at
     + `<span class="sep"></span><span data-vp>${viewportText()}</span>`
     + `<span class="names">${review ? (review.pages[page] || []).map((e, i) => `${i + 1}. ${review.allNames[page]?.[i] || e.charId}`).join(' · ') : 'loading…'}</span>`;
@@ -303,11 +451,16 @@ function renderBar(target) {
     }
     else if (a === 'slow') go({ slow: SLOW ? null : 1 });
     else if (a === 'tier') go({ tier: TIER === 'half' ? null : 'half' });
-    else if (a === 'export') exportDecisions();
+    else if (a === 'export') exportFramings();
+    else if (a === 'static') setStatic(!STATIC);
+    else if (a === 'stills') go({ set: SET_STILLS ? null : 'stills', page: 1 });
     else if (a === 'clear') {
-      if (!confirm('Clear every zoom decision made on this page?')) return;
-      for (const k of Object.keys(decisions)) delete decisions[k];
-      saveDecisions(); replay++; draw(); renderBar(null); zoomToggles();
+      if (!confirm('Clear every framing you set on this page (all illustrations)?')) return;
+      const keys = Object.keys(framings);
+      for (const k of keys) delete framings[k];
+      saveFramings();
+      for (const k of keys) applyFraming(k);
+      draw(); renderBar(null); frameEditor();
     } else call(a)();
   };
 }
@@ -336,9 +489,15 @@ async function boot() {
   store.set({ session: { entered: true }, connection: { status: 'online', ping: 20, attempt: 0, retryAt: 0, lastError: null, everOnline: true },
     clock: { offset: 0, rtt: 20, synced: true } });
   // 动态立绘 on every card, the result cards' default art (the room card), not saved
-  settingsStore.set({ dynIllust: P.has('off') ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
+  settingsStore.set({ dynIllust: STATIC ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
   if (SCREEN !== 'result') {
     TABLE = await fetch('/data/dyn-card-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).then((j) => j?.cards || {}).catch(() => ({}));
+    const art = await fetch('/data/card-art-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+    SEP_DEFAULT = new Set(Array.isArray(art?.separate) ? art.separate : []);
+    STILL_ADJ = Object.fromEntries(Object.entries(art?.stills || {}).filter(([, e]) => e?.adjust).map(([a, e]) => [a, e.adjust]));
+    setCardArtSeparate((k) => (k in sepEdits ? !!sepEdits[k] : undefined));
+    // a still edit here places the card's 2D art itself (as the game would with it saved)
+    setCardArtAdjust((a) => framings[`still:${a}`] || undefined);
     setDynFraming(decideFraming);
   } else if (FR.size) setDynFraming((key) => FR.get(key) || FRAMING);
   else if (FRAMING) setDynFraming(FRAMING);
@@ -355,9 +514,17 @@ async function boot() {
   // &stills=charId,charId@brand#n,…: those operators (E2 art, or that outfit) in place of the index — the still-only cards'
   // full art framed on the face (the user's pick of 2026-11-23)
   const STILLS = (P.get('stills') || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const entries = STILLS.length
+  // &set=stills: every still-only full art of data/card-art-framing.json, paged like the illustrations (the user,
+  // 2026-11-23: "how do I switch to the static art and edit it as well"); `still` = its art file, the edit's key
+  const stillSet = SET_STILLS ? await stillEntries() : null;
+  // the players' outfit ids as the outfit data spells them: the index has 7 Ambience Synesthesia ids in lowercase
+  // (`@ambiencesynesthesia#N`, the user's report of 2026-11-23: Pramanix alter showed her E2 art), which a real player
+  // never wears — the made-up players wear the real spelling, as in a match
+  const canon = new Map(Object.keys(data.get('assets')?.outfits?.chars || {}).map((id) => [id.toLowerCase(), id]));
+  const real = (e) => (e.skinId && canon.has(e.skinId.toLowerCase()) ? { ...e, skinId: canon.get(e.skinId.toLowerCase()) } : e);
+  const entries = stillSet || (STILLS.length
     ? STILLS.map((s) => ({ key: s, charId: s.split('@')[0], skinId: s.includes('@') ? s : `${s}#2` }))
-    : Object.entries(g).map(([key, e]) => ({ key, ...e })).sort((a, b) => (a.charId + a.skinId).localeCompare(b.charId + b.skinId));
+    : Object.entries(g).map(([key, e]) => real({ key, ...e })).sort((a, b) => (a.charId + a.skinId).localeCompare(b.charId + b.skinId)));
   const pages = [];
   for (let i = 0; i < entries.length; i += PER) pages.push(entries.slice(i, i + PER));
   const page = Math.max(0, Math.min(pages.length - 1, (Number(P.get('page')) || 1) - 1));
@@ -365,6 +532,6 @@ async function boot() {
   review = { pages, page, stage, allNames, names: allNames[page] || [] };
   draw();
   renderBar(null);
-  zoomToggles();
+  frameEditor();
 }
 boot().catch((err) => console.error('[review] boot failed', err));

@@ -41,6 +41,9 @@ export const STILL_AR = 16 / 9;
  * (the card keeps its portrait). Scores of the matches checked by eye on 2026-11-23: right ones 0.41–0.91 (animation and
  * effects lower them), wrong ones 0.10 (an empty capture) and 0.32 (out of range). */
 export const RETRY = 0.55, MIN_SCORE = 0.3;
+/** A registration below this keeps the 2D art apart from its illustration by default (Chongyue's E2, 0.41; the next
+ * lowest, 0.46–0.54, checked by eye and right). */
+export const SEPARATE_BELOW = 0.45;
 /** A still's zoom steps: past the illustrations' 1.35, since a still full art sits in a wide torn frame (at 1.35, 287 of
  * 381 stills left over 5 % of the card bare, 2026-11-23); 2 keeps the 1024-px art at about 2 device px per art px on a 4K
  * card. Design values. */
@@ -214,7 +217,10 @@ async function capture() {
   const T0 = Date.now(), LIMIT = 20 * 60e3, BYTES = 200e6;
   let bytes = 0;
   const boxes = {};
-  const url = (pg) => `${BASE}/dev/dyn-review.html?screen=room&page=${pg}&shot=1&lang=en&device=pc&tier=full&framing=card`;
+  // --zoom Z: the card framing zoomed out by Z about the card centre, so the whole illustration is in view (a tight crop
+  // matched Chongyue's E2 art at 5.6× its size, score 0.41; zoomed out to 0.35, 0.96, 2026-11-23)
+  const ZOOM = Number(arg('--zoom')) || 1;
+  const url = (pg) => `${BASE}/dev/dyn-review.html?screen=room&page=${pg}&shot=1&lang=en&device=pc&tier=full&framing=card${ZOOM !== 1 ? `&zoomall=${ZOOM}` : ''}`;
   let browser = null;
   try {
     const list = PAGES ? PAGES.split(',').map(Number) : Array.from({ length: 30 }, (_, i) => i + 1);
@@ -241,12 +247,13 @@ async function capture() {
         const live = await arts[i].$('.dyn-art__live');
         if (st !== 'live' || !live) continue;
         const b = await live.boundingBox();
-        const buf = await page.screenshot({ clip: { x: b.x, y: b.y, width: b.width, height: b.height }, type: 'jpeg', quality: 92 });
+        // captureBeyondViewport false: a clipped capture beyond the viewport smeared random cards (Dev 50, 2026-11-23)
+        const buf = await page.screenshot({ clip: { x: b.x, y: b.y, width: b.width, height: b.height }, captureBeyondViewport: false, type: 'jpeg', quality: 92 });
         bytes += buf.length;
         if (bytes > BYTES) throw new Error('capture size cap');
         const key = info.keys[i];
         fs.writeFileSync(path.join(DIR, `${key.replace(/#/g, '~')}.jpg`), buf);
-        boxes[key] = { w: b.width, h: b.height };
+        boxes[key] = { w: b.width, h: b.height, zoom: ZOOM };
       }
       fs.writeFileSync(path.join(DIR, 'boxes.json'), JSON.stringify(boxes));
       console.log(`page ${pg}/${info.n}: ${info.keys.join(' ')}`);
@@ -278,35 +285,45 @@ async function build() {
   fs.writeFileSync(LOG, '');
   const log = (s) => { const t = `${s}\n`; if (logged + t.length <= 200e3) { logged += t.length; fs.appendFileSync(LOG, t); } console.log(s); };
   const base = (u) => path.basename(u);
-  const out = { _source: 'tools/card-art-framing.mjs: generated, do not edit by hand. l2d: each animated illustration\'s full art '
-    + 'registered on the illustration at the card framing (card units from the centre, u = min(w/232, h/458)); stills: a full '
-    + 'art framed on the face of its official portrait.', l2d: {}, stills: {} };
+  // the static art has its own framing (the user, 2026-11-23: "This is literally why i demanded a separate setting for
+  // static and live2d", after Chongyue's E2 art placed on its tight illustration showed a corner of his coat): every full
+  // art, an illustration's too, is framed on its face (`stills`, which the cards use); `registered` keeps each
+  // illustration's full art as found on the illustration, for reference only
+  const out = { _source: 'tools/card-art-framing.mjs: generated, do not edit by hand. stills: every full art framed on the face '
+    + 'of its official portrait (card units from the centre, u = min(w/232, h/458)); registered: each animated illustration\'s '
+    + 'full art as found on the illustration at the card framing (reference, not shown).', registered: {}, stills: {} };
   const only = arg('--only');
+  const prev = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : {};
+  // --keep-registered: the registrations already written (no capture needed)
+  if (has('--keep-registered')) out.registered = prev.registered || prev.l2d || {};
   // animated illustrations: the full art found in the zoom-1 capture
-  const boxes = fs.existsSync(path.join(DIR, 'boxes.json')) ? JSON.parse(fs.readFileSync(path.join(DIR, 'boxes.json'), 'utf8')) : {};
-  const l2dArts = new Set();
+  const boxes = !has('--keep-registered') && fs.existsSync(path.join(DIR, 'boxes.json')) ? JSON.parse(fs.readFileSync(path.join(DIR, 'boxes.json'), 'utf8')) : {};
   for (const [key, box] of Object.entries(boxes)) {
     if (only && !key.includes(only)) continue;
     if (Date.now() - T0 > LIMIT) { log('time cap'); break; }
     const art = artOfKey(assets, key);
     if (!art || !fs.existsSync(file(art))) { log(`${key}: no full art`); continue; }
-    l2dArts.add(base(art));
-    let r = await register(sharp, path.join(DIR, `${key.replace(/#/g, '~')}.jpg`), file(art), { range: [0.3, 4], hang: 0.6 });
-    // a poor match: the illustration may be framed tighter than 4 card widths of its art (Chongyue's E2, 5.6): wider
+    // the art's width in capture widths scales with the capture's zoom (zoom 1: 0.3–4, Chongyue's E2 about 2 at 0.35)
+    const cz = box.zoom > 0 ? box.zoom : 1;
+    let r = await register(sharp, path.join(DIR, `${key.replace(/#/g, '~')}.jpg`), file(art), { range: [0.3 * Math.min(1, cz), 4 * cz], hang: 0.6 });
+    // a poor match: the illustration may be framed tighter than that: wider
     if (!r || r.score < RETRY) {
-      const w = await register(sharp, path.join(DIR, `${key.replace(/#/g, '~')}.jpg`), file(art), { range: [0.3, 8], hang: 0.6 });
+      const w = await register(sharp, path.join(DIR, `${key.replace(/#/g, '~')}.jpg`), file(art), { range: [0.3 * Math.min(1, cz), 8 * cz], hang: 0.6 });
       if (w && (!r || w.score > r.score)) r = w;
     }
     if (!r || r.score < MIN_SCORE) { log(`${key}: no match${r ? ` (score ${r.score})` : ''}`); continue; }
     // the capture is the card's box at deviceScaleFactor 1: template px = card px
     const sx = box.w / (await sharp(path.join(DIR, `${key.replace(/#/g, '~')}.jpg`)).metadata()).width;
-    out.l2d[key] = { art: base(art), rect: toUnits({ x: r.x * sx, y: r.y * sx, w: r.w * sx, h: r.h * sx }, box.w, box.h), score: r.score };
-    log(`${key}: ${base(art)} score ${r.score} rect ${out.l2d[key].rect.join(' ')}`);
+    // a zoomed capture (--zoom): back to the plain card framing, x1 = c + (x − c) / z about the card centre
+    const z = box.zoom > 0 ? box.zoom : 1, cx = box.w / 2, cy = box.h / 2;
+    const px = { x: cx + (r.x * sx - cx) / z, y: cy + (r.y * sx - cy) / z, w: (r.w * sx) / z, h: (r.h * sx) / z };
+    out.registered[key] = { art: base(art), rect: toUnits(px, box.w, box.h), score: r.score };
+    log(`${key}: ${base(art)} score ${r.score} rect ${out.registered[key].rect.join(' ')}`);
   }
-  // --keep-stills: the stills of the table already written (the illustrations' part redone alone)
-  if (has('--keep-stills') && fs.existsSync(OUT)) out.stills = JSON.parse(fs.readFileSync(OUT, 'utf8')).stills || {};
-  // stills: every other full art, its face from its portrait
-  else if (has('--stills')) {
+  // --keep-stills: the stills already written are kept; with --stills only the missing ones are framed
+  if (has('--keep-stills')) out.stills = { ...(prev.stills || {}) };
+  // stills: every full art (an illustration's too), its face from its portrait
+  if (has('--stills')) {
     const list = [];
     for (const [id, rec] of Object.entries(assets.outfits.chars)) if (rec.art && rec.portrait) list.push({ art: rec.art, portraits: [rec.portrait], id });
     for (const [cid, rec] of Object.entries(assets.outfits.defaults)) {
@@ -317,7 +334,7 @@ async function build() {
     for (const it of list) {
       if (only && !it.id.includes(only)) continue;
       if (Date.now() - T0 > LIMIT) { log('time cap'); break; }
-      if (l2dArts.has(base(it.art)) || !fs.existsSync(file(it.art))) continue;
+      if (out.stills[base(it.art)] || !fs.existsSync(file(it.art))) continue;
       let best = null;
       for (const p of it.portraits) {
         // the art's width in portrait widths: the official portrait is a 1:1 crop of the 2048-px charart, our art that
@@ -341,10 +358,25 @@ async function build() {
       log(`${it.id}: ${base(it.art)} via ${base(best.p)} score ${best.r.score} face ${face.x.toFixed(2)},${face.y.toFixed(2)} z${pick.zoom} ${pick.uncovered}%`);
     }
   }
+  // the illustrations whose 2D art keeps its own placement (unlinked): a registration too poor to trust (Chongyue's E2
+  // at 0.41, his coat's corner), plus the user's exported choices (--separate <dyn-card-framing-edits.json>: `separate`)
+  const sepFile = arg('--separate');
+  const userSep = sepFile && fs.existsSync(sepFile) ? JSON.parse(fs.readFileSync(sepFile, 'utf8')).separate || null : null;
+  out.separate = Array.isArray(userSep) ? [...userSep].sort()
+    : Object.entries(out.registered).filter(([, e]) => e.score < SEPARATE_BELOW).map(([k]) => k).sort();
+  // --still-edits <dyn-card-framing-edits.json>: the user's move / zoom on a 2D art's own placement (`stills` of the
+  // review page's export), kept as `adjust` (zoom about (fx, fy) of the card) and applied by the cards
+  if (arg('--still-edits')) {
+    const se = JSON.parse(fs.readFileSync(arg('--still-edits'), 'utf8')).stills || {};
+    for (const [art, f] of Object.entries(se)) {
+      if (!out.stills[art] || !(f?.zoom > 0)) continue;
+      out.stills[art].adjust = { zoom: +f.zoom.toFixed(4), fx: +f.fx.toFixed(4), fy: +f.fy.toFixed(4) };
+    }
+  }
   const txt = `${JSON.stringify(out, null, 1)}\n`;
   if (txt.length > 400e3) throw new Error('table size cap');
   fs.writeFileSync(OUT, txt);
-  log(`${Object.keys(out.l2d).length} animated, ${Object.keys(out.stills).length} stills in ${Math.round((Date.now() - T0) / 1000)} s → ${path.relative(ROOT, OUT)}`);
+  log(`${Object.keys(out.registered).length} registered, ${Object.keys(out.stills).length} stills in ${Math.round((Date.now() - T0) / 1000)} s → ${path.relative(ROOT, OUT)}`);
 }
 
 /** --reframe: the stills of a written table framed again from their stored faces (no matching; a zoom-step change). */

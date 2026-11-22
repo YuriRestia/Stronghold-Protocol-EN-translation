@@ -29,7 +29,7 @@
 // floor(frac(startFrame + frameOverTime(frac(t · cycles))) · frames) (§33.5, resolved: the authored curves end at
 // 0.9999 so that the last frame does not wrap to the first).
 
-import { hashRand, RF } from './rng.js';
+import { hashRand, RF, unityRand, UR } from './rng.js';
 import { quatEuler, mat4Point, mat4Dir } from './math.js';
 
 /** Sign of a billboard's roll: −1 = positive angles turn clockwise on screen (Unity, §33.5, assumed). */
@@ -140,7 +140,7 @@ function packStreams(ps, i, t, layout, out, o, frame) {
 }
 
 /** Texture-sheet frame of particle i into out = [u0, v0, du, dv] (flips applied). */
-function sheetRect(def, ps, i, t, out) {
+export function sheetRect(def, ps, i, t, out) {
   const U = def.uv;
   const s = ps.seed[i];
   let u0 = 0, v0 = 0, du = 1, dv = 1;
@@ -151,12 +151,16 @@ function sheetRect(def, ps, i, t, out) {
       const sp = Math.hypot(ps.tvx[i], ps.tvy[i], ps.tvz[i]), r = U.speedRange;
       x = Math.min(1, Math.max(0, (sp - r[0]) / ((r[1] - r[0]) || 1)));
     } else x = ((t * U.cycles) % 1 + 1) % 1;
-    const f = U.start.at(t, hashRand(s, RF.START_FRAME)) + U.over.at(x, hashRand(s, RF.FRAME));
+    // (fork) the start frame's, the frame's and the row's randoms are the engine's own, from the particle's engine seed
+    // (rng.js unityRand / UnitySeeds), so a system with a fixed seed shows the sprites the game shows (Texas the
+    // Omertosa's Il Segreto Della Notte balloons: one 2 × 4 sheet of blue, purple and orange balloons)
+    const us = ps.useed ? ps.useed[i] : s;
+    const f = U.start.at(t, unityRand(us, UR.START_FRAME)) + U.over.at(x, unityRand(us, UR.FRAME));
     const frame = Math.min(U.frames - 1, Math.floor((((f % 1) + 1) % 1) * U.frames));
     let col, row;
     if (U.row) {
       col = frame;
-      row = U.rowMode === 1 ? Math.floor(hashRand(s, RF.ROW) * U.ty) : Math.min(U.ty - 1, U.rowIndex);
+      row = U.rowMode === 1 ? Math.min(U.ty - 1, Math.floor(unityRand(us, UR.ROW) * U.ty)) : Math.min(U.ty - 1, U.rowIndex);
     } else { col = frame % U.tx; row = Math.floor(frame / U.tx); }
     du = 1 / U.tx; dv = 1 / U.ty;
     u0 = col * du; v0 = 1 - (row + 1) * dv;

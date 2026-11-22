@@ -213,16 +213,17 @@ async function pngOf(w, h) {
   return sharp({ create: { width: w, height: h, channels: 4, background: { r: 200, g: 40, b: 40, alpha: 0.5 } } }).png().toBuffer();
 }
 
-test('downloader: a png → webp job is validated as PNG, stored as WebP (≤ 1024 px), kept by a re-run', async () => {
+test('downloader: a png → webp job is validated as PNG, stored as WebP (≤ 2048 px), kept by a re-run', async () => {
   assert.equal(kindOf('a.webp'), 'webp');
-  const png = await pngOf(2048, 1024);
+  // fitted inside WEBP_MAX_SIDE (2048 since 2026-11-23, the wide room cards on 4K screens)
+  const png = await pngOf(4096, 2048);
   const webp = await convertImage(png, 'webp');
   assert.ok(isWebp(webp) && validate('webp', webp));
   assert.ok(!isWebp(png) && !isWebp(webp.subarray(0, webp.length - 1)), 'not a WebP / truncated');
   const sharp = (await import('sharp')).default;
   const meta = await sharp(webp).metadata();
-  assert.equal(meta.width, 1024);
-  assert.equal(meta.height, 512);
+  assert.equal(meta.width, 2048);
+  assert.equal(meta.height, 1024);
   assert.ok(meta.hasAlpha);
   const dir = mkdtempSync(path.join(tmpdir(), 'sp-outfit-'));
   try {

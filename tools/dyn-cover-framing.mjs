@@ -60,8 +60,18 @@ export const PLAIN = Object.freeze([
   'char_2024_chyue_cfa#1', 'char_2024_chyue_nian#10', 'char_4058_pepe_2', 'char_4064_mlynar_epoque#28',
   'char_4080_lin_nian#10', 'char_4080_lin_summer#19',
 ]);
-/** The table written to data/dyn-card-framing.json from a measurement; PLAIN keys at zoom 1 (the plain card framing). */
-export function framingTable(measure) {
+/** The table written to data/dyn-card-framing.json from a measurement; PLAIN keys at zoom 1 (the plain card framing);
+ * `edits` (the review page's export, dyn-card-framing-edits.json): the user's hand framings, its `edited` cards, win. */
+export function framingTable(measure, edits = null) {
+  const t = framingTableFrom(measure);
+  for (const [k, e] of Object.entries(edits?.cards || {})) {
+    if (!e?.edited || !(e.zoom > 0) || !Number.isFinite(e.fx) || !Number.isFinite(e.fy)) continue;
+    t.cards[k] = { zoom: +e.zoom.toFixed(4), fx: +e.fx.toFixed(4), fy: +e.fy.toFixed(4), by: 'user' };
+  }
+  if (edits) t._source += ` The cards marked by: user are the user's own framings (review page export of ${edits.exported || 'unknown date'}).`;
+  return t;
+}
+function framingTableFrom(measure) {
   const cards = {};
   const plain = new Set(PLAIN);
   for (const r of [...measure.rows].sort((a, b) => a.key.localeCompare(b.key))) {
@@ -186,7 +196,9 @@ async function measure() {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (arg('--table')) {
     const out = arg('--out', path.join(ROOT, 'data/dyn-card-framing.json'));
-    const t = framingTable(JSON.parse(fs.readFileSync(arg('--table'), 'utf8')));
+    // --edits <dyn-card-framing-edits.json>: the user's hand framings from the review page
+    const edits = arg('--edits') ? JSON.parse(fs.readFileSync(arg('--edits'), 'utf8')) : null;
+    const t = framingTable(JSON.parse(fs.readFileSync(arg('--table'), 'utf8')), edits);
     fs.writeFileSync(out, `${JSON.stringify(t, null, 1)}\n`);
     console.log(`${Object.keys(t.cards).length} illustrations → ${path.relative(ROOT, out)}`);
   } else await measure();

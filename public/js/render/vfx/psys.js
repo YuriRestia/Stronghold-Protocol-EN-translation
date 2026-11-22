@@ -30,7 +30,7 @@
 
 import { MinMax, MinMaxColor } from './curves.js';
 import { Shape } from './shapes.js';
-import { Rng, hashRand, RF } from './rng.js';
+import { Rng, hashRand, RF, UnitySeeds } from './rng.js';
 import { mat4InvertAffine, mat4Point, mat4Dir, mat4 } from './math.js';
 
 export const MAX_STEP = 1 / 30;
@@ -104,6 +104,8 @@ export function compileSystem(ps, psr, res = {}) {
     scalingMode: num(ps.scalingMode, 1) | 0,
     emitterVelocityMode: num(ps.emitterVelocityMode, 0) | 0,
     seed: ps.autoRandomSeed === false || ps.autoRandomSeed === 0 ? (num(ps.randomSeed, 0) >>> 0) || 1 : 0,
+    // (fork) the fixed seed as the engine takes it (rng.js UnitySeeds); null: a new one each play
+    rseed: ps.autoRandomSeed === false || ps.autoRandomSeed === 0 ? num(ps.randomSeed, 0) >>> 0 : null,
     maxParticles: Math.max(0, Math.min(SYSTEM_CAP, num(I.maxNumParticles, 1000) | 0)),
     startLifetime: mm(I.startLifetime, 5),
     startSpeed: mm(I.startSpeed, 5),
@@ -301,6 +303,10 @@ export class PSys {
     this.count = 0;
     for (const f of FIELDS) this[f] = new Float32Array(0);
     this.seed = new Uint32Array(0);
+    // (fork) each particle's seed as the engine hands it out (rng.js UnitySeeds), for the fields whose engine rule is
+    // known (geom.js sheetRect: the texture sheet's frame and row); the other fields keep hashRand of `seed`
+    this.useed = new Uint32Array(0);
+    this.useeds = this._unitySeeds();
     this.trailBuf = null;   // Float32Array(cap × TRAIL_POINTS × 4): x, y, z, time
     this.trailHead = null;  // Uint16Array: write index (ring)
     this.trailLen = null;   // Uint16Array: points kept
@@ -367,11 +373,20 @@ export class PSys {
     return false;
   }
 
+  /**
+   * (fork) The engine's particle-seed generator for a play: the system's fixed seed (autoRandomSeed off), else one
+   * taken from this system's generator state without drawing from it, so the other randoms stay as they were.
+   */
+  _unitySeeds() {
+    return new UnitySeeds(this.def.rseed ?? ((this.rng.s ^ 0x5bd1e995) >>> 0));
+  }
+
   _grow(n) {
     const cap = Math.min(Math.max(this.def.maxParticles, 1), Math.max(n, this.cap ? this.cap * 2 : 16));
     if (cap <= this.cap) return false;
     for (const f of FIELDS) { const a = new Float32Array(cap); a.set(this[f].subarray(0, this.count)); this[f] = a; }
     const s = new Uint32Array(cap); s.set(this.seed.subarray(0, this.count)); this.seed = s;
+    const us = new Uint32Array(cap); us.set(this.useed.subarray(0, this.count)); this.useed = us;
     if (this.def.trail) {
       const tb = new Float32Array(cap * TRAIL_POINTS * 4);
       if (this.trailBuf) tb.set(this.trailBuf.subarray(0, this.count * TRAIL_POINTS * 4));
@@ -387,6 +402,9 @@ export class PSys {
   /** Start (or restart) the system: start delay sampled, prewarm simulated. `frame` places it before the first step. */
   play(frame) {
     this.clear();
+    // (fork) the engine seeds the particle seeds again as a stopped, empty system plays (ParticleSystem::Play →
+    // ResetSeeds); the prewarm is one emission call per loop (it is one Update: ParticleSystem::Simulate)
+    this.useeds = this._unitySeeds();
     this.playing = true;
     this.emitting = !this.isSub;
     this.time = 0;
@@ -483,6 +501,8 @@ export class PSys {
     this._from = prev || [this.pos[0], this.pos[1], this.pos[2]];
     const steps = Math.max(1, Math.ceil(sdt / MAX_STEP - 1e-6));
     const h = sdt / steps;
+    // (fork) one engine Update: its emission is one call per loop piece, whatever our sub-steps (rng.js UnitySeeds)
+    this.useeds.batch();
     for (let i = 0; i < steps; i++) {
       this._stepFrac0 = i / steps; this._stepFrac1 = (i + 1) / steps;
       this._step(h, false);
@@ -537,6 +557,7 @@ export class PSys {
       if (segEnd >= loopStart + D - 1e-9) {
         if (!def.looping) { this.emitting = false; break; }
         this.loops++;
+        this.useeds.batch();
         this.burstNext.fill(0);
         this._burstFrom = -1e-9;
       }
@@ -622,6 +643,7 @@ export class PSys {
    */
   _emitAt(count, x, y, z, inherit) {
     const full = this.full();
+    this.useeds.batch();
     for (let i = 0; i < count && !full(); i++) this._spawn(Math.min(1, this.time / this.def.duration), 0, 1, i, count, inherit, x, y, z);
   }
 
@@ -661,6 +683,7 @@ export class PSys {
     const rng = this.rng;
     const s = rng.seed();
     this.seed[i] = s;
+    this.useed[i] = this.useeds.next();
     let life = def.startLifetime.at(tau, hashRand(s, RF.LIFETIME));
     if (def.lifeBySpeed) {
       const sp = Math.hypot(this.vel[0], this.vel[1], this.vel[2]), r = def.lifeBySpeed.range;
@@ -739,6 +762,7 @@ export class PSys {
   _move(i, j) {
     for (const f of FIELDS) { const a = this[f]; a[i] = a[j]; }
     this.seed[i] = this.seed[j];
+    this.useed[i] = this.useed[j];
     if (this.trailBuf) {
       const P = TRAIL_POINTS * 4;
       this.trailBuf.copyWithin(i * P, j * P, j * P + P);
