@@ -208,14 +208,47 @@ void main() {
 let gl = null, prog = null, buf = null, loc = null, white = null;
 const textures = new Map(); // url → { tex, w, h } | Promise
 
-function glInit() {
-  if (gl) return gl;
+// the context and the program are started (glStart) and finished (glFinish) apart: a status query before the driver is
+// done waits for the whole build, so glReady polls KHR_parallel_shader_compile's COMPLETION_STATUS a frame at a time
+let pending = null; // { ctx, p, vs, fs, ext }
+function glStart() {
+  if (gl || pending) return;
   const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(256, 256) : globalThis.document?.createElement('canvas');
   const ctx = canvas?.getContext('webgl2', { premultipliedAlpha: true, alpha: true, antialias: false, preserveDrawingBuffer: true });
-  if (!ctx) return null;
-  const sh = (type, src) => { const s = ctx.createShader(type); ctx.shaderSource(s, src); ctx.compileShader(s); if (!ctx.getShaderParameter(s, ctx.COMPILE_STATUS)) throw new Error(ctx.getShaderInfoLog(s)); return s; };
+  if (!ctx) return;
+  const ext = ctx.getExtension('KHR_parallel_shader_compile');
+  const sh = (type, src) => { const s = ctx.createShader(type); ctx.shaderSource(s, src); ctx.compileShader(s); return s; };
   const p = ctx.createProgram();
-  ctx.attachShader(p, sh(ctx.VERTEX_SHADER, VS)); ctx.attachShader(p, sh(ctx.FRAGMENT_SHADER, FS)); ctx.linkProgram(p);
+  const vs = sh(ctx.VERTEX_SHADER, VS), fs = sh(ctx.FRAGMENT_SHADER, FS);
+  ctx.attachShader(p, vs); ctx.attachShader(p, fs); ctx.linkProgram(p);
+  pending = { ctx, p, vs, fs, ext };
+}
+function glInit() {
+  if (gl) return gl;
+  glStart();
+  return pending ? glFinish() : null;
+}
+/** The program built without blocking the page: resolves to the context (null without WebGL2) once the driver is done. */
+export function glReady() {
+  if (gl) return Promise.resolve(gl);
+  glStart();
+  if (!pending) return Promise.resolve(null);
+  if (!pending.ext || typeof requestAnimationFrame !== 'function') return Promise.resolve(glFinish());
+  return new Promise((resolve) => {
+    const poll = () => {
+      if (gl) { resolve(gl); return; }
+      if (!pending) { resolve(null); return; }
+      if (pending.ctx.getProgramParameter(pending.p, pending.ext.COMPLETION_STATUS_KHR)) resolve(glFinish());
+      else requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  });
+}
+function glFinish() {
+  const { ctx, p, vs, fs } = pending;
+  pending = null;
+  if (!ctx.getShaderParameter(vs, ctx.COMPILE_STATUS)) throw new Error(ctx.getShaderInfoLog(vs));
+  if (!ctx.getShaderParameter(fs, ctx.COMPILE_STATUS)) throw new Error(ctx.getShaderInfoLog(fs));
   if (!ctx.getProgramParameter(p, ctx.LINK_STATUS)) throw new Error(ctx.getProgramInfoLog(p));
   gl = ctx; prog = p; buf = ctx.createBuffer();
   loc = {};
@@ -362,9 +395,13 @@ const DISSOLVE_MAT = 'complete_up_bg_dissolve';
 export function loadDissolve(m = data.get('assets')) {
   const mask = uiUrl(m, SPRITES[MAT[DISSOLVE_MAT].t1]);
   if (!mask) return Promise.reject(new Error('no dissolve mask'));
-  if (!glInit()) return Promise.reject(new Error('no WebGL2'));
-  bloomMask = mask;
-  return texture(mask, false).then(() => mask);
+  return glReady().then((ok) => {
+    if (!ok) throw new Error('no WebGL2');
+    bloomMask = mask;
+    // texture() hands back the loaded texture itself once it is cached (a promise only while it loads); the sparks read the
+    // mask's pixels once
+    return Promise.all([texture(mask, false), maskPixels(mask)]).then(() => mask);
+  });
 }
 
 /**
@@ -426,6 +463,93 @@ export function drawBloom(target, k, glow, band, w, h) {
   ctx.clearRect(0, 0, W, H);
   ctx.drawImage(c, 0, 0);
   return true;
+}
+
+// ---- the border sparks (the user, 2026-11-22: "there should be some particle effects that runs with the border between
+// old and new in the glow … Currently it looks too bland and 'clean'") -------------------------------------------------
+
+/**
+ * Sparks born on the dissolve's edge, where the mask reads the edge's value: they rise off it, drift and fade. `rate`
+ * births per second per card while the edge moves, `life` / `size` (CSS px) / `rise` (card heights per second at birth,
+ * about the edge's own speed: it crosses the card in about 0.22 s) ranges, `drag` the slowing per second, `drift`
+ * sideways speed (card widths per second), `near` how close to the birth line's mask value a point must read, `lead` how
+ * far (mask units) past the dissolve's edge the birth line runs, `max` live sparks per card.
+ */
+export const SPARKS = Object.freeze({ rate: 320, life: [0.25, 0.55], size: [1.5, 4], rise: [3, 6], drag: 6, drift: 0.35, near: 0.04, lead: 0.2, max: 200 }); // [ASSUMED: tuned to the user's description of 2026-11-22, not yet OK'd on the clip]
+
+/** The dissolve mask's red channel on the CPU, top row first (texture rows are uploaded flipped: row = y / H of the box). */
+let maskPx = null;
+function maskPixels(url) {
+  if (maskPx?.url === url) return Promise.resolve(maskPx);
+  if (typeof createImageBitmap !== 'function' || typeof OffscreenCanvas !== 'function') return Promise.resolve(null);
+  // a 128 px copy is enough to place sparks; the full mask read back on the CPU took a 37 ms task
+  return fetch(url).then((r) => r.blob()).then((b) => createImageBitmap(b, { resizeWidth: 128, resizeHeight: 128, resizeQuality: 'medium' })).then((img) => {
+    const c = new OffscreenCanvas(img.width, img.height), g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, img.width, img.height).data, r = new Uint8Array(img.width * img.height);
+    for (let i = 0; i < r.length; i++) r[i] = d[i * 4];
+    maskPx = { url, w: img.width, h: img.height, r };
+    return maskPx;
+  }).catch(() => null);
+}
+
+/** The dissolve edge's mask value at progress k (drawBloom, drawDissolve: half alpha at d = 2k − 0.75). */
+export const edgeOf = (k) => 2 * k - 0.75;
+
+let dot = null;
+function sparkDot() {
+  if (dot || typeof OffscreenCanvas !== 'function') return dot;
+  const c = new OffscreenCanvas(32, 32), g = c.getContext('2d');
+  const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.25, 'rgba(225,250,255,0.8)'); grad.addColorStop(0.6, 'rgba(150,235,255,0.25)'); grad.addColorStop(1, 'rgba(120,220,255,0)');
+  g.fillStyle = grad; g.fillRect(0, 0, 32, 32);
+  return (dot = c);
+}
+
+/** A card's sparks: `step` them by dt s with the edge at progress k (births only while `born`), `draw` them additively. */
+export function makeSparks() {
+  const list = [];
+  let acc = 0;
+  const rnd = (a) => a[0] + Math.random() * (a[1] - a[0]);
+  return {
+    get count() { return list.length; },
+    step(dt, k, born) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const s = list[i];
+        // burst off the edge at about its own speed, then slow and fall behind it
+        s.age += dt; s.x += s.vx * dt; s.y += s.vy * dt;
+        const slow = Math.max(0, 1 - SPARKS.drag * dt); s.vx *= slow; s.vy *= slow;
+        if (s.age >= s.life) list.splice(i, 1);
+      }
+      if (!born || !maskPx) return;
+      // born on the glow's leading edge (the band's outer side, `lead` past the dissolve's edge), over the old picture:
+      // inside the white an additive spark is lost
+      const e = edgeOf(k) + SPARKS.lead;
+      if (e < -SPARKS.near || e > 1 + SPARKS.near) return;
+      acc += SPARKS.rate * dt;
+      for (let tries = 0; acc >= 1 && tries < 400 && list.length < SPARKS.max; tries++) {
+        const x = Math.random(), y = Math.random();
+        const d = maskPx.r[Math.min(maskPx.h - 1, (y * maskPx.h) | 0) * maskPx.w + Math.min(maskPx.w - 1, (x * maskPx.w) | 0)] / 255;
+        if (Math.abs(d - e) > SPARKS.near) continue;
+        list.push({ x, y, vx: (Math.random() - 0.5) * 2 * SPARKS.drift, vy: -rnd(SPARKS.rise), age: 0, life: rnd(SPARKS.life), size: rnd(SPARKS.size) });
+        acc -= 1;
+      }
+      if (acc > 1) acc = 1;
+    },
+    draw(ctx, W, H, dpr) {
+      const img = sparkDot();
+      if (!img || !list.length) return;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const s of list) {
+        const a = 1 - s.age / s.life;
+        const r = s.size * dpr * (0.5 + 0.5 * a) * 2;
+        ctx.globalAlpha = a;
+        ctx.drawImage(img, s.x * W - r, s.y * H - r, 2 * r, 2 * r);
+      }
+      ctx.restore();
+    },
+  };
 }
 
 /**

@@ -457,8 +457,12 @@ mask (`ui/cardEntrance.js drawDissolve`, the entrance's shader), with a white bl
 and mask, additive on a canvas with `mix-blend-mode: plus-lighter`; the user's direction of 2026-11-22: "a white bright
 bloom that moves on the boundary between old and new, … leaving the entire card artwork white glow before the glow fades
 away into the live2D"): a bright band on the dissolve's edge (the official `color_mask` layer's band construction: mask ×
-inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone
-[ASSUMED: the band's width and brightness, the glow and its fade tuned to that description, not yet OK'd]; the cards go
+inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone, and
+sparks (`makeSparks`, the user's "particle effects that runs with the border"): born where the mask reads the glow's
+leading edge, over the old picture, they burst off at about the edge's own speed, slow and fade (`SPARKS`)
+[ASSUMED: the band's width and brightness, the glow and its fade, the sparks tuned to the user's descriptions, not yet
+OK'd]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
+the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); the cards go
 one after another in page order, the result row's 0.083 s apart
 (`FLIP_STEP_S` = `_animDelay`; the user, 2026-11-22: "one player card at a time, in quick succession"). The official card
 has no switch from 2D to its illustration; this reuses its reveal. Without WebGL2, the sprites or under reduced motion,

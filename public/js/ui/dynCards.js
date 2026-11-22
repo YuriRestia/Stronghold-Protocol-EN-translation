@@ -28,7 +28,7 @@ import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
-import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, drawBloom, BLOOM, ANIM_DELAY_S } from './cardEntrance.js';
+import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, drawBloom, BLOOM, makeSparks, ANIM_DELAY_S } from './cardEntrance.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -320,6 +320,20 @@ let group = null; // { entries: Set, flipped, timer, check, hold, wait, gaveUp }
 
 function startCard(e) { try { e.card?.start(); } catch (err) { console.warn('[dynillust] start', err); } }
 function showCard(e, delay = 0) { try { e.show?.(delay); } catch (err) { console.warn('[dynillust] show', err); } }
+/** The cards' dissolve preparations (a picture composed, uploaded and drawn once each): one per animation frame. */
+const prepJobs = [];
+let prepRaf = 0;
+function runPrep() {
+  prepRaf = 0;
+  const job = prepJobs.shift();
+  try { job?.(); } catch (err) { console.warn('[dynillust] dissolve', err); }
+  if (prepJobs.length) prepRaf = requestAnimationFrame(runPrep);
+}
+function queuePrep(job) {
+  prepJobs.push(job);
+  if (!prepRaf) prepRaf = requestAnimationFrame(runPrep);
+}
+
 /** Page order (a card's 2D art element `e.el`): the stagger runs as the cards read, left to right, top to bottom. */
 function byPage(a, b) {
   if (!a.el || !b.el || typeof a.el.compareDocumentPosition !== 'function') return 0;
@@ -465,6 +479,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       kept = true;
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
       if (dis.current) dis.current.style.opacity = '0';
+      if (wash.current) wash.current.style.opacity = '0';
       isCovered = false;
       setCovered(false);
       setState('off');
@@ -494,7 +509,11 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       picKey = key;
       return pic ? { W, H } : null;
     };
+    // a dissolve that cannot be prepared falls back to the fade; it never holds the group
     const prepare = () => {
+      try { prepareDissolve(); } catch (err) { console.warn('[dynillust] dissolve', err); entry.prepared = true; }
+    };
+    const prepareDissolve = () => {
       const img = root.current?.querySelector?.('.dyn-art__still img');
       const cs = img && globalThis.getComputedStyle ? globalThis.getComputedStyle(img) : null;
       if (!img || !cs || cs.objectFit !== 'cover' || reducedMotion()) { entry.prepared = true; return; }
@@ -505,13 +524,17 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       const bgImg = bgUrl && typeof Image === 'function' ? Object.assign(new Image(), { src: bgUrl }) : null;
       Promise.all([loadDissolve(), img.decode ? img.decode().catch(() => {}) : null, bgImg?.decode ? bgImg.decode().catch(() => {}) : null])
         .then(([mask]) => {
-          if (!live) return;
-          entry.mask = mask;
-          // the dissolve's first frame drawn now on the (still invisible) canvas
-          const size = compose();
-          if (size && dis.current && drawDissolve(dis.current, pic, 0, size.W, size.H)) { drawnKey = picKey; cover(); }
-        }, (err) => console.warn('[dynillust] dissolve', err))
-        .finally(() => { entry.prepared = true; });
+          // one card's picture, upload and first frame per animation frame (prepQueue): eight at once took a 246 ms task
+          queuePrep(() => {
+            try {
+              if (!live) return;
+              entry.mask = mask;
+              // the dissolve's first frame drawn now on the (still invisible) canvas
+              const size = compose();
+              if (size && dis.current && drawDissolve(dis.current, pic, 0, size.W, size.H)) { drawnKey = picKey; cover(); }
+            } finally { entry.prepared = true; }
+          });
+        }, (err) => { console.warn('[dynillust] dissolve', err); entry.prepared = true; });
     };
     let drawnKey = '';
     // once the illustration runs (started hidden) and the first frame is drawn: the canvas covers the card, identical
@@ -520,6 +543,9 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       if (!live || kept || isCovered || cur !== 'live' || !drawnKey || !dis.current) return;
       isCovered = true;
       dis.current.style.opacity = '1';
+      // the bloom's canvas too, sized and in place (empty) now: showing an additive layer at the show cost a 77 ms frame
+      const wc = wash.current;
+      if (wc && dis.current.width > 1) { wc.width = dis.current.width; wc.height = dis.current.height; wc.style.opacity = '1'; }
       setReveal('dissolve');
       setCovered(true);
     };
@@ -534,7 +560,9 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
         if (drawnKey === picKey || drawDissolve(cv, pic, 0, W, H)) {
           setShown(true);
           const t0 = performance.now() + Math.max(0, delay);
-          let blooming = false, dissolved = false;
+          let blooming = false, dissolved = false, lastS = 0;
+          const sparks = makeSparks();
+          const dpr = globalThis.devicePixelRatio || 1;
           const step = () => {
             raf = 0;
             if (!live) return;
@@ -545,8 +573,12 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
               if (k >= 1 && !dissolved) { dissolved = true; cv.style.opacity = '0'; cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
               // the bloom: a band on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
               const glow = BLOOM.glow * (k < 1 ? 1 : Math.max(0, 1 - (s - FLIP_DISSOLVE_S) / BLOOM.fadeS));
-              if (wc && drawBloom(wc, k, glow, k < 1 ? BLOOM.band : 0, W, H) && !blooming) { blooming = true; wc.style.opacity = '1'; }
-              if (dissolved && !(glow > 0)) {
+              if (wc && drawBloom(wc, k, glow, k < 1 ? BLOOM.band : 0, W, H) && !blooming) { blooming = true; if (wc.style.opacity !== '1') wc.style.opacity = '1'; }
+              // the border sparks: born on the edge while it moves, drawn over the bloom
+              sparks.step(Math.min(0.05, Math.max(0, s - lastS)), k, k < 1);
+              lastS = s;
+              if (wc && blooming) sparks.draw(wc.getContext('2d'), W, H, dpr);
+              if (dissolved && !(glow > 0) && !sparks.count) {
                 if (wc) { wc.style.opacity = '0'; wc.width = 1; wc.height = 1; }
                 return;
               }
