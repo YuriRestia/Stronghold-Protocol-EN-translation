@@ -229,7 +229,9 @@ export class DynIllustStage {
     for (const c of this.cards) c.sync(dt);
     const live = [];
     for (const slot of this.slots.values()) {
-      if (![...slot.cards].some((c) => c.drawing)) { slot.pause(); continue; }
+      let any = false;
+      for (const c of slot.cards) if (c.drawing) { any = true; break; }
+      if (!any) { slot.pause(); continue; }
       slot.resume();
       slot.step(dt);
       live.push(slot);

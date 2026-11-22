@@ -90,12 +90,17 @@ export class IllustSkeleton {
    * Spine's worldRotationX), scaleX, scaleY (local) } or null.
    */
   bonePose(name) {
-    const b = this.spine.skeleton.findBone(name);
+    // the bone objects stay for the skeleton's life: looked up by name once, not every frame (findBone scans them all)
+    const cache = this._bones || (this._bones = new Map());
+    let b = cache.get(name);
+    if (b === undefined) { b = this.spine.skeleton.findBone(name) || null; cache.set(name, b); }
     if (!b) return null;
     const m = b.matrix;
     const a = m ? m.a : b.a, bb = m ? m.b : b.c, tx = m ? m.tx : b.worldX, ty = m ? m.ty : b.worldY;
-    // y-down px → y-up skeleton units → Unity units
-    return { x: tx * this.scale, y: -ty * this.scale, rot: Math.atan2(-bb, a) * 180 / Math.PI, scaleX: b.scaleX, scaleY: b.scaleY };
+    // y-down px → y-up skeleton units → Unity units (one reused record: read it before the next call)
+    const p = this._pose || (this._pose = { x: 0, y: 0, rot: 0, scaleX: 1, scaleY: 1 });
+    p.x = tx * this.scale; p.y = -ty * this.scale; p.rot = Math.atan2(-bb, a) * 180 / Math.PI; p.scaleX = b.scaleX; p.scaleY = b.scaleY;
+    return p;
   }
 
   destroy() { try { this.spine.destroy({ children: true }); } catch { /* already gone */ } }
