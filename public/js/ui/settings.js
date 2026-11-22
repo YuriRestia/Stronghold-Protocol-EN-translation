@@ -163,6 +163,9 @@ const DYN_ILLUST = [['off', N_('关')], ['mine', N_('仅自己')], ['all', N_('�
 /** (fork) 结算卡片立绘 (`resultArt`, ui/dynCards.js resultCardArt; the user's decision D6): what every result card shows. */
 // en: "Card Operator" (名片干员) · "Best Unit" (阵容最强干员)
 const RESULT_ART = [['card', N_('名片干员')], ['ace', N_('阵容最强干员')]];
+/** (fork) 动态立绘画质 (`dynQuality`, ui/dynCards.js setDynQuality; the user, 2026-11-22: "have it be auto/half/full"). */
+// en: "Auto" (自动) · "Half" (半分辨率) · "Full" (完整)
+const DYN_QUALITY = [['auto', N_('自动')], ['half', N_('半分辨率')], ['full', N_('完整')]];
 
 /** The two rows of the animated illustrations — only on a server that has them (their index lists any). */
 function DynIllustRows({ s }) {
@@ -171,6 +174,8 @@ function DynIllustRows({ s }) {
   const mode = dynIllustMode(s.dynIllust);
   // en: "Animated Illustrations" · "Plays the operators' official animated illustrations, with their effects, on the
   // result, room and Grand Alliance cards. Default: Mine Only on phones, Everyone on PC."
+  // en: "Live2D Quality" · "Auto picks half or full resolution by the cards' size on screen. Full is sharper but uses
+  // more GPU memory and work, which weaker PCs feel."
   // en: "Result Card Art" · "Each result card shows the doctor's card operator in their outfit, or the strongest
   // operator of their final lineup."
   return html`<div class="set-row" data-testid="dyn-illust">
@@ -181,6 +186,14 @@ function DynIllustRows({ s }) {
       </div>
     </div>
     <p class="set-hint">${t('在结算、同盟房间和大同盟房间的卡片上播放干员的官方动态立绘与特效。默认：手机仅自己，电脑所有人。')}</p>
+    <div class="set-row" data-testid="dyn-quality">
+      <span class="set-row__label">${t('动态立绘画质')}<${MicroLabel}>LIVE2D QUALITY<//></span>
+      <div class="set-seg" role="radiogroup" aria-label=${t('动态立绘画质')}>
+        ${DYN_QUALITY.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${s.dynQuality === id ? 'true' : 'false'}
+          class=${s.dynQuality === id ? 'is-on' : ''} onClick=${() => updateSettings({ dynQuality: id })}>${t(label)}</button>`)}
+      </div>
+    </div>
+    <p class="set-hint">${t('自动：按卡片在屏幕上的大小选择半分辨率或完整画质。完整更清晰，但占用更多显存，在性能较弱的电脑上更吃力。')}</p>
     <div class="set-row" data-testid="result-art">
       <span class="set-row__label">${t('结算卡片立绘')}<${MicroLabel}>RESULT CARD ART<//></span>
       <div class="set-seg" role="radiogroup" aria-label=${t('结算卡片立绘')}>

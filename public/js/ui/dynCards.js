@@ -162,6 +162,18 @@ let qualityOverride = null;
 /** The review page's tier switch: the pages every card gets ('half' | 'full' | null = by the cards' size). */
 export function setDynQuality(q) { qualityOverride = q === 'half' || q === 'full' ? q : null; tierChanged(); }
 
+/**
+ * A card's framing in the renderer (mount option, vfx-format.md §33.19): 'card' — the official end-of-match card's (the
+ * default); 'home' — the official home screen's (DEFAULT adjust in its 16:9 window, the operator left of centre;
+ * dev57-home-framing.md); 'home-illust' — the same, the operator centred. The review page can set one for every card
+ * (`&framing=`, the comparison stills) until the user picks the room cards' framing.
+ */
+let framingOverride = null;
+export function setDynFraming(f) { framingOverride = f === 'card' || f === 'home' || f === 'home-illust' ? f : null; }
+export function framingOpts(f) {
+  return f === 'home' ? { framing: 'home' } : f === 'home-illust' ? { framing: 'home', centre: 'illust' } : {};
+}
+
 // ---- the page tier: half pages when the cards are drawn small enough (the user's choice of 2026-11-22: "automatic by
 // card size") ---------------------------------------------------------------------------------------------------------
 
@@ -212,6 +224,20 @@ function setWant(token, tier) {
   if (tier) wants.set(token, tier); else wants.delete(token);
   tierChanged();
 }
+
+/**
+ * (fork) 设置「动态立绘画质」 (`dynQuality`: auto / half / full; the user, 2026-11-22): applied at load and on every change.
+ * A change re-mounts the cards at the new tier through dynTierStore, with no reload; only a change of this setting
+ * calls setDynQuality, so the review page's `&tier` stays as it set it.
+ */
+let settingQuality;
+function applySettingQuality(s) {
+  if (s.dynQuality === settingQuality) return;
+  settingQuality = s.dynQuality;
+  setDynQuality(settingQuality);
+}
+applySettingQuality(settingsStore.get());
+settingsStore.subscribe(applySettingQuality);
 
 async function readyStage(tier = qualityOverride || pageTier) {
   const R = await renderer();
@@ -553,7 +579,7 @@ export function leaveGroup(e) {
  *   gate: the result page's entrance gate (makeEntranceGate): the card joins it, settles once live or failed, and at
  *   its give-up keeps its 2D art for good
  */
-export function IllustArt({ art, animate, wait = 'now', backdrop = false, gate = null, class: cls = '', children }) {
+export function IllustArt({ art, animate, wait = 'now', backdrop = false, framing = null, gate = null, class: cls = '', children }) {
   const on = !!(animate && art);
   const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
@@ -723,7 +749,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, gate =
       const key = live ? illustKey(R, art) : null;
       if (!key || !host.current) { if (live) setState('off'); gate?.settle(gateTok); return null; }
       // the renderer's card: its own 2D canvas in the art window, under the card's overlays (§33.19); 'live' = drawn
-      card = st.mount(key, { onState: (s) => {
+      card = st.mount(key, { ...framingOpts(framingOverride || framing), onState: (s) => {
         if (!live || kept) return;
         cur = s; setState(s);
         if (entry) { groupState(entry, s); if (s === 'live') cover(); }
@@ -758,7 +784,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, gate =
       if (entry) leaveGroup(entry);
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
     };
-  }, [id, on, wait, tier]);
+  }, [id, on, wait, tier, framing]);
   // what the card shows: 'ready' while it runs hidden before its group shows
   const vis = state === 'live' && !shown ? 'ready' : state;
   // in place (under the dissolve's cover, or shown)
