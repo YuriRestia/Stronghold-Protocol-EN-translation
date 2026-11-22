@@ -154,7 +154,13 @@ history and the open points: DESIGN §32.14.25.
   bursts with cycles and probability), the shapes, velocity / limit velocity / force / inherit velocity / noise /
   rotation / size / colour over lifetime and by speed, texture sheets, trails, sub-emitters, prewarm, start delay,
   simulation spaces and scaling modes (a particle's size × the scaling mode's scale per axis, a local-space one's as it
-  is now: DESIGN §33.5), in fixed sub-steps of at most 1/30 s with a seeded generator. `clips.js` samples
+  is now: DESIGN §33.5), in fixed sub-steps of at most 1/30 s with a seeded generator. Each step ages and kills the
+  particles first, then emits; a rate-over-time particle starts at the moment the accumulator crossed its whole number
+  (particle j of the step, newest first, (j + what the accumulator keeps) / (rate × step) of the step old), so a full
+  system whose particle dies in a step is refilled in that step (fork, 2026-11-23: the evenly spread birth left
+  Nightingale's Iakhu of Flows ring balls, one particle each, gone for seconds) [src: official UnityPlayer.dll
+  2021.3.39 game build with its UnityPlayer.pdb: EmissionModule::EmitCommon, ParticleSystem::StartModules,
+  ParticleSystem::Update1Incremental]. `clips.js` samples
   the prefabs' clips (transforms, active flags, material, renderer and system properties). `effect.js Effect` runs the
   hierarchy and the behaviours: ParticleEffect (delays, loop and stop fade, max lifetime, direction helpers, spawn
   location), ProjectileEffect, FxDelay, FxUVTweener(Advance), FxUVRotation, FxLODSetting, FollowMountPoint /
