@@ -160,7 +160,9 @@ history and the open points: DESIGN §32.14.25.
   system whose particle dies in a step is refilled in that step (fork, 2026-11-23: the evenly spread birth left
   Nightingale's Iakhu of Flows ring balls, one particle each, gone for seconds) [src: official UnityPlayer.dll
   2021.3.39 game build with its UnityPlayer.pdb: EmissionModule::EmitCommon, ParticleSystem::StartModules,
-  ParticleSystem::Update1Incremental]. `clips.js` samples
+  ParticleSystem::Update1Incremental]. A loop boundary inside a step splits its emission, and what a piece emits
+  also ages through the rest of the step, as the engine runs each piece's simulate → emit → start in turn (her gold
+  bars, life = loop = 1 / rate, were otherwise empty a whole second now and then). `clips.js` samples
   the prefabs' clips (transforms, active flags, material, renderer and system properties). `effect.js Effect` runs the
   hierarchy and the behaviours: ParticleEffect (delays, loop and stop fade, max lifetime, direction helpers, spawn
   location), ProjectileEffect, FxDelay, FxUVTweener(Advance), FxUVRotation, FxLODSetting, FollowMountPoint /
@@ -210,6 +212,14 @@ history and the open points: DESIGN §32.14.25.
   so those slots blend normally), with spine-unity's vertex colours (PMA bytes, an additive slot's alpha 0). It also
   clips only while a slot shows its clipping attachment: pixi-spine kept a clip after an animation swapped it for a
   mesh and masked every later slot (Hazy Jade's eyes, brows and props: the blank face).
+  (fork, 2026-11-23) An illustration draws as the engine's forward loop does: every renderer whose material queue is
+  at most 2500 in an opaque pass first, then the rest by sorting layer, order, queue and depth
+  (`render/dynillust/renderer.js byUnityOrder`) [src: official UnityPlayer.dll 2021.3.39 game build:
+  BuildRenderObjectData `cmp ebp, 0x9c4`; DoRenderLoop's opaque then transparent DoForwardShaderRenderLoop]; the
+  skeleton, on the GPU path, sits at its root's depth and tests it as its Spine material says (all 98: ZTest
+  LessEqual, ZWrite Off; `loader.js spineDepth`), so W's Elite 2 bullets (3D/Toon, queue 2000, ZWrite On) hide it
+  where they are nearer and it hides them where they are behind it. 3D/Toon reads no vertex colour (the official
+  program's inputs: position, UV, normal), so those bullets appear and vanish without a fade, as in the game.
 - **Wiring** (`wiring.js FxWiring`, from index.json §33.12). An attack: its cast rows on the attacker — the
   ON_CAST_START ones when the attack's wind-up starts its Spine clip (`app.js onUpcoming` → `castStart`, as far into the
   effect as the clip started), the ON_SPELL_ON ones at the 'atk' event; a NONE row's first slot, a directional row's

@@ -4,7 +4,9 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { gpuSkinSupported, regionQuadUvs } from '../../public/js/render/dynillust/gpuskin.js';
+import { gpuSkinSupported, regionQuadUvs, depthFunc } from '../../public/js/render/dynillust/gpuskin.js';
+import { byUnityOrder, OPAQUE_MAX_QUEUE } from '../../public/js/render/dynillust/renderer.js';
+import { spineDepth } from '../../public/js/render/dynillust/loader.js';
 import { pathConstraintUpdate, pruneConstantBoneTimelines } from '../../public/js/render/dynillust/skeleton.js';
 
 describe('pruneConstantBoneTimelines (constant bone timelines dropped, no pose change)', () => {
@@ -85,5 +87,41 @@ describe('gpuskin', () => {
     const uv = Array.from(regionQuadUvs({ texture: { orig: { width: 133, height: 66 }, trim: { x: 1, y: 1, width: 131, height: 64 } } }));
     const want = [1 / 133, 65 / 66, 1 / 133, 1 / 66, 132 / 133, 1 / 66, 132 / 133, 65 / 66];
     uv.forEach((v, i) => assert.ok(Math.abs(v - want[i]) < 1e-6, `uv[${i}] ${v} vs ${want[i]}`));
+  });
+});
+
+describe('opaque pass and the skeleton depth test (W Elite 2 bullets)', () => {
+  // W's bullets: 3D/Toon, queue Geometry 2000, sorting order 1; her skeleton: order 0, queue Transparent 3000
+  // [src: official fx.json char_113_cqbw_2 node 24, materials[6], materials[0]]
+  const skel = { layer: 0, order: 0, queue: 3000, dist: 10, seq: 0 };
+  const bullet = { layer: 0, order: 1, queue: 2000, dist: 10, seq: 1 };
+  const smoke = { layer: 0, order: -3, queue: 3000, dist: 10, seq: 2 };
+
+  test('an opaque-queue renderer draws before every transparent one, whatever its sorting order', () => {
+    const list = [skel, smoke, bullet].sort(byUnityOrder);
+    assert.deepEqual(list.map((x) => x.seq), [1, 2, 0]);
+    assert.equal(OPAQUE_MAX_QUEUE, 2500);
+  });
+
+  test('transparent renderers keep layer, order, queue, back to front', () => {
+    const far = { layer: 0, order: 0, queue: 3000, dist: 20, seq: 3 };
+    assert.deepEqual([skel, far, smoke].sort(byUnityOrder).map((x) => x.seq), [2, 3, 0]);
+  });
+
+  test("the skeleton's depth state comes from its Spine material's first pass", () => {
+    const desc = { materials: [{ passes: [{ zTest: 'LessEqual', zWrite: false }] }] };
+    assert.deepEqual(spineDepth(desc, { look: { material: { index: 0 } } }), { zTest: 'LessEqual', zWrite: false });
+    assert.deepEqual(spineDepth(desc, { materials: [0] }), { zTest: 'LessEqual', zWrite: false });
+    assert.equal(spineDepth({ materials: [{ passes: [{}] }] }, { materials: [0] }), null);
+    assert.equal(spineDepth(null, { materials: [0] }), null);
+  });
+
+  test('ZTest names map to GL depth functions; Disabled / Always mean no test', () => {
+    const gl = { LESS: 1, LEQUAL: 2, EQUAL: 3, GEQUAL: 4, GREATER: 5, NOTEQUAL: 6, NEVER: 7 };
+    assert.equal(depthFunc(gl, 'LessEqual'), 2);
+    assert.equal(depthFunc(gl, 'Less'), 1);
+    assert.equal(depthFunc(gl, 'Disabled'), null);
+    assert.equal(depthFunc(gl, 'Always'), null);
+    assert.equal(depthFunc(gl, undefined), null);
   });
 });
