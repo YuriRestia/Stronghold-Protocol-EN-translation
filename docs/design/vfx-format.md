@@ -1985,11 +1985,18 @@ the `dynillust` group; a keyed or sharded run replaces only its own entries.
   bundle: 'arts/dynchars/<key>.ab', client (CN client version), files: { rel: { hash, bytes } },
   bytes: { full, half }                       sum of what the full / half tier downloads
   spine: Spine, framing: Framing, actions: Actions,
-  fx: { file: 'fx.json', textures: { key: Texture }, meshes: { key: Mesh }, paths: { 'a/b/c': node } } }
+  fx: { file: 'fx.json', textures: { key: Texture }, meshes: { key: Mesh }, paths: { 'a/b/c': node }, posWS: [node] } }
 ```
 
 `fx.textures` / `fx.meshes` are §33.8 / §33.9 entries with paths relative to `<dir>`; `fx.paths` maps a node's path
-(GameObject names from the root, `/`-joined; the root is `''`) to its id, the first node when names repeat.
+(GameObject names from the root, `/`-joined; the root is `''`) to its id, the first node when names repeat. Three
+additions to the §33 files, in the illustrations only (the battle effects' files stay as they are):
+
+| addition | content | official source |
+|---|---|---|
+| mesh `tangents?` | `[x, y, z, w, …]`, 4 floats per vertex, next to `normals` (Particles-Poker-Reflect normal-maps with them, its `uv1` as before) | the Mesh's tangent channel |
+| cube texture | a Cubemap a material uses (`_CubeMap` of Particles-Poker-Reflect, Lee's Trust Your Eyes) is one image of its 6 faces side by side in Unity's face order `+X −X +Y −Y +Z −Z`, each face decoded as a Texture2D (rows top-down); its entry adds `cube: true`, `faces`, and `w` / `h` are one face's size; no half copy. Before, such a slot was `tex: null` | `Cubemap` (`m_ImageCount` 6), the material's `m_TexEnvs` |
+| `fx.posWS` | the nodes carrying `Torappu.Fx.FxGetParticleSystemPosWS`: it sets `_ParticleSystemPositionWS` to the system's world position, which the GrabPass shaders read in `_DirMode` 2; 11 of the 98 have some | [src: official dump.cs FxGetParticleSystemPosWS] |
 
 **Spine** (the skeleton renderer `DynIllust._skeleton` on node 0 — a SkeletonAnimation, or a SkeletonGraphic, whose mesh
 settings sit under `meshGenerator.settings` — and its SkeletonDataAsset):
