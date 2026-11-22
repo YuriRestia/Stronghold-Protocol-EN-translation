@@ -155,10 +155,14 @@ export function setDynModule(next) {
  * The page's stage, its index loaded and its quality set (the phone's half-resolution pages, spec §4.3 — a phone is
  * where 动态立绘's auto is 仅自己): one for the whole page (the renderer's), never destroyed by a screen.
  */
+let qualityOverride = null;
+/** The review page's phone frame: the pages a phone gets ('half' | 'full' | null = by the device). */
+export function setDynQuality(q) { qualityOverride = q === 'half' || q === 'full' ? q : null; }
+
 async function readyStage() {
   const R = await renderer();
   const st = R.getDynIllustStage();
-  st.quality = phoneDevice() ? 'half' : 'full';
+  st.quality = qualityOverride || (phoneDevice() ? 'half' : 'full');
   await st.index();
   return { R, st };
 }
