@@ -500,10 +500,11 @@ for the l2d to be ready instead of rushing ahead with the static art, cause the 
 once"): the team page's cards join one gate (`makeEntranceGate`), each settling once its illustration is live or failed
 (or it has none), and every card's entrance starts from the gate's opening with the row's stagger, held on its first,
 unseen frame until then (`useCardEntrance` `gate`). Static art only for a card without an illustration, one that failed,
-or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending` (the user's OK of 2026-11-23), all
-waits counted (the settlement pause, the cover, the cards' first frames), at least `RESULT_MOUNT_MIN_MS` 2 s after
-a team page that mounts late [ASSUMED: proposed, not yet OK'd]; such a card keeps its 2D art for good, no switch after
-its entrance.
+or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending` (the user's OK of 2026-11-23); such
+a card keeps its 2D art for good, no switch after its entrance. Every result page mounts with the result screen (a seat's
+同盟 hidden, above), so the same 8 s, counted from the page's mount, only guards the loaded cards' first frames against a
+renderer that never answers (the earlier 2 s minimum for a page opened late, `RESULT_MOUNT_MIN_MS`, went with the
+pre-mount).
 Measured on the review page (renderer booted, local server, 4 cards, 1440p and 4K): the load 0.70–0.99 s from files not
 yet fetched, 0.45–0.65 s from the HTTP cache, mount to the gate's opening 0.36–0.41 s / 0.27–0.33 s, 0.23–0.25 s with
 the illustrations still in the renderer [src: work/dev-55 rw-1440.json / rw-4k.json, 2026-11-23].

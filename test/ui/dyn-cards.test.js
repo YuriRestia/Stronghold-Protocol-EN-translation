@@ -425,7 +425,7 @@ test('a team page mounted hidden: its cards go live while hidden (the cover\'s w
 });
 
 test('the result page\'s entrance gate: opens once every animating card is live or failed, at once without one, and gives up for good', async (t) => {
-  const { makeEntranceGate, RESULT_GIVE_UP_MS, RESULT_MOUNT_MIN_MS } = await import('../../public/js/ui/dynCards.js');
+  const { makeEntranceGate, RESULT_GIVE_UP_MS } = await import('../../public/js/ui/dynCards.js');
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const flush = () => new Promise((r) => { setImmediate(r); });
   // two animating cards: the gate waits for both
@@ -461,10 +461,12 @@ test('the result page\'s entrance gate: opens once every animating card is live 
   assert.deepEqual(lost, ['c']);
   g.join({}, () => lost.push('late')); g.settle({});
   assert.deepEqual(lost, ['c'], 'a card joining after the give-up is not held');
-  // one budget with the waits before: a page mounted long after the ending still gives its cards' first frames the minimum
-  g = makeEntranceGate({ now: 1000 + RESULT_GIVE_UP_MS * 3, endingAt: 1000 });
-  assert.equal(g.budget, RESULT_MOUNT_MIN_MS);
+  // the guard counts from the page's mount (the load's give-up, from `ending`, is the result load's: resultKeyReady)
+  g = makeEntranceGate();
+  assert.equal(g.budget, RESULT_GIVE_UP_MS);
   g.dispose();
+  const dc = await import('../../public/js/ui/dynCards.js');
+  assert.equal(dc.RESULT_MOUNT_MIN_MS, undefined, 'no separate minimum: every result page mounts with the result screen');
 });
 
 test('the cards\' look: the user\'s pick, one thin line on the smoothed mask, no glitter', async () => {
