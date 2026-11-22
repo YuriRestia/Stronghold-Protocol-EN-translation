@@ -29,6 +29,75 @@ import { mat4 } from '../vfx/math.js';
 /** Distance of the stand-in pinhole camera behind the illustration (Unity units; see the header). */
 export const CAM_DIST = 10000;
 
+/**
+ * One Animator's state machine (docs/design/vfx-format.md §33.19 animators: Unity's AnimatorController constants), first
+ * layer. Triggers stay set until a transition uses them (Unity's trigger rule); an Animator that is switched off goes
+ * back to its default state and default parameters when it is on again (writeDefaultValuesOnDisable, DynIllustBase.Init
+ * [src: official GameAssembly.dll DynIllustBase.Init 0x1441DD8–0x1441DE9]). AnyState transitions are checked before the
+ * current state's; a transition without conditions needs its exit time. A transition's cross-fade (`duration`) is not
+ * blended: the next state starts at once at its `offset` [unverified: our clip sampler plays one clip per Animator].
+ */
+export class AnimatorRuntime {
+  constructor(a, clips) {
+    this.node = a.node;
+    this.params = a.parameters || [];
+    this.layer = (a.layers || [])[0] || null;
+    this.clips = clips || [];
+    this.reset();
+  }
+
+  reset() {
+    this.values = new Map(this.params.map((p) => [p.name, p.type === 'trigger' || p.type === 'bool' ? !!p.default : Number(p.default) || 0]));
+    this.state = this.layer ? this.layer.defaultState | 0 : -1;
+    this.start = null;   // content time the state began (set at the first step)
+    this.off = true;
+  }
+
+  has(name) { return this.values.has(name); }
+
+  setTrigger(name) { if (this.values.has(name)) this.values.set(name, true); }
+
+  _len(st) { const c = st && Number.isInteger(st.clip) ? this.clips[st.clip] : null; return c && c.length > 0 ? c.length : 0; }
+
+  _passes(t, norm) {
+    const conds = t.conditions || [];
+    if (!conds.length && !t.hasExitTime) return false;
+    if (t.hasExitTime && !(norm >= Number(t.exitTime))) return false;
+    for (const c of conds) {
+      const v = this.values.get(c.param);
+      const th = Number(c.threshold) || 0;
+      const ok = c.mode === 'if' ? !!v : c.mode === 'ifNot' ? !v : c.mode === 'greater' ? v > th : c.mode === 'less' ? v < th
+        : c.mode === 'equals' ? v === th : c.mode === 'notEqual' ? v !== th : false;
+      if (!ok) return false;
+    }
+    return true;
+  }
+
+  /** Advance to content time `ct` (node active in hierarchy: `on`); returns { clip, at } to sample, or null. */
+  step(ct, on) {
+    if (!this.layer) return null;
+    if (!on) { if (!this.off) this.reset(); return null; }
+    if (this.off) { this.off = false; this.start = ct; }
+    for (let guard = 0; guard < 4; guard++) {
+      const st = this.layer.states[this.state];
+      if (!st) return null;
+      const len = this._len(st), speed = Number.isFinite(st.speed) ? st.speed : 1;
+      const norm = len > 0 ? (ct - this.start) * speed / len : 0;
+      const list = [...(this.layer.anyState || []), ...(st.transitions || [])];
+      const t = list.find((x) => this._passes(x, norm));
+      if (!t) break;
+      for (const c of t.conditions || []) if (this.params.find((p) => p.name === c.param && p.type === 'trigger')) this.values.set(c.param, false);
+      this.state = t.to == null ? this.layer.defaultState | 0 : t.to;
+      const nxt = this.layer.states[this.state], nlen = this._len(nxt), ns = nxt && Number.isFinite(nxt.speed) && nxt.speed > 0 ? nxt.speed : 1;
+      this.start = ct - (Number(t.offset) || 0) * nlen / ns;
+    }
+    const st = this.layer.states[this.state];
+    if (!st || !Number.isInteger(st.clip)) return null;
+    const speed = Number.isFinite(st.speed) ? st.speed : 1;
+    return { clip: st.clip, elapsed: (ct - this.start) * speed };
+  }
+}
+
 /** The effect player's camera basis for an illustration camera of half-height `cameraSize`, `h` px tall. */
 export function illustBasis(cameraSize, h) {
   const cs = Number(cameraSize) > 0 ? Number(cameraSize) : 10;
@@ -40,8 +109,8 @@ export class IllustEffects {
    * @param {any} def the compiled prefab (render/vfx/library.js)
    * @param {{ lib?: any, lite?: boolean, seed?: number,
    *           followers?: { node: number, bone: string, xy?: boolean, z?: boolean, rot?: boolean, scale?: boolean }[],
-   *           animators?: { node: number, triggers: Record<string, number> }[] }} [o]
-   * `animators[].triggers`: trigger name → index in def.clips of the state it leads to
+   *           animators?: any[] }} [o]
+   * `animators`: the index's Animator state machines (§33.19)
    */
   constructor(def, o = {}) {
     this.def = def;
@@ -50,7 +119,9 @@ export class IllustEffects {
     this.fx.place({ pos: Array.isArray(def.rootPos) ? def.rootPos : [0, 0, 0] });
     this.fx._matrices();
     this.followers = (o.followers || []).filter((f) => f && Number.isInteger(f.node) && f.node > 0 && f.node < def.n && f.bone);
-    this.animators = (o.animators || []).filter((a) => a && Number.isInteger(a.node) && a.triggers);
+    this.animators = (o.animators || []).filter((a) => a && Number.isInteger(a.node) && a.node < def.n && Array.isArray(a.layers))
+      .map((a) => new AnimatorRuntime(a, def.clips));
+    if (this.animators.length) this.fx.animOv = new Map();
     if (this.followers.length) this.fx.worldOv = new Map(this.followers.map((f) => [f.node, mat4()]));
   }
 
@@ -59,11 +130,19 @@ export class IllustEffects {
   /** FxDelay.ForceToEnd: nothing more to do in our model (see the header). */
   forceDelayEnd() {}
 
-  /** Animator.SetTrigger(name) on every Animator of the layer that has it. */
+  /** Animator.SetTrigger(name) on every active Animator that has that parameter (DynIllust._ApplyAnimation). */
   trigger(name) {
+    for (const a of this.animators) if (this.fx.hier[a.node] && a.has(name)) a.setTrigger(name);
+  }
+
+  /** The Animators' state machines at the layer's content time, before the frame's clips are sampled. */
+  animate() {
+    if (!this.animators.length) return;
+    const ct = this.fx.ctime;
     for (const a of this.animators) {
-      const clip = a.triggers[name];
-      if (Number.isInteger(clip) && this.fx.hier[a.node]) this.fx.setAnimatorClip(a.node, clip);
+      const r = a.step(ct, !!this.fx.hier[a.node]);
+      if (r) this.fx.animOv.set(a.node, { clip: r.clip, at: ct - r.elapsed });
+      else this.fx.animOv.delete(a.node);
     }
   }
 

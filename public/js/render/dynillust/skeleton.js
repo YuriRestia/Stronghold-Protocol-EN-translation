@@ -22,12 +22,13 @@ export class IllustSkeleton {
    * @param {any} spineData pixi-spine skeleton data
    * @param {{ scale?: number, skin?: string, defaultMix?: number, mixes?: [string, string, number][],
    *           separators?: string[], parts?: { layer?: number, order?: number, queue?: number, enabled?: boolean }[],
-   *           renderer?: { layer?: number, order?: number, queue?: number } }} [o]
+   *           renderer?: { layer?: number, order?: number, queue?: number }, makeSpine?: (d: any) => any }} [o]
    * `parts`: one per separator part (none: the root renderer draws it whole)
    */
   constructor(spineData, o = {}) {
     const P = globalThis.PIXI;
-    this.spine = new P.spine.Spine(spineData);
+    // Dev 51's createDynSpine (render/dynillust/spine-shader.js: the official Spine fragment math) when the stage has it
+    this.spine = o.makeSpine ? o.makeSpine(spineData) : new P.spine.Spine(spineData);
     this.spine.autoUpdate = false;
     this.scale = Number(o.scale) > 0 ? Number(o.scale) : 0.01;
     if (o.skin) { try { this.spine.skeleton.setSkinByName(o.skin); this.spine.skeleton.setSlotsToSetupPose(); } catch { /* the default skin */ } }

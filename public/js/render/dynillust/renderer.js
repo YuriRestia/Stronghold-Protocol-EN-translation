@@ -1,39 +1,36 @@
-// render/dynillust/renderer.js — the one renderer that draws every live dynamic illustration of a page (result, room,
-// Grand Alliance cards), as the official DynIllustMgr does with its render slots [src: official dump.cs DynIllustMgr
-// m_singleSlot, m_multiSlots; doc l2d-art-proposal §4.3].
-//
-//   const r = getDynIllustRenderer({ load })        one per page (a second call returns it)
-//   const h = r.mount(hostEl, { illustId })          a card: h.ready (Promise), h.state, h.destroy(); the card's own
-//                                                    <canvas> goes into hostEl once the illustration is drawable
-//   r.stats()
+// render/dynillust/renderer.js — the stage that draws every live dynamic illustration of a page (result, room, Grand
+// Alliance cards), as the official DynIllustMgr does with its render slots [src: official dump.cs DynIllustMgr
+// m_singleSlot, m_multiSlots; doc l2d-art-proposal §4.3]. The screens use it only through render/dynillust/index.js
+// (the mount API of docs/design/vfx-format.md §33.19).
 //
 // How it draws: one WebGL2 context on an off-page canvas. Each frame every visible illustration ("slot") is updated,
 // placed in its own rectangle of that canvas (scissored), drawn — its Spine parts and its effect layer interleaved in
 // Unity's sort order (sorting layer, order, render queue, depth), the parts being SkeletonPartsRenderers — and then
-// copied into each card's own 2D <canvas> (the official card shows its slot's render texture through a RawImage the
-// same way). So a card's DOM stacking, transforms, opacity and scrolling stay the page's, and the page has a single GL
-// context however many cards it shows.
+// copied (drawImage) into each card's own 2D canvas, `Card.canvas`, which the screen places under its overlays; the
+// official card shows its slot's render texture through a RawImage the same way [src: official dump.cs DynIllustMgr
+// RT_WIDTH, RT_HEIGHT]. So a card's DOM stacking, transforms, opacity and scrolling stay the page's, and the page has a
+// single GL context however many cards it shows.
 //   The same illustration at the same size on two cards is one slot, drawn once and copied to both (the official
 //   single-slot broadcast [src: official dump.cs AdaptiveDynIllustUpdater _UpdateDynIllustsSingleSlotBroadcast]).
-//   A card that leaves the viewport, or a hidden page, pauses its slot: the instance is disabled and the card's state
-//   deactivated, its rectangle freed; back in view it is enabled and activated again — the official release of a slot
-//   for an unseen view [src: official dump.cs DynIllustActiveSlotPolicy ReconcileSlotHolders]. Unmounting frees it.
-//   Appearing: the card's alpha is 1 at once, no fade, and the instance loops Idle (O1, render/dynillust/state.js).
-//
-// Load contract: `load(illustId)` resolves to an entry (the WP0 index, render/dynillust contract):
-//   { skel (URL of the .skel; pixi-spine finds the .atlas and pages beside it),
-//     framing: { cameraSize, adjust, maxSize }, root: { pos: [x, y, z], scale?: [sx, sy, sz] },
-//     skeleton: { scale, skin, defaultMix, mixes, separators, parts, renderer },
-//     instance: { fixFxDelay, animTimeFixed, extraTracks, particles },
-//     effects?: { key, followers, animators } }
+//   A card out of view, or a hidden page, pauses its slot: the instance is disabled and its card state deactivated, its
+//   rectangle freed; in view again, enabled and activated again — the official release of an unseen view's slot [src:
+//   official dump.cs DynIllustActiveSlotPolicy ReconcileSlotHolders].
+//   Card.start(): a ready card shows at alpha 1 at once, straight into looping Idle, no fade and no Start — the official
+//   card's SafeActivate(fastMode: true) (O1) [src: official GameAssembly.dll AutoChessSettleGameTeamPlayerCardView.
+//   _RenderIllust 0x28E180B; UICharacterIllustController._ActivateIllustImmediately 0x1452771; DynIllustBase.OnEnable
+//   0x1442335]. A card started while still loading (D11's late card) fades its canvas in over LATE_FADE_S once ready,
+//   the controller's own non-fast fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor
+//   0x147EF10 fadeDuration 0.15], also straight into Idle (the user's decision of 2026-11-22, doc §33.19 Mount API).
 
 import { unityToCard, cardViewProj } from './framing.js';
 import { IllustSkeleton } from './skeleton.js';
 import { DynIllustInstance } from './instance.js';
 import { CardIllustState } from './state.js';
 import { IllustEffects, illustBasis } from './effects.js';
+import { loadIllust, slotData } from './loader.js';
 import { FxGL } from '../vfx/gl.js';
 import { FrameData } from '../vfx/geom.js';
+import { FxLibrary } from '../vfx/library.js';
 import { resetPixi } from '../vfx/system.js';
 
 /** Largest side of the shared canvas (px): 8 phone-size cards fit with room to spare. */
@@ -43,49 +40,77 @@ export const MAX_CANVAS = 4096;
 export const MAX_DPR = 2;
 /** Effect step cap per frame in s: the effect layer's own cap (render/vfx/system.js OfficialFx.update). */
 export const FX_STEP_MAX = 0.25;
+/** The late card's fade in s [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10]. */
+export const LATE_FADE_S = 0.15;
 
 function byUnityOrder(a, b) {
   return (a.layer - b.layer) || (a.order - b.order) || (a.queue - b.queue) || (b.dist - a.dist) || (a.seq - b.seq);
 }
 
-let shared = null;
-
-/** The page's renderer (created on first use). */
-export function getDynIllustRenderer(opts = {}) {
-  if (!shared || shared.destroyed) shared = new DynIllustRenderer(opts);
-  return shared;
-}
-
-export class DynIllustRenderer {
+export class DynIllustStage {
   /**
-   * @param {{ load: (id: string) => Promise<any>, fxLib?: any, lite?: boolean, rng?: () => number,
-   *           now?: () => number, raf?: (cb: FrameRequestCallback) => number, onAction?: (id: string, a: number) => void }} opts
+   * @param {{ manifest?: () => Promise<any>, fetch?: typeof fetch, rng?: () => number, now?: () => number,
+   *           raf?: (cb: FrameRequestCallback) => number, hidden?: () => boolean, spineShader?: () => Promise<any>,
+   *           onAction?: (key: string, a: number) => void }} [opts]
+   * `manifest`: data/local-assets.json (assets.local()); `spineShader`: imports render/dynillust/spine-shader.js
    */
   constructor(opts = {}) {
     this.opts = opts;
-    this.load = opts.load;
-    this.fxLib = opts.fxLib || null;
-    this.lite = !!opts.lite;
-    this.views = new Set();
-    this.slots = new Map();     // key → Slot
-    this.cache = new Map();     // illustId → Promise<{ entry, spineData, fxDef }>
+    this.P = globalThis.PIXI;
+    this.quality = 'full';
+    this.cards = new Set();
+    this.slots = new Map();     // `${key}|${quality}|${w}x${h}` → Slot
+    this.cache = new Map();     // `${key}|${quality}` → { promise, prep, failed }
+    this.texInfo = {};
+    this.lib = new FxLibrary({ list: { groups: { fx: {}, 'fx/prefabs': {}, 'fx/tex': {}, 'fx/mesh': {} } }, fetch: opts.fetch });
+    this.lib.texInfo = () => Promise.resolve(this.texInfo);
     this.destroyed = false;
     this.frameNo = 0;
     this.pass = 0;
     this.last = 0;
+    this.time = 0;
     this._raf = 0;
-    this.P = globalThis.PIXI;
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = 2; this.canvas.height = 2;
-    this.renderer = null;       // created with the first slot that draws
+    this.canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    if (this.canvas) { this.canvas.width = 2; this.canvas.height = 2; }
+    this.renderer = null;
     this.stage = null;
     this.glr = null;
     this.fd = new FrameData();
-    this._onVis = () => { if (!document.hidden) this._kick(); };
-    document.addEventListener('visibilitychange', this._onVis);
+    this.spineFactory = undefined;  // undefined: not looked up yet; null: plain pixi-spine
+    this._group = null;
+    this._onVis = () => { if (!this._hidden()) this._kick(); };
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this._onVis);
     this.io = typeof IntersectionObserver === 'function'
-      ? new IntersectionObserver((list) => { for (const e of list) { const v = e.target.__dynView; if (v) v.inView = e.isIntersecting; } this._kick(); })
+      ? new IntersectionObserver((list) => { for (const e of list) { const c = e.target.__dynCard; if (c) c.inView = e.isIntersecting; } this._kick(); })
       : null;
+  }
+
+  _hidden() { return this.opts.hidden ? this.opts.hidden() : typeof document !== 'undefined' && document.hidden; }
+
+  /** The `dynillust` group of data/local-assets.json (key → { path, charId, skinId, … }); {} without one. */
+  index() {
+    if (!this._index) {
+      const m = this.opts.manifest ? this.opts.manifest() : Promise.resolve(null);
+      this._index = Promise.resolve(m).catch(() => null).then((man) => {
+        const g = man && man.groups && man.groups.dynillust;
+        this._group = g && typeof g === 'object' ? g : {};
+        return this._group;
+      });
+    }
+    return this._index;
+  }
+
+  /** The manifest entry of a key, once index() has loaded (else undefined). */
+  entryOf(key) { return this._group ? this._group[key] : undefined; }
+
+  async _spineFactory() {
+    if (this.spineFactory !== undefined) return this.spineFactory;
+    this.spineFactory = null;
+    try {
+      const mod = this.opts.spineShader ? await this.opts.spineShader() : await import('./spine-shader.js');
+      if (mod && typeof mod.createDynSpine === 'function') this.spineFactory = mod.createDynSpine;
+    } catch { /* Dev 51's shader not installed: pixi-spine's own */ }
+    return this.spineFactory;
   }
 
   _ensureGL() {
@@ -99,83 +124,111 @@ export class DynIllustRenderer {
     } catch (err) { console.warn('[dynillust] no WebGL', err); return false; }
     this.stage = new P.Container();
     this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.glr = null; this.lost = true; });
-    this.canvas.addEventListener('webglcontextrestored', () => { this.lost = false; this._kick(); });
+    this.canvas.addEventListener('webglcontextrestored', () => { this.lost = false; this.lib.forgetGpu(); this._kick(); });
+    const gl = this.renderer.gl;
+    if (gl && this.renderer.context?.webGLVersion === 2) {
+      try { this.glr = new FxGL(gl, this.lib); } catch (err) { console.warn('[dynillust] effects unavailable', err); }
+    }
     return true;
   }
 
-  /** Fetch, parse and compile one illustration (shared by every card that shows it). */
-  prepare(illustId) {
-    let p = this.cache.get(illustId);
-    if (p) return p;
-    p = (async () => {
-      const entry = await this.load(illustId);
-      if (!entry || !entry.skel) throw new Error('no illustration ' + illustId);
-      const res = await this.P.Assets.load(entry.skel);
-      const spineData = res && (res.spineData || res);
-      let fxDef = null;
-      if (entry.effects && entry.effects.key && this.fxLib) {
-        try { await this.fxLib.init?.(); fxDef = await this.fxLib.load(String(entry.effects.key).toLowerCase()); } catch { fxDef = null; }
-      }
-      return { entry, spineData, fxDef };
+  /** Download, decode, build and upload one key (cached per quality). Resolves to the prepared data or rejects. */
+  _prepare(key) {
+    const ck = `${key}|${this.quality}`;
+    let c = this.cache.get(ck);
+    if (c) return c.promise;
+    c = { promise: null, prep: null, failed: false };
+    c.promise = (async () => {
+      await this.index();
+      const e = this.entryOf(key);
+      if (!e || !e.path) throw new Error('no illustration ' + key);
+      await this._spineFactory();
+      const prep = await loadIllust(e.path, { P: this.P, fetch: this.opts.fetch, lib: this.lib, half: this.quality === 'half', texInfo: this.texInfo });
+      prep.data = slotData(prep.entry);
+      await this._warm(prep);
+      c.prep = prep;
+      return prep;
     })();
-    this.cache.set(illustId, p);
-    p.catch(() => this.cache.delete(illustId));
-    return p;
+    c.promise.catch((err) => { c.failed = true; console.warn('[dynillust]', key, err?.message || err); });
+    this.cache.set(ck, c);
+    return c.promise;
   }
 
-  /** Show `illustId` on the card `host` (its CSS box is the card's art window). */
-  mount(host, o = {}) {
-    const view = new CardView(this, host, o);
-    this.views.add(view);
-    if (this.io) { host.__dynView = view; this.io.observe(host); } else view.inView = true;
-    view.ready = this.prepare(o.illustId).then((prep) => {
-      if (view.destroyed) return view;
-      view.prep = prep;
-      this._kick();
-      return view;
-    });
-    view.ready.catch(() => {});
-    return view;
+  /** Put an illustration's pages, effect programs and textures on the GPU ahead of its first draw (D10). */
+  async _warm(prep) {
+    if (!this._ensureGL() || this.lost) return;
+    const r = this.renderer;
+    for (const t of prep.pages.values()) { try { r.texture.bind(t); } catch { /* uploaded at its first draw */ } }
+    const def = prep.fxDef, glr = this.glr;
+    if (!def || !glr) return;
+    const half = this.quality === 'half';
+    await Promise.all((def.textures || []).map((k) => this.lib.loadTexture(k, half)));
+    const progs = new Map();
+    const add = (kind, mi) => { const mat = mi != null ? def.material(mi, false) : null; if (mat) progs.set(`${kind}|${mat.key}`, [kind, mat]); };
+    for (let i = 0; i < def.n; i++) {
+      const pr = def.psr[i];
+      if (pr && pr.enabled && pr.mode !== 'none') { add(pr.mode === 'mesh' ? 'mesh' : 'quad', pr.mats[0]); if (def.ps[i]?.trail) add('strip', pr.mats[1]); }
+      if (def.mesh[i]) for (const mi of def.mesh[i].mats) add('mesh', mi);
+      for (const x of [def.skinned[i], def.trail[i], def.line[i]]) if (x) for (const mi of x.mats) add('strip', mi);
+    }
+    try {
+      for (const [kind, mat] of progs.values()) glr.program(kind, mat);
+      for (const k of def.textures || []) glr.texture(k, half);
+    } finally { resetPixi(r); }
   }
 
-  _unmount(view) {
-    this.views.delete(view);
-    if (this.io) { try { this.io.unobserve(view.host); } catch { /* gone */ } }
-    if (view.slot) { view.slot.views.delete(view); if (!view.slot.views.size) this._dropSlot(view.slot); view.slot = null; }
-    if (!this.views.size) this._stop();
+  /** D10: get every key ready (or failed) before its cards are shown. Settles when all have. */
+  async preload(keys) {
+    await Promise.allSettled([...new Set(keys || [])].filter(Boolean).map((k) => this._prepare(k)));
   }
 
-  _dropSlot(slot) {
-    this.slots.delete(slot.key);
-    slot.destroy();
+  /** Free every cached key not in `keep` and not on a mounted card (the match starts: release()). */
+  release(keep = []) {
+    const hold = new Set(keep);
+    for (const c of this.cards) hold.add(c.key);
+    for (const [ck, c] of this.cache) {
+      const key = ck.slice(0, ck.lastIndexOf('|'));
+      if (hold.has(key)) continue;
+      this.cache.delete(ck);
+      if (c.prep) for (const t of c.prep.pages.values()) { try { t.destroy(); } catch { /* gone */ } }
+    }
+    if (!this.cards.size) this.lib.dropImages();
   }
+
+  /** A card showing `key` (docs/design/vfx-format.md §33.19 Mount API). */
+  mount(key, o = {}) {
+    const card = new Card(this, key, o);
+    this.cards.add(card);
+    return card;
+  }
+
+  _unmount(card) {
+    this.cards.delete(card);
+    if (this.io && card.canvas) { try { this.io.unobserve(card.canvas); } catch { /* gone */ } }
+    if (card.slot) { card.slot.cards.delete(card); if (!card.slot.cards.size) this._dropSlot(card.slot); card.slot = null; }
+  }
+
+  _dropSlot(slot) { this.slots.delete(slot.id); slot.destroy(); }
 
   _kick() {
-    if (this._raf || this.destroyed || !this.views.size) return;
+    if (this._raf || this.destroyed || !this.cards.size) return;
     const raf = this.opts.raf || requestAnimationFrame;
     this._raf = raf((t) => this._frame(t));
   }
 
-  _stop() { this._raf = 0; this.last = 0; }
-
-  _now(t) { return this.opts.now ? this.opts.now() : t; }
-
   _frame(t) {
     this._raf = 0;
-    if (this.destroyed || !this.views.size) return;
-    const hidden = this.opts.hidden ? this.opts.hidden() : document.hidden;
-    if (hidden) { this._pauseAll(); this.last = 0; return; } // the visibilitychange handler restarts it
-    const now = this._now(t);
+    if (this.destroyed || !this.cards.size) { this.last = 0; return; }
+    if (this._hidden()) { for (const s of this.slots.values()) s.pause(); this.last = 0; return; }
+    const now = this.opts.now ? this.opts.now() : t;
     const dt = this.last ? Math.max(0, (now - this.last) / 1000) : 0;
     this.last = now;
+    this.time += dt;
     this.frameNo++;
-    // views → slots (size changes re-key them)
-    for (const v of this.views) v.sync();
-    // step the visible slots, pause the others
+    for (const c of this.cards) c.sync(dt);
     const live = [];
     for (const slot of this.slots.values()) {
-      const vis = [...slot.views].some((v) => v.inView && v.w > 0 && v.h > 0);
-      if (!vis) { slot.pause(); continue; }
+      if (![...slot.cards].some((c) => c.drawing)) { slot.pause(); continue; }
       slot.resume();
       slot.step(dt);
       live.push(slot);
@@ -184,11 +237,8 @@ export class DynIllustRenderer {
     this._kick();
   }
 
-  _pauseAll() { for (const s of this.slots.values()) s.pause(); }
-
   /** Pack the live slots, draw them, copy each into its cards' canvases. */
   _draw(live) {
-    // shelf packing, tallest first
     live.sort((a, b) => b.h - a.h);
     let x = 0, y = 0, rowH = 0, W = 0, H = 0;
     for (const s of live) {
@@ -200,29 +250,23 @@ export class DynIllustRenderer {
     const r = this.renderer;
     if (W > r.width || H > r.height) r.resize(Math.max(W, r.width), Math.max(H, r.height));
     const CW = r.width, CH = r.height;
-    // the effect geometry of every slot, built once into one buffer
-    const gl = r.gl;
-    if (!this.glr && gl && r.context?.webGLVersion === 2 && this.fxLib) {
-      try { this.glr = new FxGL(gl, this.fxLib); } catch (err) { console.warn('[dynillust] effects unavailable', err); }
-    }
     this.fd.reset();
     for (const s of live) if (s.x >= 0) s.prepare(this, CW, CH);
     if (this.glr) this.glr.upload(this.fd);
-    // the stage holds the slots placed this frame
     this.stage.removeChildren();
     for (const s of live) if (s.x >= 0) { s.root.position.set(s.x, s.y); this.stage.addChild(s.root); }
     r.render(this.stage, { clear: true });
-    for (const s of live) if (s.x >= 0) for (const v of s.views) v.blit(this.canvas, s);
+    for (const s of live) if (s.x >= 0) for (const c of s.cards) c.blit(this.canvas, s);
   }
 
-  /** Draw one slot's sorted list (called from inside Pixi's render of the slot's Spine display). */
+  /** Draw one slot's sorted list (from inside Pixi's render of the slot's Spine display). */
   _renderSlot(renderer, slot) {
     let run = null;
     const flush = () => {
       if (!run || !run.length || !this.glr) { run = null; return; }
       renderer.batch.flush();
       try {
-        this.glr.draw(run, { vp: slot.vp, cam: slot.camU, time: slot.fxTime, half: this.lite, pass: ++this.pass });
+        this.glr.draw(run, { vp: slot.vp, cam: slot.camU, time: slot.fxTime, half: this.quality === 'half', pass: ++this.pass });
       } catch (err) { if (!this._warned) { this._warned = true; console.error('[dynillust] effects draw failed', err); } }
       finally { resetPixi(renderer); }
       run = null;
@@ -235,119 +279,149 @@ export class DynIllustRenderer {
   }
 
   stats() {
-    return { views: this.views.size, slots: this.slots.size, live: [...this.slots.values()].filter((s) => !s.paused).length, canvas: [this.canvas.width, this.canvas.height] };
+    return {
+      cards: this.cards.size, slots: this.slots.size, live: [...this.slots.values()].filter((s) => !s.paused).length,
+      cached: this.cache.size, canvas: this.canvas ? [this.canvas.width, this.canvas.height] : null, quality: this.quality,
+    };
   }
 
   destroy() {
     this.destroyed = true;
-    for (const v of [...this.views]) v.destroy();
+    for (const c of [...this.cards]) c.unmount();
     for (const s of [...this.slots.values()]) this._dropSlot(s);
-    document.removeEventListener('visibilitychange', this._onVis);
+    this.release([]);
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this._onVis);
     this.io?.disconnect();
     try { this.glr?.destroy(); } catch { /* the context may be gone */ }
     try { this.renderer?.destroy(); } catch { /* ignore */ }
-    if (shared === this) shared = null;
   }
 }
 
-/** One card showing an illustration (a mount). */
-class CardView {
-  constructor(R, host, o) {
-    this.R = R;
-    this.host = host;
-    this.illustId = o.illustId;
-    this.inView = false;
-    this.destroyed = false;
-    this.prep = null;
+/** One card showing an illustration (a mount): its own 2D canvas, the §33.19 states. */
+export class Card {
+  constructor(S, key, o) {
+    this.S = S;
+    this.key = key;
+    this.onState = typeof o.onState === 'function' ? o.onState : null;
+    this.state = 'loading';
+    this.inView = !S.io;
+    this.started = false;
+    this.fade = -1;          // seconds into the late fade, −1 when none
     this.slot = null;
-    this.canvas = null;
-    this.ctx = null;
-    this.w = 0; this.h = 0; this.cssW = 0; this.cssH = 0;
-    this.shown = false;
+    this.prep = null;
+    this.w = 0; this.h = 0;
+    this.canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    if (this.canvas) {
+      this.canvas.className = 'dynillust-canvas';
+      this.canvas.width = 1; this.canvas.height = 1;
+      this.canvas.style.opacity = '0';
+      this.ctx = this.canvas.getContext('2d');
+      this.canvas.__dynCard = this;
+      if (S.io) S.io.observe(this.canvas);
+    }
+    this.ready = S._prepare(key).then((prep) => {
+      if (this.state === 'unmounted') return false;
+      this.prep = prep;
+      if (this.started) { this.fade = 0; S._kick(); }   // D11: the late card fades in
+      else this._set('ready');
+      return true;
+    }, () => { if (this.state !== 'unmounted') this._set('failed'); return false; });
   }
 
-  /** The state the screens read: 'loading' | 'ready' | 'failed'. */
-  get state() { return this.destroyed ? 'gone' : this.prep ? 'ready' : 'loading'; }
+  _set(st) {
+    if (this.state === st) return;
+    this.state = st;
+    if (this.onState) { try { this.onState(st); } catch (err) { console.error('[dynillust] onState', err); } }
+  }
 
-  /** Size from the host's box; (re)attach to the slot of this size. */
-  sync() {
-    if (this.destroyed || !this.prep) return;
-    const r = this.host.getBoundingClientRect();
+  /** Show the illustration (see the states). */
+  start() {
+    if (this.started || this.state === 'unmounted' || this.state === 'failed') return;
+    this.started = true;
+    if (this.state === 'ready') {
+      if (this.canvas) this.canvas.style.opacity = '1';
+      this._set('live');
+      this.S._kick();
+    }
+  }
+
+  /** Drawn this frame: started, ready, in view, sized. */
+  get drawing() { return this.started && !!this.prep && this.inView && this.w > 0 && this.h > 0 && this.state !== 'unmounted'; }
+
+  /** Size from the canvas's CSS box; (re)attach to the slot of this size; advance the late fade. */
+  sync(dt) {
+    if (!this.prep || !this.canvas || this.state === 'unmounted') return;
+    const r = this.canvas.getBoundingClientRect();
     const dpr = Math.min(MAX_DPR, Math.max(1, globalThis.devicePixelRatio || 1));
-    const cssW = r.width, cssH = r.height;
-    const w = Math.round(cssW * dpr), h = Math.round(cssH * dpr);
+    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
     if (w !== this.w || h !== this.h || !this.slot) {
-      this.w = w; this.h = h; this.cssW = cssW; this.cssH = cssH;
-      if (this.slot) { this.slot.views.delete(this); if (!this.slot.views.size) this.R._dropSlot(this.slot); this.slot = null; }
+      this.w = w; this.h = h;
+      if (this.slot) { this.slot.cards.delete(this); if (!this.slot.cards.size) this.S._dropSlot(this.slot); this.slot = null; }
       if (w > 0 && h > 0) {
-        const key = `${this.illustId}|${w}x${h}`;
-        let slot = this.R.slots.get(key);
-        if (!slot) { slot = new Slot(this.R, key, this.prep, w, h); this.R.slots.set(key, slot); }
-        slot.views.add(this);
+        const id = `${this.key}|${this.S.quality}|${w}x${h}`;
+        let slot = this.S.slots.get(id);
+        if (!slot) { slot = new Slot(this.S, id, this.key, this.prep, w, h); this.S.slots.set(id, slot); }
+        slot.cards.add(this);
         this.slot = slot;
-        this._canvas(w, h);
+        this.canvas.width = w; this.canvas.height = h;
       }
     }
-  }
-
-  _canvas(w, h) {
-    if (!this.canvas) {
-      this.canvas = document.createElement('canvas');
-      this.canvas.className = 'dynillust-canvas';
-      this.canvas.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none';
-      this.ctx = this.canvas.getContext('2d');
+    if (this.fade >= 0 && this.drawing) {
+      this.fade += dt;
+      const a = Math.min(1, this.fade / LATE_FADE_S);
+      this.canvas.style.opacity = String(a);
+      if (a >= 1) { this.fade = -1; this._set('live'); }
     }
-    this.canvas.width = w; this.canvas.height = h;
   }
 
   blit(src, slot) {
-    if (!this.ctx || !this.inView) return;
+    if (!this.ctx || !this.drawing) return;
     this.ctx.clearRect(0, 0, this.w, this.h);
     this.ctx.drawImage(src, slot.x, slot.y, slot.w, slot.h, 0, 0, this.w, this.h);
-    if (!this.shown) { this.shown = true; this.host.appendChild(this.canvas); }
   }
 
-  destroy() {
-    if (this.destroyed) return;
-    this.destroyed = true;
-    if (this.canvas?.parentNode) this.canvas.parentNode.removeChild(this.canvas);
-    this.R._unmount(this);
+  unmount() {
+    if (this.state === 'unmounted') return;
+    this._set('unmounted');
+    this.S._unmount(this);
   }
 }
 
 /** One illustration drawn at one size: its skeleton, instance, card state and effect layer. */
 class Slot {
-  constructor(R, key, prep, w, h) {
-    this.R = R;
+  constructor(S, id, key, prep, w, h) {
+    this.S = S;
+    this.id = id;
     this.key = key;
-    this.views = new Set();
+    this.cards = new Set();
     this.w = w; this.h = h;
     this.x = -1; this.y = -1;
     this.paused = true;
     this.time = 0;
     this.fxTime = 0;
     this.items = [];
-    const P = R.P, e = prep.entry, sk = e.skeleton || {};
-    this.entry = e;
-    this.skel = new IllustSkeleton(prep.spineData, sk);
-    this.fx = prep.fxDef ? new IllustEffects(prep.fxDef, { lib: R.fxLib, lite: R.lite, ...(e.effects || {}) }) : null;
-    if (this.fx && Array.isArray(e.root?.pos)) this.fx.fx.place({ pos: e.root.pos });
-    this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: e.instance || {}, now: () => this.time });
-    this.card = new CardIllustState({ rng: R.opts.rng, onAction: R.opts.onAction ? (a) => R.opts.onAction(key, a) : null });
-    // placement: Unity frame → slot px
-    this.map = unityToCard(e.framing || {}, w, h);
-    const pos = Array.isArray(e.root?.pos) ? e.root.pos : (prep.fxDef?.rootPos || [0, 0, 0]);
-    const rs = Array.isArray(e.root?.scale) ? e.root.scale : [1, 1, 1];
+    const P = S.P, d = prep.data, sk = d.skeleton;
+    this.data = d;
+    const look = sk.look;
+    const make = S.spineFactory ? (sd) => S.spineFactory(P, sd, look) : null;
+    this.skel = new IllustSkeleton(prep.spineData, { ...sk, makeSpine: make });
+    this.fx = prep.fxDef ? new IllustEffects(prep.fxDef, { lib: S.lib, lite: false, ...d.effects }) : null;
+    if (this.fx) this.fx.fx.place({ pos: d.root.pos });
+    this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: d.instance, now: () => this.time });
+    this.card = new CardIllustState({ rng: S.opts.rng, onAction: S.opts.onAction ? (a) => S.opts.onAction(key, a) : null });
+    this.map = unityToCard(d.framing, w, h);
+    const pos = d.root.pos, rs = d.root.scale;
     const sp = this.skel.spine;
     sp.position.set(this.map.x0 + this.map.scale * pos[0], this.map.y0 - this.map.scale * pos[1]);
     sp.scale.set(this.map.scale * this.skel.scale * rs[0], this.map.scale * this.skel.scale * rs[1]);
-    sp.render = (renderer) => R._renderSlot(renderer, this);
+    sp.render = (renderer) => S._renderSlot(renderer, this);
     this.root = new P.Container();
     const mask = new P.Graphics().beginFill(0xffffff).drawRect(0, 0, w, h).endFill();
     this.root.addChild(mask, sp);
     this.root.mask = mask;
-    this.basis = illustBasis(e.framing?.cameraSize, h);
+    this.basis = illustBasis(d.framing.cameraSize, h);
     this.camU = this.basis.pos;
+    this.zRoot = Number(pos[2]) || 0;
     this.vp = new Float32Array(16);
   }
 
@@ -375,6 +449,7 @@ class Slot {
     this.inst.lateUpdate();
     if (this.fx) {
       this.fx.follow(this.skel);
+      this.fx.animate();
       const d = Math.min(dt, FX_STEP_MAX);
       this.fx.update(d);
       this.fxTime += d;
@@ -382,21 +457,19 @@ class Slot {
   }
 
   /** Sort this frame's effect entries and skeleton parts, build the effects' geometry into the shared buffer. */
-  prepare(R, CW, CH) {
+  prepare(S, CW, CH) {
     cardViewProj(this.map, this.x, this.y, CW, CH, this.vp);
     const items = this.items;
     items.length = 0;
     let seq = 0;
-    const zRoot = Array.isArray(this.entry.root?.pos) ? Number(this.entry.root.pos[2]) || 0 : 0;
     // (`skelPart`, not `part`: the effect entries' own `part` names their renderer kind)
-    for (const p of this.skel.parts) items.push({ skelPart: p, layer: p.layer, order: p.order, queue: p.queue, dist: zRoot - this.camU[2], seq: seq++ });
-    if (this.fx && R.glr) this.fx.gather(this.basis, (e) => { e.seq = seq++; items.push(e); });
+    for (const p of this.skel.parts) items.push({ skelPart: p, layer: p.layer, order: p.order, queue: p.queue, dist: this.zRoot - this.camU[2], seq: seq++ });
+    if (this.fx && S.glr) this.fx.gather(this.basis, (e) => { e.seq = seq++; items.push(e); });
     items.sort(byUnityOrder);
-    // geometry in draw order; neighbours of one material and kind become one draw
     let w = 0, prev = null;
     for (const e of items) {
       if (e.skelPart) { items[w++] = e; prev = null; continue; }
-      const r = e.effect.build(e, this.basis, R.fd, R.frameNo);
+      const r = e.effect.build(e, this.basis, S.fd, S.frameNo);
       if (!r || !r.count) continue;
       e.kind = r.kind; e.first = r.first; e.count = r.count;
       if (prev && prev.mat === e.mat && prev.kind === e.kind && !prev.ov && !e.ov && prev.meshKey === e.meshKey && prev.submesh === e.submesh
@@ -409,7 +482,6 @@ class Slot {
 
   destroy() {
     try { this.fx?.destroy(); } catch { /* ignore */ }
-    try { this.skel.destroy(); } catch { /* ignore */ }
     try { this.root.destroy({ children: true }); } catch { /* ignore */ }
   }
 }
