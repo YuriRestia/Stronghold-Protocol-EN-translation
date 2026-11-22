@@ -29,7 +29,7 @@ import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE } from './device.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
-import { loadLater } from '../loadLater.js';
+import { whenScreenSettled } from '../loadLater.js';
 import * as stub from './dynStub.js';
 
 /**
@@ -260,7 +260,9 @@ export function IllustArt({ art, animate, wait = 'now', class: cls = '', childre
       card.start();
       return card.ready;
     }).catch((err) => { console.warn('[dynillust] card', err); if (live) setState('off'); });
-    if (wait === 'settled') opening.then(() => loadLater(() => (live ? go() : null)));
+    // every card on the screen waits for the same moment and then loads at once (the renderer fetches and builds them in
+    // parallel); a loadLater task per card made them load one by one — its queue runs one task at a time
+    if (wait === 'settled') opening.then(() => whenScreenSettled()).then(() => { if (live) go(); });
     else go();
     return () => {
       live = false;
