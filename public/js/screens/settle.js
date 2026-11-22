@@ -564,7 +564,8 @@ export function useResultPreload(pub, myId) {
     started.current = true;
     const aces = ending.aces || {};
     const players = Array.isArray(pub.players) ? pub.players : [];
-    startResultLoad(() => players.map((p) => teamCardArt(p, aces[p.playerId] || null, opts)).filter((x) => x.animate).map((x) => x.art));
+    startResultLoad(() => players.map((p) => ({ ...teamCardArt(p, aces[p.playerId] || null, opts), mine: p.playerId === myId }))
+      .filter((x) => x.animate));
   }, [ending, gd.ready]);
 }
 

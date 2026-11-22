@@ -133,7 +133,7 @@ import { LoadoutButton } from './loadout.js';
 import { BriefingScreen } from './briefing.js';
 import { BandDraftScreen } from './bandDraft.js';
 import { ResultScreen, useResultPreload } from './settle.js';
-import { resultGateStore, resultWaitMs } from '../ui/dynCards.js';
+import { resultGateStore, resultWaitMs, releaseIllusts } from '../ui/dynCards.js';
 import { ProtocolBoot, preloadBootArt, bootArtReady, BOOT_LEAVE_MS, warmOfaSounds } from '../ui/protocolBoot.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, serverNow, isSpectating } from '../store.js';
@@ -198,6 +198,7 @@ export function GameScreen() {
   // with the match screen as it stands (its end plate)
   const myId = useStore((s) => s.me.playerId);
   useResultPreload(pub, myId);
+  useEffect(() => { releaseIllusts(); }, []); // the match begins: the room cards' illustrations are freed (ui/dynCards.js)
   const toResult = hasResult || (pub ? phaseMode(pub.phase) === 'result' : false);
   const resultAt = useRef(0);
   if (!toResult) resultAt.current = 0;

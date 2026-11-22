@@ -15,10 +15,10 @@
 //     controller's crossfade on a late switch — the user, 2026-11-22) is the renderer's: nothing here animates it.
 //
 // The renderer is reached only through the contract's mount API (docs/design/vfx-format.md §33.19): dynIllustKey and
-// createDynIllustStage → Stage.preload / Stage.mount → Card { ready, start(), state, unmount() }. One Stage serves the
-// whole app while a screen with cards (or a result load) holds it, and is destroyed when none does — the match screens
-// never hold it, so nothing of it lives through a match. Until setDynModule() installs the renderer, ui/dynStub.js
-// stands in: same API, every card 2D.
+// getDynIllustStage → stage.preload / stage.mount → Card { canvas, ready, start(), state, unmount() }. The stage is the
+// page's (one WebGL context, offscreen); each card's own 2D canvas goes into the card's art window under its overlays.
+// The renderer and PIXI load on first use; when the match starts, release() frees what no card shows. Where the renderer
+// cannot load, ui/dynStub.js stands in: same API, every card 2D.
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { html } from './components.js';
@@ -127,23 +127,55 @@ export function useMatchCards(gd) {
 
 // ---- the renderer (the contract's mount API) -----------------------------------------------------------------------
 
-let mod = stub;
-
 /**
- * Install the renderer module — `{ dynIllustKey, createDynIllustStage }` (render/dynillust/index.js) — or null for the
- * stand-in (ui/dynStub.js). A Stage already up is dropped: the next holder builds one from the new module.
+ * The renderer module (render/dynillust/index.js: `getDynIllustStage`, `dynIllustKey`), loaded on first use — a room
+ * opening, the result load — with PIXI and pixi-spine first (render/app/pixi.js ensurePixi: the renderer reads the PIXI
+ * global): neither is fetched at page load, behind the entry film, nor during a match. A page where it fails to load
+ * keeps every card 2D (ui/dynStub.js stands in).
  */
-export function setDynModule(next) {
-  mod = next && typeof next.createDynIllustStage === 'function' && typeof next.dynIllustKey === 'function' ? next : stub;
-  if (stage) { try { stage.destroy(); } catch (err) { console.warn('[dynillust] stage destroy', err); } }
-  stage = null;
-  preloaded.clear();
+let mod = null;
+let modPromise = null;
+function renderer() {
+  if (mod) return Promise.resolve(mod);
+  if (!modPromise) {
+    modPromise = import('../render/app/pixi.js').then((p) => p.ensurePixi())
+      .then(() => import('../render/dynillust/index.js'))
+      .then((m) => (mod = m), (err) => { console.warn('[dynillust] renderer unavailable', err); return (mod = stub); });
+  }
+  return modPromise;
 }
 
-/** The dynillust key of an art (its outfit, else the operator's default — the contract's null), or null: none here. */
-export function illustKey(art) {
-  if (!art) return null;
-  try { return mod.dynIllustKey(art.charId, art.outfit || null) || null; } catch { return null; }
+/** Install a renderer module (tests, the review pages) — null: the stand-in, every card 2D. */
+export function setDynModule(next) {
+  mod = next && typeof next.getDynIllustStage === 'function' && typeof next.dynIllustKey === 'function' ? next : stub;
+  modPromise = Promise.resolve(mod);
+}
+
+/**
+ * The page's stage, its index loaded and its quality set (the phone's half-resolution pages, spec §4.3 — a phone is
+ * where 动态立绘's auto is 仅自己): one for the whole page (the renderer's), never destroyed by a screen.
+ */
+async function readyStage() {
+  const R = await renderer();
+  const st = R.getDynIllustStage();
+  st.quality = phoneDevice() ? 'half' : 'full';
+  await st.index();
+  return { R, st };
+}
+
+/** The dynillust key of an art (its outfit, else the operator's E2 art: the contract's null), or null: none here. */
+export function illustKey(R, art) {
+  if (!art || !R) return null;
+  try { return R.dynIllustKey(art.charId, art.outfit || null) || null; } catch { return null; }
+}
+
+/**
+ * The match starts (screens/game.js): free every illustration no card still shows — nothing of them is held through
+ * the match (the renderer's release(keep)). A page that never loaded the renderer does nothing.
+ */
+export function releaseIllusts() {
+  if (!mod || mod === stub) return;
+  try { mod.getDynIllustStage().release([]); } catch (err) { console.warn('[dynillust] release', err); }
 }
 
 /** Whether this server has any illustration (data/local-assets.json group `dynillust`): the settings rows show only then. */
@@ -151,49 +183,6 @@ export function useDynAvailable() {
   useData('local');
   const g = data.get('local')?.groups?.dynillust;
   return !!g && typeof g === 'object' && Object.keys(g).length > 0;
-}
-
-let stage = null;
-let holders = 0;
-let dropTimer = 0;
-const preloaded = new Map(); // key → the preload promise (true: in, false: failed), per Stage
-
-/** Take the Stage (built on first use: the page, the phone's half-resolution pages — spec §4.3). */
-function holdStage() {
-  holders++;
-  if (dropTimer) { clearTimeout(dropTimer); dropTimer = 0; }
-  if (!stage) {
-    stage = mod.createDynIllustStage({ parent: globalThis.document?.body, quality: phoneDevice() ? 'half' : 'full' });
-    preloaded.clear();
-  }
-  return stage;
-}
-
-/** Give it back; when nobody holds it, it goes — after the current render, so a screen handing over to the next keeps it. */
-function releaseStage() {
-  holders = Math.max(0, holders - 1);
-  if (holders > 0 || dropTimer) return;
-  dropTimer = setTimeout(() => {
-    dropTimer = 0;
-    if (holders > 0 || !stage) return;
-    try { stage.destroy(); } catch (err) { console.warn('[dynillust] stage destroy', err); }
-    stage = null;
-    preloaded.clear();
-  }, 0);
-}
-
-/**
- * Preload keys on the held Stage (once each per Stage): a promise that settles when every one is in or failed.
- * @param {string[]} keys
- */
-function preload(keys) {
-  const s = stage;
-  const fresh = keys.filter((k) => k && !preloaded.has(k));
-  if (s && fresh.length) {
-    const p = Promise.resolve().then(() => s.preload(fresh)).then(() => true, (err) => { console.warn('[dynillust] preload', err); return false; });
-    for (const k of fresh) preloaded.set(k, p);
-  }
-  return Promise.all(keys.filter(Boolean).map((k) => preloaded.get(k)));
 }
 
 /** The entry film's files (main.js openingLoaded): the room's illustrations wait for them (the first-impression rule). */
@@ -209,19 +198,21 @@ export const resultGateStore = createStore({ n: 0 });
 
 /**
  * Start loading the result cards' illustrations (the moment m.public `ending` arrives; once per match: screens/settle.js
- * useResultPreload). Holds the Stage until endResultLoad().
- * @param {() => any[]} cardsOf the arts that animate, computed once the illustration index is here
- * @param {{ index?: () => Promise<any> }} [o] index: loads the illustration index (data/local-assets.json)
+ * useResultPreload): the viewer's own card first, then the others — the renderer's preload settles when every key is in
+ * or failed (D10).
+ * @param {() => { art: any, mine: boolean }[]} cardsOf the cards that animate
  */
-export function startResultLoad(cardsOf, { index = () => data.load('local') } = {}) {
+export function startResultLoad(cardsOf) {
   endResultLoad();
-  const state = { pending: true, held: true };
+  const state = { pending: true };
   resultLoad = state;
-  holdStage();
   const done = () => { if (state.pending) { state.pending = false; resultGateStore.set({ n: resultGateStore.get().n + 1 }); } };
-  Promise.resolve().then(index).catch(() => null)
-    .then(() => (resultLoad === state ? preload(cardsOf().map(illustKey).filter(Boolean)) : null))
-    .then(done, done);
+  readyStage().then(({ R, st }) => {
+    if (resultLoad !== state) return null;
+    const cards = cardsOf().slice().sort((a, b) => Number(!!b.mine) - Number(!!a.mine));
+    const keys = [...new Set(cards.map((c) => illustKey(R, c.art)).filter(Boolean))];
+    return keys.length ? st.preload(keys) : null;
+  }).then(done, done);
 }
 
 /**
@@ -233,9 +224,8 @@ export function resultWaitMs(resultAt, now = Date.now()) {
   return Math.max(0, resultAt + RESULT_WAIT_MS - now);
 }
 
-/** Forget the match's result load and give its Stage back (the next match began, or the page left the match). */
+/** Forget the match's result load (the next match began, or the page left the match). */
 export function endResultLoad() {
-  if (resultLoad?.held) { resultLoad.held = false; releaseStage(); }
   resultLoad = null;
 }
 
@@ -249,31 +239,32 @@ export function endResultLoad() {
  *   wait: 'now' mounts at once (the result screen: loaded in the pause), 'settled' once the screen has what it needs (room)
  */
 export function IllustArt({ art, animate, wait = 'now', class: cls = '', children }) {
-  useData('local');
-  const key = animate ? illustKey(art) : null;
+  const on = !!(animate && art);
+  const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
-  const [shown, setShown] = useState(false);
+  const [state, setState] = useState('off');
   useEffect(() => {
-    setShown(false);
-    if (!key || !host.current) return undefined;
+    setState(on ? 'loading' : 'off');
+    if (!on) return undefined;
     let card = null, live = true;
-    const s = holdStage();
-    const go = () => {
-      if (!live || stage !== s) return;
-      card = s.mount(host.current, key);
+    const go = () => readyStage().then(({ R, st }) => {
+      const key = live ? illustKey(R, art) : null;
+      if (!key || !host.current) { if (live) setState('off'); return null; }
+      // the renderer's card: its own 2D canvas in the art window, under the card's overlays (§33.19); 'live' = drawn
+      card = st.mount(key, { onState: (s) => { if (live) setState(s); } });
+      if (card.canvas) host.current.append(card.canvas);
       card.start();
-      Promise.resolve(card.ready).then((ok) => { if (live && ok) setShown(true); }, () => {});
-    };
-    if (wait === 'settled') opening.then(() => loadLater(() => { if (live) go(); return Promise.resolve(card?.ready); }));
+      return card.ready;
+    }).catch((err) => { console.warn('[dynillust] card', err); if (live) setState('off'); });
+    if (wait === 'settled') opening.then(() => loadLater(() => (live ? go() : null)));
     else go();
     return () => {
       live = false;
-      try { card?.unmount(); } catch (err) { console.warn('[dynillust] unmount', err); }
-      releaseStage();
+      try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
     };
-  }, [key, wait]);
-  return html`<div class=${`dyn-art${shown ? ' is-live' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${key ? (shown ? 'live' : 'loading') : 'off'}>
+  }, [id, on, wait]);
+  return html`<div class=${`dyn-art${state === 'live' ? ' is-live' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${state}>
     <div class="dyn-art__still">${children}</div>
-    ${key ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
+    ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
   </div>`;
 }
