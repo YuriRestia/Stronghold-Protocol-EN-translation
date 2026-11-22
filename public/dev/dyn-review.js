@@ -260,7 +260,10 @@ function frameEditor() {
       ev.preventDefault();
       const r = el.getBoundingClientRect();
       const v = fromFraming(frameOf(k));
-      const z = Math.min(3, Math.max(0.6, v.z * Math.exp(-ev.deltaY * 0.0015)));
+      // fine steps (the user, 2026-11-23: "skipping too many steps"): 2 % a wheel notch (deltaY 100), 0.5 % with Shift;
+      // a notch is clamped to one step whatever the device reports
+      const notch = Math.max(-1, Math.min(1, (ev.deltaMode === 1 ? ev.deltaY * 33 : ev.deltaY) / 100));
+      const z = Math.min(3, Math.max(0.6, v.z * Math.exp(-notch * (ev.shiftKey ? 0.005 : 0.02))));
       // the point under the pointer stays put: p = z·q + t
       const px = (ev.clientX - r.left) / r.width, py = (ev.clientY - r.top) / r.height;
       const qx = (px - v.tx) / v.z, qy = (py - v.ty) / v.z;
@@ -277,7 +280,7 @@ function frameEditor() {
     setInterval(placeEditor, 400);
   }
   const group = review.pages[review.page] || [];
-  layer.innerHTML = group.map((e, i) => `<div class="rvz" data-i="${i}" data-k="${e.key}" title="Drag to move, wheel to zoom, double-click to reset — ${review.names[i] || e.key}"><b>${Math.round(frameOf(e.key).zoom * 100)}%${framings[e.key] ? ' ✎' : ''}</b></div>`).join('');
+  layer.innerHTML = group.map((e, i) => `<div class="rvz" data-i="${i}" data-k="${e.key}" title="Drag to move, wheel to zoom (Shift: finer), double-click to reset — ${review.names[i] || e.key}"><b>${Math.round(frameOf(e.key).zoom * 100)}%${framings[e.key] ? ' ✎' : ''}</b></div>`).join('');
   placeEditor();
 }
 function placeEditor() {
