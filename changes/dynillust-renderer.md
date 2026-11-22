@@ -25,6 +25,23 @@
   vertex shader places every vertex. 8 heavy illustrations at once: 35 → 43 fps on the dev PC, the same pixels as the
   CPU path on 17 illustrations [src: notes dev50-l2d-perf-report.md §GPU skinning].
   Without WebGL2 they draw through pixi-spine as before.
+- Animation timelines that never move a bone are dropped once per skeleton (about half of all bone timelines), so the
+  per-frame animation update costs about 15 % less CPU for the same pixels [src: notes dev50-l2d-perf-report.md
+  §Constant timelines].
+- Cards never load the tap and entry effects they do not play (31 MB over all 98 illustrations) [src: notes
+  dev50-l2d-perf-report.md §Load groups].
+- A card's particle warm-up (the prewarm that makes a looping effect start full) runs in 4 ms slices before the card
+  is ready, instead of one 37–93 ms frame per card; the particles end exactly the same. Long tasks while a page's cards
+  load roughly halve at 4K and on a slowed CPU [src: notes dev50-l2d-perf-report.md §Sliced prewarm].
+- A card is ready only once everything it will show is loaded, uploaded and warmed, its special idle included: the
+  stage canvas is sized for the whole page, each card takes one real step and a hidden first draw, and each
+  illustration runs 40 hidden frames into its special idle on a throwaway copy. Cards whose special idles fall due in
+  the same frame start them a frame apart. Pages take about 0.5 s longer to be ready (the user's call: "Wait until
+  it's ready, then play the animation") [src: notes dev50-l2d-perf-report.md §Warm before ready].
+- The cards are drawn in three Workers, each with its own WebGL context, straight into the cards' canvases: loading,
+  warming and every animation frame leave the page's main thread, so the page and its menus stay smooth however heavy
+  the cards are. Browsers without Worker canvases draw on the main thread as before [src: notes
+  dev50-l2d-perf-report.md §Workers].
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays
   counted from each switch-on, nodes that follow skeleton bones). Battle effects are unchanged.
 

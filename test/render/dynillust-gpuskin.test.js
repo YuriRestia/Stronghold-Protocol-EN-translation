@@ -5,7 +5,38 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { gpuSkinSupported, regionQuadUvs } from '../../public/js/render/dynillust/gpuskin.js';
-import { pathConstraintUpdate } from '../../public/js/render/dynillust/skeleton.js';
+import { pathConstraintUpdate, pruneConstantBoneTimelines } from '../../public/js/render/dynillust/skeleton.js';
+
+describe('pruneConstantBoneTimelines (constant bone timelines dropped, no pose change)', () => {
+  // a Spine 3.8 bone timeline: type (0 rotate, 1 translate, 2 scale, 3 shear) << 24 + bone; frames [t, values…]
+  const tl = (type, bone, frames) => ({ boneIndex: bone, frames: Float32Array.from(frames), getPropertyId: () => (type << 24) + bone });
+  const anim = (name, timelines) => { const ids = []; for (const t of timelines) ids[t.getPropertyId()] = true; return { name, timelines, timelineIds: ids }; };
+  test('drops a timeline at its setup value, bakes one every animation holds, keeps a moving one', () => {
+    const bones = [{ rotation: 10, x: 0, y: 0, scaleX: 1, scaleY: 1, shearX: 0, shearY: 0 }, { rotation: 0, x: 5, y: 5, scaleX: 1, scaleY: 1, shearX: 0, shearY: 0 }];
+    const idle = anim('Idle', [tl(0, 0, [0, 0, 1, 0]), tl(1, 1, [0, 2, 3, 2, 2, 3]), tl(0, 1, [0, 0, 1, 30])]);
+    const special = anim('Special', [tl(1, 1, [0, 2, 3]), tl(2, 0, [0, 2, 2])]);
+    const sd = { bones, animations: [idle, special] };
+    const r = pruneConstantBoneTimelines(sd);
+    // rotate of bone 0 (offset 0, only Idle keys it): dropped as is; translate of bone 1 (2, 3 in both): baked;
+    // rotate of bone 1 moves: kept; scale of bone 0 (2, only Special): not the setup value and not in every animation
+    assert.deepEqual(r, { removed: 3, baked: 1 });
+    assert.equal(bones[1].x, 7); assert.equal(bones[1].y, 8);
+    assert.equal(bones[0].rotation, 10);
+    assert.deepEqual(idle.timelines.map((t) => t.getPropertyId()), [(0 << 24) + 1]);
+    assert.deepEqual(special.timelines.map((t) => t.getPropertyId()), [(2 << 24) + 0]);
+    assert.equal(idle.timelineIds[(1 << 24) + 1], false);
+    assert.equal(pruneConstantBoneTimelines(sd), r); // once per data
+  });
+  test('a first key after time 0 shows the setup value before it: kept', () => {
+    const sd = { bones: [{ rotation: 0 }], animations: [anim('Idle', [tl(0, 0, [0.5, 15])])] };
+    assert.deepEqual(pruneConstantBoneTimelines(sd), { removed: 0, baked: 0 });
+  });
+  test('a scale every animation holds is never baked', () => {
+    const sd = { bones: [{ scaleX: 1, scaleY: 1 }], animations: [anim('Idle', [tl(2, 0, [0, 2, 2])])] };
+    assert.deepEqual(pruneConstantBoneTimelines(sd), { removed: 0, baked: 0 });
+    assert.equal(sd.bones[0].scaleX, 1);
+  });
+});
 
 describe('pathConstraintUpdate (spine-core 3.8 PathConstraint.update)', () => {
   /** One bone on a path whose next position lies straight up from the first: a ChainScale constraint, rotate 1. */

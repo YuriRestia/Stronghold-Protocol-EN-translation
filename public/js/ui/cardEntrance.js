@@ -208,14 +208,47 @@ void main() {
 let gl = null, prog = null, buf = null, loc = null, white = null;
 const textures = new Map(); // url → { tex, w, h } | Promise
 
-function glInit() {
-  if (gl) return gl;
+// the context and the program are started (glStart) and finished (glFinish) apart: a status query before the driver is
+// done waits for the whole build, so glReady polls KHR_parallel_shader_compile's COMPLETION_STATUS a frame at a time
+let pending = null; // { ctx, p, vs, fs, ext }
+function glStart() {
+  if (gl || pending) return;
   const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(256, 256) : globalThis.document?.createElement('canvas');
   const ctx = canvas?.getContext('webgl2', { premultipliedAlpha: true, alpha: true, antialias: false, preserveDrawingBuffer: true });
-  if (!ctx) return null;
-  const sh = (type, src) => { const s = ctx.createShader(type); ctx.shaderSource(s, src); ctx.compileShader(s); if (!ctx.getShaderParameter(s, ctx.COMPILE_STATUS)) throw new Error(ctx.getShaderInfoLog(s)); return s; };
+  if (!ctx) return;
+  const ext = ctx.getExtension('KHR_parallel_shader_compile');
+  const sh = (type, src) => { const s = ctx.createShader(type); ctx.shaderSource(s, src); ctx.compileShader(s); return s; };
   const p = ctx.createProgram();
-  ctx.attachShader(p, sh(ctx.VERTEX_SHADER, VS)); ctx.attachShader(p, sh(ctx.FRAGMENT_SHADER, FS)); ctx.linkProgram(p);
+  const vs = sh(ctx.VERTEX_SHADER, VS), fs = sh(ctx.FRAGMENT_SHADER, FS);
+  ctx.attachShader(p, vs); ctx.attachShader(p, fs); ctx.linkProgram(p);
+  pending = { ctx, p, vs, fs, ext };
+}
+function glInit() {
+  if (gl) return gl;
+  glStart();
+  return pending ? glFinish() : null;
+}
+/** The program built without blocking the page: resolves to the context (null without WebGL2) once the driver is done. */
+export function glReady() {
+  if (gl) return Promise.resolve(gl);
+  glStart();
+  if (!pending) return Promise.resolve(null);
+  if (!pending.ext || typeof requestAnimationFrame !== 'function') return Promise.resolve(glFinish());
+  return new Promise((resolve) => {
+    const poll = () => {
+      if (gl) { resolve(gl); return; }
+      if (!pending) { resolve(null); return; }
+      if (pending.ctx.getProgramParameter(pending.p, pending.ext.COMPLETION_STATUS_KHR)) resolve(glFinish());
+      else requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  });
+}
+function glFinish() {
+  const { ctx, p, vs, fs } = pending;
+  pending = null;
+  if (!ctx.getShaderParameter(vs, ctx.COMPILE_STATUS)) throw new Error(ctx.getShaderInfoLog(vs));
+  if (!ctx.getShaderParameter(fs, ctx.COMPILE_STATUS)) throw new Error(ctx.getShaderInfoLog(fs));
   if (!ctx.getProgramParameter(p, ctx.LINK_STATUS)) throw new Error(ctx.getProgramInfoLog(p));
   gl = ctx; prog = p; buf = ctx.createBuffer();
   loc = {};
@@ -347,6 +380,248 @@ export function drawMattes(cv, kind, t, scale, urls) {
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(c, 0, 0);
   }
+  return true;
+}
+
+// ---- one picture dissolved away (ui/dynCards.js: the room cards' switch to their animated illustrations) ------------
+
+/**
+ * The material a picture dissolves away with: the result card's own `complete_up_bg_dissolve` (UI-DoubleDissolve, mask
+ * `img_uifx_basicmask_03` over the quad, smooth 0.5, threshold driven by the vertex colour's red) [src: MAT above].
+ */
+const DISSOLVE_MAT = 'complete_up_bg_dissolve';
+
+/** Load what a dissolve needs (the shader and its mask); resolves to the mask's URL, rejects without WebGL2 or the sprite. */
+export function loadDissolve(m = data.get('assets')) {
+  const mask = uiUrl(m, SPRITES[MAT[DISSOLVE_MAT].t1]);
+  if (!mask) return Promise.reject(new Error('no dissolve mask'));
+  return glReady().then((ok) => {
+    if (!ok) throw new Error('no WebGL2');
+    bloomMask = mask;
+    // texture() hands back the loaded texture itself once it is cached (a promise only while it loads); the sparks read the
+    // mask's pixels once
+    return Promise.all([texture(mask, false), maskPixels(mask)]).then(() => mask);
+  });
+}
+
+/**
+ * The bloom on the dissolve (the user's direction of 2026-11-22: "a white bright bloom that moves on the boundary between
+ * old and new, … leaving the entire card artwork white glow before the glow fades away into the live2D already
+ * showing"): additive white through the same shader and mask as the dissolve — a band on the dissolve's edge (mask 1 ×
+ * the inverted mask 2, the official `color_mask` layer's band construction [src: MAT.char_color_mask r2 1]) and a glow
+ * over what the edge has passed, then a fade. `width` is the band's half-width in mask units, `band` / `glow` its
+ * alpha and the glow's, `fadeS` the glow's fade after the dissolve.
+ */
+export const BLOOM = Object.freeze({ width: 0.2, band: 1, glow: 0.8, fadeS: 0.5 }); // [ASSUMED: tuned to the user's description of 2026-11-22, not yet OK'd on the clip]
+let bloomMask = null;
+
+/**
+ * Draw the bloom into the 2D canvas `target` (w × h device px), premultiplied and additive (the canvas composites with
+ * `mix-blend-mode: plus-lighter`): `k` the dissolve's progress 0 … 1 (drawDissolve's drive), `glow` the glow's alpha
+ * now, `band` the band's. The dissolve keeps the picture where the mask d > 2k − 1, its edge (half alpha) at
+ * d = 2k − 0.75 [src: drawDissolve, DISSOLVE_MAT s1 0.5]; the band peaks there, the glow covers d below it.
+ */
+export function drawBloom(target, k, glow, band, w, h) {
+  if (!glInit() || !bloomMask) return false;
+  const tm = textures.get(`${bloomMask}|false`);
+  if (!tm || tm.then) return false;
+  const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h));
+  const c = gl.canvas;
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const edge = 2 * k - 0.75, bw = BLOOM.width;
+  // the shader's threshold is drive × 2 − 1: mask 1 = smoothstep((d − c1) / bw) with c1 = edge − bw (on above the
+  // edge… below it fades); mask 2 (inverted d) = smoothstep(((1 − d) − c2) / bw) with c2 = 1 − (edge + bw): on below the edge
+  const r = (edge - bw + 1) / 2, g = (1 - (edge + bw) + 1) / 2;
+  gl.useProgram(prog);
+  gl.viewport(0, 0, W, H);
+  gl.uniform2f(loc.u_view, 1, 1);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1]), gl.STREAM_DRAW);
+  gl.enableVertexAttribArray(loc.a_pos); gl.vertexAttribPointer(loc.a_pos, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(loc.a_uv); gl.vertexAttribPointer(loc.a_uv, 2, gl.FLOAT, false, 24, 8);
+  gl.enableVertexAttribArray(loc.a_quv); gl.vertexAttribPointer(loc.a_quv, 2, gl.FLOAT, false, 24, 16);
+  const bind = (unit, t2, u) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u, unit); };
+  const pass = (d1, alpha) => {
+    if (!(alpha > 0)) return;
+    // main texture white; mask 1 the noise (the band) or white (the glow: always on); mask 2 the noise, inverted
+    bind(0, null, loc.u_main); bind(1, d1, loc.u_d1); bind(2, tm.tex, loc.u_d2);
+    gl.uniform4fv(loc.u_vcol, [d1 ? r : 0, g, 0, alpha]);
+    gl.uniform4fv(loc.u_st1, [1, 1, 0, 0]); gl.uniform4fv(loc.u_st2, [1, 1, 0, 0]);
+    gl.uniform3fv(loc.u_color, [1, 1, 1]);
+    for (const [u, val] of [['u_ic', 1], ['u_ci', 1], ['u_c1', -1], ['u_s1', bw], ['u_r1', 0], ['u_c2', -1], ['u_s2', bw], ['u_r2', 1], ['u_add', 1]]) gl.uniform1f(loc[u], val);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  };
+  pass(null, glow);
+  pass(tm.tex, band);
+  if (target.width !== W || target.height !== H) { target.width = W; target.height = H; }
+  const ctx = target.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(c, 0, 0);
+  return true;
+}
+
+// ---- the border sparks (the user, 2026-11-22: "there should be some particle effects that runs with the border between
+// old and new in the glow … Currently it looks too bland and 'clean'") -------------------------------------------------
+
+/**
+ * Sparks born on the dissolve's edge, where the mask reads the edge's value: they rise off it, drift and fade. `rate`
+ * births per second per card while the edge moves, `life` / `size` (CSS px) / `rise` (card heights per second at birth,
+ * about the edge's own speed: it crosses the card in about 0.22 s) ranges, `drag` the slowing per second, `drift`
+ * sideways speed (card widths per second), `near` how close to the birth line's mask value a point must read, `lead` how
+ * far (mask units) past the dissolve's edge the birth line runs, `max` live sparks per card.
+ */
+export const SPARKS = Object.freeze({ rate: 320, life: [0.25, 0.55], size: [1.5, 4], rise: [3, 6], drag: 6, drift: 0.35, near: 0.04, lead: 0.2, max: 200 }); // [ASSUMED: tuned to the user's description of 2026-11-22, not yet OK'd on the clip]
+
+/** The dissolve mask's red channel on the CPU, top row first (texture rows are uploaded flipped: row = y / H of the box). */
+let maskPx = null;
+function maskPixels(url) {
+  if (maskPx?.url === url) return Promise.resolve(maskPx);
+  if (typeof createImageBitmap !== 'function' || typeof OffscreenCanvas !== 'function') return Promise.resolve(null);
+  // a 128 px copy is enough to place sparks; the full mask read back on the CPU took a 37 ms task
+  return fetch(url).then((r) => r.blob()).then((b) => createImageBitmap(b, { resizeWidth: 128, resizeHeight: 128, resizeQuality: 'medium' })).then((img) => {
+    const c = new OffscreenCanvas(img.width, img.height), g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, img.width, img.height).data, r = new Uint8Array(img.width * img.height);
+    for (let i = 0; i < r.length; i++) r[i] = d[i * 4];
+    maskPx = { url, w: img.width, h: img.height, r };
+    return maskPx;
+  }).catch(() => null);
+}
+
+/** The dissolve edge's mask value at progress k (drawBloom, drawDissolve: half alpha at d = 2k − 0.75). */
+export const edgeOf = (k) => 2 * k - 0.75;
+
+let dot = null;
+function sparkDot() {
+  if (dot || typeof OffscreenCanvas !== 'function') return dot;
+  const c = new OffscreenCanvas(32, 32), g = c.getContext('2d');
+  const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.25, 'rgba(225,250,255,0.8)'); grad.addColorStop(0.6, 'rgba(150,235,255,0.25)'); grad.addColorStop(1, 'rgba(120,220,255,0)');
+  g.fillStyle = grad; g.fillRect(0, 0, 32, 32);
+  return (dot = c);
+}
+
+/** A card's sparks: `step` them by dt s with the edge at progress k (births only while `born`), `draw` them additively. */
+export function makeSparks() {
+  const list = [];
+  let acc = 0;
+  const rnd = (a) => a[0] + Math.random() * (a[1] - a[0]);
+  return {
+    get count() { return list.length; },
+    step(dt, k, born) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const s = list[i];
+        // burst off the edge at about its own speed, then slow and fall behind it
+        s.age += dt; s.x += s.vx * dt; s.y += s.vy * dt;
+        const slow = Math.max(0, 1 - SPARKS.drag * dt); s.vx *= slow; s.vy *= slow;
+        if (s.age >= s.life) list.splice(i, 1);
+      }
+      if (!born || !maskPx) return;
+      // born on the glow's leading edge (the band's outer side, `lead` past the dissolve's edge), over the old picture:
+      // inside the white an additive spark is lost
+      const e = edgeOf(k) + SPARKS.lead;
+      if (e < -SPARKS.near || e > 1 + SPARKS.near) return;
+      acc += SPARKS.rate * dt;
+      for (let tries = 0; acc >= 1 && tries < 400 && list.length < SPARKS.max; tries++) {
+        const x = Math.random(), y = Math.random();
+        const d = maskPx.r[Math.min(maskPx.h - 1, (y * maskPx.h) | 0) * maskPx.w + Math.min(maskPx.w - 1, (x * maskPx.w) | 0)] / 255;
+        if (Math.abs(d - e) > SPARKS.near) continue;
+        list.push({ x, y, vx: (Math.random() - 0.5) * 2 * SPARKS.drift, vy: -rnd(SPARKS.rise), age: 0, life: rnd(SPARKS.life), size: rnd(SPARKS.size) });
+        acc -= 1;
+      }
+      if (acc > 1) acc = 1;
+    },
+    draw(ctx, W, H, dpr) {
+      const img = sparkDot();
+      if (!img || !list.length) return;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const s of list) {
+        const a = 1 - s.age / s.life;
+        const r = s.size * dpr * (0.5 + 0.5 * a) * 2;
+        ctx.globalAlpha = a;
+        ctx.drawImage(img, s.x * W - r, s.y * H - r, 2 * r, 2 * r);
+      }
+      ctx.restore();
+    },
+  };
+}
+
+/**
+ * The picture to dissolve: `src` (a canvas: the whole box as it shows) on the GPU, flipped as the sprites are; `pic` (a
+ * previous result) is reused. Returns { tex, mask, w, h }, or null without WebGL2.
+ */
+export function dissolvePicture(src, mask, pic = null) {
+  if (!glInit()) return null;
+  const t = pic?.tex || gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  for (const [p, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, p, v);
+  return { tex: t, mask, w: src.width, h: src.height };
+}
+
+/** Free a dissolvePicture's texture. */
+export function freeDissolvePicture(pic) {
+  if (pic?.tex && gl) { try { gl.deleteTexture(pic.tex); } catch { /* the context is gone */ } }
+}
+
+/**
+ * The picture's crop as CSS `object-fit: cover` shows it in a w × h box at object-position (px, py) (0–1): the texture
+ * coordinates of the box's left / right / top / bottom edges (v down from the picture's top).
+ */
+export function coverUv(iw, ih, w, h, px = 0.5, py = 0.5) {
+  const s = Math.max(w / iw, h / ih), dw = iw * s, dh = ih * s;
+  const x = (w - dw) * px, y = (h - dh) * py;
+  return { u0: -x / dw, u1: (w - x) / dw, t0: -y / dh, t1: (h - y) / dh };
+}
+
+/**
+ * Draw `pic` (dissolvePicture: the whole box) into the 2D canvas `target` (w × h device px), dissolved by `drive`
+ * 0 (whole) … 1 (gone): the material's threshold is drive × 2 − 1 [src: FS mask(), _ImageControl].
+ */
+export function drawDissolve(target, pic, drive, w, h) {
+  if (!glInit() || !pic?.tex) return false;
+  const tm = textures.get(`${pic.mask}|false`);
+  if (!tm || tm.then) return false;
+  const tp = pic, uv = { u0: 0, u1: 1, t0: 0, t1: 1 };
+  const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h));
+  const c = gl.canvas;
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const m = MAT[DISSOLVE_MAT];
+  gl.useProgram(prog);
+  gl.viewport(0, 0, W, H);
+  gl.uniform2f(loc.u_view, 1, 1);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  // the quad is the whole box (y up); the picture was uploaded flipped (v up = 1 − its top-down t)
+  const u0 = uv.u0, u1 = uv.u1, vb = 1 - uv.t1, vt = 1 - uv.t0;
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, u0, vb, 0, 0, 1, 0, u1, vb, 1, 0, 1, 1, u1, vt, 1, 1,
+    0, 0, u0, vb, 0, 0, 1, 1, u1, vt, 1, 1, 0, 1, u0, vt, 0, 1]), gl.STREAM_DRAW);
+  gl.enableVertexAttribArray(loc.a_pos); gl.vertexAttribPointer(loc.a_pos, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(loc.a_uv); gl.vertexAttribPointer(loc.a_uv, 2, gl.FLOAT, false, 24, 8);
+  gl.enableVertexAttribArray(loc.a_quv); gl.vertexAttribPointer(loc.a_quv, 2, gl.FLOAT, false, 24, 16);
+  const bind = (unit, t2, u) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u, unit); };
+  bind(0, tp.tex, loc.u_main); bind(1, tm.tex, loc.u_d1); bind(2, null, loc.u_d2);
+  // vertex colour: r drives mask 1; g 0 keeps mask 2 (white) whole (threshold −1)
+  gl.uniform4fv(loc.u_vcol, [Math.max(0, Math.min(1, drive)), 0, 1, 1]);
+  gl.uniform4fv(loc.u_st1, m.st1); gl.uniform4fv(loc.u_st2, m.st2);
+  gl.uniform3fv(loc.u_color, m.col);
+  for (const [u, val] of [['u_ic', m.ic], ['u_ci', m.ci], ['u_c1', m.c1], ['u_s1', m.s1], ['u_r1', m.r1], ['u_c2', m.c2], ['u_s2', m.s2], ['u_r2', m.r2], ['u_add', 0]]) gl.uniform1f(loc[u], val);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  if (target.width !== W || target.height !== H) { target.width = W; target.height = H; }
+  const ctx = target.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(c, 0, 0);
   return true;
 }
 

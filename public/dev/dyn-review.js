@@ -131,6 +131,8 @@ function draw() {
 function act(what) {
   const st = review?.stage;
   if (!st?.cards) return 0;
+  // the stage that draws in Workers (render/dynillust/host.js) does it there; the main-thread stage has the slots here
+  if (typeof st.act === 'function') return st.act(what);
   let n = 0;
   for (const c of st.cards) {
     const s = c.slot;

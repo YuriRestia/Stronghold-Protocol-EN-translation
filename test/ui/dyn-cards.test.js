@@ -6,8 +6,10 @@ import assert from 'node:assert/strict';
 import {
   RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
   setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle, cardTier, HALF_MAX_SCALE,
-  FLIP_FADE_S, joinGroup, groupState, leaveGroup, fillGaps,
+  FLIP_FADE_S, FLIP_DISSOLVE_S, FLIP_STEP_S, FLIP_SMOOTH_MS, FLIP_SMOOTH_FRAMES, FLIP_GIVE_UP_MS, joinGroup, groupState, leaveGroup, objectPosition,
+  fillGaps,
 } from '../../public/js/ui/dynCards.js';
+import { coverUv } from '../../public/js/ui/cardEntrance.js';
 
 test('the tier by card size: half up to one device px per official unit of the 232 × 458 window, full above', () => {
   assert.equal(HALF_MAX_SCALE, 1);
@@ -148,33 +150,128 @@ test('a failed preload opens the result screen too (the cards keep their 2D art)
   setDynModule(null);
 });
 
-test('the room\'s group flip: every card waits for the others, then all start in one frame; a failed one does not hold them; a later one swaps alone', () => {
-  const frames = [];
+// a fake frame clock: requestAnimationFrame callbacks run on tick(ms), the clock moved on by ms
+function fakeFrames() {
+  const frames = new Map();
+  let fid = 0, now = 0;
   const raf = globalThis.requestAnimationFrame, caf = globalThis.cancelAnimationFrame;
-  globalThis.requestAnimationFrame = (f) => { frames.push(f); return frames.length; };
-  globalThis.cancelAnimationFrame = () => {};
-  const tick = () => { const fs = frames.splice(0); for (const f of fs) f(performance.now()); };
+  globalThis.requestAnimationFrame = (f) => { frames.set(++fid, f); return fid; };
+  globalThis.cancelAnimationFrame = (id) => { frames.delete(id); };
+  return {
+    frames,
+    tick: (ms = 16) => { now += ms; const fs = [...frames.values()]; frames.clear(); for (const f of fs) f(now); },
+    restore: () => { globalThis.requestAnimationFrame = raf; globalThis.cancelAnimationFrame = caf; },
+  };
+}
+
+test('the room\'s group flip: every card waits for the others, all start hidden in one frame and show together once smooth; a failed one does not hold them; a later one swaps alone', () => {
+  const F = fakeFrames();
   try {
     assert.equal(FLIP_FADE_S, 0.15);
-    const starts = [];
-    const mk = (n) => ({ card: { start: () => starts.push(n) }, state: 'loading', alone: false });
+    assert.equal(FLIP_DISSOLVE_S, 0.5);
+    const starts = [], shows = [];
+    const mk = (n) => ({ card: { start: () => starts.push(n) }, show: () => shows.push(n), state: 'loading', alone: false });
     const a = mk('a'), b = mk('b'), c = mk('c');
     for (const e of [a, b, c]) joinGroup(e);
-    groupState(a, 'ready'); groupState(b, 'ready'); tick(); tick();
+    groupState(a, 'ready'); groupState(b, 'ready'); F.tick(); F.tick();
     assert.deepEqual(starts, [], 'c is still loading: nobody starts');
-    groupState(c, 'failed'); tick(); tick();
+    groupState(c, 'failed'); F.tick(); F.tick();
     assert.deepEqual(starts, ['a', 'b'], 'all the ready ones in the same frame; the failed one keeps its 2D');
+    // the wait's first frame starts its clock; the next interval is the start frame's own and is not counted
+    for (let i = 0; i < 1 + FLIP_SMOOTH_FRAMES; i++) F.tick();
+    assert.deepEqual(shows, [], `started behind their 2D art: ${FLIP_SMOOTH_FRAMES - 1} smooth frames are not enough`);
+    F.tick();
+    assert.deepEqual(shows, ['a', 'b'], `${FLIP_SMOOTH_FRAMES} smooth frames in a row: both show in the same frame`);
     const d = mk('d');
-    joinGroup(d); tick();
+    joinGroup(d); F.tick();
     assert.deepEqual(starts, ['a', 'b'], 'joined after the flip: waits for its own ready');
     groupState(d, 'ready');
-    assert.deepEqual(starts, ['a', 'b', 'd'], 'and then swaps alone');
+    assert.deepEqual(starts, ['a', 'b', 'd'], 'and then starts alone');
+    groupState(d, 'ready');
+    assert.deepEqual(starts, ['a', 'b', 'd'], 'once');
+    for (let i = 0; i < 2 + FLIP_SMOOTH_FRAMES; i++) F.tick();
+    assert.deepEqual(shows, ['a', 'b', 'd'], 'and shows once its own frames are smooth');
     for (const e of [a, b, c, d]) leaveGroup(e);
     const e2 = mk('e');
-    joinGroup(e2); groupState(e2, 'ready'); tick(); tick();
+    joinGroup(e2); groupState(e2, 'ready'); F.tick(); F.tick();
     assert.deepEqual(starts, ['a', 'b', 'd', 'e'], 'a new screen forms a new group');
     leaveGroup(e2);
-  } finally { globalThis.requestAnimationFrame = raf; globalThis.cancelAnimationFrame = caf; }
+    assert.equal(F.frames.size, 0, 'a group with no card left stops waiting');
+  } finally { F.restore(); }
+});
+
+test('the group shows only after FLIP_SMOOTH_FRAMES smooth frames in a row with its dissolve prepared; a page never smooth keeps its 2D art, later cards too', () => {
+  const F = fakeFrames();
+  try {
+    assert.ok(FLIP_SMOOTH_MS > 1000 / 30 && FLIP_SMOOTH_MS < 35, 'a 30 fps frame with 1 ms of jitter');
+    assert.equal(FLIP_SMOOTH_FRAMES, 10);
+    assert.equal(FLIP_GIVE_UP_MS, 3000);
+    const shows = [], kept = [];
+    const mk = (n, extra = {}) => ({ card: { start() {} }, show: () => shows.push(n), giveUp: () => kept.push(n), state: 'loading', alone: false, ...extra });
+    // slow first frames, then smooth ones broken by a slow one: the run starts again
+    let g = [mk('a'), mk('b', { prepared: false })];
+    for (const e of g) joinGroup(e);
+    for (const e of g) groupState(e, 'ready');
+    F.tick(); F.tick(); F.tick(); // the check frame, the start frame, the wait's first frame
+    for (const ms of [75, 62, 54, 46]) F.tick(ms);
+    for (let i = 0; i < FLIP_SMOOTH_FRAMES - 1; i++) F.tick(16);
+    F.tick(40);
+    for (let i = 0; i < FLIP_SMOOTH_FRAMES; i++) F.tick(16);
+    assert.deepEqual(shows, [], 'smooth, but b\'s dissolve is not prepared yet');
+    g[1].prepared = true;
+    F.tick(16);
+    assert.deepEqual(shows, ['a', 'b'], 'smooth and prepared: both show in one frame');
+    for (const e of g) leaveGroup(e);
+    // a page that never gets smooth: FLIP_GIVE_UP_MS after the wait began, the cards keep their 2D art
+    shows.length = 0;
+    g = [mk('c'), mk('d')];
+    for (const e of g) joinGroup(e);
+    for (const e of g) groupState(e, 'ready');
+    F.tick(); F.tick(); F.tick();
+    for (let t = 0; t + 60 < FLIP_GIVE_UP_MS; t += 60) F.tick(60);
+    assert.deepEqual(kept, []);
+    F.tick(60);
+    assert.deepEqual(kept, ['c', 'd']);
+    assert.deepEqual(shows, [], 'never shown');
+    // a card that comes later on that page keeps its 2D art without starting
+    let started = false;
+    const e = mk('e', { card: { start() { started = true; } } });
+    joinGroup(e); groupState(e, 'ready');
+    assert.deepEqual(kept, ['c', 'd', 'e']);
+    assert.equal(started, false);
+    for (const x of [...g, e]) leaveGroup(x);
+    assert.equal(F.frames.size, 0);
+  } finally { F.restore(); }
+});
+
+test('the group shows one card after another in page order, the result row\'s step apart', () => {
+  const F = fakeFrames();
+  try {
+    assert.equal(FLIP_STEP_S, 0.083);
+    const shown = [];
+    // page order by a fake compareDocumentPosition: a lower index comes first (FOLLOWING = 4)
+    const el = (i) => ({ i, compareDocumentPosition: (o) => (o.i > i ? 4 : 2) });
+    const mk = (n, i) => ({ card: { start() {} }, show: (d) => shown.push([n, Math.round(d)]), state: 'loading', alone: false, el: el(i) });
+    const g = [mk('c', 2), mk('a', 0), mk('b', 1)];
+    for (const e of g) joinGroup(e);
+    for (const e of g) groupState(e, 'ready');
+    for (let i = 0; i < 4 + FLIP_SMOOTH_FRAMES; i++) F.tick();
+    assert.deepEqual(shown, [['a', 0], ['b', 83], ['c', 166]]);
+    for (const e of g) leaveGroup(e);
+  } finally { F.restore(); }
+});
+
+test('the dissolve\'s crop is the 2D art\'s object-fit: cover at its object-position', () => {
+  assert.deepEqual(objectPosition('50% 12%'), [0.5, 0.12]);
+  assert.deepEqual(objectPosition('50%'), [0.5, 0.5]);
+  assert.deepEqual(objectPosition('10px 20px'), [0.5, 0.5]);
+  // a 100 × 200 picture in a 100 × 100 box: the width fits, the height is cropped; at 12 % the crop starts 12 % down the spare
+  const uv = coverUv(100, 200, 100, 100, 0.5, 0.12);
+  assert.ok(Math.abs(uv.u0) < 1e-9 && Math.abs(uv.u1 - 1) < 1e-9, JSON.stringify(uv));
+  assert.ok(Math.abs(uv.t0 - 0.06) < 1e-9 && Math.abs(uv.t1 - 0.56) < 1e-9, JSON.stringify(uv));
+  // a wide picture: the height fits, the sides are cropped evenly at 50 %
+  const w = coverUv(200, 100, 100, 100, 0.5, 0.5);
+  assert.ok(Math.abs(w.u0 - 0.25) < 1e-9 && Math.abs(w.u1 - 0.75) < 1e-9 && Math.abs(w.t0) < 1e-9 && Math.abs(w.t1 - 1) < 1e-9, JSON.stringify(w));
 });
 
 test('the scene fill: uncovered cells take their covered neighbours\' colour, spreading outward; all opaque; nothing covered → null', () => {

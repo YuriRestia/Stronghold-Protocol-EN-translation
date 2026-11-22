@@ -443,12 +443,40 @@ show only on a server whose index lists illustrations. Loading (D10 / D11): noth
 illustrations load from m.public `ending` (META §1) through the settlement pause, and `screens/game.js` keeps the match
 screen up after RESULT until they are ready, at most `RESULT_WAIT_MS` 3 s; the room's load after the screen has what it
 needs (`loadLater.js` whenScreenSettled, all the room's cards together) and after the entry film's files, the renderer's
-code getting ready during that wait; a card not ready shows its 2D art and switches when ready. The
+code getting ready during that wait; a card not ready shows its 2D art and switches when ready.
+The room's and the Grand Alliance room's cards switch together (the user, 2026-11-22: keep the placeholders and flip at
+the same time; `joinGroup`): each keeps its 2D art until every card on the screen is ready or failed, then all start in
+one frame behind their 2D art ("wait until it's ready, then play the animation and switch the live 2d in in the back"),
+and show in one frame only once `FLIP_SMOOTH_FRAMES` 10 frames in a row took at most `FLIP_SMOOTH_MS` (30 fps) — the
+renderer's first frames with the whole group live are its slow ones — [ASSUMED: proposed, not yet OK'd]. Showing is the
+official card's dissolve (the user's pick of 2026-11-22): the illustration and its background appear at once behind the
+2D art, and the art box as it shows — its background, then the 2D art at its object-fit cover crop and filter, composed
+on a canvas while the cards wait — dissolves away over
+`DYN_ILLUST_INIT_SECONDS` 0.5 s (`FLIP_DISSOLVE_S`) through the result card's own `complete_up_bg_dissolve` material and
+mask (`ui/cardEntrance.js drawDissolve`, the entrance's shader), with a white bloom on top (`drawBloom`, the same shader
+and mask, additive on a canvas with `mix-blend-mode: plus-lighter`; the user's direction of 2026-11-22: "a white bright
+bloom that moves on the boundary between old and new, … leaving the entire card artwork white glow before the glow fades
+away into the live2D"): a bright band on the dissolve's edge (the official `color_mask` layer's band construction: mask ×
+inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone, and
+sparks (`makeSparks`, the user's "particle effects that runs with the border"): born where the mask reads the glow's
+leading edge, over the old picture, they burst off at about the edge's own speed, slow and fade (`SPARKS`)
+[ASSUMED: the band's width and brightness, the glow and its fade, the sparks tuned to the user's descriptions, not yet
+OK'd]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
+the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); the cards go
+one after another in page order, the result row's 0.083 s apart
+(`FLIP_STEP_S` = `_animDelay`; the user, 2026-11-22: "one player card at a time, in quick succession"). The official card
+has no switch from 2D to its illustration; this reuses its reveal. Without WebGL2, the sprites or under reduced motion,
+the 0.15 s controller fade (`FLIP_FADE_S`). A page not smooth `FLIP_GIVE_UP_MS` 3 s after the start keeps its 2D art and
+stops the illustrations, later cards on it too ("I reject low FPS L2D") [ASSUMED: proposed, not yet OK'd]. A failed card
+keeps its 2D and holds nobody; past `GROUP_CAP_MS` 8 s from the first card's mount [ASSUMED: proposed, not yet OK'd] the
+ready ones flip and a later one swaps alone (its own smooth frames, its own dissolve), as does a card mounted after the
+flip; the result cards do not group (D11). The
 strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
 the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
-with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a card appears and switches —
-straight into Idle, no intro, the official crossfade on a late switch (the user, 2026-11-22) — is the renderer's.
+with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a result card appears and
+switches — straight into Idle, no intro, the official crossfade on a late switch (the user, 2026-11-22) — is the
+renderer's; the room cards' dissolve (above) is the client's.
 An illustration's see-through pixels (its erasers) show the official card background, which both official cards draw
 before the illustration (group_bg/bg, the same 9-slice `bg_normal2` / `card_bg`): behind the result card the real one
 (below), and on a tall card of the official shape (the solo room's) `IllustArt backdrop`, mapped onto the art window as the

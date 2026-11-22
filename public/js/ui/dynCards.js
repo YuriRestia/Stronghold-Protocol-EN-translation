@@ -11,8 +11,9 @@
 //     settlement pause; the result screen opens as soon as they are in, at most RESULT_WAIT_MS after the pause
 //     (screens/game.js). The room / Grand Alliance cards load once the room screen has what it needs (loadLater.js) and
 //     after the entry film's files (D10, the first-impression rule). A card whose illustration is not ready shows its 2D
-//     art and switches when it is (D11). How a card appears and switches (no intro, no fade on appear; the official
-//     controller's crossfade on a late switch — the user, 2026-11-22) is the renderer's: nothing here animates it.
+//     art and switches when it is (D11). On the result screen how a card appears and switches (no intro, no fade on
+//     appear; the official controller's crossfade on a late switch — the user, 2026-11-22) is the renderer's. The room
+//     cards switch as a group, once the page runs smoothly, with the official card's dissolve (the group flip below).
 //
 // The renderer is reached only through the contract's mount API (docs/design/vfx-format.md §33.19): dynIllustKey and
 // getDynIllustStage → stage.preload / stage.mount → Card { canvas, ready, start(), state, unmount() }. The stage is the
@@ -26,7 +27,8 @@ import { createStore, useStore } from '../store.js';
 import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
-import { screenShortSide, PHONE_MAX_SIDE } from './device.js';
+import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
+import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, drawBloom, BLOOM, makeSparks, ANIM_DELAY_S } from './cardEntrance.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -295,19 +297,93 @@ export function endResultLoad() {
  * fails keeps its 2D and does not hold the others. Past GROUP_CAP_MS from the first card's mount the ready ones flip and
  * a later one swaps alone when ready; so does a card mounted after the flip (a player who joins, a new outfit or
  * portrait). The result screen does not group (D11: at most 3 s after the settlement pause, a late card fades in alone).
+ *
+ * Start, then show (the user, 2026-11-22: "Wait until it's ready, then play the animation and switch the live 2d in in
+ * the back"): the renderer's first frames with a whole group live are its slow ones (8 Grand Alliance cards: 2–5 frames
+ * of 37–75 ms [src: I:/ClaudeCrew/work/dev-55 trace3.json, 2026-11-22]), so the cards start behind their still 2D art and
+ * show in one frame once FLIP_SMOOTH_FRAMES frames in a row took at most FLIP_SMOOTH_MS — never before. Showing is the
+ * official card's dissolve (ui/cardEntrance.js drawDissolve): the illustration appears at once behind the 2D art and the
+ * 2D art dissolves away through the card's mask over FLIP_DISSOLVE_S (the user's pick of 2026-11-22, proposal C). A page
+ * that is not smooth FLIP_GIVE_UP_MS after the start keeps its 2D art and stops the illustrations ("I reject low FPS
+ * L2D", the user, 2026-11-22). A card that swaps alone waits for its own smooth frames the same way.
  */
-export const FLIP_FADE_S = 0.15; // the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
+export const FLIP_FADE_S = 0.15; // the fallback without the dissolve: the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
+export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x1495060]
+/** The stagger between the group's cards: the result row's step [src: ui/cardEntrance.js ANIM_DELAY_S, official _animDelay]. */
+export const FLIP_STEP_S = ANIM_DELAY_S;
 export const GROUP_CAP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — 8 s covers a typical PC's cold Grand Alliance load, 4.9–5.3 s measured at 1080p]
-let group = null; // { entries: Set, flipped, timer, check }
+/** A smooth frame: 30 fps, the flip's gate (no frame over 33 ms: the lead's brief of 2026-11-22), +1 ms of frame-timer jitter as the review page's gates allow [src: public/dev/dyn-review.js measure]. */
+export const FLIP_SMOOTH_MS = 1000 / 30 + 1;
+export const FLIP_SMOOTH_FRAMES = 10; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — about 0.17–0.33 s of smooth frames before the cards show]
+export const FLIP_GIVE_UP_MS = 3000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — the user's PC settled 0.06–0.28 s after the start; a 4× slower CPU never settles with 8 cards]
+let group = null; // { entries: Set, flipped, timer, check, hold, wait, gaveUp }
 
 function startCard(e) { try { e.card?.start(); } catch (err) { console.warn('[dynillust] start', err); } }
+function showCard(e, delay = 0) { try { e.show?.(delay); } catch (err) { console.warn('[dynillust] show', err); } }
+/** The cards' dissolve preparations (a picture composed, uploaded and drawn once each): one per animation frame. */
+const prepJobs = [];
+let prepRaf = 0;
+function runPrep() {
+  prepRaf = 0;
+  const job = prepJobs.shift();
+  try { job?.(); } catch (err) { console.warn('[dynillust] dissolve', err); }
+  if (prepJobs.length) prepRaf = requestAnimationFrame(runPrep);
+}
+function queuePrep(job) {
+  prepJobs.push(job);
+  if (!prepRaf) prepRaf = requestAnimationFrame(runPrep);
+}
+
+/** Page order (a card's 2D art element `e.el`): the stagger runs as the cards read, left to right, top to bottom. */
+function byPage(a, b) {
+  if (!a.el || !b.el || typeof a.el.compareDocumentPosition !== 'function') return 0;
+  return a.el.compareDocumentPosition(b.el) & 4 ? -1 : 1; // Node.DOCUMENT_POSITION_FOLLOWING
+}
+function giveUpCard(e) { try { e.giveUp?.(); } catch (err) { console.warn('[dynillust] give up', err); } }
+
+/**
+ * After `entries` started (hidden): show them in one frame once FLIP_SMOOTH_FRAMES frames in a row took at most
+ * FLIP_SMOOTH_MS and each has its dissolve prepared (`e.prepared`), or keep their 2D art FLIP_GIVE_UP_MS after the
+ * start. The first interval measured is the start frame's own, so the count begins a frame later. Returns a cancel.
+ */
+function whenSmooth(entries, onGiveUp) {
+  let t0 = 0, last = 0, n = 0, smooth = 0, id = 0, done = false;
+  const tick = (t) => {
+    id = 0;
+    if (done) return;
+    if (!t0) t0 = last = t;
+    else { n++; smooth = n >= 2 && t - last <= FLIP_SMOOTH_MS ? smooth + 1 : 0; last = t; }
+    const cur = entries.filter((e) => !e.gone);
+    if (!cur.length) { done = true; return; }
+    if (smooth >= FLIP_SMOOTH_FRAMES && cur.every((e) => e.prepared !== false)) {
+      done = true;
+      // one card after another, the result row's step apart (the user, 2026-11-22: "one player card at a time, in quick
+      // succession")
+      cur.slice().sort(byPage).forEach((e, i) => showCard(e, i * FLIP_STEP_S * 1000));
+      return;
+    }
+    if (t0 && t - t0 >= FLIP_GIVE_UP_MS) { done = true; for (const e of cur) giveUpCard(e); onGiveUp?.(); return; }
+    id = requestAnimationFrame(tick);
+  };
+  id = requestAnimationFrame(tick);
+  return () => { done = true; if (id) cancelAnimationFrame(id); };
+}
+/** A card on its own (after the flip): start it hidden and show it once smooth — or keep it 2D on a page that gave up. */
+function startAlone(e) {
+  if (e.group?.gaveUp) { giveUpCard(e); return; }
+  startCard(e);
+  e.wait = whenSmooth([e]);
+}
 function flipGroup(g) {
   if (g.flipped) return;
   g.flipped = true;
   clearTimeout(g.timer);
-  requestAnimationFrame(() => {
-    // one frame for all: the ready cards start together; one still loading swaps alone when ready
-    for (const e of g.entries) { if (e.state === 'ready') startCard(e); else e.alone = true; }
+  g.hold = requestAnimationFrame(() => {
+    g.hold = 0;
+    // one frame for all: the ready cards start together (still hidden); one still loading swaps alone when ready
+    const held = [];
+    for (const e of g.entries) { if (e.state === 'ready') { startCard(e); held.push(e); } else e.alone = true; }
+    if (held.length) g.wait = whenSmooth(held, () => { g.gaveUp = true; });
   });
 }
 function checkGroup(g) {
@@ -328,23 +404,28 @@ export function joinGroup(e) {
   e.group = group;
   group.entries.add(e);
   if (group.flipped) e.alone = true;
-  if (e.alone) { if (e.state === 'ready') startCard(e); } else checkGroup(group);
+  if (e.alone) { if (e.state === 'ready') startAlone(e); } else checkGroup(group);
 }
 /** The card's state changed (the renderer's onState). */
 export function groupState(e, s) {
+  const was = e.state;
   e.state = s;
   const g = e.group;
   if (!g) return;
-  if (e.alone) { if (s === 'ready') startCard(e); } else checkGroup(g);
+  if (e.alone) { if (s === 'ready' && was !== 'ready') startAlone(e); } else checkGroup(g);
 }
 /** The card left (the screen closed, the seat emptied, its art changed): a group with no card left is forgotten. */
 export function leaveGroup(e) {
+  e.gone = true;
+  e.wait?.();
   const g = e.group;
   if (!g) return;
   g.entries.delete(e);
   e.group = null;
-  if (!g.entries.size) { clearTimeout(g.timer); if (g.check) cancelAnimationFrame(g.check); if (group === g) group = null; }
-  else checkGroup(g);
+  if (!g.entries.size) {
+    clearTimeout(g.timer); if (g.check) cancelAnimationFrame(g.check); if (g.hold) cancelAnimationFrame(g.hold); g.wait?.();
+    if (group === g) group = null;
+  } else checkGroup(g);
 }
 
 // ---- the scene fill (wide cards) -----------------------------------------------------------------------------------
@@ -439,20 +520,148 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, fill =
     ro?.observe(el);
     return () => { clearTimeout(t); ro?.disconnect(); setWant(token.current, null); };
   }, [on]);
+  // a room card started with its group stays behind its 2D art until the group shows (flipGroup), then the 2D art
+  // dissolves away over it ('dissolve'), or fades without WebGL2 / the mask sprite ('fade', CSS .dyn-art--flip)
+  const [shown, setShown] = useState(wait !== 'settled');
+  const [reveal, setReveal] = useState('fade');
+  // the dissolve's first frame (the art box itself) covers the card while it waits: the illustration and its background
+  // are already in place under it, so the show only starts the dissolve (no DOM switch in that frame)
+  const [covered, setCovered] = useState(false);
+  const root = useRef(null), dis = useRef(null), wash = useRef(null);
   useEffect(() => {
     setState(on ? 'loading' : 'off');
+    setShown(wait !== 'settled');
+    setReveal('fade');
+    setCovered(false);
     if (!on) return undefined;
-    let card = null, live = true;
-    // the room's cards flip together (flipGroup); the result screen's start at once (D11: a late one fades in)
-    const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false } : null;
+    let card = null, live = true, kept = false, raf = 0, cur = 'loading', isCovered = false;
+    const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false, prepared: false, show: (delay) => { if (live) showNow(delay); }, giveUp: () => keep2d() } : null;
+    // a page that never got smooth: the card keeps its 2D art and its illustration stops (no low-FPS illustration)
+    const keep2d = () => {
+      if (!live || kept) return;
+      kept = true;
+      try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
+      if (dis.current) dis.current.style.opacity = '0';
+      if (wash.current) wash.current.style.opacity = '0';
+      isCovered = false;
+      setCovered(false);
+      setState('off');
+    };
+    // the dissolve's picture: the card's art box exactly as it shows — its background, then the 2D art (object-fit cover
+    // at its object-position, its filter) — composed and put on the GPU while the cards wait, again at the show if the
+    // box changed size
+    let pic = null, picKey = '';
+    const compose = () => {
+      const img = entry.img, box = img?.offsetParent;
+      const r = img?.isConnected ? img.getBoundingClientRect() : null;
+      if (!img || !box || !r || !(r.width > 0 && r.height > 0) || !img.naturalWidth) return null;
+      const dpr = globalThis.devicePixelRatio || 1;
+      const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+      const key = `${W}x${H}|${img.currentSrc || img.src}`;
+      if (pic && key === picKey) return { W, H };
+      const c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const g = c.getContext('2d');
+      paintBackground(g, box, W, H);
+      const cs = globalThis.getComputedStyle(img);
+      const [px, py] = objectPosition(cs.objectPosition);
+      const uv = coverUv(img.naturalWidth, img.naturalHeight, r.width, r.height, px, py);
+      if (cs.filter && cs.filter !== 'none') g.filter = cs.filter;
+      g.drawImage(img, uv.u0 * img.naturalWidth, uv.t0 * img.naturalHeight, (uv.u1 - uv.u0) * img.naturalWidth, (uv.t1 - uv.t0) * img.naturalHeight, 0, 0, W, H);
+      pic = dissolvePicture(c, entry.mask, pic);
+      picKey = key;
+      return pic ? { W, H } : null;
+    };
+    // a dissolve that cannot be prepared falls back to the fade; it never holds the group
+    const prepare = () => {
+      try { prepareDissolve(); } catch (err) { console.warn('[dynillust] dissolve', err); entry.prepared = true; }
+    };
+    const prepareDissolve = () => {
+      const img = root.current?.querySelector?.('.dyn-art__still img');
+      const cs = img && globalThis.getComputedStyle ? globalThis.getComputedStyle(img) : null;
+      if (!img || !cs || cs.objectFit !== 'cover' || reducedMotion()) { entry.prepared = true; return; }
+      entry.img = img;
+      entry.el = img;
+      // the card background the illustration shows over (BACKDROP) decoded now, not in the frame the cards show
+      const bgUrl = backdrop ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
+      const bgImg = bgUrl && typeof Image === 'function' ? Object.assign(new Image(), { src: bgUrl }) : null;
+      Promise.all([loadDissolve(), img.decode ? img.decode().catch(() => {}) : null, bgImg?.decode ? bgImg.decode().catch(() => {}) : null])
+        .then(([mask]) => {
+          // one card's picture, upload and first frame per animation frame (prepQueue): eight at once took a 246 ms task
+          queuePrep(() => {
+            try {
+              if (!live) return;
+              entry.mask = mask;
+              // the dissolve's first frame drawn now on the (still invisible) canvas
+              const size = compose();
+              if (size && dis.current && drawDissolve(dis.current, pic, 0, size.W, size.H)) { drawnKey = picKey; cover(); }
+            } finally { entry.prepared = true; }
+          });
+        }, (err) => { console.warn('[dynillust] dissolve', err); entry.prepared = true; });
+    };
+    let drawnKey = '';
+    // once the illustration runs (started hidden) and the first frame is drawn: the canvas covers the card, identical
+    // to its 2D art, and the illustration and its background take their place under it
+    const cover = () => {
+      if (!live || kept || isCovered || cur !== 'live' || !drawnKey || !dis.current) return;
+      isCovered = true;
+      dis.current.style.opacity = '1';
+      // the bloom's canvas too, sized and in place (empty) now: showing an additive layer at the show cost a 77 ms frame
+      const wc = wash.current;
+      if (wc && dis.current.width > 1) { wc.width = dis.current.width; wc.height = dis.current.height; wc.style.opacity = '1'; }
+      setReveal('dissolve');
+      setCovered(true);
+    };
+    // the show, `delay` ms from now (the group's stagger): the 2D art dissolves away over FLIP_DISSOLVE_S with a white
+    // bloom on its edge and a glow behind it that fades after (cardEntrance.js drawBloom, its own canvas, plus-lighter)
+    const showNow = (delay = 0) => {
+      const cv = dis.current, wc = wash.current;
+      const size = isCovered && cv ? compose() : null;
+      if (size) {
+        const { W, H } = size;
+        // the box changed size since: its first frame again
+        if (drawnKey === picKey || drawDissolve(cv, pic, 0, W, H)) {
+          setShown(true);
+          const t0 = performance.now() + Math.max(0, delay);
+          let blooming = false, dissolved = false, lastS = 0;
+          const sparks = makeSparks();
+          const dpr = globalThis.devicePixelRatio || 1;
+          const step = () => {
+            raf = 0;
+            if (!live) return;
+            const s = (performance.now() - t0) / 1000;
+            if (s >= 0) {
+              const k = Math.min(1, s / FLIP_DISSOLVE_S);
+              if (!dissolved) drawDissolve(cv, pic, k, W, H);
+              if (k >= 1 && !dissolved) { dissolved = true; cv.style.opacity = '0'; cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
+              // the bloom: a band on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
+              const glow = BLOOM.glow * (k < 1 ? 1 : Math.max(0, 1 - (s - FLIP_DISSOLVE_S) / BLOOM.fadeS));
+              if (wc && drawBloom(wc, k, glow, k < 1 ? BLOOM.band : 0, W, H) && !blooming) { blooming = true; if (wc.style.opacity !== '1') wc.style.opacity = '1'; }
+              // the border sparks: born on the edge while it moves, drawn over the bloom
+              sparks.step(Math.min(0.05, Math.max(0, s - lastS)), k, k < 1);
+              lastS = s;
+              if (wc && blooming) sparks.draw(wc.getContext('2d'), W, H, dpr);
+              if (dissolved && !(glow > 0) && !sparks.count) {
+                if (wc) { wc.style.opacity = '0'; wc.width = 1; wc.height = 1; }
+                return;
+              }
+            }
+            raf = requestAnimationFrame(step);
+          };
+          raf = requestAnimationFrame(step);
+          return;
+        }
+      }
+      setShown(true);
+    };
     const go = () => readyStage(tier).then(({ R, st }) => {
       const key = live ? illustKey(R, art) : null;
       if (!key || !host.current) { if (live) setState('off'); return null; }
       // the renderer's card: its own 2D canvas in the art window, under the card's overlays (§33.19); 'live' = drawn
-      card = st.mount(key, { onState: (s) => { if (!live) return; setState(s); if (entry) groupState(entry, s); } });
+      card = st.mount(key, { onState: (s) => { if (!live || kept) return; cur = s; setState(s); if (entry) { groupState(entry, s); if (s === 'live') cover(); } } });
       cardRef.current = card;
       if (card.canvas) host.current.append(card.canvas);
-      if (entry) { entry.card = card; joinGroup(entry); } else card.start();
+      if (entry) { entry.card = card; prepare(); joinGroup(entry); } else card.start();
       return card.ready;
     }).catch((err) => { console.warn('[dynillust] card', err); if (live) setState('off'); });
     // every card on the screen waits for the same moment and then loads at once (the renderer fetches and builds them in
@@ -464,6 +673,8 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, fill =
     return () => {
       live = false;
       cardRef.current = null;
+      if (raf) cancelAnimationFrame(raf);
+      freeDissolvePicture(pic); pic = null;
       if (entry) leaveGroup(entry);
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
     };
@@ -478,13 +689,63 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, fill =
     ro?.observe(host.current);
     return () => { timers.forEach(clearTimeout); clearTimeout(t); ro?.disconnect(); };
   }, [fill, state, id, tier]);
-  const bg = backdrop && state === 'live' ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
-  return html`<div class=${`dyn-art${state === 'live' ? ' is-live' : ''}${wait === 'settled' ? ' dyn-art--flip' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${state}>
+  // what the card shows: 'ready' while it runs hidden before its group shows
+  const vis = state === 'live' && !shown ? 'ready' : state;
+  // in place (under the dissolve's cover, or shown)
+  const placed = state === 'live' && (shown || covered);
+  const bg = backdrop && placed ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
+  return html`<div ref=${root} class=${`dyn-art${placed ? ' is-live' : ''}${wait === 'settled' ? ' dyn-art--flip' : ''}${reveal === 'dissolve' ? ' dyn-art--dissolve' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${vis}>
     <div class="dyn-art__still">${children}</div>
     ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg)}></i></div>` : null}
-    ${fill && on ? html`<canvas class=${`dyn-art__fill${filled && state === 'live' ? ' is-on' : ''}`} ref=${fillEl} width=${FILL_W} height=${FILL_H} aria-hidden="true"></canvas>` : null}
+    ${fill && on ? html`<canvas class=${`dyn-art__fill${filled && placed ? ' is-on' : ''}`} ref=${fillEl} width=${FILL_W} height=${FILL_H} aria-hidden="true"></canvas>` : null}
     ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
+    ${on && wait === 'settled' ? html`<canvas class="dyn-art__dissolve" ref=${dis} aria-hidden="true"></canvas><canvas class="dyn-art__wash" ref=${wash} aria-hidden="true"></canvas>` : null}
   </div>`;
+}
+
+/** Split a CSS value at its top-level commas. */
+function splitTop(s) {
+  const out = []; let depth = 0, cur = '';
+  for (const ch of s) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+/**
+ * Paint an element's own background into a 2D context of w × h: its colour, then a top-to-bottom linear-gradient (the
+ * room card's art box: `linear-gradient(180deg, …)`, css/screens/room.css .rseat__art); any other image keeps the colour.
+ */
+export function paintBackground(g, el, w, h) {
+  const cs = globalThis.getComputedStyle?.(el);
+  if (!cs) return;
+  const col = cs.backgroundColor;
+  if (col && col !== 'transparent' && col !== 'rgba(0, 0, 0, 0)') { g.fillStyle = col; g.fillRect(0, 0, w, h); }
+  const m = /^linear-gradient\((.*)\)$/.exec(String(cs.backgroundImage || '').trim());
+  if (!m) return;
+  let stops = splitTop(m[1]);
+  const dir = stops[0];
+  if (/deg$|^to /.test(dir)) { if (dir !== '180deg' && dir !== 'to bottom') return; stops = stops.slice(1); }
+  if (!stops.length) return;
+  const grad = g.createLinearGradient(0, 0, 0, h);
+  stops.forEach((s, i) => {
+    const sm = /^(.*\))\s+(-?[\d.]+)%$/.exec(s) || /^(\S+)\s+(-?[\d.]+)%$/.exec(s);
+    const color = sm ? sm[1] : s;
+    const at = sm ? parseFloat(sm[2]) / 100 : (stops.length > 1 ? i / (stops.length - 1) : 0);
+    grad.addColorStop(Math.max(0, Math.min(1, at)), color);
+  });
+  g.fillStyle = grad;
+  g.fillRect(0, 0, w, h);
+}
+
+/** CSS object-position (computed: two lengths or percentages) as fractions; anything but percentages counts as 50 %. */
+export function objectPosition(v) {
+  const p = String(v || '').trim().split(/\s+/);
+  const f = (s) => (s && s.endsWith('%') && Number.isFinite(parseFloat(s)) ? parseFloat(s) / 100 : 0.5);
+  return [f(p[0]), f(p[1] ?? p[0])];
 }
 
 /**

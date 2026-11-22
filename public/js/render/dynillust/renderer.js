@@ -25,14 +25,15 @@
 import { unityToCard, cardViewProj } from './framing.js';
 import { IllustSkeleton } from './skeleton.js';
 import { DynIllustInstance } from './instance.js';
-import { CardIllustState } from './state.js';
+import { CardIllustState, ACTION } from './state.js';
 import { IllustEffects, illustBasis } from './effects.js';
-import { loadIllust, slotData } from './loader.js';
+import { loadIllust, loadGroups, slotData } from './loader.js';
 import { GpuSkeleton, gpuSkinSupported } from './gpuskin.js';
 import { FxGL } from '../vfx/gl.js';
 import { FrameData } from '../vfx/geom.js';
 import { FxLibrary } from '../vfx/library.js';
 import { resetPixi } from '../vfx/system.js';
+import { setPrewarmSink } from '../vfx/psys.js';
 
 /** Largest side of the shared canvas (px): 8 phone-size cards fit with room to spare. */
 export const MAX_CANVAS = 4096;
@@ -52,6 +53,15 @@ export const LATE_FADE_S = 0.15;
 export const STAGE_BUDGET_MS = 8;
 /** Frames a card waits for a layout size before it reports 'ready' unstaged (it then builds at its first draw). */
 export const STAGE_SIZE_FRAMES = 30;
+/** Warm-up steps of an illustration's throwaway slot before its cards report ready, and the step it switches to its special idle at (Stage._warmSpecial). */
+export const WARM_STEPS = 40;
+export const WARM_SPECIAL_AT = 10;
+/** The real step a staged slot takes before its card reports ready, s (Card._stage): one 60 Hz frame. */
+export const STAGE_STEP_S = 1 / 60;
+/** Particle prewarm simulated per staging piece, ms (Card._stage; at least one step of a system). */
+export const PREWARM_SLICE_MS = 4;
+/** Effect texture pixels one staging piece uploads (one 1024 × 1024 texture; renderer _texPieces). */
+export const UPLOAD_PIECE_PX = 1 << 20;
 
 function byUnityOrder(a, b) {
   return (a.layer - b.layer) || (a.order - b.order) || (a.queue - b.queue) || (b.dist - a.dist) || (a.seq - b.seq);
@@ -82,7 +92,9 @@ export class DynIllustStage {
     this._raf = 0;
     this._jobs = [];            // staging pieces (STAGE_BUDGET_MS): () => true when done, false to try again next frame
     this._warming = new Set();  // staged slots to draw once (not stepped) in the next frame: the warm-up draw
-    this.canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    // the shared GL canvas: off-page on the main thread, an OffscreenCanvas in a Worker (render/dynillust/worker.js)
+    this.canvas = typeof document !== 'undefined' ? document.createElement('canvas')
+      : typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(2, 2) : null;
     if (this.canvas) { this.canvas.width = 2; this.canvas.height = 2; }
     this.renderer = null;
     this.stage = null;
@@ -183,12 +195,18 @@ export class DynIllustStage {
     if (!this._ensureGL() || this.lost) return;
     const def = prep.fxDef, glr = this.glr;
     const half = this.quality === 'half';
+    // the load groups [src: doc §33.19 Load]: everything a card will show (IDLE and SPECIAL_IDLE) before it is ready,
+    // so nothing loads, uploads or compiles once it plays (the user, 2026-11-22: "Wait until it's ready, then play the
+    // animation"); START's and INTERACTION's never (a card never plays them)
+    const groups = loadGroups(prep.entry);
+    const first = ((def && glr && def.textures) || []).filter((k) => !groups.never.has(groups.texture(k)));
     // one owner per illustration: the library shares its parallel loads between the cards in turn
-    if (def && glr) await Promise.all((def.textures || []).map((k) => this.lib.loadTexture(k, half, prep.entry && prep.entry.key)));
+    await Promise.all(first.map((k) => this.lib.loadTexture(k, half, prep.entry && prep.entry.key)));
     const progs = new Map();
     if (def && glr) {
       const add = (kind, mi) => { const mat = mi != null ? def.material(mi, false) : null; if (mat) progs.set(`${kind}|${mat.key}`, [kind, mat]); };
       for (let i = 0; i < def.n; i++) {
+        if (groups.never.has(groups.node(i))) continue;
         const pr = def.psr[i];
         if (pr && pr.enabled && pr.mode !== 'none') { add(pr.mode === 'mesh' ? 'mesh' : 'quad', pr.mats[0]); if (def.ps[i]?.trail) add('strip', pr.mats[1]); }
         if (def.mesh[i]) for (const mi of def.mesh[i].mats) add('mesh', mi);
@@ -203,9 +221,80 @@ export class DynIllustStage {
     if (def && glr) {
       // the builds start here and run on in the driver (KHR_parallel_shader_compile); several starts make one piece
       for (let i = 0; i < prep.progs.length; i += 4) { const some = prep.progs.slice(i, i + 4); pieces.push(gl1(() => { for (const [kind, mat] of some) glr.program(kind, mat); })); }
-      for (const k of def.textures || []) pieces.push(gl1(() => glr.texture(k, half)));
+      pieces.push(...this._texPieces(first, half));
     }
     await this._enqueue(pieces);
+  }
+
+  /**
+   * Staging pieces that upload effect textures `keys` (decoded already), several small ones per piece: at most
+   * UPLOAD_PIECE_PX pixels each, a larger texture alone. One upload per piece let a busy page take a frame per texture
+   * (staging runs at least one piece a frame, more only within STAGE_BUDGET_MS).
+   */
+  _texPieces(keys, half) {
+    const glr = this.glr, r = this.renderer, out = [];
+    let some = [], px = 0;
+    const flush = () => {
+      if (!some.length) return;
+      const ks = some;
+      out.push(() => { if (!this.lost && glr) for (const k of ks) { try { glr.texture(k, half); } catch { /* at its first draw */ } finally { resetPixi(r); } } return true; });
+      some = []; px = 0;
+    };
+    for (const k of keys) {
+      const im = this.lib.images.get(`${k}|${half ? 1 : 0}`)?.image;
+      const n = im ? (im.width || 1) * (im.height || 1) : UPLOAD_PIECE_PX;
+      if (px && px + n > UPLOAD_PIECE_PX) flush();
+      some.push(k); px += n;
+    }
+    flush();
+    return out;
+  }
+
+  /**
+   * Warm-up runs, once per illustration before its cards report ready, on a throwaway slot of it: WARM_STEPS real
+   * steps, each drawn offscreen by the next frame, Idle first and from WARM_SPECIAL_AT into the special idle (Spine's
+   * mix: computeHold, then applyMixingFrom every step of the mix; the action particle set switched on and built); then
+   * the slot is destroyed. One step per staging piece and per frame. The code a live card runs every frame then is
+   * already optimised: on a cold page the first frames after the switch took 36–51 ms and the first special idles'
+   * mix 35–71 ms, running the same functions as a 8–10 ms steady frame [src: notes dev50-l2d-perf-report.md §Warm
+   * before ready; dev55-special-idle-freeze.md]. The cards' own slots are not touched: their timing stays official.
+   */
+  _warmSpecial(prep, key, w, h) {
+    if (prep.specialWarm) return prep.specialWarm;
+    let t = null, n = 0, waited = 0;
+    const live = () => t && !this.lost;
+    prep.specialWarm = this._enqueue([
+      () => {
+        if (this.lost || !this.renderer) return true;
+        t = new Slot(this, `${key}|warm`, key, prep, w, h);
+        t.temp = true;
+        t.resume();
+        // its prewarms are not needed: those systems start empty
+        setPrewarmSink((sys) => sys.clear());
+        try { t.step(0); } finally { setPrewarmSink(null); }
+        return true;
+      },
+      () => {
+        if (!live()) return true;
+        // the last step's draw first (a frame's _draw takes it out of _warming); given up if it never comes
+        if (this._warming.has(t)) return ++waited >= STAGE_SIZE_FRAMES;
+        if (n >= WARM_STEPS) return true;
+        if (n === WARM_SPECIAL_AT) t.inst.changeAction(ACTION.SPECIAL_IDLE, 1);
+        t.step(1 / 60);
+        n++; waited = 0;
+        this._warming.add(t);
+        return false;
+      },
+      () => { if (t) { this._warming.delete(t); t.destroy(); t = null; } return true; },
+    ]);
+    return prep.specialWarm;
+  }
+
+  /** One card's special idle start per stage frame (state.js mayStartSpecial): true for the first to ask in a frame. */
+  _specialTurn() {
+    if (this._specialFrame === this.frameNo) return false;
+    this._specialFrame = this.frameNo;
+    return true;
   }
 
   /** Queue staging pieces; settles once the last of them is done. */
@@ -253,7 +342,11 @@ export class DynIllustStage {
     if (!this.cards.size) this.lib.dropImages();
   }
 
-  /** A card showing `key` (docs/design/vfx-format.md §33.19 Mount API). */
+  /**
+   * A card showing `key` (docs/design/vfx-format.md §33.19 Mount API). In a Worker (render/dynillust/worker.js) `o`
+   * also gives the card's `canvas` (an OffscreenCanvas the page transferred), `box` (its size in device px, kept
+   * current by the page) and `onOpacity` (the late fade, applied by the page to its canvas element).
+   */
   mount(key, o = {}) {
     const card = new Card(this, key, o);
     this.cards.add(card);
@@ -315,6 +408,7 @@ export class DynIllustStage {
       slot.step(dt);
       live.push(slot);
     }
+    for (const s of this._warming) if (s.temp) warm.push(s);   // a throwaway slot of _warmSpecial
     if ((live.length || warm.length) && this._ensureGL() && !this.lost) {
       this._draw(live.concat(warm));
       for (const s of warm) { if (s.x >= 0) { s.warmed = true; this._warming.delete(s); } }
@@ -323,16 +417,34 @@ export class DynIllustStage {
     this._kick();
   }
 
-  /** Pack the live slots, draw them, copy each into its cards' canvases. */
-  _draw(live) {
-    live.sort((a, b) => b.h - a.h);
+  /** Rows of slots, tallest first, in the stage canvas (MAX_CANVAS): sets each slot's x, y (−1: no room); [W, H]. */
+  _pack(list) {
+    list.sort((a, b) => b.h - a.h);
     let x = 0, y = 0, rowH = 0, W = 0, H = 0;
-    for (const s of live) {
+    for (const s of list) {
       if (x + s.w > MAX_CANVAS) { x = 0; y += rowH; rowH = 0; }
       if (y + s.h > MAX_CANVAS) { s.x = -1; continue; }
       s.x = x; s.y = y; x += s.w; rowH = Math.max(rowH, s.h);
       W = Math.max(W, x); H = Math.max(H, y + rowH);
     }
+    return [W, H];
+  }
+
+  /**
+   * Grow the stage canvas to hold every slot that has cards, live or staged, before a card reports ready: it grew at
+   * the first frame with all the page's cards live, one of that frame's costs [src: notes dev55-renderer-flip-trace.md
+   * §2]. Positions are set again by each frame's _draw.
+   */
+  _fitCanvas() {
+    const r = this.renderer;
+    if (!r || this.lost) return;
+    const [W, H] = this._pack([...this.slots.values()].filter((s) => s.cards.size));
+    if (W > r.width || H > r.height) { r.resize(Math.max(W, r.width), Math.max(H, r.height)); resetPixi(r); }
+  }
+
+  /** Pack the live slots, draw them, copy each into its cards' canvases. */
+  _draw(live) {
+    const [W, H] = this._pack(live);
     const r = this.renderer;
     if (W > r.width || H > r.height) r.resize(Math.max(W, r.width), Math.max(H, r.height));
     const CW = r.width, CH = r.height;
@@ -345,7 +457,9 @@ export class DynIllustStage {
     this.stage.removeChildren();
     for (const s of live) if (s.x >= 0) { s.root.position.set(s.x, s.y); this.stage.addChild(s.root); }
     r.render(this.stage, { clear: true });
-    for (const s of live) if (s.x >= 0) for (const c of s.cards) c.blit(this.canvas, s);
+    // a staged slot's warm-up draw copies too, into its still hidden cards: their first copy (the 2D canvas's own
+    // first draw) is then not part of the first live frame
+    for (const s of live) if (s.x >= 0) { const warm = this._warming.has(s); for (const c of s.cards) c.blit(this.canvas, s, warm); }
   }
 
   /** Draw one slot's sorted list (from inside Pixi's render of the slot's Spine display). */
@@ -407,14 +521,19 @@ export class Card {
     this.slot = null;
     this.prep = null;
     this.w = 0; this.h = 0;
-    this.canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    this.box = Array.isArray(o.box) ? o.box : null;   // [w, h] device px from the page (Worker), else measured here
+    this.onOpacity = typeof o.onOpacity === 'function' ? o.onOpacity : null;
+    this.canvas = o.canvas || (typeof document !== 'undefined' ? document.createElement('canvas') : null);
     if (this.canvas) {
-      this.canvas.className = 'dynillust-canvas';
       this.canvas.width = 1; this.canvas.height = 1;
-      this.canvas.style.opacity = '0';
       this.ctx = this.canvas.getContext('2d');
-      this.canvas.__dynCard = this;
-      if (S.io) S.io.observe(this.canvas);
+      if (this.canvas.style) {
+        // a page element (not a Worker's OffscreenCanvas)
+        this.canvas.className = 'dynillust-canvas';
+        this.canvas.__dynCard = this;
+        if (S.io) S.io.observe(this.canvas);
+      }
+      this._opacity(0);
     }
     this.ready = S._prepare(key).then((prep) => this._stage(prep)).then((prep) => {
       if (this.state === 'unmounted') return false;
@@ -425,8 +544,9 @@ export class Card {
     }, () => { if (this.state !== 'unmounted') this._set('failed'); return false; });
   }
 
-  /** The canvas's CSS box in device px (capped at MAX_DPR): [w, h]. */
+  /** The canvas's CSS box in device px (capped at MAX_DPR): [w, h]; in a Worker, the size the page sent. */
   _measure() {
+    if (this.box || !this.canvas.getBoundingClientRect) return this.box || [0, 0];
     const r = this.canvas.getBoundingClientRect();
     const dpr = Math.min(MAX_DPR, Math.max(1, globalThis.devicePixelRatio || 1));
     return [Math.round(r.width * dpr), Math.round(r.height * dpr)];
@@ -443,6 +563,8 @@ export class Card {
     if (!this.canvas || !S._ensureGL() || S.lost || this.state === 'unmounted') return prep;
     let waited = 0, slot = null;
     const progsReady = () => !S.glr || (prep.progs || []).every(([kind, mat]) => { S.glr.program(kind, mat); return !S.glr.building(kind, mat); });
+    const prewarms = [];   // particle systems whose prewarm waits for the slices below (psys.js setPrewarmSink)
+    const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
     return S._enqueue([
       () => {
         if (this.state === 'unmounted') return true;
@@ -451,13 +573,47 @@ export class Card {
         return ++waited >= STAGE_SIZE_FRAMES;
       },
       () => {
-        // the first step: OnEnable (Idle), the effects switched on and prewarmed
-        if (slot && !slot.held && !slot.warmed && slot.paused) { slot.resume(); slot.step(0); slot.held = true; S._warming.add(slot); }
+        // the first step: OnEnable (Idle), the effects switched on; their prewarms wait for the next piece
+        if (slot && !slot.held && !slot.warmed && slot.paused) {
+          slot.resume();
+          // (`slicePrewarm: false`: each prewarm in one go, for checks that compare the two)
+          if (S.opts.slicePrewarm !== false) setPrewarmSink((sys) => prewarms.push(sys));
+          try { slot.step(0); } finally { setPrewarmSink(null); }
+          slot.held = true;
+        }
+        return true;
+      },
+      () => {
+        // the prewarms, PREWARM_SLICE_MS at a time (the same steps as one loop: psys.js prewarmStep), then the warm-up
+        // draw. A slot stepped meanwhile (another card of it went live) finishes them itself (PSys.update).
+        if (!slot || this.state === 'unmounted') return true;
+        const t0 = clock();
+        while (prewarms.length) {
+          const left = PREWARM_SLICE_MS - (clock() - t0);
+          if (left <= 0) return false;
+          if (!prewarms[0].prewarmStep(left)) return false;
+          prewarms.shift();
+        }
+        if (slot.held) { S._fitCanvas(); S._warming.add(slot); }
         return true;
       },
       // drawn once (the next frame's _draw), and every shader built
       () => !slot || this.state === 'unmounted' || !slot.held || (slot.warmed && progsReady()),
-    ]).then(() => prep);
+      () => {
+        // one real step and a second warm-up draw: the first step with time in it (the animation's, the particles')
+        // was the costliest part of the first live frame [src: notes dev55-renderer-flip-trace.md §2]. The card then
+        // starts STAGE_STEP_S into its idle.
+        if (slot && slot.held && this.state !== 'unmounted') { slot.step(STAGE_STEP_S); slot.warmed = false; S._warming.add(slot); }
+        return true;
+      },
+      () => !slot || this.state === 'unmounted' || !slot.held || slot.warmed,
+    ]).then(() => (slot && this.state !== 'unmounted' ? S._warmSpecial(prep, this.key, slot.w, slot.h) : null)).then(() => prep);
+  }
+
+  /** The canvas's opacity: on the element here, or through the page (onOpacity) for a Worker's card. */
+  _opacity(a) {
+    if (this.canvas && this.canvas.style) this.canvas.style.opacity = String(a);
+    else if (this.onOpacity) this.onOpacity(a);
   }
 
   _set(st) {
@@ -471,7 +627,7 @@ export class Card {
     if (this.started || this.state === 'unmounted' || this.state === 'failed') return;
     this.started = true;
     if (this.state === 'ready') {
-      if (this.canvas) this.canvas.style.opacity = '1';
+      if (this.canvas) this._opacity(1);
       this._set('live');
       this.S._kick();
     }
@@ -488,13 +644,14 @@ export class Card {
     if (this.fade >= 0 && this.drawing) {
       this.fade += dt;
       const a = Math.min(1, this.fade / LATE_FADE_S);
-      this.canvas.style.opacity = String(a);
+      this._opacity(a);
       if (a >= 1) { this.fade = -1; this._set('live'); }
     }
   }
 
-  blit(src, slot) {
-    if (!this.ctx || !this.drawing) return;
+  /** `warm`: the staging's warm-up draw, into the canvas while it is still hidden (opacity 0 until start()). */
+  blit(src, slot, warm = false) {
+    if (!this.ctx || !(this.drawing || (warm && !this.started && this.state !== 'unmounted'))) return;
     this.ctx.clearRect(0, 0, this.w, this.h);
     this.ctx.drawImage(src, slot.x, slot.y, slot.w, slot.h, 0, 0, this.w, this.h);
   }
@@ -525,15 +682,17 @@ class Slot {
     this.data = d;
     const look = sk.look;
     const make = S.spineFactory ? (sd) => S.spineFactory(P, sd, look) : null;
-    this.skel = new IllustSkeleton(prep.spineData, { ...sk, makeSpine: make });
+    // (`pruneTimelines: false`: keep the constant timelines, for checks that compare the two)
+    this.skel = new IllustSkeleton(prep.spineData, { ...sk, makeSpine: make, prune: S.opts.pruneTimelines !== false });
     // GPU skinning (render/dynillust/gpuskin.js) on WebGL2; pixi-spine's CPU meshes otherwise (or with gpuSkin: false)
     if (S.opts.gpuSkin !== false && S.renderer && gpuSkinSupported(S.renderer.gl)) {
       try { this.skel.enableGpu(new GpuSkeleton(S.renderer, this.skel.spine, look)); } catch (err) { console.warn('[dynillust] GPU skinning off', err); }
     }
-    this.fx = prep.fxDef ? new IllustEffects(prep.fxDef, { lib: S.lib, lite: false, ...d.effects }) : null;
+    // (`fxSeed`: one particle seed for every slot, for checks that compare two stages; random otherwise)
+    this.fx = prep.fxDef ? new IllustEffects(prep.fxDef, { lib: S.lib, lite: false, ...d.effects, seed: S.opts.fxSeed }) : null;
     if (this.fx) this.fx.fx.place({ pos: d.root.pos });
     this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: d.instance, now: () => this.time });
-    this.card = new CardIllustState({ rng: S.opts.rng, onAction: S.opts.onAction ? (a) => S.opts.onAction(key, a) : null });
+    this.card = new CardIllustState({ rng: S.opts.rng, onAction: S.opts.onAction ? (a) => S.opts.onAction(key, a) : null, mayStartSpecial: () => S._specialTurn() });
     this.map = unityToCard(d.framing, w, h);
     const pos = d.root.pos, rs = d.root.scale;
     const sp = this.skel.spine;
@@ -608,6 +767,8 @@ class Slot {
 
   destroy() {
     try { this.fx?.destroy(); } catch { /* ignore */ }
+    // the skeleton first: its GPU skinning data textures were left behind before (only the display was destroyed)
+    try { this.skel.destroy(); } catch { /* ignore */ }
     try { this.root.destroy({ children: true }); } catch { /* ignore */ }
   }
 }

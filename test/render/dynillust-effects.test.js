@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { Effect, compileEffect } from '../../public/js/render/vfx/effect.js';
 import { mat4 } from '../../public/js/render/vfx/math.js';
 import { illustBasis, CAM_DIST, AnimatorRuntime } from '../../public/js/render/dynillust/effects.js';
-import { illustDir, fileUrl, slotData, loadIllust } from '../../public/js/render/dynillust/loader.js';
+import { illustDir, fileUrl, slotData, loadIllust, loadGroups } from '../../public/js/render/dynillust/loader.js';
 
 describe('AnimatorRuntime (the index\'s Animator state machines, §33.19)', () => {
   // Lappland the Decadenza's Idle_01 controller, cut down: Idle 5 s, IdleToSpecial 7 s; OnIdle defaults to set
@@ -74,6 +74,15 @@ describe('loader.js (illust.json, §33.19)', () => {
     assert.deepEqual(d.instance.particles, [{ action: 1, node: 261 }, { action: 3, node: 240 }]);
     assert.deepEqual(d.instance.extraTracks, [{ track: 2, name: 'Blink' }]);
     assert.equal(d.effects.followers[0].bone, 'Wolf_H2');
+  });
+  test('load groups: a file or node takes its listed group, an unlisted one IDLE; a card never loads START / INTERACTION', () => {
+    const g = loadGroups({ load: { cardNever: ['START', 'INTERACTION'], nodes: ['IDLE', 'SPECIAL_IDLE', 'INTERACTION'], textures: { a: 'SPECIAL_IDLE', b: 'START' }, meshes: { m: 'INTERACTION' } } });
+    assert.deepEqual([g.texture('a'), g.texture('b'), g.texture('z'), g.mesh('m'), g.mesh('n')], ['SPECIAL_IDLE', 'START', 'IDLE', 'INTERACTION', 'IDLE']);
+    assert.deepEqual([g.node(0), g.node(1), g.node(2), g.node(9)], ['IDLE', 'SPECIAL_IDLE', 'INTERACTION', 'IDLE']);
+    assert.ok(g.never.has('START') && g.never.has('INTERACTION') && !g.never.has('SPECIAL_IDLE'));
+    // an index from before the load groups: everything at once, as before
+    const old = loadGroups({});
+    assert.equal(old.texture('a'), 'IDLE'); assert.equal(old.never.size, 0);
   });
   test('the half tier: the atlas parses at resolution 1 (its frames are full size), the page keeps 0.5, Pixi keeps no parse', async () => {
     // pixi-spine divides atlas coordinates by the page's resolution [src: public/vendor/pixi-spine.js TextureAtlas]
