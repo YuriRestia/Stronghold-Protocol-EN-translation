@@ -634,9 +634,10 @@ def export_one(env, key, path, eff_path, out_dir, budget, helpers, log):
     shakes = []
     for cls, t, o in behaviours:
         if cls == 'FxDynIllustCameraShake':
+            # `_shakeTrigs`: [{ delay, duration, strength (Vector3), vibrato, randomness, fadeOut }] as stored
             shakes.append({'node': _node_of(env, ids, comps, o.assets_file, t.get('m_GameObject')),
-                           **{k: (fx.f6(v) if isinstance(v, float) else v) for k, v in t.items()
-                              if not k.startswith('m_') and not isinstance(v, (dict, list))}})
+                           'enabled': bool(t.get('m_Enabled', 1)),
+                           'trigs': fx.enc_value(t.get('_shakeTrigs') or [], lambda p: None)})
     adj = dt.get('_adjustes') or []
     framing = {'cameraSize': fx.f6(dt.get('_cameraSize')),
                'maxSize': [fx.f6(dt['_maxSize']['x']), fx.f6(dt['_maxSize']['y'])] if dt.get('_maxSize') else None,
