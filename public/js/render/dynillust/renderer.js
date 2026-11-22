@@ -28,6 +28,7 @@ import { DynIllustInstance } from './instance.js';
 import { CardIllustState } from './state.js';
 import { IllustEffects, illustBasis } from './effects.js';
 import { loadIllust, slotData } from './loader.js';
+import { GpuSkeleton, gpuSkinSupported } from './gpuskin.js';
 import { FxGL } from '../vfx/gl.js';
 import { FrameData } from '../vfx/geom.js';
 import { FxLibrary } from '../vfx/library.js';
@@ -118,7 +119,8 @@ export class DynIllustStage {
     const P = this.P;
     try {
       this.renderer = new P.Renderer({
-        view: this.canvas, width: 2, height: 2, resolution: 1, backgroundAlpha: 0, antialias: true,
+        // not multisampled: the GrabPass / blur materials copy the bound framebuffer (render/vfx/gl.js _grabFrame)
+        view: this.canvas, width: 2, height: 2, resolution: 1, backgroundAlpha: 0, antialias: false,
         premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'high-performance',
       });
     } catch (err) { console.warn('[dynillust] no WebGL', err); return false; }
@@ -143,7 +145,9 @@ export class DynIllustStage {
       const e = this.entryOf(key);
       if (!e || !e.path) throw new Error('no illustration ' + key);
       await this._spineFactory();
-      const prep = await loadIllust(e.path, { P: this.P, fetch: this.opts.fetch, lib: this.lib, half: this.quality === 'half', texInfo: this.texInfo });
+      // (`effects: false`: the skeleton alone, for checks that compare two renders of it)
+      const lib = this.opts.effects === false ? null : this.lib;
+      const prep = await loadIllust(e.path, { P: this.P, fetch: this.opts.fetch, lib, half: this.quality === 'half', texInfo: this.texInfo });
       prep.data = slotData(prep.entry);
       await this._warm(prep);
       c.prep = prep;
@@ -228,7 +232,9 @@ export class DynIllustStage {
     for (const c of this.cards) c.sync(dt);
     const live = [];
     for (const slot of this.slots.values()) {
-      if (![...slot.cards].some((c) => c.drawing)) { slot.pause(); continue; }
+      let any = false;
+      for (const c of slot.cards) if (c.drawing) { any = true; break; }
+      if (!any) { slot.pause(); continue; }
       slot.resume();
       slot.step(dt);
       live.push(slot);
@@ -253,6 +259,9 @@ export class DynIllustStage {
     this.fd.reset();
     for (const s of live) if (s.x >= 0) s.prepare(this, CW, CH);
     if (this.glr) this.glr.upload(this.fd);
+    // the GPU skeletons' per-frame uploads (bones, colours, deforms, draw order), then Pixi's GL caches are stale
+    for (const s of live) if (s.x >= 0) s.skel.upload();
+    resetPixi(r);
     this.stage.removeChildren();
     for (const s of live) if (s.x >= 0) { s.root.position.set(s.x, s.y); this.stage.addChild(s.root); }
     r.render(this.stage, { clear: true });
@@ -272,7 +281,15 @@ export class DynIllustStage {
       run = null;
     };
     for (const it of slot.items) {
-      if (it.skelPart) { flush(); if (it.skelPart.enabled) slot.skel.renderPart(renderer, it.skelPart); renderer.batch.flush(); continue; }
+      if (it.skelPart) {
+        flush();
+        if (it.skelPart.enabled) {
+          if (slot.skel.gpu) { renderer.batch.flush(); slot.skel.renderPart(renderer, it.skelPart); resetPixi(renderer); }
+          else slot.skel.renderPart(renderer, it.skelPart);
+        }
+        renderer.batch.flush();
+        continue;
+      }
       (run || (run = [])).push(it);
     }
     flush();
@@ -405,6 +422,10 @@ class Slot {
     const look = sk.look;
     const make = S.spineFactory ? (sd) => S.spineFactory(P, sd, look) : null;
     this.skel = new IllustSkeleton(prep.spineData, { ...sk, makeSpine: make });
+    // GPU skinning (render/dynillust/gpuskin.js) on WebGL2; pixi-spine's CPU meshes otherwise (or with gpuSkin: false)
+    if (S.opts.gpuSkin !== false && S.renderer && gpuSkinSupported(S.renderer.gl)) {
+      try { this.skel.enableGpu(new GpuSkeleton(S.renderer, this.skel.spine, look)); } catch (err) { console.warn('[dynillust] GPU skinning off', err); }
+    }
     this.fx = prep.fxDef ? new IllustEffects(prep.fxDef, { lib: S.lib, lite: false, ...d.effects }) : null;
     if (this.fx) this.fx.fx.place({ pos: d.root.pos });
     this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: d.instance, now: () => this.time });

@@ -443,7 +443,7 @@ export class FxGL {
     let lastProg = null, lastState = null;
     const time = frame.time;
     const tv = [time / 20, time, time * 2, time * 3];
-    let lastMat = null, lastOv = null;
+    let lastMat = null, lastOv = null, screenVp = null;
     // (fork) one draw of an item with a material: its own, then a second pass's (Unlit-Outline's hull) if it has one
     const drawOne = (it, mat) => {
       const kind = it.kind;
@@ -514,7 +514,8 @@ export class FxGL {
         if (rec.grabParams) gl.uniform4f(rec.grabParams, vp[0], vp[1], frame.grabFlipY ?? -1, 0);
         if (rec.grabSize) gl.uniform4f(rec.grabSize, 1 / vp[2], 1 / vp[3], vp[2], vp[3]);
       }
-      if (rec.screen) { const vp = gl.getParameter(gl.VIEWPORT); gl.uniform4f(rec.screen, vp[2], vp[3], 1 + 1 / vp[2], 1 + 1 / vp[3]); }
+      // (fork) the viewport read once per draw() (getParameter waits for the GPU; it cannot change between these draws)
+      if (rec.screen) { const vp = screenVp || (screenVp = gl.getParameter(gl.VIEWPORT)); gl.uniform4f(rec.screen, vp[2], vp[3], 1 + 1 / vp[2], 1 + 1 / vp[3]); }
       if (rec.viewRot) gl.uniformMatrix3fv(rec.viewRot, false, frame.viewRot || VIEW_ROT);
       if (rec.invViewRot) gl.uniformMatrix3fv(rec.invViewRot, true, frame.viewRot || VIEW_ROT);
       if (rec.psPos && it.psPos) gl.uniform4f(rec.psPos, it.psPos[0], it.psPos[1], it.psPos[2], 0);

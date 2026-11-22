@@ -8,6 +8,12 @@
 //   slotRoute(compiled, spineBlend)           the material + Pixi blend a slot of that Spine blend mode draws with
 //   vertexColor(rgb, a, pma, additive)        the vertex colour bytes spine-unity writes (Color32)
 //   PAGE_TEXTURE_OPTIONS                      how page textures must be loaded (raw values: no premultiply on upload)
+//   spineFragmentSource(textures)             the fragment shader (GLSL ES 1.0) for another vertex stage, e.g. GPU
+//                                             skinning: varyings vTextureCoord, vColor (= vertex colour × uColor),
+//                                             vDark, vTextureId; samplers uSamplers[textures]
+//   SPINE_FRAGMENT_TEMPLATE, SPINE_VERTEX_SOURCE  the batch plugin's own sources (%count% / %forloop% unfilled)
+//   SPINE_UNIFORMS, materialUniforms(mat)     the uniform names the shaders read, and their values for a compiled
+//                                             material (uColor is read by the vertex stage too)
 //
 // `look` (one skeleton renderer of the illustration bundle, from the illustration index):
 //   { kind: 'animation' | 'graphic', pmaVertexColors, tintBlack, color?: [r,g,b,a] (SkeletonGraphic m_Color),
@@ -99,6 +105,32 @@ void main(void) {
   gl_FragColor = c;
 }
 `;
+
+export const SPINE_VERTEX_SOURCE = VERT;
+export const SPINE_FRAGMENT_TEMPLATE = FRAG;
+
+/** Uniforms the Spine shaders read (besides Pixi's projectionMatrix / translationMatrix in the vertex stage). */
+export const SPINE_UNIFORMS = Object.freeze(['uSamplers', 'uMode', 'uBleed', 'uTintBlack', 'uUseGray', 'uGrayScale', 'uColor', 'uBlack']);
+
+/**
+ * The fragment shader with `textures` samplers, the texture picked by vTextureId as Pixi's BatchShaderGenerator does
+ * (one texture: uSamplers[0] always).
+ */
+export function spineFragmentSource(textures = 1) {
+  const n = Math.max(1, textures | 0);
+  let loop = '';
+  for (let i = 0; i < n; i++) {
+    if (i > 0) loop += '\n  else ';
+    if (i < n - 1) loop += `if (vTextureId < ${i}.5)`;
+    loop += `\n  { color = texture2D(uSamplers[${i}], vTextureCoord); }`;
+  }
+  return FRAG.replace(/%count%/g, String(n)).replace(/%forloop%/g, loop);
+}
+
+/** The uniform values of a compiled material (compileLook's base / multiply / … or slotRoute(...).mat). */
+export function materialUniforms(m) {
+  return { uMode: m.mode, uBleed: m.bleed, uTintBlack: m.tintBlack, uUseGray: m.useGray, uGrayScale: m.grayScale, uColor: new Float32Array(m.color), uBlack: new Float32Array(m.black) };
+}
 
 const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const vec = (v, d) => (Array.isArray(v) ? d.map((x, i) => num(v[i], x)) : d.slice());

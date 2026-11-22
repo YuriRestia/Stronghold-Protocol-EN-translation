@@ -49,15 +49,21 @@ export function unityToCard(f, w, h) {
   };
 }
 
+/** The view's size before ApplyAdjust [src: official GameAssembly.dll DynIllustMgr._CreateIllustView 0x14462B0
+ * (sizeDelta 2048 × 2048; anchoredPosition left at 0)]. */
+export const VIEW_SIZE = 2048;
+
 /**
- * The adjust of `type`, falling back to DEFAULT when the illustration does not author it. Without any, the image is
- * `_maxSize` (default 2048 [src: official GameAssembly.dll DynIllustBase..ctor 0x1442F40]) at no offset.
+ * The adjust of `type`. A disabled part — DynIllustAdjust.DisabledValue, −3.40282e38 (Nearl the Radiant Knight's
+ * epoque#17 has no DEFAULT) — is left as the view was created: offset 0, size VIEW_SIZE [src: official GameAssembly.dll
+ * DynIllustView.ApplyAdjust 0x144D35F (the −3.40282e38 compare), DynIllustAdjust.enableOffset / enableSize].
  */
 export function pickAdjust(f, type) {
   const list = Array.isArray(f.adjust) ? f.adjust : [];
-  const max = Array.isArray(f.maxSize) && Number(f.maxSize[0]) > 0 ? Number(f.maxSize[0]) : 2048;
-  const a = list[type] || list[ADJUST.DEFAULT] || [0, 0, max, max];
-  return { ox: Number(a[0]) || 0, oy: Number(a[1]) || 0, size: Number(a[2]) > 0 ? Number(a[2]) : 2048 };
+  const a = list[type] || [];
+  const on = (v) => Number.isFinite(Number(v)) && Number(v) > -1e38;
+  const offOn = on(a[0]) && on(a[1]), sizeOn = on(a[2]) && Number(a[2]) > 0;
+  return { ox: offOn ? Number(a[0]) : 0, oy: offOn ? Number(a[1]) : 0, size: sizeOn ? Number(a[2]) : VIEW_SIZE };
 }
 
 /**

@@ -55,9 +55,11 @@ describe('framing.js (official card framing)', () => {
     const a = unityToCard(f, 232, 458), b = unityToCard(f, 464, 916);
     assert.ok(Math.abs(b.scale - 2 * a.scale) < 1e-9 && Math.abs(b.x0 - 2 * a.x0) < 1e-9 && Math.abs(b.y0 - 2 * a.y0) < 1e-9);
   });
-  test('DEFAULT is the adjust used; a missing one falls back to DEFAULT', () => {
+  test('a disabled or missing adjust leaves the view as created: offset 0, 2048 px', () => {
     assert.equal(pickAdjust(f, ADJUST.DEFAULT).size, 2038);
-    assert.equal(pickAdjust(f, ADJUST.HOME_PAGE).size, 2038);
+    assert.deepEqual(pickAdjust(f, ADJUST.HOME_PAGE), { ox: 0, oy: 0, size: 2048 });
+    const off = -3.40282e+38; // DynIllustAdjust.DisabledValue (Nearl the Radiant Knight's epoque#17 DEFAULT)
+    assert.deepEqual(pickAdjust({ adjust: [[off, off, off, off]] }, ADJUST.DEFAULT), { ox: 0, oy: 0, size: 2048 });
   });
   test('the view-projection puts a Unity point where the map says', () => {
     const m = unityToCard(f, 200, 400), vp = cardViewProj(m, 50, 10, 1000, 500);
