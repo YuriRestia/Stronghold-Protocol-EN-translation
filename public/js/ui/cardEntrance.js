@@ -522,12 +522,12 @@ function flushTiles(items) {
  * glow's leading edge, where the mask reads `lead` past the dissolve's edge, over the old picture. Most fall down through
  * the card and out of its bottom (B); `sideShare` of them are born near the card's left and right edges (`side`, the
  * share of the width) and thrown outward and up (A: `sideVx` outward, `sideVy`). `rate` births per second per card
- * while the border moves, `life` s / `size` (the star's ray, CSS px) ranges, `vx` / `vy` CSS px per second at birth,
- * `gravity` CSS px/s², `twinkle` the flicker's rate (Hz), `near` how close to the birth line's value a point must read,
- * `max` live stars per card.
+ * while the border moves, `life` s / `size` (the star's ray, a share of the card's height: the co-op rooms' wide cards
+ * are 2–3 × the tall ones) ranges, `vx` / `vy` CSS px per second at birth, `gravity` CSS px/s², `twinkle` the flicker's
+ * rate (Hz), `near` how close to the birth line's value a point must read, `max` live stars per card.
  */
 export const SPARKS = Object.freeze({ // [ASSUMED: tuned to the user's descriptions of 2026-11-22/23, not yet OK'd on the clip]
-  rate: 38, life: [0.35, 0.7], size: [4, 8], vx: [-50, 50], vy: [-30, 80], gravity: 650,
+  rate: 38, life: [0.35, 0.7], size: [0.025, 0.05], vx: [-50, 50], vy: [-30, 80], gravity: 650,
   sideShare: 0.3, side: 0.16, sideVx: [140, 360], sideVy: [-280, -90],
   twinkle: [6, 11], near: 0.04, lead: 0.2, max: 45,
 });
@@ -555,20 +555,21 @@ let star = null;
 const STAR_PX = 64;
 /**
  * A glitter star: four thin pinched rays (a sparkle, not a five-pointed star) and a shorter diagonal pair, a white core,
- * the rays a pale mint-cyan (the cards' teal; painted over, so they read on the white glow too) and a faint halo.
+ * the rays mint-cyan deepening to teal at the tips (the cards' teal; painted over, so they read on the white glow too)
+ * and a teal halo.
  */
 function sparkStar() {
   if (star || typeof OffscreenCanvas !== 'function') return star;
   const c = new OffscreenCanvas(STAR_PX, STAR_PX), g = c.getContext('2d'), m = STAR_PX / 2;
-  const halo = g.createRadialGradient(m, m, 0, m, m, m * 0.45);
-  halo.addColorStop(0, 'rgba(170,255,236,0.55)'); halo.addColorStop(1, 'rgba(120,235,215,0)');
+  const halo = g.createRadialGradient(m, m, 0, m, m, m * 0.5);
+  halo.addColorStop(0, 'rgba(60,215,195,0.7)'); halo.addColorStop(0.5, 'rgba(40,190,180,0.3)'); halo.addColorStop(1, 'rgba(30,170,165,0)');
   g.fillStyle = halo; g.fillRect(0, 0, STAR_PX, STAR_PX);
   // a ray pair: tips at `len` on both axes, the sides pinched in to `waist` (quadratic curves through the centre's side)
   const rays = (len, waist, rot, alpha) => {
     g.save(); g.translate(m, m); g.rotate(rot);
     const fill = g.createRadialGradient(0, 0, 0, 0, 0, len);
-    fill.addColorStop(0, `rgba(255,255,255,${alpha})`); fill.addColorStop(0.3, `rgba(214,255,246,${alpha})`);
-    fill.addColorStop(0.75, `rgba(110,232,214,${alpha * 0.75})`); fill.addColorStop(1, 'rgba(90,220,205,0)');
+    fill.addColorStop(0, `rgba(255,255,255,${alpha})`); fill.addColorStop(0.22, `rgba(190,255,240,${alpha})`);
+    fill.addColorStop(0.6, `rgba(50,205,190,${alpha * 0.95})`); fill.addColorStop(1, 'rgba(25,160,160,0)');
     g.fillStyle = fill;
     g.beginPath(); g.moveTo(0, -len);
     g.quadraticCurveTo(waist, -waist, len, 0); g.quadraticCurveTo(waist, waist, 0, len);
@@ -610,7 +611,7 @@ export function makeSparks() {
         if (Math.abs(d - e) > P.near) continue;
         const vx = thrown ? (x < 0.5 ? -1 : 1) * rnd(P.sideVx) : rnd(P.vx);
         list.push({ x: box.left + x * box.width, y: box.top + y * box.height, vx, vy: rnd(thrown ? P.sideVy : P.vy), age: 0,
-          life: rnd(P.life), size: rnd(P.size), rot: Math.random() * Math.PI / 2, spin: (Math.random() - 0.5) * 3, tw: rnd(P.twinkle) * 2 * Math.PI, ph: Math.random() * 6.3 });
+          life: rnd(P.life), size: rnd(P.size) * box.height, rot: Math.random() * Math.PI / 2, spin: (Math.random() - 0.5) * 3, tw: rnd(P.twinkle) * 2 * Math.PI, ph: Math.random() * 6.3 });
         acc -= 1;
       }
       if (acc > 1) acc = 1;
