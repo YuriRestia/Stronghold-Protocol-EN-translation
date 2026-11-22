@@ -512,7 +512,11 @@ since the raw mask's noise repeats each value in patches and drew stray second l
 (smooth 0.06, the official material's 0.5) [ASSUMED: the widths, the dim, the wash, not yet OK'd as numbers]. The
 show's set-up happens while the cards load, one card a frame: the shared GL canvas is grown for every card
 (`reserveTiles`); at the cover or the show the same work (with the glitter's layer, since dropped) cost the show's
-first frames 60 ms of script and 125–180 ms of rendering. The shared canvas is shrunk 2 s after the last card. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
+first frames 60 ms of script and 125–180 ms of rendering. The cards keep their tiles after the show and the shared canvas
+is shrunk only as the last of them unmounts, in the screen change's own frame: shrunk 2 s after the show it cost a frame
+of 42–67 ms in 7 of 8 loads, none in 8 since [src: work/dev-55 wf-ab-before / wf-ab-shrink, Grand Alliance page 6,
+2560 × 1440 @1 and @1.5, 2026-11-23]; the canvas holds about 16 MB there at 1440p (3564 × 1110 px × 4 bytes [src: work/dev-55
+ss-1440-5.json, its resizes]) while the room is open [unverified: at 4K]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
 the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); while they play, every card's dissolve
 and bloom are drawn in one GL pass a frame (`batchDissolve` / `batchBloom` / `flushBatch`, tiles in one canvas); a card
 that gave up shows `data-dyn="kept"`; the cards go

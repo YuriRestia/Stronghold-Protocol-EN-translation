@@ -536,20 +536,17 @@ function growCanvas(CW, CH) {
  * still reserved.
  */
 const reserved = new Map();
-let shrinkTimer = 0;
-/** How long after the last card the shared canvas is shrunk (ms): past the screen's settling, a design choice. */
-const SHRINK_AFTER_MS = 2000;
 export function reserveTiles(token, W = 0, H = 0, { grow = true } = {}) {
   if (W > 0 && H > 0) reserved.set(token, { W: Math.round(W), H: Math.round(H) }); else reserved.delete(token);
   if (!gl) return reserved.size;
-  clearTimeout(shrinkTimer);
   // a group's cards record their tiles one by one and grow the canvas once (growReserved): each growth reallocates it
   if (!grow && reserved.size) return reserved.size;
-  // nobody waiting or showing: give the memory back (8 wide cards at 4K held about 4050 × 5040 px, ~80 MB) a moment
-  // later, off the animation (the resize in the show's last frame cost it 47–70 ms, work/dev-55 wf-1440 / wf-4k); a
-  // later draw (a result card's entrance) grows it again to what it needs
+  // nobody left: give the memory back at once. The cards keep their tiles after their show and drop them as they
+  // unmount, so this falls in the screen change's own frame: a shrink after the show cost a frame of its own on the page
+  // (47–70 ms in the show's last frame, 82 ms 2 s later: work/dev-55 wf-1440 / wf-4k, ss-1440-5.json). A later draw (a
+  // result card's entrance) grows it again to what it needs
   if (!reserved.size) {
-    shrinkTimer = setTimeout(() => { if (!reserved.size && !queue.length && gl) { gl.canvas.width = 1; gl.canvas.height = 1; } }, SHRINK_AFTER_MS);
+    if (!queue.length && gl.canvas.width > 1) { gl.canvas.width = 1; gl.canvas.height = 1; }
     return 0;
   }
   growReserved();

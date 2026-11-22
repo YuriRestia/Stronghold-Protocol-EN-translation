@@ -914,9 +914,9 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
             after() {
               if (!live || lastS <= 0) return true;
               if (k >= 1 && !dissolved) { dissolved = true; cv.style.opacity = '0'; cv.width = 1; cv.height = 1; freeDissolvePicture(pic); pic = null; }
+              // done: the card keeps its tiles in the shared canvas until it unmounts (reserveTiles: no resize of its own)
               if (dissolved && !(glow > 0)) {
                 if (wc) { wc.style.opacity = '0'; wc.width = 1; wc.height = 1; }
-                reserveTiles(dis);
                 return false;
               }
               return true;
