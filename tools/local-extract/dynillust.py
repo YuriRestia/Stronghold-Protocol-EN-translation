@@ -585,6 +585,105 @@ def effect_prefabs(env, eff_path):
     return out
 
 
+GROUPS = ('IDLE', 'SPECIAL_IDLE', 'START', 'INTERACTION')     # load order; IDLE also holds the always-on parts
+TRIGGER_GROUP = {'OnIdle': 'IDLE', 'OnSpecial': 'SPECIAL_IDLE', 'OnStart': 'START', 'OnInteract': 'INTERACTION'}
+CARD_NEVER = ('START', 'INTERACTION')   # the card never plays Start (O1) and has no tap (D9)
+_REF = re.compile(r'"(mesh|texture)":"([^"]+)"|"material":(\d+)')
+
+
+def state_groups(animator):
+    """Animator state index → action group: the default state is IDLE; a transition on a trigger (OnSpecial, …) gives
+    its target that trigger's group; a transition without one passes its source's group on (exit-time chains)."""
+    out = []
+    for layer in animator.get('layers') or []:
+        states, g = layer.get('states') or [], {layer.get('defaultState', 0): 'IDLE'}
+        def target(t, src):
+            for c in t.get('conditions') or []:
+                if c.get('param') in TRIGGER_GROUP:
+                    return TRIGGER_GROUP[c['param']]
+            return g.get(src) if src is not None else None
+        changed = True
+        while changed:
+            changed = False
+            edges = [(i, t) for i, s in enumerate(states) for t in s.get('transitions') or []]
+            edges += [(None, t) for t in layer.get('anyState') or []]
+            for src, t in edges:
+                grp = target(t, src)
+                if grp and t.get('to') is not None and t['to'] not in g:
+                    g[t['to']] = grp
+                    changed = True
+        out.append((states, g))
+    return out
+
+
+def load_groups(nodes, materials, clips, particles, animators, files, textures, meshes, spine):
+    """§33.19 `load`: the earliest action group needing each node, texture and mesh, and the bytes of each group.
+    A node gates with the nearest node (itself or an ancestor) that an action switches on: an ActionParticle or a holder
+    effect of that action, or a GameObject.m_IsActive curve of a clip in an Animator state of that group; a node no
+    action gates is always on (IDLE). A file belongs to the earliest group of the nodes that use it."""
+    gate = {}
+    for p in particles:
+        if p.get('node') is not None:
+            gate.setdefault(p['node'], set()).add(p['action'])
+    for a in animators:
+        for states, g in state_groups(a):
+            for si, grp in g.items():
+                ci = states[si].get('clip') if 0 <= si < len(states) else None
+                clip = clips[ci] if isinstance(ci, int) and 0 <= ci < len(clips) else None
+                for cv in (clip or {}).get('curves') or []:
+                    if (cv.get('type') == 'GameObject' and cv.get('property') == 'm_IsActive' and cv.get('node') is not None
+                            and any(len(k) > 1 and k[1] is not None and k[1] > 0.5 for k in cv.get('keys') or [])):
+                        gate.setdefault(cv['node'], set()).add(grp)
+    rank = {g: i for i, g in enumerate(GROUPS)}
+    node_group = []
+    for n in nodes:
+        cur, tags = n, None
+        while cur is not None:
+            if cur['id'] in gate:
+                tags = gate[cur['id']]
+                break
+            cur = nodes[cur['parent']] if cur.get('parent') is not None else None
+        node_group.append(min((t for t in (tags or {'IDLE'}) if t in rank), key=rank.get, default='IDLE'))
+    tex_group, mesh_group = {}, {}
+    def use(table, key, grp):
+        if key and (key not in table or rank[grp] < rank[table[key]]):
+            table[key] = grp
+    for n, grp in zip(nodes, node_group):
+        body = json.dumps({k: v for k, v in n.items() if k != 'children'}, separators=(',', ':'))
+        for kind, key, mi in _REF.findall(body):
+            if kind == 'mesh':
+                use(mesh_group, key, grp)
+            elif kind == 'texture':
+                use(tex_group, key, grp)
+            elif mi:
+                m = materials[int(mi)] if int(mi) < len(materials) else {}
+                for t in (m.get('textures') or {}).values():
+                    use(tex_group, t.get('tex'), grp)
+        for k in ('meshRenderer', 'particleSystemRenderer', 'skinnedMeshRenderer', 'trailRenderer', 'lineRenderer', 'spriteRenderer'):
+            for mi in (n.get(k) or {}).get('materials') or []:
+                if isinstance(mi, int) and mi < len(materials):
+                    for t in (materials[mi].get('textures') or {}).values():
+                        use(tex_group, t.get('tex'), grp)
+        if isinstance(n.get('meshFilter'), str):
+            use(mesh_group, n['meshFilter'], grp)
+    tex_group = {k: tex_group.get(k, 'IDLE') for k in textures}       # a texture no node names stays in the first load
+    mesh_group = {k: mesh_group.get(k, 'IDLE') for k in meshes}
+    size = lambda rel: files.get(rel, {}).get('bytes', 0) if rel else 0    # noqa: E731
+    by = {g: {'full': 0, 'half': 0} for g in GROUPS}
+    for k, grp in tex_group.items():
+        t = textures[k]
+        by[grp]['full'] += size(t['file'])
+        by[grp]['half'] += size(t.get('half') or t['file'])
+    for k, grp in mesh_group.items():
+        by[grp]['full'] += size(meshes[k]['file'])
+        by[grp]['half'] += size(meshes[k]['file'])
+    base_full = size(spine['skeleton']) + size(spine['atlas']) + size('fx.json') + sum(size(p['file']) for p in spine['pages'])
+    base_half = size(spine['skeleton']) + size(spine['atlas']) + size('fx.json') + sum(size(p['half']) for p in spine['pages'])
+    return {'groups': list(GROUPS), 'cardNever': list(CARD_NEVER), 'nodes': node_group, 'textures': tex_group,
+            'meshes': mesh_group, 'bytes': by,
+            'firstLoad': {'full': base_full + by['IDLE']['full'], 'half': base_half + by['IDLE']['half']}}
+
+
 def export_one(env, key, path, eff_path, out_dir, budget, helpers, log):
     """One illustration → out_dir; returns its index entry for the manifest."""
     sfiles = env.load(path)
@@ -799,6 +898,7 @@ def export_one(env, key, path, eff_path, out_dir, budget, helpers, log):
                     # nodes whose FxGetParticleSystemPosWS sets _ParticleSystemPositionWS (GrabPass _DirMode 2 reads it)
                     'posWS': [n['id'] for n in nodes
                               if any(b.get('class') == 'FxGetParticleSystemPosWS' for b in n.get('behaviours') or [])]}}
+    index['load'] = load_groups(nodes, ctx.materials, ctx.clips, particles, animators, files, textures, meshes, spine)
     body = json.dumps(index, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
     budget.spend(len(body), 'illust.json')
     fx.write_atomic(Path(out_dir) / 'illust.json', body)

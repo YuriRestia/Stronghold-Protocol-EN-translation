@@ -139,6 +139,31 @@ print(json.dumps([dy.half_page(im, False).getpixel((0, 0)), dy.half_page(im, Tru
   assert.deepEqual(odd, [2, 1]);
 });
 
+test('load groups: nodes gate with the nearest action switch; files take the earliest group that uses them', () => {
+  // node 0 root (always on), 1 an IDLE particle set, 2 a SPECIAL_IDLE set with child 3, 4 switched on by an Animator
+  // clip in the state OnInteract reaches, 5 under 4; textures: a (node 1 and node 3), b (node 3 only), c (node 5), d (unused)
+  const got = py(`nodes = [{'id': 0, 'parent': None, 'children': [1, 2, 4]}, {'id': 1, 'parent': 0, 'meshRenderer': {'materials': [0]}},
+         {'id': 2, 'parent': 0}, {'id': 3, 'parent': 2, 'meshRenderer': {'materials': [1]}},
+         {'id': 4, 'parent': 0}, {'id': 5, 'parent': 4, 'meshFilter': 'm1', 'meshRenderer': {'materials': [2]}}]
+mats = [{'textures': {'_MainTex': {'tex': 'a'}}}, {'textures': {'_MainTex': {'tex': 'a'}, '_Mask': {'tex': 'b'}}}, {'textures': {'_MainTex': {'tex': 'c'}}}]
+clips = [{'curves': []}, {'curves': [{'node': 4, 'type': 'GameObject', 'property': 'm_IsActive', 'keys': [[0, 1, 0, 0]]}]}]
+anim = {'layers': [{'defaultState': 0, 'anyState': [], 'states': [
+  {'clip': 0, 'transitions': [{'to': 1, 'conditions': [{'param': 'OnInteract'}]}]}, {'clip': 1, 'transitions': []}]}]}
+parts = [{'action': 'IDLE', 'node': 1}, {'action': 'SPECIAL_IDLE', 'node': 2}]
+files = {'tex/a.webp': {'bytes': 10}, 'tex/b.webp': {'bytes': 20}, 'tex/c.webp': {'bytes': 40}, 'tex/d.webp': {'bytes': 80},
+         'mesh/m1.json': {'bytes': 5}, 's.skel': {'bytes': 1}, 's.atlas': {'bytes': 1}, 'fx.json': {'bytes': 1}, 'p/x.webp': {'bytes': 100}, 'p/half/x.webp': {'bytes': 30}}
+tex = {k: {'file': f'tex/{k}.webp', 'half': None} for k in 'abcd'}
+L = dy.load_groups(nodes, mats, clips, parts, [anim], files, tex, {'m1': {'file': 'mesh/m1.json'}},
+                   {'skeleton': 's.skel', 'atlas': 's.atlas', 'pages': [{'file': 'p/x.webp', 'half': 'p/half/x.webp'}]})
+print(json.dumps(L))`);
+  assert.deepEqual(got.nodes, ['IDLE', 'IDLE', 'SPECIAL_IDLE', 'SPECIAL_IDLE', 'INTERACTION', 'INTERACTION']);
+  assert.deepEqual(got.textures, { a: 'IDLE', b: 'SPECIAL_IDLE', c: 'INTERACTION', d: 'IDLE' });
+  assert.deepEqual(got.meshes, { m1: 'INTERACTION' });
+  assert.deepEqual(got.bytes.IDLE, { full: 90, half: 90 });
+  assert.deepEqual(got.firstLoad, { full: 193, half: 123 });
+  assert.deepEqual(got.cardNever, ['START', 'INTERACTION']);
+});
+
 test('--print-jobs lists dynillust as an opt-in set with its index version', () => {
   const r = spawnSync(PY ?? 'python3', ['-B', 'tools/local-extract/extract.py', '--print-jobs'], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
