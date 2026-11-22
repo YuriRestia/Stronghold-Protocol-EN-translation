@@ -28,13 +28,16 @@
 - Animation timelines that never move a bone are dropped once per skeleton (about half of all bone timelines), so the
   per-frame animation update costs about 15 % less CPU for the same pixels [src: notes dev50-l2d-perf-report.md
   §Constant timelines].
-- Cards load only what they show first: the idle's effect files before a card appears, the special idle's after every
-  card of the page has appeared, and never the tap and entry effects a card does not play (31 MB over all 98
-  illustrations). A Grand Alliance page of 8 cards appears 8–18 % sooner; a special idle whose files are not in yet
-  plays as soon as they are [src: notes dev50-l2d-perf-report.md §Load groups].
+- Cards never load the tap and entry effects they do not play (31 MB over all 98 illustrations) [src: notes
+  dev50-l2d-perf-report.md §Load groups].
 - A card's particle warm-up (the prewarm that makes a looping effect start full) runs in 4 ms slices before the card
   is ready, instead of one 37–93 ms frame per card; the particles end exactly the same. Long tasks while a page's cards
   load roughly halve at 4K and on a slowed CPU [src: notes dev50-l2d-perf-report.md §Sliced prewarm].
+- A card is ready only once everything it will show is loaded, uploaded and warmed, its special idle included: the
+  stage canvas is sized for the whole page, each card takes one real step and a hidden first draw, and each
+  illustration runs 40 hidden frames into its special idle on a throwaway copy. Cards whose special idles fall due in
+  the same frame start them a frame apart. Pages take about 0.5 s longer to be ready (the user's call: "Wait until
+  it's ready, then play the animation") [src: notes dev50-l2d-perf-report.md §Warm before ready].
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays
   counted from each switch-on, nodes that follow skeleton bones). Battle effects are unchanged.
 

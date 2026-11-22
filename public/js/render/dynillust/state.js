@@ -56,17 +56,19 @@ export function uniformSPActionTime(range, inst) {
 
 export class CardIllustState {
   /**
-   * @param {{ rng?: () => number, autoIdleSpecialDisable?: boolean, onAction?: (a: number) => void, specialReady?: () => boolean }} [o]
+   * @param {{ rng?: () => number, autoIdleSpecialDisable?: boolean, onAction?: (a: number) => void, mayStartSpecial?: () => boolean }} [o]
    * `onAction(action)`: told when the card itself starts an action (review pages log it).
-   * `specialReady()`: false while the special idle's files still load (renderer.js _warmLater); a timer that fires
-   * then waits, and the special idle plays at the first tick they are in (not an official rule: the client has every
-   * file before the card shows).
+   * `mayStartSpecial()`: false when another card of the page started its special idle this frame (renderer.js
+   * Stage._specialTurn); the timer stays fired and the special idle starts at the next tick. The official timer draws
+   * whole seconds (rangeInt), so cards that appeared together often fire in the same frame, and each start (Spine's
+   * mix, the action particles switched on) is one card's heaviest frame: spread, they cost a frame each (not an
+   * official rule: a shift of a frame or two per card that fired at once).
    */
   constructor(o = {}) {
     this.rng = o.rng || Math.random;
     this.autoIdleSpecialDisable = !!o.autoIdleSpecialDisable;
     this.onAction = o.onAction || null;
-    this.specialReady = typeof o.specialReady === 'function' ? o.specialReady : () => true;
+    this.mayStartSpecial = typeof o.mayStartSpecial === 'function' ? o.mayStartSpecial : () => true;
     this.state = STATE.DEACTIVATED;
     this.timer = { has: false, min: 0, max: 0, target: 0 };
   }
@@ -101,7 +103,7 @@ export class CardIllustState {
     }
     if (s === STATE.IDLE) {
       if (this.autoIdleSpecialDisable || a !== ACTION.IDLE) return;
-      if (!this.timerFires(inst.playingTime) || !this.specialReady()) return;
+      if (!this.timerFires(inst.playingTime) || !this.mayStartSpecial()) return;
       inst.changeAction(ACTION.SPECIAL_IDLE, 1);
       if (this.onAction) this.onAction(ACTION.SPECIAL_IDLE);
       this.resetTimer('RESUME', inst);
@@ -129,7 +131,7 @@ export class CardIllustState {
    */
   playSpecial(inst) {
     if (!inst || !inst.started) return;
-    if (this.state !== STATE.IDLE || inst.playingAction !== ACTION.IDLE || !this.specialReady()) return;
+    if (this.state !== STATE.IDLE || inst.playingAction !== ACTION.IDLE) return;
     inst.changeAction(ACTION.SPECIAL_IDLE, 1);
     if (this.onAction) this.onAction(ACTION.SPECIAL_IDLE);
     if (!this.autoIdleSpecialDisable) this.resetTimer('RESUME', inst);
