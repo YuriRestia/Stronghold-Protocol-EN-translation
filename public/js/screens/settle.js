@@ -34,7 +34,7 @@ import { ResultView, resultBonds } from './result.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { t, shownName } from '../../../shared/i18n.js';
 import { aceOf } from '../../../shared/resultAce.js';
-import { IllustArt, resultCardArt, cardAnimates, useDynIllustMode, useMatchCards, startResultLoad, endResultLoad, makeEntranceGate, releaseIllusts } from '../ui/dynCards.js';
+import { IllustArt, resultCardArt, cardAnimates, useDynIllustMode, useMatchCards, startResultLoad, endResultLoad, makeEntranceGate, releaseIllusts, resultGateStore, resultWaitMs, gateWaitStore } from '../ui/dynCards.js';
 import { settingsStore } from '../ui/settingsStore.js';
 import { useCardEntrance } from '../ui/cardEntranceHook.js';
 
@@ -574,7 +574,8 @@ export function useKeepResultArt(pub, myId) {
 
 /**
  * (fork) D10: the moment m.public `ending` says the last battle is over, load the result cards' illustrations, through the
- * settlement pause (screens/game.js holds the result screen for them, ui/dynCards.js resultWaitMs). Once per match.
+ * settlement pause (screens/game.js holds the result screen behind a black cover for them, ui/dynCards.js resultWaitMs).
+ * Once per match.
  * @param {any} pub m.public @param {string|null} myId
  */
 export function useResultPreload(pub, myId) {
@@ -717,6 +718,57 @@ export function SettleFlow({ res, pub = null, myId = null, content = null, backL
     ${detail ? html`<div class="settle__detail" data-testid="settle-detail">
       <${ResultView} res=${res} pub=${pub} myId=${myId} quiet=${true} slot=${false} damage=${true} content=${content} version=${version} backLabel=${t('返回')} onBack=${() => setDetail(false)} /></div>` : null}
   </div>`;
+}
+
+/**
+ * (fork) The black cover the result screen waits behind while its cards' illustrations load past the settlement pause
+ * (screens/game.js; the user, 2026-11-23: "have a black screen or something to load when the match was ending, not half
+ * ass load the result screen only for it to awkwardly wait for the l2ds!"): it fades in over the match screen, holds
+ * black with a small spinner, and fades out over the result screen once they are in (or at the give-up), then calls
+ * `onGone`. Its fade is the result flow's own page change (RESULT_COVER_FADE_MS = LEAVE_MS); none under reduced motion.
+ * @param {{ out?: boolean, onGone?: () => void }} props
+ */
+export const RESULT_COVER_FADE_MS = LEAVE_MS;
+
+/**
+ * (fork) The result screen's hold (screens/game.js): past the settlement pause (`toResult`) the result screen waits for
+ * its cards' illustrations behind ResultCover — never on screen — at most until the give-up (ui/dynCards.js
+ * resultWaitMs); no cover when they are in by then. A cover that went up finishes fading in before the result screen
+ * replaces what is under it, and fades out over it. Returns `wait` (ms the screen under the cover stays; 0: the result
+ * screen) and `cover` (to render over the screen, or null).
+ * @param {boolean} toResult
+ */
+export function useResultHold(toResult) {
+  useStore((s) => s.n, Object.is, resultGateStore); // a card's load settled, or the give-up: look again
+  // a page whose cards are still getting their first frames (its entrance gate: a spectator's 同盟 opens first) keeps a
+  // cover that is up over it until its entrance starts
+  const gatesWaiting = useStore((s) => s.n, Object.is, gateWaitStore);
+  const loadWait = toResult ? resultWaitMs() : 0;
+  const cover = useRef(null); // { at, gone } from the moment it went up
+  if (!toResult) cover.current = null;
+  else if (loadWait > 0 && !cover.current) cover.current = { at: Date.now(), gone: false };
+  const c = cover.current;
+  const coverHold = c && !c.gone && !reducedMotion() ? Math.max(0, c.at + RESULT_COVER_FADE_MS - Date.now()) : 0;
+  const wait = Math.max(loadWait, coverHold);
+  const [, bump] = useState(0);
+  const until = wait > 0 ? Math.round((Date.now() + wait) / 50) : 0;
+  useEffect(() => {
+    if (!(wait > 0)) return undefined;
+    const id = setTimeout(() => bump((n) => n + 1), wait);
+    return () => clearTimeout(id);
+  }, [until]);
+  return { wait, cover: c && !c.gone ? html`<${ResultCover} out=${!(wait > 0) && !(gatesWaiting > 0)} onGone=${() => { c.gone = true; bump((n) => n + 1); }} />` : null };
+}
+
+export function ResultCover({ out = false, onGone }) {
+  useEffect(() => {
+    if (!out) return undefined;
+    const id = setTimeout(() => onGone?.(), reducedMotion() ? 0 : RESULT_COVER_FADE_MS);
+    return () => clearTimeout(id);
+  }, [out]);
+  // the spinner reads 加载中 to screen readers (its own status role)
+  return html`<div class=${cx('rcover', out && 'is-out')} style=${`--rcover-ms:${RESULT_COVER_FADE_MS}ms`} data-testid="result-cover">
+    ${out ? null : html`<${Spinner} size="sm" />`}</div>`;
 }
 
 /**

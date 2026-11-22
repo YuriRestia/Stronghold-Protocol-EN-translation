@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
+  RESULT_GIVE_UP_MS, resultKeyReady, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
   setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle, cardTier, HALF_MAX_SCALE,
   FLIP_FADE_S, FLIP_DISSOLVE_S, FLIP_STEP_S, FLIP_SMOOTH_MS, FLIP_SMOOTH_FRAMES, FLIP_GIVE_UP_MS, joinGroup, groupState, leaveGroup, objectPosition,
   FLIP_SWEEP_S, sweepDrive, dynTierStore, setDynQuality,
@@ -102,11 +102,11 @@ test('结算卡片立绘 (D6): the room card, or the ace; an AI seat (no room ca
   assert.equal(resultCardArt('ace', { playerId: 'p1' }, { ...o, aceChess: null }), null, 'no lineup: no art');
 });
 
-/** A fake renderer module with the mount API; `st` records the quality, preloads and releases. */
+/** A fake renderer module with the mount API; `st` records the quality, preloads (one settle each) and releases. */
 function fakeModule(have) {
-  const st = { quality: null, preloads: [], releases: [], settle: null,
+  const st = { quality: null, preloads: [], releases: [], settles: [],
     index: () => Promise.resolve({}),
-    preload(keys) { this.preloads.push(keys); return new Promise((res, rej) => { st.settle = { res, rej }; }); },
+    preload(keys) { this.preloads.push(keys); return new Promise((res, rej) => { st.settles.push({ res, rej }); }); },
     release(keep) { this.releases.push(keep); },
     mount: () => ({ canvas: null, ready: Promise.resolve(true), state: 'ready', start() {}, unmount() {} }) };
   return { st, getDynIllustStage: () => st, dynIllustKey: (charId) => (have.includes(charId) ? `k_${charId}` : null) };
@@ -115,27 +115,52 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 const settled = async () => { for (let i = 0; i < 5; i++) await flush(); };
 const card = (charId, mine = false) => ({ art: { charId, outfit: null }, mine });
 
-test('the result screen waits for its cards (own card first), at most RESULT_WAIT_MS after the result, and opens once they are in (D11)', async () => {
-  assert.equal(RESULT_WAIT_MS, 3000);
+test('the result screen waits behind its cover for its cards (own card first) until the give-up after `ending`, and opens once they are in', async () => {
   const fake = fakeModule(['char_a', 'char_b']);
   setDynModule(fake);
   endResultLoad();
-  assert.equal(resultWaitMs(1000, 1000), 0, 'no load started: no wait');
+  assert.equal(resultWaitMs(), 0, 'no load started: no wait');
+  const t0 = Date.now();
   startResultLoad(() => [card('char_a'), card('char_b', true), card('char_c')]);
+  const t1 = Date.now(); // the load started between t0 and t1
   await settled();
-  assert.deepEqual(fake.st.preloads, [['k_char_b', 'k_char_a']], 'the cards this server has, once each, one\'s own first');
+  assert.deepEqual(fake.st.preloads, [['k_char_b'], ['k_char_a']], 'the cards this server has, once each, one\'s own first, one key a preload');
   assert.equal(fake.st.quality, 'full', 'a desktop: full pages');
-  const at = 50_000;
-  assert.equal(resultWaitMs(at, at), 3000);
-  assert.equal(resultWaitMs(at, at + 2000), 1000);
-  assert.equal(resultWaitMs(at, at + 3500), 0, 'the cap');
-  fake.st.settle.res();
+  // the wait runs to RESULT_GIVE_UP_MS after `ending` (the load's start), not from the result's arrival
+  const w = resultWaitMs(t1);
+  assert.ok(w <= RESULT_GIVE_UP_MS && w >= RESULT_GIVE_UP_MS - (t1 - t0), `${w} ms left at the load's start`);
+  assert.equal(resultWaitMs(t1 + RESULT_GIVE_UP_MS), 0, 'the give-up');
+  fake.st.settles[0].res();
   await settled();
-  assert.equal(resultWaitMs(at, at + 100), 0, 'every card in (or failed): open');
+  assert.ok(resultWaitMs() > 0, 'one card still loading: still covered');
+  fake.st.settles[1].res();
+  await settled();
+  assert.equal(resultWaitMs(), 0, 'every card in (or failed): open');
+  assert.ok(resultKeyReady('k_char_a') && resultKeyReady('k_char_x'), 'no give-up: every card may play');
   releaseIllusts();
   assert.deepEqual(fake.st.releases, [[]], 'the match starts: everything no card shows is freed');
   endResultLoad();
   setDynModule(null);
+});
+
+test('at the give-up the result screen opens and the cards still loading keep their 2D art (mock timers)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const fake = fakeModule(['char_a', 'char_b']);
+  setDynModule(fake);
+  try {
+    startResultLoad(() => [card('char_a', true), card('char_b')]);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    await new Promise((r) => { setImmediate(r); });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    assert.equal(fake.st.preloads.length, 2);
+    fake.st.settles[0].res();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    assert.ok(resultWaitMs() > 0);
+    t.mock.timers.tick(RESULT_GIVE_UP_MS);
+    assert.equal(resultWaitMs(), 0, 'given up: open');
+    assert.equal(resultKeyReady('k_char_a'), true, 'in by the give-up: plays');
+    assert.equal(resultKeyReady('k_char_b'), false, 'still loading: its 2D art');
+  } finally { endResultLoad(); setDynModule(null); }
 });
 
 test('follow-up A: the result cards\' illustrations are kept through the match, one\'s own first, within the GPU cap', async () => {
@@ -164,10 +189,10 @@ test('a failed preload opens the result screen too (the cards keep their 2D art)
   setDynModule(fake);
   startResultLoad(() => [card('char_a')]);
   await settled();
-  assert.ok(resultWaitMs(1, 1) > 0);
-  fake.st.settle.rej(new Error('slow link'));
+  assert.ok(resultWaitMs() > 0);
+  fake.st.settles[0].rej(new Error('slow link'));
   await settled();
-  assert.equal(resultWaitMs(1, 2), 0);
+  assert.equal(resultWaitMs(), 0);
   endResultLoad();
   setDynModule(null);
 });

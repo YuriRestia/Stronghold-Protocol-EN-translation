@@ -463,8 +463,21 @@ first, kept at the room's tier (the 动态立绘画质 setting's, if set) while 
 the measured 90th-percentile ratio (full 12.2×, half 4.7×; per illustration full median 40 MB, half 10 MB [src: work/dev-55
 gpumem.json, 2026-11-23]); with 阵容最强干员 nothing (the aces are known only at `ending`). The result screen then stays
 on that tier (`resultPin`), so the kept cards show with no load. The rest of the result cards'
-illustrations load from m.public `ending` (META §1) through the settlement pause, and `screens/game.js` keeps the match
-screen up after RESULT until they are ready, at most `RESULT_WAIT_MS` 3 s; the room's load after the screen has what it
+illustrations load from m.public `ending` (META §1) through the settlement pause (DELAYS.SETTLE 3 s), one preload a key;
+if they are still loading when RESULT comes, the result screen waits behind a black cover — never on screen (the user's
+correction of 2026-11-23, through the lead: "If the delay is necessary to load the L2d, then have a black screen or
+something to load when the match was ending, not half ass load the result screen only for it to awkwardly wait for the
+l2ds!"; it replaced D11's hold of the match screen for up to `RESULT_WAIT_MS` 3 s): `screens/settle.js useResultHold`
+(the one `screens/game.js` uses) fades `ResultCover` in over the match screen and holds it black with a small spinner
+until every card's illustration is in or failed, or the give-up; a cover that went up finishes its fade-in first, stays
+over a page whose cards are still getting their first frames (a spectator's 同盟 opens first: its entrance gate,
+`gateWaitStore`) and fades out over the result screen as its entrance starts; its fades are the flow's own page change
+(`RESULT_COVER_FADE_MS` = `LEAVE_MS`), none under reduced motion. No cover when the illustrations are in by the end of
+the pause (kept through the match, follow-up A, or loaded during it). At the give-up a card still loading keeps its 2D
+art at once (`resultKeyReady`). Measured with the game's hold on the review page (pages 3 and 5, 4 cards, cold / warm /
+kept, 2319 × 1356 @1 and @1.5) [src: work/dev-55 rc-*.json, 2026-11-23]: from the local server every case opened 5–12 ms
+after the pause, no cover; on a 4 MB/s link (the review page's `&slow`) page 3 cold showed the cover 984–1214 ms and warm
+804–805 ms, the result screen 3.39–3.78 s after `ending`, kept and page 5 none. The room's load after the screen has what it
 needs (`loadLater.js` whenScreenSettled, all the room's cards together) and after the entry film's files, the renderer's
 code getting ready during that wait; a room card not ready shows its 2D art and switches when ready. A result card's
 one-shot entrance waits for its illustration instead (the user, 2026-11-23: "If an L2D is available, then it should wait
@@ -473,7 +486,7 @@ once"): the team page's cards join one gate (`makeEntranceGate`), each settling 
 (or it has none), and every card's entrance starts from the gate's opening with the row's stagger, held on its first,
 unseen frame until then (`useCardEntrance` `gate`). Static art only for a card without an illustration, one that failed,
 or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending` (the user's OK of 2026-11-23), all
-waits counted (the settlement pause, the screen's hold, the cards' first frames), at least `RESULT_MOUNT_MIN_MS` 2 s after
+waits counted (the settlement pause, the cover, the cards' first frames), at least `RESULT_MOUNT_MIN_MS` 2 s after
 a team page that mounts late [ASSUMED: proposed, not yet OK'd]; such a card keeps its 2D art for good, no switch after
 its entrance.
 Measured on the review page (renderer booted, local server, 4 cards, 1440p and 4K): the load 0.70–0.99 s from files not

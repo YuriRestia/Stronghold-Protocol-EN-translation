@@ -408,7 +408,15 @@ span.settle__nexticon .icon { width: .34rem; height: .34rem; }
 .steam__outcome, .steam__rounds, .steam__when, .sbtn { animation: steam-bar 420ms var(--ease-out) 520ms both; }
 @keyframes steam-bar { from { opacity: 0; transform: translateY(.2rem); } }
 
+/* (fork) the black cover the result screen waits behind while its cards' illustrations load (screens/settle.js
+   ResultCover): over everything, fades in, holds black with a small spinner, fades out over the result screen */
+.rcover { position: fixed; inset: 0; z-index: 10001; display: grid; place-items: center; background: #000;
+  animation: rcover-in var(--rcover-ms, 380ms) linear both; transition: opacity var(--rcover-ms, 380ms) linear; }
+.rcover.is-out { opacity: 0; pointer-events: none; }
+@keyframes rcover-in { from { opacity: 0; } }
+
 @media (prefers-reduced-motion: reduce) {
   .settle *, .settle *::before, .settle *::after { animation: none; }
   .sintro { display: none; }
+  .rcover { animation: none; transition: none; }
 }

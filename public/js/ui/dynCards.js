@@ -8,8 +8,9 @@
 //     ace of the final lineup — for every card, from this viewer's side.
 //   Loading (D10 / D11): nothing during the match. The result cards' illustrations start loading the moment the server
 //     says the last battle is over (m.public `ending`, server/match/results.js endingView) and load through the
-//     settlement pause; the result screen opens as soon as they are in, at most RESULT_WAIT_MS after the pause
-//     (screens/game.js). The room / Grand Alliance cards load once the room screen has what it needs (loadLater.js) and
+//     settlement pause; past the pause the result screen waits behind a black cover until they are in, at most until
+//     RESULT_GIVE_UP_MS after `ending` (screens/game.js; the user's correction of 2026-11-23, which replaced D11's "another
+//     3 s" with the match screen held). The room / Grand Alliance cards load once the room screen has what it needs (loadLater.js) and
 //     after the entry film's files (D10, the first-impression rule). A card whose illustration is not ready shows its 2D
 //     art and switches when it is (D11). On the result screen how a card appears and switches (no intro, no fade on
 //     appear; the official controller's crossfade on a late switch — the user, 2026-11-22) is the renderer's. The room
@@ -34,12 +35,6 @@ import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from '.
 import { whenScreenSettled } from '../loadLater.js';
 import { uiUrl } from './assetUrls.js';
 import * as stub from './dynStub.js';
-
-/**
- * How long the result screen waits for its cards' illustrations after the settlement pause, at most (a cap: it opens the
- * moment they are ready). [src: crew-docs/l2d-art-proposal.md §1 D11 — the user, 2026-11-22: "Give it another 3s"]
- */
-export const RESULT_WAIT_MS = 3000;
 
 // ---- 设置「动态立绘」 (D7) ------------------------------------------------------------------------------------------
 
@@ -442,7 +437,7 @@ export function afterOpening(promise) { opening = Promise.resolve(promise).catch
 
 // ---- the result screen's wait (D10 / D11) --------------------------------------------------------------------------
 
-let resultLoad = null; // { pending: boolean }
+let resultLoad = null; // { pending, startedAt, ready: Set<key>, gaveUp, timer }
 
 /** A tick when the result cards' load settles: screens/game.js re-checks its wait. */
 export const resultGateStore = createStore({ n: 0 });
@@ -455,9 +450,12 @@ export const resultGateStore = createStore({ n: 0 });
  */
 export function startResultLoad(cardsOf) {
   endResultLoad();
-  const state = { pending: true, startedAt: Date.now() };
+  const state = { pending: true, startedAt: Date.now(), ready: new Set(), gaveUp: false, timer: 0 };
   resultLoad = state;
-  const done = () => { if (state.pending) { state.pending = false; resultGateStore.set({ n: resultGateStore.get().n + 1 }); } };
+  const tick = () => resultGateStore.set({ n: resultGateStore.get().n + 1 });
+  const done = () => { if (state.pending) { state.pending = false; clearTimeout(state.timer); tick(); } };
+  // the give-up: the result screen opens; the cards still loading keep their 2D art (resultKeyReady)
+  state.timer = setTimeout(() => { if (state.pending && resultLoad === state) { state.gaveUp = true; tick(); } }, RESULT_GIVE_UP_MS);
   // the result cards' tier: the kept illustrations' (the room's), so they show with no load; else from the cards' size
   // before they exist, which the cards confirm when they mount
   if (!qualityOverride) {
@@ -469,21 +467,36 @@ export function startResultLoad(cardsOf) {
     if (resultLoad !== state) return null;
     const cards = cardsOf().slice().sort((a, b) => Number(!!b.mine) - Number(!!a.mine));
     const keys = [...new Set(cards.map((c) => illustKey(R, c.art)).filter(Boolean))];
-    return keys.length ? st.preload(keys) : null;
+    // one preload a key, asked in that order, so the give-up knows which are in (a failed one settles too: its card
+    // then fails at once and keeps its 2D art)
+    return Promise.all(keys.map((k) => Promise.resolve(st.preload([k])).then(() => { state.ready.add(k); }, () => { state.ready.add(k); })));
   }).then(done, done);
 }
 
 /**
- * How long the result screen still waits (ms; 0 = open it): the result cards' load still running, at most
- * RESULT_WAIT_MS after the result arrived (`resultAt`).
+ * How long the result screen still waits (ms; 0 = open it), behind the black cover (screens/settle.js ResultCover):
+ * while the result cards' load runs, at most until RESULT_GIVE_UP_MS after m.public `ending` (the user, 2026-11-23: "If
+ * the delay is necessary to load the L2d, then have a black screen or something to load when the match was ending, not
+ * half ass load the result screen only for it to awkwardly wait for the l2ds!").
  */
-export function resultWaitMs(resultAt, now = Date.now()) {
-  if (!resultLoad || !resultLoad.pending || !(resultAt > 0)) return 0;
-  return Math.max(0, resultAt + RESULT_WAIT_MS - now);
+export function resultWaitMs(now = Date.now()) {
+  const s = resultLoad;
+  if (!s || !s.pending || s.gaveUp) return 0;
+  return Math.max(0, s.startedAt + RESULT_GIVE_UP_MS - now);
+}
+
+/**
+ * Whether a result card may show its illustration: always, unless the result screen opened at the give-up while its
+ * illustration was still loading — then it keeps its 2D art at once (no wait on the open screen, no switch later).
+ */
+export function resultKeyReady(key) {
+  const s = resultLoad;
+  return !s || !s.gaveUp || s.ready.has(key);
 }
 
 /** Forget the match's result load (the next match began, or the page left the match). */
 export function endResultLoad() {
+  if (resultLoad) clearTimeout(resultLoad.timer);
   resultLoad = null;
   if (resultPin) { resultPin = null; tierChanged(); }
 }
@@ -510,9 +523,12 @@ export function makeEntranceGate({ now = Date.now(), endingAt = resultLoad?.star
   const pending = new Map(); // token → abandon
   let done = false, opened = false, resolve;
   const ready = new Promise((r) => { resolve = r; });
+  gateWaitStore.set({ n: gateWaitStore.get().n + 1 });
+  const leave = () => gateWaitStore.set({ n: Math.max(0, gateWaitStore.get().n - 1) });
   const finish = () => {
     if (done) return;
     done = true;
+    leave();
     clearTimeout(timer);
     const gaveUp = pending.size;
     for (const abandon of pending.values()) { try { abandon?.(); } catch (err) { console.warn('[dynillust] give up', err); } }
@@ -531,9 +547,14 @@ export function makeEntranceGate({ now = Date.now(), endingAt = resultLoad?.star
     join(token, abandon) { if (!done) pending.set(token, abandon); },
     settle(token) { pending.delete(token); check(); },
     open() { opened = true; check(); },
-    dispose() { clearTimeout(timer); },
+    dispose() { clearTimeout(timer); if (!done) { done = true; leave(); } },
   };
 }
+/**
+ * How many result pages' entrance gates are still waiting: a result cover that is up (screens/settle.js useResultHold)
+ * stays over a page whose cards are still getting their first frames, so the page shows with its entrance, not before.
+ */
+export const gateWaitStore = createStore({ n: 0 });
 
 // ---- the room's group flip (the user, 2026-11-22: "keep placeholder and flip at the same time") ------------------------
 
@@ -1051,6 +1072,8 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
     const go = () => Promise.all([readyStage(tier), framing === 'cover' ? loadCardArtFraming() : null]).then(([{ R, st }]) => {
       const key = live ? illustKey(R, art) : null;
       if (!key || !host.current) { if (live) setState('off'); gate?.settle(gateTok); return null; }
+      // a result card whose illustration was still loading when the result screen opened at the give-up: its 2D art
+      if (gate && !resultKeyReady(key)) { if (live) { kept = true; setState('kept'); } gate.settle(gateTok); return null; }
       // the renderer's card: its own 2D canvas in the art window, under the card's overlays (§33.19); 'live' = drawn
       card = st.mount(key, { ...framingFor(key, framing), onState: (s) => {
         if (!live || kept) return;
