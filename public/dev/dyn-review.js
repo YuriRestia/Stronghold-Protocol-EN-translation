@@ -203,7 +203,7 @@ async function boot() {
   store.set({ session: { entered: true }, connection: { status: 'online', ping: 20, attempt: 0, retryAt: 0, lastError: null, everOnline: true },
     clock: { offset: 0, rtt: 20, synced: true } });
   // 动态立绘 on every card, the result cards' default art (the room card), not saved
-  settingsStore.set({ dynIllust: 'all', resultArt: 'card' });
+  settingsStore.set({ dynIllust: P.has('off') ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
   if (FRAME) setDynQuality('half');
   if (P.has('lang')) await initLang().catch((err) => console.warn('[review] language setup failed', err));
   await data.loadAll([...GAME_FILES, 'outfits']);
