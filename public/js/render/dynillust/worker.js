@@ -57,12 +57,13 @@ async function boot() {
   });
   const run = stage._frame.bind(stage);
   stage._frame = (t) => {
-    const t0 = performance.now();
+    const t0 = performance.now(), n0 = stage.frameNo;
     try { return run(t); } finally {
       if (frames && frames.length < 20000) {
         let live = 0;
         for (const s of stage.slots.values()) if (!s.paused && !s.held) live++;
-        frames.push([+t0.toFixed(2), +(performance.now() - t0).toFixed(2), live]);
+        // [start, ms, live slots, drawn: 1 / skipped by maxFps: 0]
+        frames.push([+t0.toFixed(2), +(performance.now() - t0).toFixed(2), live, stage.frameNo !== n0 ? 1 : 0]);
       }
     }
   };
