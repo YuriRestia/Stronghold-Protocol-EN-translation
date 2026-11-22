@@ -94,6 +94,24 @@ describe('dynamic illustration effect shaders (materials.js)', () => {
     for (const fam of Object.keys(FAMILIES)) assert.ok(!L2D_FAMILIES[fam], `${fam} is not redefined`);
   });
 
+  test('Disturb2 moves its own texture by two noise reads and ignores the vertex rgb (Dusk\'s Elite 2 background)', () => {
+    const ab = compileMaterial({ shader: 'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)', keywords: ['_DISTURBMODE_DEFAULT'] });
+    const add = compileMaterial({ shader: 'Torappu/Particles-L2D/Disturb/Disturb2 (Add)' });
+    const glow = compileMaterial({ shader: 'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)', keywords: ['_DISTURBMODE_GLOW'] });
+    for (const m of [ab, add, glow]) assert.equal(m.family, 'disturb2');
+    assert.equal(ab.defs.glow, false);
+    assert.equal(add.defs.add, true);
+    assert.equal(glow.defs.glow, true);
+    assert.equal(new Set([ab.key, add.key, glow.key]).size, 3);
+    const src = fragmentSource('disturb2', ab.defs);
+    assert.match(src, /u_Noise1Param\.zw \* 0\.1/);
+    assert.match(src, /c\.a \* v_col\.a/);
+    assert.doesNotMatch(src, /v_col\.rgb/, 'the vertex colour\'s rgb is not read');
+    assert.match(fragmentSource('disturb2', add.defs), /c\.rgb \* t\.a/);
+    assert.match(fragmentSource('disturb2', glow.defs), /t\.g \* u_GlowColor/);
+    assert.notEqual(familyOf('Torappu/Particles/Disturb/Disturb Origin').family, 'disturb2', 'the battle Disturb Origin keeps its family');
+  });
+
   test('a vertex variant adds its code at the end of main()', () => {
     const v = vertexSource('quad', { vx: 'grab' });
     assert.match(v, /out vec4 v_g2;/);

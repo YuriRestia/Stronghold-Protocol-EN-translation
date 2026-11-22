@@ -127,6 +127,28 @@ void main() {
   o_col = texture(u_GrabTexture, suv + off);
 }`,
   },
+  // Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend / Add): the main texture (UV × _MainTex_ST) moved by two
+  // noise reads of _DisturTex — red at UV × _Noise1Param.x + (frac(_Noise1Param.y × _Time.x), 0), green at the same
+  // with _Noise2Param — × their .zw × 0.1. _DISTURBMODE_DEFAULT: AlphaBlend = texture × _MainColor, alpha × vertex
+  // alpha; Add = the same with the colour × texture alpha. _DISTURBMODE_GLOW: texture red × _MainColor + green ×
+  // _GlowColor. Saturated. The vertex colour's rgb is not read.
+  disturb2: {
+    tex: ['_MainTex', '_DisturTex'],
+    src: (d) => `${S(['_MainTex', '_DisturTex'])}
+${U4(['_MainTex_ST', '_MainColor', '_GlowColor', '_Noise1Param', '_Noise2Param'])}
+void main() {
+  vec2 uv = st(v_uv, u_MainTex_ST);
+  vec2 n1 = uv * u_Noise1Param.x + vec2(fract(u_Noise1Param.y * u_Time.x), 0.0);
+  vec2 n2 = uv * u_Noise2Param.x + vec2(fract(u_Noise2Param.y * u_Time.x), 0.0);
+  vec2 off = texture(u_DisturTex, n2).g * u_Noise2Param.zw * 0.1 + texture(u_DisturTex, n1).r * u_Noise1Param.zw * 0.1;
+  vec4 t = texture(u_MainTex, uv + off);
+  ${d.glow
+    ? 'o_col = clamp(t.r * u_MainColor + t.g * u_GlowColor, 0.0, 1.0);'
+    : d.add
+      ? 'vec4 c = t * u_MainColor;\n  o_col = clamp(vec4(c.rgb * t.a, c.a * v_col.a), 0.0, 1.0);'
+      : 'vec4 c = t * u_MainColor;\n  o_col = clamp(vec4(c.rgb, c.a * v_col.a), 0.0, 1.0);'}
+}`,
+  },
   // Torappu/Particles-L2D/Special/Particle-Blur: the frame copy (GrabPass "_DisturbGrabTexture", shared with
   // GrabPassOnce) averaged over 8 taps at these offsets × _BlurSize pixels (× Custom1.x, TEXCOORD0.z, with
   // _CUSTOMDATA_ON); alpha 1, blend One Zero

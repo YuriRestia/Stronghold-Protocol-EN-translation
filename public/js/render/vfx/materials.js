@@ -42,7 +42,7 @@ const BY_NAME = {
   'Torappu/Particles/ZDistort/Dissolve(CustomData)': 'dissolveCd',
   'Torappu/Particles/Disturb/Disturb Origin': 'disturbOrigin',
   'Torappu/Particles-L2D/Disturb/Disturb (Add)': 'disturbOrigin', 'Torappu/Particles-L2D/Disturb/Disturb (AlphaBlend)': 'disturbOrigin',
-  'Torappu/Particles-L2D/Disturb/Disturb2 (Add)': 'disturbOrigin', 'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)': 'disturbOrigin',
+  'Torappu/Particles-L2D/Disturb/Disturb2 (Add)': 'disturb2', 'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)': 'disturb2',
   'Torappu/Particles/Disturb/Disturb Anchor': 'disturbAnchor', 'Torappu/Particles-L2D/Disturb/Disturb Anchor (Add)': 'disturbAnchor',
   'Torappu/Particles-L2D/Disturb/Disturb Anchor (AlphaBlend)': 'disturbAnchor',
   'Torappu/Particles/Disturb/Disturb(CustomData)': 'disturbCd', 'Torappu/Particles-L2D/Disturb/Disturb(CustomData)': 'disturbCd',
@@ -81,6 +81,8 @@ const L2D_SHADERS = {
   'Torappu/Particles-L2D/Disturb/Disturb GrabPass': { grab: 'each', drawPass: 1, vx: 'grab', cvs: '_CUSTOMDATA_ON' },
   'Torappu/Particles-L2D/Disturb/Disturb GrabPassOnce': { grab: 'once', drawPass: 1, vx: 'grab', cvs: '_CUSTOMDATA_ON' },
   'Torappu/Particles-L2D/Special/Particle-Blur': { grab: 'once', drawPass: 1, cvs: '_CUSTOMDATA_ON' },
+  'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)': { glowKw: '_DISTURBMODE_GLOW' },
+  'Torappu/Particles-L2D/Disturb/Disturb2 (Add)': { glowKw: '_DISTURBMODE_GLOW', add: true },
   'Torappu/Particles-L2D/Unlit-Outline': { hull: 1 },
   'Torappu/Particles-L2D/Particles-Poker-Reflect': { vx: 'tangent' },
 };
@@ -148,7 +150,9 @@ export function compileMaterial(m, opts = {}) {
     if (l2d.cvs) defs.cvs = kw.has(l2d.cvs);
     if (l2d.edgeAdd) defs.edgeAdd = true;
     if (l2d.vx) defs.vx = l2d.vx;
-    out.key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}|${defs.edgeAdd ? 1 : 0}${defs.vx || ''}`;
+    if (l2d.glowKw) defs.glow = kw.has(l2d.glowKw);
+    if (l2d.add) defs.add = true;
+    out.key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}|${defs.edgeAdd ? 1 : 0}${defs.vx || ''}${defs.glow ? 'g' : ''}${defs.add ? 'a' : ''}`;
     if (l2d.grab) out.grab = l2d.grab;
     // a second pass drawn right after the first with the same geometry (Unlit-Outline's outline hull)
     if (l2d.hull != null && passes[l2d.hull]) {

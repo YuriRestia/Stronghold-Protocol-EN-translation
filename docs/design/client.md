@@ -181,8 +181,9 @@ history and the open points: DESIGN §32.14.25.
   program of its shader in the CN client's `[uc]shaders.ab` (Unity 2021.3, read 2026-11-22): Dissolve AB / Add Double
   edge (Torappu/ and Hidden/), Disturb GrabPass / GrabPassOnce and Particle-Blur (they read a copy of the frame drawn so
   far: `gl.js _grabFrame` copies the bound framebuffer's viewport before each renderer of an unnamed GrabPass, once per
-  frame for the named `_DisturbGrabTexture`), RGBsplit, Unlit-Outline (its outline hull is the material's second pass:
-  `materials.js` `second`, drawn right after the first), Mask/Erase, 3D/Toon and 3D/MatCapTransparent (the camera's
+  frame for the named `_DisturbGrabTexture`), Disturb2 AlphaBlend / Add (the main texture moved by two scrolling noise
+  reads, the vertex colour's rgb unread, the `_DISTURBMODE_GLOW` mode; Dusk's Elite 2 background), RGBsplit,
+  Unlit-Outline (its outline hull is the material's second pass: `materials.js` `second`, drawn right after the first), Mask/Erase, 3D/Toon and 3D/MatCapTransparent (the camera's
   rotation: `draw` frame `viewRot`), Particles-Poker-Reflect (a mesh's tangents and second UV set, a cubemap) and
   UI/AlphaBlend. A vertex variant (`defs.vx`) only appends code to the kind's vertex shader; the battle families'
   programs and keys are unchanged. Unity's `Standard` appears in two illustrations only on inactive placeholder quads
