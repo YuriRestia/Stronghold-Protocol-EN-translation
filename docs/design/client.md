@@ -443,7 +443,14 @@ show only on a server whose index lists illustrations. Loading (D10 / D11): noth
 illustrations load from m.public `ending` (META §1) through the settlement pause, and `screens/game.js` keeps the match
 screen up after RESULT until they are ready, at most `RESULT_WAIT_MS` 3 s; the room's load after the screen has what it
 needs (`loadLater.js` whenScreenSettled, all the room's cards together) and after the entry film's files, the renderer's
-code getting ready during that wait; a card not ready shows its 2D art and switches when ready. The
+code getting ready during that wait; a card not ready shows its 2D art and switches when ready.
+The room's and the Grand Alliance room's cards switch together (the user, 2026-11-22: keep the placeholders and flip at
+the same time; `joinGroup`): each keeps its 2D art until every card on the screen is ready or failed, then all start in
+one frame behind their 2D art and show in one frame, fading in over the controller's 0.15 s (`FLIP_FADE_S`), once two
+frames in a row took at most `FLIP_SMOOTH_MS` (30 fps) — the renderer's first frames with the whole group live are its
+slow ones — or `FLIP_HOLD_MAX_MS` 0.5 s after the start [ASSUMED: proposed, not yet OK'd]; a failed card keeps its 2D and
+holds nobody; past `GROUP_CAP_MS` 8 s from the first card's mount [ASSUMED: proposed, not yet OK'd] the ready ones flip
+and a later one swaps alone, as does a card mounted after the flip; the result cards do not group (D11). The
 strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
 the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in

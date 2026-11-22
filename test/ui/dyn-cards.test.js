@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
   setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle, cardTier, HALF_MAX_SCALE,
-  FLIP_FADE_S, joinGroup, groupState, leaveGroup,
+  FLIP_FADE_S, FLIP_SMOOTH_MS, FLIP_HOLD_MAX_MS, joinGroup, groupState, leaveGroup,
 } from '../../public/js/ui/dynCards.js';
 
 test('the tier by card size: half up to one device px per official unit of the 232 × 458 window, full above', () => {
@@ -149,30 +149,77 @@ test('a failed preload opens the result screen too (the cards keep their 2D art)
 });
 
 test('the room\'s group flip: every card waits for the others, then all start in one frame; a failed one does not hold them; a later one swaps alone', () => {
-  const frames = [];
+  const frames = new Map();
+  let fid = 0;
   const raf = globalThis.requestAnimationFrame, caf = globalThis.cancelAnimationFrame;
-  globalThis.requestAnimationFrame = (f) => { frames.push(f); return frames.length; };
-  globalThis.cancelAnimationFrame = () => {};
-  const tick = () => { const fs = frames.splice(0); for (const f of fs) f(performance.now()); };
+  globalThis.requestAnimationFrame = (f) => { frames.set(++fid, f); return fid; };
+  globalThis.cancelAnimationFrame = (id) => { frames.delete(id); };
+  let now = 0;
+  const tick = (ms = 16) => { now += ms; const fs = [...frames.values()]; frames.clear(); for (const f of fs) f(now); };
   try {
     assert.equal(FLIP_FADE_S, 0.15);
-    const starts = [];
-    const mk = (n) => ({ card: { start: () => starts.push(n) }, state: 'loading', alone: false });
+    const starts = [], shows = [];
+    const mk = (n) => ({ card: { start: () => starts.push(n) }, show: () => shows.push(n), state: 'loading', alone: false });
     const a = mk('a'), b = mk('b'), c = mk('c');
     for (const e of [a, b, c]) joinGroup(e);
     groupState(a, 'ready'); groupState(b, 'ready'); tick(); tick();
     assert.deepEqual(starts, [], 'c is still loading: nobody starts');
     groupState(c, 'failed'); tick(); tick();
     assert.deepEqual(starts, ['a', 'b'], 'all the ready ones in the same frame; the failed one keeps its 2D');
+    assert.deepEqual(shows, [], 'started behind their 2D art');
+    tick(); tick();
+    assert.deepEqual(shows, [], 'the first frame after the start is not measured: one smooth frame is not two');
+    tick();
+    assert.deepEqual(shows, ['a', 'b'], 'two smooth frames in a row: both show in the same frame');
     const d = mk('d');
     joinGroup(d); tick();
     assert.deepEqual(starts, ['a', 'b'], 'joined after the flip: waits for its own ready');
     groupState(d, 'ready');
     assert.deepEqual(starts, ['a', 'b', 'd'], 'and then swaps alone');
+    assert.deepEqual(shows, ['a', 'b', 'd'], 'shown as it starts');
     for (const e of [a, b, c, d]) leaveGroup(e);
     const e2 = mk('e');
     joinGroup(e2); groupState(e2, 'ready'); tick(); tick();
     assert.deepEqual(starts, ['a', 'b', 'd', 'e'], 'a new screen forms a new group');
     leaveGroup(e2);
+    assert.equal(frames.size, 0, 'a group with no card left stops waiting');
+  } finally { globalThis.requestAnimationFrame = raf; globalThis.cancelAnimationFrame = caf; }
+});
+
+test('the group shows once two frames in a row are smooth after its slow first ones, at most FLIP_HOLD_MAX_MS after the start', () => {
+  const frames = new Map();
+  let fid = 0;
+  const raf = globalThis.requestAnimationFrame, caf = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = (f) => { frames.set(++fid, f); return fid; };
+  globalThis.cancelAnimationFrame = (id) => { frames.delete(id); };
+  let now = 0;
+  const tick = (ms) => { now += ms; const fs = [...frames.values()]; frames.clear(); for (const f of fs) f(now); };
+  try {
+    assert.ok(FLIP_SMOOTH_MS > 1000 / 30 && FLIP_SMOOTH_MS < 35, 'a 30 fps frame with 1 ms of jitter');
+    assert.equal(FLIP_HOLD_MAX_MS, 500);
+    const shows = [];
+    const mk = (n) => ({ card: { start() {} }, show: () => shows.push(n), state: 'loading', alone: false });
+    // the trace's pattern: 75, 62, 54, 46, 37 ms, then smooth; one smooth frame between slow ones does not count
+    let g = [mk('a'), mk('b')];
+    for (const e of g) joinGroup(e);
+    for (const e of g) groupState(e, 'ready');
+    tick(16); tick(16); // the check frame, then the start frame
+    for (const ms of [75, 62, 30, 54, 46, 37]) { tick(ms); assert.deepEqual(shows, [], `still slow (${ms} ms)`); }
+    tick(33.4);
+    assert.deepEqual(shows, [], 'one smooth frame');
+    tick(29);
+    assert.deepEqual(shows, ['a', 'b'], 'two in a row');
+    for (const e of g) leaveGroup(e);
+    // a PC whose frames stay slow shows the group FLIP_HOLD_MAX_MS after the start
+    shows.length = 0;
+    g = [mk('c'), mk('d')];
+    for (const e of g) joinGroup(e);
+    for (const e of g) groupState(e, 'ready');
+    tick(16); tick(16);
+    for (let t = 0; t + 60 < FLIP_HOLD_MAX_MS; t += 60) tick(60);
+    assert.deepEqual(shows, []);
+    tick(60);
+    assert.deepEqual(shows, ['c', 'd']);
+    for (const e of g) leaveGroup(e);
   } finally { globalThis.requestAnimationFrame = raf; globalThis.cancelAnimationFrame = caf; }
 });

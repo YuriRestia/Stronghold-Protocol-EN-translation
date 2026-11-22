@@ -295,19 +295,42 @@ export function endResultLoad() {
  * fails keeps its 2D and does not hold the others. Past GROUP_CAP_MS from the first card's mount the ready ones flip and
  * a later one swaps alone when ready; so does a card mounted after the flip (a player who joins, a new outfit or
  * portrait). The result screen does not group (D11: at most 3 s after the settlement pause, a late card fades in alone).
+ *
+ * Start, then show: the renderer's first frames with a whole group live are its slow ones (each slot's first step and
+ * draw; 8 Grand Alliance cards: 2–5 frames of 37–75 ms, then 25–33 ms [src: I:/ClaudeCrew/work/dev-55 trace1.json,
+ * prof2.json, 2026-11-22]), so the group starts behind its still 2D art and shows in one frame once two frames in a row
+ * took at most FLIP_SMOOTH_MS, or FLIP_HOLD_MAX_MS after the start. A card that swaps alone shows as it starts.
  */
 export const FLIP_FADE_S = 0.15; // the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
 export const GROUP_CAP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — 8 s covers a typical PC's cold Grand Alliance load, 4.9–5.3 s measured at 1080p]
-let group = null; // { entries: Set, flipped, timer, check }
+/** A smooth frame: 30 fps, the flip's gate (no frame over 33 ms: the lead's brief of 2026-11-22), +1 ms of frame-timer jitter as the review page's gates allow [src: public/dev/dyn-review.js measure]. */
+export const FLIP_SMOOTH_MS = 1000 / 30 + 1;
+export const FLIP_HOLD_MAX_MS = 500; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — the group settled 150–310 ms after its start on the GPU preview, so a PC that never settles shows after 0.5 s]
+let group = null; // { entries: Set, flipped, timer, check, hold }
 
 function startCard(e) { try { e.card?.start(); } catch (err) { console.warn('[dynillust] start', err); } }
+function showCard(e) { try { e.show?.(); } catch (err) { console.warn('[dynillust] show', err); } }
 function flipGroup(g) {
   if (g.flipped) return;
   g.flipped = true;
   clearTimeout(g.timer);
-  requestAnimationFrame(() => {
-    // one frame for all: the ready cards start together; one still loading swaps alone when ready
-    for (const e of g.entries) { if (e.state === 'ready') startCard(e); else e.alone = true; }
+  g.hold = requestAnimationFrame((t0) => {
+    // one frame for all: the ready cards start together (still hidden); one still loading swaps alone when ready
+    const held = [];
+    for (const e of g.entries) { if (e.state === 'ready') { startCard(e); held.push(e); } else e.alone = true; }
+    if (!held.length) { g.hold = 0; return; }
+    // and show together once the renderer's first frames are behind them (the first interval measured is the start
+    // frame's own, so the check begins one frame later)
+    let last = t0, n = 0, smooth = 0;
+    const wait = (t) => {
+      n++;
+      smooth = n >= 2 && t - last <= FLIP_SMOOTH_MS ? smooth + 1 : 0;
+      last = t;
+      if (smooth < 2 && t - t0 < FLIP_HOLD_MAX_MS) { g.hold = requestAnimationFrame(wait); return; }
+      g.hold = 0;
+      for (const e of held) if (g.entries.has(e)) showCard(e);
+    };
+    g.hold = requestAnimationFrame(wait);
   });
 }
 function checkGroup(g) {
@@ -328,14 +351,14 @@ export function joinGroup(e) {
   e.group = group;
   group.entries.add(e);
   if (group.flipped) e.alone = true;
-  if (e.alone) { if (e.state === 'ready') startCard(e); } else checkGroup(group);
+  if (e.alone) { if (e.state === 'ready') { startCard(e); showCard(e); } } else checkGroup(group);
 }
 /** The card's state changed (the renderer's onState). */
 export function groupState(e, s) {
   e.state = s;
   const g = e.group;
   if (!g) return;
-  if (e.alone) { if (s === 'ready') startCard(e); } else checkGroup(g);
+  if (e.alone) { if (s === 'ready') { startCard(e); showCard(e); } } else checkGroup(g);
 }
 /** The card left (the screen closed, the seat emptied, its art changed): a group with no card left is forgotten. */
 export function leaveGroup(e) {
@@ -343,7 +366,7 @@ export function leaveGroup(e) {
   if (!g) return;
   g.entries.delete(e);
   e.group = null;
-  if (!g.entries.size) { clearTimeout(g.timer); if (g.check) cancelAnimationFrame(g.check); if (group === g) group = null; }
+  if (!g.entries.size) { clearTimeout(g.timer); if (g.check) cancelAnimationFrame(g.check); if (g.hold) cancelAnimationFrame(g.hold); if (group === g) group = null; }
   else checkGroup(g);
 }
 
@@ -376,12 +399,15 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
     ro?.observe(el);
     return () => { clearTimeout(t); ro?.disconnect(); setWant(token.current, null); };
   }, [on]);
+  // a room card started with its group stays behind its 2D art until the group shows (flipGroup)
+  const [shown, setShown] = useState(wait !== 'settled');
   useEffect(() => {
     setState(on ? 'loading' : 'off');
+    setShown(wait !== 'settled');
     if (!on) return undefined;
     let card = null, live = true;
     // the room's cards flip together (flipGroup); the result screen's start at once (D11: a late one fades in)
-    const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false } : null;
+    const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false, show: () => { if (live) setShown(true); } } : null;
     const go = () => readyStage(tier).then(({ R, st }) => {
       const key = live ? illustKey(R, art) : null;
       if (!key || !host.current) { if (live) setState('off'); return null; }
@@ -403,8 +429,10 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
     };
   }, [id, on, wait, tier]);
-  const bg = backdrop && state === 'live' ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
-  return html`<div class=${`dyn-art${state === 'live' ? ' is-live' : ''}${wait === 'settled' ? ' dyn-art--flip' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${state}>
+  // what the card shows: 'ready' while it runs hidden before its group shows
+  const vis = state === 'live' && !shown ? 'ready' : state;
+  const bg = backdrop && vis === 'live' ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
+  return html`<div class=${`dyn-art${vis === 'live' ? ' is-live' : ''}${wait === 'settled' ? ' dyn-art--flip' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${vis}>
     <div class="dyn-art__still">${children}</div>
     ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg)}></i></div>` : null}
     ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
