@@ -86,6 +86,41 @@ export function unityToHome(f, w, h, { centre = 'home' } = {}) {
   };
 }
 
+/**
+ * A framing map zoomed by `zoom` about the point (fx · w, fy · h) of its window: that point stays where it is, the
+ * rest scales away from it. The window (the card's canvas) keeps its size, so a zoom adds no pixels. zoom 1 returns
+ * the map unchanged. Our own option (a screen's per-illustration zoom for art that does not fill a card), not an
+ * official one.
+ */
+export function zoomMap(map, zoom = 1, fx = 0.5, fy = 0.5) {
+  if (!(zoom > 0) || zoom === 1) return map;
+  const cx = fx * map.w, cy = fy * map.h;
+  return { ...map, scale: map.scale * zoom, x0: cx + (map.x0 - cx) * zoom, y0: cy + (map.y0 - cy) * zoom };
+}
+
+/**
+ * A card's framing from its mount options: `framing` 'card' | 'home', or { mode, centre, zoom, fx, fy } (fx / fy or
+ * focus: [fx, fy], fractions of the card; default its centre). Returns { mode, centre, zoom, fx, fy } and `id`, a key
+ * that tells two framings apart (DynIllustStage slots).
+ */
+export function cardFraming(framing, centre) {
+  const o = framing && typeof framing === 'object' ? framing : { mode: framing, centre };
+  const mode = o.mode === 'home' ? 'home' : 'card';
+  const c = mode === 'home' ? (o.centre === 'illust' ? 'illust' : 'home') : null;
+  const zoom = Number(o.zoom) > 0 ? Number(o.zoom) : 1;
+  const fpair = Array.isArray(o.focus) ? o.focus : [o.fx, o.fy];
+  const fx = Number.isFinite(Number(fpair[0])) && fpair[0] !== null ? Number(fpair[0]) : 0.5;
+  const fy = Number.isFinite(Number(fpair[1])) && fpair[1] !== null ? Number(fpair[1]) : 0.5;
+  const id = `${mode}${c ? '-' + c : ''}${zoom !== 1 ? `-z${zoom}@${fx},${fy}` : ''}`;
+  return { mode, centre: c, zoom, fx, fy, id };
+}
+
+/** The map for a framing (cardFraming) of a `w` × `h` window: card or home, then the zoom. */
+export function framingMap(f, w, h, fr) {
+  const base = fr && fr.mode === 'home' ? unityToHome(f, w, h, { centre: fr.centre || 'home' }) : unityToCard(f, w, h);
+  return fr ? zoomMap(base, fr.zoom, fr.fx, fr.fy) : base;
+}
+
 /** The view's size before ApplyAdjust [src: official GameAssembly.dll DynIllustMgr._CreateIllustView 0x14462B0
  * (sizeDelta 2048 × 2048; anchoredPosition left at 0)]. */
 export const VIEW_SIZE = 2048;

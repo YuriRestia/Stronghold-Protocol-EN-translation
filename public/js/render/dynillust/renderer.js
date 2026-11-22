@@ -22,7 +22,7 @@
 //   the controller's own non-fast fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor
 //   0x147EF10 fadeDuration 0.15], also straight into Idle (the user's decision of 2026-11-22, doc §33.19 Mount API).
 
-import { unityToCard, unityToHome, cardViewProj } from './framing.js';
+import { cardFraming, framingMap, cardViewProj } from './framing.js';
 import { IllustSkeleton } from './skeleton.js';
 import { DynIllustInstance } from './instance.js';
 import { CardIllustState, ACTION } from './state.js';
@@ -579,10 +579,10 @@ export class Card {
     this.w = 0; this.h = 0;
     this.box = Array.isArray(o.box) ? o.box : null;   // [w, h] device px from the page (Worker), else measured here
     this.tier = S.quality;                             // the tier its illustration loads at (DynIllustStage._freeTier)
-    // framing: 'card' (the official end-screen card, default) or 'home' (the official home screen, centre 'home' |
-    // 'illust': framing.js unityToHome)
-    this.frame = o.framing === 'home' ? { framing: 'home', centre: o.centre === 'illust' ? 'illust' : 'home' } : { framing: 'card' };
-    this.frameId = this.frame.framing === 'home' ? `home-${this.frame.centre}` : 'card';
+    // framing: 'card' (the official end-screen card, default) or 'home' (the official home screen), or
+    // { mode, centre, zoom, fx, fy }: a zoom about a point of the card inside its own canvas (framing.js cardFraming)
+    this.frame = cardFraming(o.framing, o.centre);
+    this.frameId = this.frame.id;
     this.onOpacity = typeof o.onOpacity === 'function' ? o.onOpacity : null;
     this.canvas = o.canvas || (typeof document !== 'undefined' ? document.createElement('canvas') : null);
     if (this.canvas) {
@@ -729,7 +729,7 @@ export class Card {
 
 /** One illustration drawn at one size: its skeleton, instance, card state and effect layer. */
 class Slot {
-  /** `frame`: { framing: 'card' | 'home', centre } (Card.frame; DynIllustStage.mount). */
+  /** `frame`: { mode: 'card' | 'home', centre, zoom, fx, fy } (Card.frame, framing.js cardFraming). */
   constructor(S, id, key, prep, w, h, frame = null) {
     this.S = S;
     this.id = id;
@@ -758,7 +758,7 @@ class Slot {
     if (this.fx) this.fx.fx.place({ pos: d.root.pos });
     this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: d.instance, now: () => this.time });
     this.card = new CardIllustState({ rng: S.opts.rng, onAction: S.opts.onAction ? (a) => S.opts.onAction(key, a) : null, mayStartSpecial: () => S._specialTurn() });
-    this.map = frame && frame.framing === 'home' ? unityToHome(d.framing, w, h, { centre: frame.centre }) : unityToCard(d.framing, w, h);
+    this.map = framingMap(d.framing, w, h, frame);
     const pos = d.root.pos, rs = d.root.scale;
     const sp = this.skel.spine;
     sp.position.set(this.map.x0 + this.map.scale * pos[0], this.map.y0 - this.map.scale * pos[1]);

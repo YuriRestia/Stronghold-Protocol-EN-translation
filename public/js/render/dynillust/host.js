@@ -292,8 +292,9 @@ class HostCard {
     this.key = key;
     this.id = ++H._id;
     this.onState = typeof o.onState === 'function' ? o.onState : null;
-    // the card's framing (DynIllustStage.mount: 'card' | 'home', centre), passed on as it is
-    this.framing = { framing: o.framing === 'home' ? 'home' : 'card', centre: o.centre };
+    // the card's framing (DynIllustStage.mount: 'card' | 'home' | { mode, centre, zoom, fx, fy }), passed on as given
+    // (plain data: it goes to the Worker in the mount message)
+    this.framing = { framing: o.framing && typeof o.framing === 'object' ? { ...o.framing } : (o.framing || 'card'), centre: o.centre };
     this.state = 'loading';
     this.started = false;
     this.worker = null;
