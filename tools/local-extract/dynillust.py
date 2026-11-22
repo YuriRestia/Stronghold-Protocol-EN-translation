@@ -213,6 +213,99 @@ class DynExporter(fx.Exporter):
         page = self.spine_tex.get((id(f), o.path_id))
         return f'spine:{page}' if page else super().texture(f, o)
 
+    def material(self, f, o):
+        """fx.Exporter.material, plus the Cubemap textures it leaves out (`tex: null`): Particles-Poker-Reflect's
+        `_CubeMap` (Lee's Trust Your Eyes) → a cube strip (§33.19)."""
+        m = super().material(f, o)
+        for name, te in self.env.tt(o).get('m_SavedProperties', {}).get('m_TexEnvs', []):
+            ent = m['textures'].get(name)
+            if ent is None or ent.get('tex') is not None:
+                continue
+            tf, to = self.env.resolve(o.assets_file, te.get('m_Texture'))
+            if to is not None and tf != 'builtin' and to.type.name == 'Cubemap':
+                key = self.cubemap(tf, to)
+                if key:
+                    ent['tex'] = key
+                    ent.pop('default', None)
+        return m
+
+    def cubemap(self, f, o):
+        """A Cubemap → one image of its 6 faces side by side in Unity's face order (+X −X +Y −Y +Z −Z), each face
+        decoded as UnityPy decodes a Texture2D (rows top-down); meta `cube: true`, `w` / `h` one face's size."""
+        k = (id(f), o.path_id)
+        if k in self._tex_keys:
+            return self._tex_keys[k]
+        key = None
+        try:
+            from PIL import Image
+            from UnityPy.export.Texture2DConverter import parse_image_data
+            t = o.read()
+            data = bytes(t.get_image_data())
+            count = t.m_ImageCount or 6
+            size = len(data) // count
+            faces = [parse_image_data(data[i * size:(i + 1) * size], t.m_Width, t.m_Height, t.m_TextureFormat,
+                                      getattr(t.object_reader, 'version', (0, 0, 0, 0)),
+                                      getattr(t.object_reader, 'platform', 0), getattr(t, 'm_PlatformBlob', None))
+                     for i in range(count)]
+            has_alpha = any('A' in im.getbands() and im.getchannel('A').getextrema()[0] < 255 for im in faces)
+            strip = Image.new('RGBA' if has_alpha else 'RGB', (t.m_Width * count, t.m_Height))
+            for i, im in enumerate(faces):
+                strip.paste(im.convert(strip.mode), (i * t.m_Width, 0))
+            h = hashlib.sha1(f'cube:{strip.mode}:{strip.size}'.encode())
+            h.update(strip.tobytes())
+            key = f'{fx.FX_SAFE.sub("_", t.m_Name or "cube").strip("._") or "cube"}-{h.hexdigest()[:8]}'
+            d = self.env.tt(o)
+            buf = io.BytesIO()
+            strip.save(buf, 'WEBP', quality=fx.WEBP_QUALITY, method=fx.WEBP_METHOD)
+            meta = {'name': t.m_Name, 'w': t.m_Width, 'h': t.m_Height, 'cube': True,
+                    'faces': ['+X', '-X', '+Y', '-Y', '+Z', '-Z'][:count],
+                    'format': fx.TEXTURE_FORMATS.get(d.get('m_TextureFormat'), str(d.get('m_TextureFormat'))),
+                    'mips': d.get('m_MipCount', 1), 'srgb': d.get('m_ColorSpace', 1) == 1, 'alpha': has_alpha,
+                    'file': f'tex/{key}.webp', 'half': None, 'wrapU': 'clamp', 'wrapV': 'clamp',
+                    'filter': ['point', 'bilinear', 'trilinear'][min(2, d.get('m_TextureSettings', {}).get('m_FilterMode', 1))],
+                    'aniso': d.get('m_TextureSettings', {}).get('m_Aniso', 0)}
+            fx.write_atomic(self.out / meta['file'], buf.getvalue())
+            self.textures[key] = meta
+        except Exception as e:
+            self.log(f'  warn cubemap #{o.path_id}: {e!r}')
+            key = None
+        self._tex_keys[k] = key
+        return key
+
+    def _export_mesh(self, o):
+        """fx.Exporter._export_mesh plus `tangents` (x, y, z, w per vertex; Poker-Reflect's normal map needs them).
+        Kept here so the battle effects' mesh files stay as they are."""
+        from UnityPy.helpers.MeshHelper import MeshHandler
+        m = o.read()
+        h = MeshHandler(m)
+        h.process()
+        flat = lambda rows, n: [fx.f6(x) for r in (rows or []) for x in list(r)[:n]]  # noqa: E731
+        doc = {'format': 'fx-mesh', 'version': fx.MESH_VERSION, 'name': m.m_Name, 'vertexCount': h.m_VertexCount,
+               'positions': flat(h.m_Vertices, 3)}
+        if h.m_Normals:
+            doc['normals'] = flat(h.m_Normals, 3)
+        if getattr(h, 'm_Tangents', None):
+            doc['tangents'] = flat(h.m_Tangents, 4)
+        if h.m_UV0:
+            doc['uv0'] = flat(h.m_UV0, 2)
+        if h.m_UV1:
+            doc['uv1'] = flat(h.m_UV1, 2)
+        if h.m_Colors:
+            doc['colors'] = [fx.f6(x) for x in fx.norm_channel(flat(h.m_Colors, 4), fx.color_format(m, h))]
+        doc['submeshes'] = [[i for tri in sub for i in tri] for sub in h.get_triangles()]
+        bone_i, bone_w = fx.skin_rows(h.m_BoneIndices, h.m_BoneWeights, h.m_VertexCount)
+        if bone_i:
+            doc['boneWeights'] = bone_w
+            doc['boneIndices'] = bone_i
+            doc['bindPoses'] = [[fx.f6(bp.get(f'e{r}{c}', 0)) for r in range(4) for c in range(4)]
+                                for bp in (self.env.tt(o).get('m_BindPose') or [])]
+        body = json.dumps(doc, separators=(',', ':'))
+        key = f'{fx.FX_SAFE.sub("_", m.m_Name or "mesh").strip("._") or "mesh"}-{hashlib.sha1(body.encode()).hexdigest()[:8]}'
+        if key not in self.meshes:
+            fx.write_atomic(self.out / 'mesh' / f'{key}.json', body.encode('utf-8'))
+            self.meshes[key] = {'name': m.m_Name, 'verts': h.m_VertexCount, 'file': f'mesh/{key}.json'}
+        return key
+
     def _export_texture(self, o):
         from PIL import Image
         t = o.read()
@@ -660,7 +753,10 @@ def export_one(env, key, path, eff_path, out_dir, budget, helpers, log):
              'class': dyn_cls, 'bundle': f'arts/dynchars/{path.name}', 'client': helpers.get('client'),
              'files': dict(sorted(files.items())), 'bytes': {'full': full, 'half': half},
              'spine': spine, 'framing': framing, 'actions': actions,
-             'fx': {'file': 'fx.json', 'textures': textures, 'meshes': meshes, 'paths': paths}}
+             'fx': {'file': 'fx.json', 'textures': textures, 'meshes': meshes, 'paths': paths,
+                    # nodes whose FxGetParticleSystemPosWS sets _ParticleSystemPositionWS (GrabPass _DirMode 2 reads it)
+                    'posWS': [n['id'] for n in nodes
+                              if any(b.get('class') == 'FxGetParticleSystemPosWS' for b in n.get('behaviours') or [])]}}
     body = json.dumps(index, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
     budget.spend(len(body), 'illust.json')
     fx.write_atomic(Path(out_dir) / 'illust.json', body)
