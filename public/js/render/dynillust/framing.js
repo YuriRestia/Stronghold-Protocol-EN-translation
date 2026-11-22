@@ -53,6 +53,74 @@ export function unityToCard(f, w, h) {
   };
 }
 
+/**
+ * The official HOME SCREEN window at 16:9, in the illustration view's parent (panel_illustration) units: its visible
+ * height and where its centre sits from the panel centre (y up). The home screen shows the view at the DEFAULT adjust
+ * (HOME_PAGE is only the zoom cap of the layout editor) inside a world-space canvas seen by a FOV-50 perspective camera:
+ * at 16:9 the panel plane is 213.7273 world units away, so it shows 2 · 213.7273 · tan 25° / 0.2461068 = 809.914 panel
+ * units of height, centred (53.8844, 13.4711) / 0.2461068 = (218.947, 54.737) from the panel [src: notes
+ * dev57-home-framing.md §1, §2, §3 (official GameAssembly.dll HomeIllustView, UIIllustLayoutInfo.Apply;
+ * home_page.ab front_camera, front_canvas, panel_illustration, UI3DLayoutAdapter)].
+ */
+export const HOME_VH = 809.914;
+export const HOME_CX = 218.947;
+export const HOME_CY = 54.737;
+
+/**
+ * The linear map Unity frame → px for a `w` × `h` window framed as the official home screen frames the illustration
+ * (notes dev57-home-framing.md §4): the same vertical range as the home window (p = h / HOME_VH px per panel unit), the
+ * DEFAULT adjust, and the horizontal centre `centre: 'home'` (the home screen's own: the operator left of centre) or
+ * `'illust'` (the view's offset: the same zoom and height, the operator centred). Same output as unityToCard.
+ */
+export function unityToHome(f, w, h, { centre = 'home' } = {}) {
+  const adj = pickAdjust(f, ADJUST.DEFAULT);
+  const cs = Number(f.cameraSize) > 0 ? Number(f.cameraSize) : 10;   // as unityToCard
+  const p = h / HOME_VH;
+  const k = adj.size / (2 * cs);
+  const cx = centre === 'illust' ? adj.ox : HOME_CX;
+  return {
+    scale: p * k,
+    x0: w / 2 + (adj.ox - cx) * p,
+    y0: h / 2 - (adj.oy - HOME_CY) * p,
+    w, h,
+  };
+}
+
+/**
+ * A framing map zoomed by `zoom` about the point (fx · w, fy · h) of its window: that point stays where it is, the
+ * rest scales away from it. The window (the card's canvas) keeps its size, so a zoom adds no pixels. zoom 1 returns
+ * the map unchanged. Our own option (a screen's per-illustration zoom for art that does not fill a card), not an
+ * official one.
+ */
+export function zoomMap(map, zoom = 1, fx = 0.5, fy = 0.5) {
+  if (!(zoom > 0) || zoom === 1) return map;
+  const cx = fx * map.w, cy = fy * map.h;
+  return { ...map, scale: map.scale * zoom, x0: cx + (map.x0 - cx) * zoom, y0: cy + (map.y0 - cy) * zoom };
+}
+
+/**
+ * A card's framing from its mount options: `framing` 'card' | 'home', or { mode, centre, zoom, fx, fy } (fx / fy or
+ * focus: [fx, fy], fractions of the card; default its centre). Returns { mode, centre, zoom, fx, fy } and `id`, a key
+ * that tells two framings apart (DynIllustStage slots).
+ */
+export function cardFraming(framing, centre) {
+  const o = framing && typeof framing === 'object' ? framing : { mode: framing, centre };
+  const mode = o.mode === 'home' ? 'home' : 'card';
+  const c = mode === 'home' ? (o.centre === 'illust' ? 'illust' : 'home') : null;
+  const zoom = Number(o.zoom) > 0 ? Number(o.zoom) : 1;
+  const fpair = Array.isArray(o.focus) ? o.focus : [o.fx, o.fy];
+  const fx = Number.isFinite(Number(fpair[0])) && fpair[0] !== null ? Number(fpair[0]) : 0.5;
+  const fy = Number.isFinite(Number(fpair[1])) && fpair[1] !== null ? Number(fpair[1]) : 0.5;
+  const id = `${mode}${c ? '-' + c : ''}${zoom !== 1 ? `-z${zoom}@${fx},${fy}` : ''}`;
+  return { mode, centre: c, zoom, fx, fy, id };
+}
+
+/** The map for a framing (cardFraming) of a `w` × `h` window: card or home, then the zoom. */
+export function framingMap(f, w, h, fr) {
+  const base = fr && fr.mode === 'home' ? unityToHome(f, w, h, { centre: fr.centre || 'home' }) : unityToCard(f, w, h);
+  return fr ? zoomMap(base, fr.zoom, fr.fx, fr.fy) : base;
+}
+
 /** The view's size before ApplyAdjust [src: official GameAssembly.dll DynIllustMgr._CreateIllustView 0x14462B0
  * (sizeDelta 2048 × 2048; anchoredPosition left at 0)]. */
 export const VIEW_SIZE = 2048;

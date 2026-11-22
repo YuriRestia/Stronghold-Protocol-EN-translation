@@ -117,7 +117,7 @@ export class DynIllustHost {
       case 'ready': this.byId.get(m.id)?._ready(m.ok); break;
       case 'opacity': { const c = this.byId.get(m.id); if (c) c.canvas.style.opacity = String(m.a); break; }
       case 'action': if (this.opts.onAction) { try { this.opts.onAction(m.key, m.a); } catch { /* the caller's */ } } break;
-      case 'preloaded': case 'frameLog': { const r = this._waits.get(m.rid); this._waits.delete(m.rid); if (r) r(m); break; }
+      case 'preloaded': case 'frameLog': case 'diag': { const r = this._waits.get(m.rid); this._waits.delete(m.rid); if (r) r(m); break; }
       case 'error': console.warn('[dynillust] Worker:', m.message); break;
       default: break;
     }
@@ -269,6 +269,16 @@ export class DynIllustHost {
     return out.map((m) => (m.frames || []).map(([t, ms, live, drawn]) => [+(t + (m.origin - base)).toFixed(2), ms, live, drawn]));
   }
 
+  /**
+   * Debugging: each Worker's cards as its stage sees them (worker.js 'diag'): key, state, the box it was sent, the
+   * card's and its canvas's size, its slot (size, place in the stage canvas, framing scale, held / warmed / paused, GPU
+   * skinning) and the atlas pages' sizes, plus the context's GL error. For a card that looks wrong while it is live.
+   */
+  async diag() {
+    const out = await Promise.all(this.workers.map((w) => this._ask(w, { t: 'diag' })));
+    return out.map((m, i) => ({ worker: i, gl: m.gl, cards: m.cards || [] }));
+  }
+
   stats() {
     return { workers: this.workers.length, fallback: !!this.fallback, cards: this.cards.size, keys: this.workers.map((w) => w.keys.size), load: this.workers.map((w) => w.load), probe: this.workers.map((w) => w.probe), quality: this._quality };
   }
@@ -292,6 +302,9 @@ class HostCard {
     this.key = key;
     this.id = ++H._id;
     this.onState = typeof o.onState === 'function' ? o.onState : null;
+    // the card's framing (DynIllustStage.mount: 'card' | 'home' | { mode, centre, zoom, fx, fy }), passed on as given
+    // (plain data: it goes to the Worker in the mount message)
+    this.framing = { framing: o.framing && typeof o.framing === 'object' ? { ...o.framing } : (o.framing || 'card'), centre: o.centre };
     this.state = 'loading';
     this.started = false;
     this.worker = null;
@@ -315,7 +328,7 @@ class HostCard {
     if (this.state === 'unmounted') { this._ready(false); return; }
     const H = this.H;
     if (H.fallback) {
-      this.inner = H.fallback.mount(this.key, { canvas: this.canvas, onState: (s) => this._set(s) });
+      this.inner = H.fallback.mount(this.key, { ...this.framing, canvas: this.canvas, onState: (s) => this._set(s) });
       if (this.started) this.inner.start();
       this.inner.ready.then((ok) => this._ready(ok));
       return;
@@ -323,10 +336,12 @@ class HostCard {
     const w = H._route(this.key);
     if (!w) { this._set('failed'); this._ready(false); return; }
     this.worker = w;
-    // the size now, if the screen placed the canvas already (the observer's first report follows)
-    if (this.canvas.isConnected) this._resized(this.canvas.getBoundingClientRect(), false);
+    // the size comes from the observer's first report (layout size, before the next paint; the Worker's card waits for
+    // it). Not from getBoundingClientRect: that includes CSS transforms, so a card mounted during its seat's entrance
+    // animation was staged at the scaled size (721 × 404 for 720 × 403) and built again unwarmed at its first frame.
+    if (!H.ro && this.canvas.isConnected) this._resized(this.canvas.getBoundingClientRect(), false);
     const off = this.canvas.transferControlToOffscreen();
-    w.w.postMessage({ t: 'mount', id: this.id, key: this.key, canvas: off, box: this.box }, [off]);
+    w.w.postMessage({ t: 'mount', id: this.id, key: this.key, canvas: off, box: this.box, ...this.framing }, [off]);
     if (this.started) w.w.postMessage({ t: 'start', id: this.id });
     H.ro?.observe(this.canvas);
     H.io?.observe(this.canvas);

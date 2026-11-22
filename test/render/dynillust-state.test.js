@@ -4,7 +4,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { unityToCard, cardViewProj, pickAdjust, ADJUST } from '../../public/js/render/dynillust/framing.js';
+import { unityToCard, unityToHome, cardFraming, framingMap, cardViewProj, pickAdjust, ADJUST } from '../../public/js/render/dynillust/framing.js';
 import { CardIllustState, STATE, ACTION, SP_IDLE_TIME, rangeInt, roundHalfEven, uniformSPActionTime } from '../../public/js/render/dynillust/state.js';
 import { DynIllustInstance, idleResyncEligible, IDLE_RESYNC_S } from '../../public/js/render/dynillust/instance.js';
 
@@ -40,6 +40,69 @@ function rig(anims, data = {}) {
   const inst = new DynIllustInstance({ skel, fx, data, now: () => t });
   return { skel, fx, inst, advance(dt) { t += dt; skel.step(dt); inst.update(); inst.lateUpdate(); }, get t() { return t; } };
 }
+
+describe('framing.js unityToHome (the official home screen framing)', () => {
+  // Dev 57's worked examples at 1920 × 1080 [src: notes dev57-home-framing.md §5 (worked.cjs); the framing values from
+  // Dev 49's illust.json]: DEFAULT offset and size, HOME_PAGE present but not used
+  const kaltsit = { cameraSize: 11, adjust: [[7.15, -64.999, 2200.09, 2200.09], null, [97.62, -217.58, 3148, 3148]] };
+  const ling = { cameraSize: 11, adjust: [[38.5, -73, 2300, 2300], null, [64, -25, 1800, 1800]] };
+  const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
+  // §5 gives scale to 3 decimals and x0 / y0 to 2, from unrounded intermediates: half the last digit, plus the rounding
+  // of the note's own constants (with HOME_VH / CX / CY as given, Kal'tsit's y0 is 699.66495 for §5's 699.67)
+  const S = 6e-4, P = 6e-3;
+  test('Kal\'tsit "Remnant" (char_003_kalts_boc#6): scale 133.353, x0 677.57, y0 699.67', () => {
+    const m = unityToHome(kaltsit, 1920, 1080);
+    near(m.scale, 133.353, S, 'scale'); near(m.x0, 677.57, P, 'x0'); near(m.y0, 699.67, P, 'y0');
+    assert.equal(m.w, 1920); assert.equal(m.h, 1080);
+  });
+  test('Ling "A Gallant Dream" (char_2023_ling_nian#12): scale 139.409, x0 719.38, y0 710.33', () => {
+    const m = unityToHome(ling, 1920, 1080);
+    near(m.scale, 139.409, S, 'scale'); near(m.x0, 719.38, P, 'x0'); near(m.y0, 710.33, P, 'y0');
+  });
+  test('2560 × 1440 scales with the height (§5: Kal\'tsit 177.804, 903.43, 932.89)', () => {
+    const m = unityToHome(kaltsit, 2560, 1440);
+    near(m.scale, 177.804, S, 'scale'); near(m.x0, 903.43, P, 'x0'); near(m.y0, 932.89, P, 'y0');
+  });
+  test('centre \'illust\': the same zoom and height, the view\'s offset at the window centre', () => {
+    const home = unityToHome(ling, 1920, 1080), mid = unityToHome(ling, 1920, 1080, { centre: 'illust' });
+    assert.equal(mid.scale, home.scale);
+    assert.equal(mid.y0, home.y0);
+    near(mid.x0, 960, 1e-9, 'x0');
+  });
+});
+
+describe('framing.js zoom about a point (framing { mode, centre, zoom, fx, fy })', () => {
+  const f = { cameraSize: 11, adjust: [[38.5, -73, 2300, 2300]] };
+  const px = (m, X, Y) => [m.x0 + m.scale * X, m.y0 - m.scale * Y];
+  test('zoom 1 is today\'s framing, card and home', () => {
+    assert.deepEqual(framingMap(f, 300, 592, cardFraming({ mode: 'card', zoom: 1 })), unityToCard(f, 300, 592));
+    assert.deepEqual(framingMap(f, 1920, 1080, cardFraming('home', 'illust')), unityToHome(f, 1920, 1080, { centre: 'illust' }));
+    assert.deepEqual(framingMap(f, 300, 592, cardFraming(undefined)), unityToCard(f, 300, 592));
+  });
+  for (const mode of ['card', 'home']) {
+    test(`${mode}: a 1.35× zoom about (0.5, 0.25) keeps that point and scales the rest away from it`, () => {
+      const w = 245, h = 594;
+      const base = framingMap(f, w, h, cardFraming({ mode }));
+      const z = framingMap(f, w, h, cardFraming({ mode, zoom: 1.35, fx: 0.5, fy: 0.25 }));
+      assert.ok(Math.abs(z.scale - base.scale * 1.35) < 1e-9);
+      // the Unity point that sits at the focus before the zoom sits there after it
+      const fx = 0.5 * w, fy = 0.25 * h;
+      const X = (fx - base.x0) / base.scale, Y = (base.y0 - fy) / base.scale;
+      const [ax, ay] = px(z, X, Y);
+      assert.ok(Math.abs(ax - fx) < 1e-9 && Math.abs(ay - fy) < 1e-9, `${ax}, ${ay}`);
+      // any other point moves 1.35× as far from the focus
+      const [bx0, by0] = px(base, X + 1, Y - 2), [bx1, by1] = px(z, X + 1, Y - 2);
+      assert.ok(Math.abs((bx1 - fx) - 1.35 * (bx0 - fx)) < 1e-9 && Math.abs((by1 - fy) - 1.35 * (by0 - fy)) < 1e-9);
+      assert.equal(z.w, w); assert.equal(z.h, h);   // the canvas keeps its size
+    });
+  }
+  test('the option forms: a string, an object, focus [fx, fy]; each framing its own id', () => {
+    assert.deepEqual(cardFraming('home', 'illust'), { mode: 'home', centre: 'illust', zoom: 1, fx: 0.5, fy: 0.5, id: 'home-illust' });
+    assert.deepEqual(cardFraming({ mode: 'home', centre: 'illust', zoom: 1.2, focus: [0.5, 0.25] }), { mode: 'home', centre: 'illust', zoom: 1.2, fx: 0.5, fy: 0.25, id: 'home-illust-z1.2@0.5,0.25' });
+    assert.equal(cardFraming({ zoom: 1.35, fx: 0.5, fy: 0.25 }).id, 'card-z1.35@0.5,0.25');
+    assert.equal(cardFraming().id, 'card');
+  });
+});
 
 describe('framing.js (official card framing)', () => {
   // Lappland the Decadenza E2: camera 10.3, DEFAULT offset (35.4, −19.5) size 2038 [src: official DynIllust]

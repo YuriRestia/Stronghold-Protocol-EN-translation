@@ -10,8 +10,8 @@
 // use for either.
 //
 // Messages from the page (host.js): manifest, opts, quality, preload, mount (with the transferred canvas and the
-// card's size), box, view, start, unmount, release, hidden, act, frames, frameLog. To the page: ok / fail (after
-// boot), preloaded, state, ready, opacity, action, frameLog, error.
+// card's size), box, view, start, unmount, release, hidden, act, frames, frameLog, diag. To the page: ok / fail (after
+// boot), preloaded, state, ready, opacity, action, frameLog, diag, error.
 
 /* global importScripts */
 const post = (m) => self.postMessage(m);
@@ -92,6 +92,17 @@ async function boot() {
   };
 }
 
+/** One card as the stage sees it (host.js diag). */
+function diagCard(c) {
+  const s = c.slot, r = (v) => Math.round(v * 1000) / 1000;
+  return {
+    key: c.key, state: c.state, started: c.started, inView: c.inView, box: c.box, wh: [c.w, c.h],
+    canvas: c.canvas ? [c.canvas.width, c.canvas.height] : null,
+    slot: s ? { w: s.w, h: s.h, x: s.x, y: s.y, scale: r(s.map.scale), x0: r(s.map.x0), y0: r(s.map.y0), held: s.held, warmed: s.warmed, paused: s.paused, gpu: !!s.skel.gpu, cards: s.cards.size } : null,
+    pages: c.prep ? [...c.prep.pages.values()].map((t) => [t.width, t.height, t.realWidth, t.realHeight, !!t.valid, !!t.destroyed]) : null,
+  };
+}
+
 function handle(m) {
   switch (m.t) {
     case 'manifest': resolveManifest(m.data); stage.index(); break;
@@ -101,6 +112,8 @@ function handle(m) {
       const c = stage.mount(m.key, {
         canvas: m.canvas,
         box: m.box || null,
+        framing: m.framing,
+        centre: m.centre,
         onState: (s) => post({ t: 'state', id: m.id, s }),
         onOpacity: (a) => post({ t: 'opacity', id: m.id, a }),
       });
@@ -125,6 +138,7 @@ function handle(m) {
       stage._kick();
       break;
     case 'frames': frames = m.on ? [] : null; break;
+    case 'diag': post({ t: 'diag', rid: m.rid, gl: stage.renderer?.gl?.getError?.() ?? null, cards: [...cards.values()].map(diagCard) }); break;
     case 'frameLog': post({ t: 'frameLog', rid: m.rid, origin: performance.timeOrigin, frames: frames || [] }); if (frames) frames = []; break;
     default: break;
   }

@@ -2108,7 +2108,11 @@ Stage.preload(keys) → Promise<void>                 D10: download, decode, bui
                                                     battle ends (m.public `ending`) or a room opens; settles when every
                                                     key is ready or failed. A ready key stays cached in the stage.
 Stage.release(keep = [])                            frees every cached key not in `keep` (the match starts: release())
-Stage.mount(key, { onState? }) → Card
+Stage.mount(key, { onState?, framing?, centre? }) → Card
+                                                    framing 'card' (default) | 'home' (official home screen: unityToHome,
+                                                    DEFAULT adjust in the 16:9 home window; centre 'home' as there |
+                                                    'illust' centred [src: notes dev57-home-framing.md §4]) | { mode,
+                                                    centre, zoom, fx, fy } (ours: zoom about that card point: zoomMap)
 Card.canvas: HTMLCanvasElement                      a 2D canvas the caller places in the card's art layer, under its
                                                     overlays (badges, plates, names, bubbles); its CSS box is the card's
                                                     art window: w = its width for the §4.1 framing (ResizeObserver)
@@ -2133,8 +2137,8 @@ the stage runs in up to `DYN_WORKERS` (3) Workers (`render/dynillust/worker.js`)
 OffscreenCanvas and its own frame loop. `Card.canvas` is still a page element; its drawing is transferred to the Worker
 that draws the card, so no card frame, load, staging piece or warm-up runs on the page's main thread. All cards of one
 illustration go to one Worker; a new one to the Worker whose illustrations download the least in all. The page sends
-each card's size (ResizeObserver: CSS px × the device pixel ratio, capped at 2), in view, page hidden; it applies the
-canvas opacity. Without that support, or when no Worker starts (no WebGL2 in a Worker, a script error, no
+each card's size (ResizeObserver's layout size, never the CSS-transformed box: CSS px × the device pixel ratio, capped
+at 2; `host.diag()` returns what each Worker's stage holds per card), in view, page hidden; it applies the canvas opacity. Without that support, or when no Worker starts (no WebGL2 in a Worker, a script error, no
 answer within 15 s), the main-thread stage draws the cards, as before. A Worker that stops later fails its cards (the
 caller keeps their 2D art). `globalThis.__dynMainThread = true` before the first `getDynIllustStage()` forces the main
 thread.

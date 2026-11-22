@@ -544,8 +544,9 @@ export class PSys {
     // rate over time
     let n = 0;
     const rate = this.rate.at(tau, this.rng.next()) * this.emissionScale;
+    const toEmit = rate > 0 ? rate * span : 0;
     if (rate > 0) {
-      this.acc += rate * span;
+      this.acc += toEmit;
       n = Math.floor(this.acc);
       this.acc -= n;
     }
@@ -559,14 +560,29 @@ export class PSys {
       nd = Math.floor(this.accDist);
       this.accDist -= nd;
     }
-    const total = n + nd;
     // (fork) a full system stops trying: _spawn turns every further one down before it draws a random number, so the
     // particles are the same — 10,000,000/s emitters capped at 1 (Civilight Eterna's Condolence flowers) had looped
     // ~333,000 rejected spawns a step, seconds of prewarm and 150 ms frames
     const full = this.full();
-    for (let i = 0; i < total && !full(); i++) {
-      // spread over the step: the i-th of n is (n − i) / n of the step old, placed along the emitter's motion
-      const f = (i + 1) / total;
+    // Rate over time: each particle starts when the accumulator crossed its whole number, the newest first: particle j
+    // (0 = the newest) is (j + acc) / toEmit of the step old, clamped to [1e-6, 1] of it, acc being what the
+    // accumulator keeps after the whole ones are taken out (it keeps losing them when the system is full). So a
+    // particle that dies at the step it was due to be replaced is replaced in that same step: a system with
+    // lifetime = maxParticles / rate stays full (Nightingale's Iakhu of Flows ring: 12 one-particle balls, life 2 s,
+    // rate 2 / s, which an evenly spread birth left empty for 0.5 / simulationSpeed s now and then) [src: official
+    // UnityPlayer.dll 2021.3.39 (game build, its UnityPlayer.pdb): EmissionModule::EmitCommon 0x1aebd70 (state[0] =
+    // 1 / toEmit when toEmit ≥ 1e-4, state[4] = the accumulator after the whole count is taken out);
+    // ParticleSystem::StartModules 0x1acfb65–0x1acfbb6 (time fraction = clamp((j + state[4]) × state[0], 1e-6, 1));
+    // ParticleSystem::Update1Incremental 0x1ad173a–0x1ad1864 (UpdateModulesIncremental, whose SimulateParticles kills
+    // the dead, then EmitOverTime, then StartParticles)]
+    const kOff = toEmit >= 1e-4 ? 1 / toEmit : 1;
+    for (let j = 0; j < n && !full(); j++) {
+      const k = Math.min(1, Math.max(1e-6, (j + this.acc) * kOff));
+      this._spawn(tau, k * span, 1 - k, 0, 0, null);
+    }
+    // rate over distance: spread over the step, the i-th of nd (nd − i) / nd of it old, along the emitter's motion
+    for (let i = 0; i < nd && !full(); i++) {
+      const f = (i + 1) / nd;
       this._spawn(tau, (1 - f) * span, f, 0, 0, null);
     }
     // bursts

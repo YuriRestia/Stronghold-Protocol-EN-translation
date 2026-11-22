@@ -22,7 +22,7 @@
 //   the controller's own non-fast fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor
 //   0x147EF10 fadeDuration 0.15], also straight into Idle (the user's decision of 2026-11-22, doc §33.19 Mount API).
 
-import { unityToCard, cardViewProj } from './framing.js';
+import { cardFraming, framingMap, cardViewProj } from './framing.js';
 import { IllustSkeleton } from './skeleton.js';
 import { DynIllustInstance } from './instance.js';
 import { CardIllustState, ACTION } from './state.js';
@@ -77,7 +77,7 @@ export class DynIllustStage {
   constructor(opts = {}) {
     this.opts = opts;
     this.P = globalThis.PIXI;
-    this.quality = 'full';
+    this._quality = 'full';     // the quality setter: a change frees the other tier's cache once no card shows it
     this.cards = new Set();
     this.slots = new Map();     // `${key}|${quality}|${w}x${h}` → Slot
     this.cache = new Map();     // `${key}|${quality}` → { promise, prep, failed }
@@ -110,6 +110,44 @@ export class DynIllustStage {
   }
 
   _hidden() { return this.opts.hidden ? this.opts.hidden() : typeof document !== 'undefined' && document.hidden; }
+
+  /** 'full' | 'half' (the D7 setting): new cards load at this tier; the other tier is freed once no card shows it. */
+  get quality() { return this._quality; }
+  set quality(q) {
+    const old = this._quality;
+    this._quality = q;
+    if (old !== q) this._freeTier(old);
+  }
+
+  /**
+   * Free the prepared illustrations of `tier` (not the current one) that no mounted card shows: their atlas pages and
+   * their effect textures on the GPU, those another illustration of that tier still uses excepted. A player switching
+   * Full → Half kept the full pages in GPU memory until the match started (release()). The current tier is never
+   * freed here, so what a screen keeps for the result stays.
+   */
+  _freeTier(tier) {
+    if (tier === this._quality) return;
+    const shown = new Set();
+    for (const c of this.cards) if (c.tier === tier && c.state !== 'unmounted') shown.add(c.key);
+    const keep = new Set(), gone = [];
+    for (const [ck, c] of this.cache) {
+      const i = ck.lastIndexOf('|');
+      if (ck.slice(i + 1) !== tier) continue;
+      if (shown.has(ck.slice(0, i))) { for (const k of c.prep?.fxDef?.textures || []) keep.add(k); continue; }
+      gone.push([ck, c]);
+    }
+    const free = (prep, textures) => {
+      for (const t of prep.pages.values()) { try { t.destroy(); } catch { /* gone */ } }
+      if (textures && this.glr) for (const k of prep.fxDef?.textures || []) if (!keep.has(k)) this.glr.dropTexture(k, tier === 'half');
+    };
+    for (const [ck, c] of gone) {
+      this.cache.delete(ck);
+      if (c.prep) free(c.prep, true);
+      // still loading (a preload no card shows): its pages go once it is in; its effect textures too, unless the key
+      // was asked for again at that tier meanwhile (they are shared by key: the new load uses them)
+      else c.promise.then((prep) => { if (prep) free(prep, !this.cache.has(ck)); }, () => {});
+    }
+  }
 
   /** The `dynillust` group of data/local-assets.json (key → { path, charId, skinId, … }); {} without one. */
   index() {
@@ -357,6 +395,8 @@ export class DynIllustStage {
     this.cards.delete(card);
     if (this.io && card.canvas) { try { this.io.unobserve(card.canvas); } catch { /* gone */ } }
     if (card.slot) { card.slot.cards.delete(card); if (!card.slot.cards.size) this._dropSlot(card.slot); card.slot = null; }
+    // the last card of a tier the stage no longer uses: that tier's cache goes (_freeTier)
+    if (card.tier && card.tier !== this._quality) this._freeTier(card.tier);
   }
 
   _dropSlot(slot) { this._warming.delete(slot); this.slots.delete(slot.id); slot.destroy(); }
@@ -366,9 +406,10 @@ export class DynIllustStage {
     card.w = w; card.h = h;
     if (card.slot) { card.slot.cards.delete(card); if (!card.slot.cards.size) this._dropSlot(card.slot); card.slot = null; }
     if (!(w > 0 && h > 0)) return null;
-    const id = `${card.key}|${this.quality}|${w}x${h}`;
+    // (a card framed another way — the home screen's — draws its own slot)
+    const id = `${card.key}|${this.quality}|${w}x${h}|${card.frameId}`;
     let slot = this.slots.get(id);
-    if (!slot) { slot = new Slot(this, id, card.key, prep, w, h); this.slots.set(id, slot); }
+    if (!slot) { slot = new Slot(this, id, card.key, prep, w, h, card.frame); this.slots.set(id, slot); }
     slot.cards.add(card);
     card.slot = slot;
     card.canvas.width = w; card.canvas.height = h;
@@ -537,6 +578,11 @@ export class Card {
     this.prep = null;
     this.w = 0; this.h = 0;
     this.box = Array.isArray(o.box) ? o.box : null;   // [w, h] device px from the page (Worker), else measured here
+    this.tier = S.quality;                             // the tier its illustration loads at (DynIllustStage._freeTier)
+    // framing: 'card' (the official end-screen card, default) or 'home' (the official home screen), or
+    // { mode, centre, zoom, fx, fy }: a zoom about a point of the card inside its own canvas (framing.js cardFraming)
+    this.frame = cardFraming(o.framing, o.centre);
+    this.frameId = this.frame.id;
     this.onOpacity = typeof o.onOpacity === 'function' ? o.onOpacity : null;
     this.canvas = o.canvas || (typeof document !== 'undefined' ? document.createElement('canvas') : null);
     if (this.canvas) {
@@ -683,7 +729,8 @@ export class Card {
 
 /** One illustration drawn at one size: its skeleton, instance, card state and effect layer. */
 class Slot {
-  constructor(S, id, key, prep, w, h) {
+  /** `frame`: { mode: 'card' | 'home', centre, zoom, fx, fy } (Card.frame, framing.js cardFraming). */
+  constructor(S, id, key, prep, w, h, frame = null) {
     this.S = S;
     this.id = id;
     this.key = key;
@@ -711,7 +758,7 @@ class Slot {
     if (this.fx) this.fx.fx.place({ pos: d.root.pos });
     this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: d.instance, now: () => this.time });
     this.card = new CardIllustState({ rng: S.opts.rng, onAction: S.opts.onAction ? (a) => S.opts.onAction(key, a) : null, mayStartSpecial: () => S._specialTurn() });
-    this.map = unityToCard(d.framing, w, h);
+    this.map = framingMap(d.framing, w, h, frame);
     const pos = d.root.pos, rs = d.root.scale;
     const sp = this.skel.spine;
     sp.position.set(this.map.x0 + this.map.scale * pos[0], this.map.y0 - this.map.scale * pos[1]);

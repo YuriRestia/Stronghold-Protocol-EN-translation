@@ -47,6 +47,14 @@
   The Workers draw under the site's CSP (no eval, as the page does), and a Worker that cannot draw is never given
   cards: it must draw a test square before it starts, else the page draws the cards itself; a card whose stage cannot
   draw at all keeps its 2D art. Before, every card on the real server turned live on an empty background.
+- A card can be framed as the official home screen frames an illustration (\`mount(key, { framing: 'home' })\`): the
+  same adjust as the card, in the home screen's wider window, the operator left of centre as there or centred
+  [src: notes dev57-home-framing.md §4, §5]. Either framing can also be zoomed about a point of the card inside the
+  card's own canvas (\`framing: { mode, centre, zoom, fx, fy }\`), so a zoomed card costs no extra pixels.
+- A card mounted while its seat plays its entrance animation is staged at its real size: its size came from the
+  scaled box (721 × 404 for a 720 × 403 card), so the card was built again, unwarmed, in its first live frame.
+- Switching the Live2D quality (Full ↔ Half) frees the other quality's illustrations from GPU memory as soon as no card
+  shows them any more, instead of keeping them until the match starts.
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays
   counted from each switch-on, nodes that follow skeleton bones). Battle effects are unchanged.
 
