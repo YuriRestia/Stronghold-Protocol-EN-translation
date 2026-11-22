@@ -9,7 +9,7 @@ import {
   FLIP_FADE_S, FLIP_DISSOLVE_S, FLIP_STEP_S, FLIP_SMOOTH_MS, FLIP_SMOOTH_FRAMES, FLIP_GIVE_UP_MS, joinGroup, groupState, leaveGroup, objectPosition,
   FLIP_SWEEP_S, sweepDrive,
 } from '../../public/js/ui/dynCards.js';
-import { coverUv, edgeOf, sweepRange, GLOW_STYLES, BLOOM, makeSparks, SPARKS } from '../../public/js/ui/cardEntrance.js';
+import { coverUv, edgeOf, sweepRange, GLOW_STYLES, BLOOM } from '../../public/js/ui/cardEntrance.js';
 
 test('the tier by card size: half up to one device px per official unit of the 232 × 458 window, full above', () => {
   assert.equal(HALF_MAX_SCALE, 1);
@@ -307,12 +307,12 @@ test('the border\'s sweep: the user\'s 0.35 s, the whole of it the line crossing
   }
 });
 
-test('the glitter: mostly falling, some thrown out of the sides, short-lived and few', () => {
-  const sp = makeSparks();
-  // no mask loaded in Node: no births, and stepping an empty list is harmless
-  sp.step(0.016, 0.5, true, { left: 100, top: 50, width: 200, height: 300 });
-  assert.equal(sp.count, 0);
-  assert.ok(SPARKS.gravity > 0 && SPARKS.max > 0);
-  assert.ok(SPARKS.sideShare > 0 && SPARKS.sideShare < 0.5, 'mostly the shower (B), a bit of the side throw (A)');
-  assert.ok(SPARKS.life[1] < 0.9 && SPARKS.max <= 60, 'dies fast and spawns little (the user, 2026-11-23)');
+test('the cards\' look: the user\'s pick, one thin line on the smoothed mask, no glitter', async () => {
+  const ce = await import('../../public/js/ui/cardEntrance.js');
+  const S = GLOW_STYLES[ce.GLOW_DEFAULT];
+  assert.equal(ce.GLOW_DEFAULT, 5);
+  assert.ok(S.soft, 'one line: the smoothed mask');
+  const core = S.bands[S.bands.length - 1];
+  assert.ok(core.hi - core.lo <= 0.02, 'a thin core (the user: "half as thin")');
+  assert.equal(ce.makeSparks, undefined, 'the glitter was dropped (the user, 2026-11-23)');
 });
