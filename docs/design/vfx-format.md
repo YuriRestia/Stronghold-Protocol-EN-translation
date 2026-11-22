@@ -2050,7 +2050,7 @@ AutoChessSettleGameTeamPlayerCardView._RenderIllust 0x28E17E9; notes dev50-l2d-o
 | `animators: [{ node, controller, parameters, layers }]` | the Animator's state machine, below | `_animators[]` and their AnimatorControllers |
 | `fixFxDelay`, `animTimeFixed` | bool | `_fixFxDelay`, `_animTimeFixed` |
 | `extraTracks: [{ track, animation }]` | Spine track ≥ 2 | `_extraTrackAnimations` (`EXTRA_TRACK_START_INDEX` = 2) |
-| `cameraShakes: [{ node, enabled, trigs: [{ delay, duration, strength: [x, y, z], vibrato, randomness, fadeOut }] }]` | s, Unity units, as stored; 1 of the 98 has one (Hoshiguma the Breacher's E2 art: 4) | `FxDynIllustCameraShake._shakeTrigs` on that node |
+| `cameraShakes: [{ node, enabled, trigs: [{ delay, duration, strength: [x, y, z], vibrato, randomness, fadeOut }] }]` | s, Unity units, as stored; 2 of the 98 have some (Hoshiguma the Breacher's E2 art: 4; Talulah's E2 art: 1, in a holder effect) | `FxDynIllustCameraShake._shakeTrigs` on that node |
 
 An animator entry: `parameters: [{ name, type ('trigger' | 'bool' | 'float' | 'int'), default }]`; `layers: [{
 defaultState, states: [{ name, clip (index into fx.json clips | null), speed, transitions: [Transition] }],
