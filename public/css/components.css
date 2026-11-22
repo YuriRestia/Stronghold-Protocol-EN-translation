@@ -1507,3 +1507,8 @@
    container, so the 9-slice's borders scale with the art window (cqw) */
 .dyn-art__bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; container-type: size; }
 .dyn-art__bg > i { position: absolute; box-sizing: border-box; }
+/* a wide card's scene fill behind the live illustration (ui/dynCards.js fillGaps): its 32 × 20 sample stretched past the
+   art box and blurred, so where the scene runs out the card carries on in the scene's own colours; in once it is painted */
+.dyn-art__fill { position: absolute; left: -10%; top: -10%; width: 120%; height: 120%; z-index: 0; pointer-events: none;
+  opacity: 0; filter: blur(16px); transition: opacity .3s linear; }
+.dyn-art__fill.is-on { opacity: 1; }

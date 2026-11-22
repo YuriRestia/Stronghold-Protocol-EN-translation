@@ -6,6 +6,13 @@
 - They load only after the last battle of a match is over. The result screen waits for them for at most 3 seconds after the settlement pause and opens as soon as they are ready; a card that is still loading shows its picture and switches when ready. [src: crew-docs/l2d-art-proposal.md §1 Decisions D11]
 - Before: every card showed a still picture.
 
+### Wide room cards
+
+- In a Team Simulation room the four cards are now wide windows onto the operators' illustrations, two by two; in the Grand Alliance room each squad has a row of four wide cards under its name and its ready count.
+- Nothing covers the art any more: the ready state, the buttons and the seat number sit in the name plate under each card. Your own card has a mint ring around it, and the host's card a crown on its top edge.
+- Where an illustration's scene ends before the card's edge, the card carries on in that scene's own colours.
+- Before: tall cards with the host tag, the operator's name and the ready state over the art.
+
 ### Result cards enter as in the official client
 
 - Each result card now plays the official entrance, one card after another: it fades in, the operator drops into place, the name card slides up, and a cleared card gets the light beam, the teal frame and strip and the colour wash (a failed one the grey frame and strip), over the official card background.

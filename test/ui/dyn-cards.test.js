@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
   setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle, cardTier, HALF_MAX_SCALE,
-  FLIP_FADE_S, joinGroup, groupState, leaveGroup,
+  FLIP_FADE_S, joinGroup, groupState, leaveGroup, fillGaps,
 } from '../../public/js/ui/dynCards.js';
 
 test('the tier by card size: half up to one device px per official unit of the 232 × 458 window, full above', () => {
@@ -175,4 +175,20 @@ test('the room\'s group flip: every card waits for the others, then all start in
     assert.deepEqual(starts, ['a', 'b', 'd', 'e'], 'a new screen forms a new group');
     leaveGroup(e2);
   } finally { globalThis.requestAnimationFrame = raf; globalThis.cancelAnimationFrame = caf; }
+});
+
+test('the scene fill: uncovered cells take their covered neighbours\' colour, spreading outward; all opaque; nothing covered → null', () => {
+  // 4 × 1: a light covered cell at the left, a dark one at the right, two gaps between
+  const px = new Uint8ClampedArray([200, 200, 200, 255, 0, 0, 0, 0, 0, 0, 0, 0, 20, 20, 20, 255]);
+  const out = fillGaps(px, 4, 1);
+  assert.deepEqual([...out.slice(4, 7)], [200, 200, 200], 'a gap beside the light scene is light');
+  assert.deepEqual([...out.slice(8, 11)], [20, 20, 20], 'a gap beside the dark scene is dark');
+  assert.ok([3, 7, 11, 15].every((i) => out[i] === 255), 'every cell opaque');
+  assert.deepEqual([...out.slice(0, 3)], [200, 200, 200], 'covered cells keep their colour');
+  // a gap two cells away fills on the second pass from the cell the first pass filled
+  const far = fillGaps(new Uint8ClampedArray([90, 60, 30, 255, 0, 0, 0, 0, 0, 0, 0, 0]), 3, 1);
+  assert.deepEqual([...far.slice(8, 11)], [90, 60, 30]);
+  // a cell under half covered counts as a gap
+  assert.equal(fillGaps(new Uint8ClampedArray([255, 0, 0, 127]), 1, 1), null);
+  assert.equal(px[7], 0, 'the input is left as it was');
 });

@@ -451,8 +451,25 @@ with the same API, every card 2D, until the renderer is installed (`setDynModule
 straight into Idle, no intro, the official crossfade on a late switch (the user, 2026-11-22) — is the renderer's.
 An illustration's see-through pixels (its erasers) show the official card background, which both official cards draw
 before the illustration (group_bg/bg, the same 9-slice `bg_normal2` / `card_bg`): behind the result card the real one
-(below), and on the room and Grand Alliance cards `IllustArt backdrop`, mapped onto the art window as the prefab places it
-around group_char (`BACKDROP`), only while the illustration is live.
+(below), and on a tall card of the official shape (the solo room's) `IllustArt backdrop`, mapped onto the art window as the
+prefab places it around group_char (`BACKDROP`), only while the illustration is live. A co-op room's wide card draws none:
+cut for the tall card, the 9-slice stretched across a wide one showed its light half and + marks where a scene ends (the
+user, 2026-11-22). There the scene fill shows instead (`IllustArt fill`, `fillGaps`; the user's idea of a background that
+blends with the exposed parts): the card's own live frame sampled at 32 × 20, each uncovered cell given its covered
+neighbours' colour until all have one, blurred behind the illustration — light beside a light scene, dark beside a dark
+one; sampled a few frames after the card goes live, again after 2.5 s and on a resize, never per frame.
+(fork) **A co-op room's wide cards** (the 4-seat and the Grand Alliance room, the user's layout I and its 4-seat follow-up
+of 2026-11-22; room.js SeatCard `wide`, room.css `.rs-seats--wide`): the event's tall card gives way to a wide window onto
+the art (`--rs-ar`, a design choice: 16 : 9 in the 4-seat room — the user asked for a phone's sideways framing without too
+much of the scenes' jagged edges; of the 98 illustrations 86 % leave at most 5 % of the card uncovered there, 92 % at 1.6,
+70 % at 2 : 1 — and 1.6 in a Grand Alliance room), as
+large as the seat area allows (its width from a size container: whichever of the area's width or height is tighter); the
+4-seat room 2 × 2, a Grand Alliance room a row of 4 per squad under a heading line — the squad's name in its colour (A grey,
+B blue; squad B's cards light in blue), a rule, its doctors' ready count. Nothing over the art: no strip, no 创建者 / AI
+tags, no wash, no operator name (kept for screen readers); the name plate carries the avatar, the name, the seat number, the
+ready state, the AI tag, 更换立绘 (icon only) and the host's swap / remove buttons, the chat mute last. One's own card is a
+mint ring around the whole card (read as 你), the host's a crown in a tab on its top edge (read as 创建者); one's own profile
+picture a dark quarter-circle with a pen in its corner, mint under the pointer. The solo room keeps the tall card.
 Which pages (the user's choice of 2026-11-22, "automatic by card size"): each card measures its art window and wants half
 pages while it is drawn at most `HALF_MAX_SCALE` 1 device px per unit of the official 232 × 458 window (measured: there half
 kept 74–100 % of full's detail, above it 36–82 %), full above; the page uses full while any card wants full (the renderer's
