@@ -584,7 +584,9 @@ On the room and Grand Alliance pages each wide card can be framed by hand (the u
 live2d to a good position and export all of them"): a drag moves it, the wheel zooms about the pointer, a double-click
 resets it to the table's; applied live to the running card (the renderer's `setFraming`, §33.19) and its 2D art, kept
 per illustration in the browser (`dynReview.framings`) and exported as `dyn-card-framing-edits.json` (the table's
-`cards` with `edited` marks). Prev / Next change the page without a reload; the pages left behind stay loaded (freeing
+`cards` with `edited` marks). Static art (the bar's button, `&off`) shows the 2D art instead, an illustration's placed
+and edited with that illustration's value; Still-only arts (`&set=stills`) pages through the still full arts, whose edits
+are a move / zoom on top of their generated placement (exported as `stills`). Prev / Next change the page without a reload; the pages left behind stay loaded (freeing
 them and coming back drew the cards black, 2026-11-23, with the renderer's owner).
 (fork) **The result card's entrance** (`ui/cardEntrance.js`, the user's go of 2026-11-22) is the client's own: the clip
 `auto_chess_settle_game_player_item_show` (25 float curves, 1.31667 s — a legacy clip runs to its last key) played once,

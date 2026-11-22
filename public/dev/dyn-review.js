@@ -58,8 +58,36 @@ const toFraming = ({ z, tx, ty }) => { const zz = Math.abs(1 - z) < 1e-3 ? (tx |
 const fromFraming = (f) => { const z = f?.zoom > 0 ? f.zoom : 1; return { z, tx: z === 1 ? 0 : f.fx * (1 - z), ty: z === 1 ? 0 : f.fy * (1 - z) }; };
 /** The table's framing of `key` (data/dyn-card-framing.json; zoom 1 = the plain card framing). */
 const tableFraming = (k) => { const c = TABLE[k]; return c && c.zoom > 0 ? { mode: 'card', zoom: c.zoom, fx: c.fx, fy: c.fy } : { mode: 'card', zoom: 1, fx: 0.5, fy: 0.5 }; };
-/** The framing a card shows now: the user's, else the table's. */
-const frameOf = (k) => framings[k] || tableFraming(k);
+/** The framing a card shows now: the user's, else the table's (a still art's: none on top of its own placement). */
+const frameOf = (k) => framings[k] || (k.startsWith('still:') ? { mode: 'card', zoom: 1, fx: 0.5, fy: 0.5 } : tableFraming(k));
+// the static art (the user, 2026-11-23: "how do I switch to the static art and edit it as well? im suspicious of the
+// crew's framing of them now"): STATIC shows every card's 2D art (动态立绘 off; an illustration's 2D art is placed with
+// the illustration's own framing, so editing it edits both), SET_STILLS pages through the still-only full arts, whose
+// edits are a move / zoom on top of their generated placement ('still:<art file>' keys), shown as a CSS transform here
+let STATIC = P.has('off');
+const SET_STILLS = P.get('set') === 'stills';
+const editKey = (e) => (e.still ? `still:${e.still}` : e.key);
+/** The still-only arts of data/card-art-framing.json as review entries: an outfit's (its id), else an operator's own. */
+async function stillEntries() {
+  const t = await fetch('/data/card-art-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const stills = new Set(Object.keys(t?.stills || {}));
+  const o = data.get('assets')?.outfits || {};
+  const base = (u) => String(u || '').split('/').pop();
+  const out = [];
+  for (const [id, rec] of Object.entries(o.chars || {})) if (stills.has(base(rec?.art))) out.push({ key: id, charId: id.split('@')[0], skinId: id, still: base(rec.art) });
+  for (const [cid, rec] of Object.entries(o.defaults || {})) if (stills.has(base(rec?.art))) out.push({ key: cid, charId: cid, skinId: `${cid}#2`, still: base(rec.art) });
+  return out.sort((a, b) => a.key.localeCompare(b.key));
+}
+/** A still card's edit on its 2D art: x' = z·x + t (card fractions), a transform about the card's top-left corner. */
+function applyStill(i, k) {
+  const seat = [...document.querySelectorAll('.rs-seats .rseat')].find((el) => el.style.getPropertyValue('--i').trim() === String(i));
+  const img = seat?.querySelector('.rseat__art img');
+  const box = img?.offsetParent;
+  if (!img || !box) return;
+  const { z, tx, ty } = fromFraming(frameOf(k));
+  img.style.transformOrigin = `${-img.offsetLeft}px ${-img.offsetTop}px`;
+  img.style.transform = z === 1 && !tx && !ty ? '' : `translate(${tx * box.clientWidth}px, ${ty * box.clientHeight}px) scale(${z})`;
+}
 /** The framing the cards mount with (setDynFraming): the URL's &fr / &framing first, then the user's; null = the table's. */
 const decideFraming = (k) => {
   if (FR.has(k)) return FR.get(k);
@@ -212,10 +240,23 @@ function goPage(n) {
 }
 globalThis.__review = { special: () => act('special'), start: () => act('start'), replay: () => { replay++; draw(); }, state: () => review, measure, goPage };
 
-/** Apply `key`'s framing to its running cards now (the renderer's setFraming: the camera moves, nothing restarts). */
+/** Apply `key`'s framing now: to its running cards (the renderer's setFraming: the camera moves, nothing restarts), to
+ * the 2D art in static mode (a re-render: CardArt places it with the same value), or to a still's transform. */
 function applyFraming(k) {
+  if (k.startsWith('still:')) {
+    (review.pages[review.page] || []).forEach((e, i) => { if (editKey(e) === k) applyStill(i, k); });
+    return;
+  }
   const f = frameOf(k);
   for (const c of review.stage?.cards || []) if (c.key === k) c.setFraming?.(f);
+  if (STATIC) draw();
+}
+/** Static art on / off in place: the cards re-mount as 2D art or as illustrations (loaded ones come back at once). */
+function setStatic(on) {
+  STATIC = on;
+  settingsStore.set({ dynIllust: on ? 'off' : 'all' });
+  const u = new URL(location.href); if (on) u.searchParams.set('off', '1'); else u.searchParams.delete('off'); history.replaceState(null, '', u);
+  replay++; draw(); renderBar(null); frameEditor();
 }
 
 /**
@@ -280,7 +321,7 @@ function frameEditor() {
     setInterval(placeEditor, 400);
   }
   const group = review.pages[review.page] || [];
-  layer.innerHTML = group.map((e, i) => `<div class="rvz" data-i="${i}" data-k="${e.key}" title="Drag to move, wheel to zoom (Shift: finer), double-click to reset — ${review.names[i] || e.key}"><b>${Math.round(frameOf(e.key).zoom * 100)}%${framings[e.key] ? ' ✎' : ''}</b></div>`).join('');
+  layer.innerHTML = group.map((e, i) => { const k = editKey(e); return `<div class="rvz" data-i="${i}" data-k="${k}" title="Drag to move, wheel to zoom (Shift: finer), double-click to reset — ${review.names[i] || e.key}"><b>${Math.round(frameOf(k).zoom * 100)}%${framings[k] ? ' ✎' : ''}</b></div>`; }).join('');
   placeEditor();
 }
 function placeEditor() {
@@ -293,19 +334,25 @@ function placeEditor() {
     if (!t) continue;
     const r = art.getBoundingClientRect();
     Object.assign(t.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+    // a still's edit survives the screen's re-renders
+    if (t.dataset.k?.startsWith('still:') && framings[t.dataset.k]) applyStill(i, t.dataset.k);
   }
 }
 
 /** Every illustration's framing as a file and on the clipboard: the cards table of data/dyn-card-framing.json (zoom,
  * fx, fy), with `edited` on the ones set here and the names. */
 function exportFramings() {
-  const names = new Map(review.pages.flatMap((pg, p) => pg.map((e, i) => [e.key, review.allNames[p]?.[i] || e.key])));
+  const names = new Map(review.pages.flatMap((pg, p) => pg.map((e, i) => [editKey(e), review.allNames[p]?.[i] || e.key])));
+  // every illustration of the table (whichever set this page shows), and the still arts edited here: a move / zoom
+  // (zoom, fx, fy about the card) on top of the art's generated placement
   const cards = {};
-  for (const e of review.pages.flat()) {
-    const f = frameOf(e.key);
-    cards[e.key] = { zoom: f.zoom, fx: f.fx, fy: f.fy, edited: !!framings[e.key], name: names.get(e.key) };
+  for (const k of Object.keys(TABLE).sort()) {
+    const f = frameOf(k);
+    cards[k] = { zoom: f.zoom, fx: f.fx, fy: f.fy, edited: !!framings[k], ...(names.has(k) ? { name: names.get(k) } : {}) };
   }
-  const out = { exported: new Date().toISOString(), edited: Object.values(cards).filter((c) => c.edited).length, total: Object.keys(cards).length, cards };
+  const stills = {};
+  for (const [k, f] of Object.entries(framings)) if (k.startsWith('still:')) stills[k.slice(6)] = { zoom: f.zoom, fx: f.fx, fy: f.fy, ...(names.has(k) ? { name: names.get(k) } : {}) };
+  const out = { exported: new Date().toISOString(), edited: Object.values(cards).filter((c) => c.edited).length, stillsEdited: Object.keys(stills).length, total: Object.keys(cards).length, cards, stills };
   const text = JSON.stringify(out, null, 1);
   navigator.clipboard?.writeText(text).catch(() => {});
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'dyn-card-framing-edits.json' });
@@ -330,7 +377,9 @@ function renderBar(target) {
     + '<span class="sep"></span>' + btn('Special idle now', false, 'special') + btn('Start now', false, 'start') + btn('Replay entrance', false, 'replay')
     + btn(SLOW ? `Slow ${SLOW} MB/s` : 'Slow connection', !!SLOW, 'slow')
     + btn(TIER === 'half' ? 'Half-size art' : 'Half-size art: off', TIER === 'half', 'tier')
-    + (SCREEN !== 'result' ? '<span class="sep"></span>' + btn(`Export framings (${Object.keys(framings).length} edited)`, false, 'export') + btn('Clear my framings', false, 'clear') : '')
+    + (SCREEN !== 'result' ? '<span class="sep"></span>'
+      + btn('Static art', STATIC, 'static') + btn(SET_STILLS ? 'Still-only arts' : 'Still-only arts: off', SET_STILLS, 'stills')
+      + btn(`Export framings (${Object.keys(framings).length} edited)`, false, 'export') + btn('Clear my framings', false, 'clear') : '')
     // the window as this browser sees it (CSS px and the pixel ratio): the screens the review captures are taken at
     + `<span class="sep"></span><span data-vp>${viewportText()}</span>`
     + `<span class="names">${review ? (review.pages[page] || []).map((e, i) => `${i + 1}. ${review.allNames[page]?.[i] || e.charId}`).join(' · ') : 'loading…'}</span>`;
@@ -347,6 +396,8 @@ function renderBar(target) {
     else if (a === 'slow') go({ slow: SLOW ? null : 1 });
     else if (a === 'tier') go({ tier: TIER === 'half' ? null : 'half' });
     else if (a === 'export') exportFramings();
+    else if (a === 'static') setStatic(!STATIC);
+    else if (a === 'stills') go({ set: SET_STILLS ? null : 'stills', page: 1 });
     else if (a === 'clear') {
       if (!confirm('Clear every framing you set on this page (all illustrations)?')) return;
       const keys = Object.keys(framings);
@@ -382,7 +433,7 @@ async function boot() {
   store.set({ session: { entered: true }, connection: { status: 'online', ping: 20, attempt: 0, retryAt: 0, lastError: null, everOnline: true },
     clock: { offset: 0, rtt: 20, synced: true } });
   // 动态立绘 on every card, the result cards' default art (the room card), not saved
-  settingsStore.set({ dynIllust: P.has('off') ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
+  settingsStore.set({ dynIllust: STATIC ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
   if (SCREEN !== 'result') {
     TABLE = await fetch('/data/dyn-card-framing.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).then((j) => j?.cards || {}).catch(() => ({}));
     setDynFraming(decideFraming);
@@ -401,9 +452,12 @@ async function boot() {
   // &stills=charId,charId@brand#n,…: those operators (E2 art, or that outfit) in place of the index — the still-only cards'
   // full art framed on the face (the user's pick of 2026-11-23)
   const STILLS = (P.get('stills') || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const entries = STILLS.length
+  // &set=stills: every still-only full art of data/card-art-framing.json, paged like the illustrations (the user,
+  // 2026-11-23: "how do I switch to the static art and edit it as well"); `still` = its art file, the edit's key
+  const stillSet = SET_STILLS ? await stillEntries() : null;
+  const entries = stillSet || (STILLS.length
     ? STILLS.map((s) => ({ key: s, charId: s.split('@')[0], skinId: s.includes('@') ? s : `${s}#2` }))
-    : Object.entries(g).map(([key, e]) => ({ key, ...e })).sort((a, b) => (a.charId + a.skinId).localeCompare(b.charId + b.skinId));
+    : Object.entries(g).map(([key, e]) => ({ key, ...e })).sort((a, b) => (a.charId + a.skinId).localeCompare(b.charId + b.skinId)));
   const pages = [];
   for (let i = 0; i < entries.length; i += PER) pages.push(entries.slice(i, i + PER));
   const page = Math.max(0, Math.min(pages.length - 1, (Number(P.get('page')) || 1) - 1));
