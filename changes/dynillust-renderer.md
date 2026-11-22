@@ -25,6 +25,9 @@
   vertex shader places every vertex. 8 heavy illustrations at once: 35 → 43 fps on the dev PC, the same pixels as the
   CPU path on 17 illustrations [src: notes dev50-l2d-perf-report.md §GPU skinning].
   Without WebGL2 they draw through pixi-spine as before.
+- Animation timelines that never move a bone are dropped once per skeleton (about half of all bone timelines), so the
+  per-frame animation update costs about 15 % less CPU for the same pixels [src: notes dev50-l2d-perf-report.md
+  §Constant timelines].
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays
   counted from each switch-on, nodes that follow skeleton bones). Battle effects are unchanged.
 

@@ -28,6 +28,74 @@ function poseYUp(fn) {
   try { return fn(); } finally { S.yDown = true; }
 }
 
+/**
+ * Drop the bone timelines (rotate / translate / scale / shear) whose value never changes, with no change to any pose:
+ * applying them is most of a frame's animation cost and a third to four fifths of them hold one value (Wang's E2 art:
+ * 19,864 of 23,829) [src: notes dev50-l2d-perf-report.md §What is left on the CPU]. A property (timeline type + bone)
+ * goes when every animation of the skeleton leaves it unkeyed or keys it with one and the same constant from time 0:
+ *   some animation leaves it unkeyed → the constant must be the setup value (offset 0, scale 1): the timeline only
+ *     ever sets what is already there;
+ *   every animation keys it → a rotate / translate / shear constant is added to the bone's setup values, so every mix
+ *     ends on the value it ended on before (scale is never baked: its mix-out reads the setup scale's sign).
+ * Spine 3.8: before its first key a timeline applies the setup value, so the first key must be at time 0; rotate,
+ * translate and shear apply setup + offset, scale setup × value [src: public/vendor/pixi-spine.js Rotate / Translate /
+ * Scale / ShearTimeline.apply; getPropertyId = (0 rotate, 1 translate, 2 scale, 3 shear << 24) + boneIndex;
+ * Animation.timelineIds, read by AnimationState's hasTimeline]. Runs once per skeleton data, before a Spine is built
+ * from it. Returns { removed, baked }.
+ */
+export function pruneConstantBoneTimelines(sd) {
+  if (!sd || !Array.isArray(sd.animations)) return null;
+  if (sd._pruned) return sd._pruned;
+  const EPS = 1e-5;
+  const ENT = [2, 3, 3, 3];                      // rotate: [t, deg]; translate / scale / shear: [t, x, y]
+  const IDENT = [[0], [0, 0], [1, 1], [0, 0]];   // the value that changes nothing
+  const constant = (t, ent) => {
+    const f = t.frames;
+    if (!f || f.length < ent || Math.abs(f[0]) > EPS) return null;
+    const v = []; for (let j = 1; j < ent; j++) v.push(f[j]);
+    for (let i = ent; i < f.length; i += ent) for (let j = 1; j < ent; j++) if (Math.abs(f[i + j] - v[j - 1]) > EPS) return null;
+    return v;
+  };
+  const byProp = new Map();                      // propertyId → { type, bone, list: [{ anim, t, v }] }
+  for (const anim of sd.animations) {
+    for (const t of anim.timelines) {
+      if (typeof t.getPropertyId !== 'function' || t.boneIndex == null) continue;
+      const id = t.getPropertyId(), type = id >>> 24;
+      if (type > 3) continue;
+      let p = byProp.get(id);
+      if (!p) { p = { type, bone: t.boneIndex, list: [] }; byProp.set(id, p); }
+      p.list.push({ anim, t, v: constant(t, ENT[type]) });
+    }
+  }
+  const drop = new Set();
+  let baked = 0;
+  for (const p of byProp.values()) {
+    if (p.list.some((x) => !x.v)) continue;                                            // some animation moves it
+    const v0 = p.list[0].v;
+    if (p.list.some((x) => x.v.some((y, i) => Math.abs(y - v0[i]) > EPS))) continue;    // different constants
+    if (!v0.every((y, i) => Math.abs(y - IDENT[p.type][i]) <= EPS)) {
+      const everywhere = new Set(p.list.map((x) => x.anim)).size === sd.animations.length;
+      if (!everywhere || p.type === 2) continue;
+      const b = sd.bones[p.bone];
+      if (p.type === 0) b.rotation += v0[0];
+      else if (p.type === 1) { b.x += v0[0]; b.y += v0[1]; }
+      else { b.shearX += v0[0]; b.shearY += v0[1]; }
+      baked++;
+    }
+    for (const x of p.list) drop.add(x.t);
+  }
+  for (const anim of sd.animations) {
+    const keep = anim.timelines.filter((t) => !drop.has(t));
+    if (keep.length === anim.timelines.length) continue;
+    anim.timelines = keep;
+    const ids = anim.timelineIds;
+    if (ids && typeof ids.clear === 'function' && typeof ids.add === 'function') { ids.clear(); for (const t of keep) ids.add(t.getPropertyId()); }
+    else if (ids) { for (const k of Object.keys(ids)) ids[k] = false; for (const t of keep) ids[t.getPropertyId()] = true; }
+  }
+  sd._pruned = { removed: drop.size, baked };
+  return sd._pruned;
+}
+
 const PATH = 4;                 // spine-core 3.8 AttachmentType.Path
 const PATH_EPSILON = 0.00001;  // spine-core 3.8 PathConstraint.epsilon
 
@@ -130,6 +198,8 @@ export class IllustSkeleton {
    */
   constructor(spineData, o = {}) {
     const P = globalThis.PIXI;
+    // timelines that never change go before the first Spine is built from this data (`prune: false` keeps them)
+    if (o.prune !== false) pruneConstantBoneTimelines(spineData);
     // Dev 51's createDynSpine (render/dynillust/spine-shader.js: the official Spine fragment math) when the stage has it
     this.spine = o.makeSpine ? o.makeSpine(spineData) : new P.spine.Spine(spineData);
     this.spine.autoUpdate = false;
