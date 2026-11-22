@@ -323,6 +323,9 @@ span.settle__nexticon .icon { width: .34rem; height: .34rem; }
 .tcard__cardbg { position: absolute; z-index: -1; box-sizing: border-box; border-style: solid; border-color: transparent; pointer-events: none; }
 .tcard.has-ce::before { background: none; box-shadow: none; }
 .tcard.has-ce .tcard__pin { display: none; }
+/* the strip sprite prints its own STRONGHOLD PROTOCOL text and no seat number (the official card, D1): ours give way;
+   hidden, not removed, so the header keeps the height the mattes are placed by */
+.tcard.has-ce .tcard__code, .tcard.has-ce .tcard__seat { visibility: hidden; }
 .tcard::before { content: ''; position: absolute; left: -.06rem; right: -.06rem; top: .36rem; bottom: .7rem; background: rgba(22, 27, 26, .78); box-shadow: 0 0 0 1px rgba(180, 196, 192, .14); z-index: -1; }
 .tcard__head { position: relative; height: .45rem; margin-top: .39rem; display: flex; align-items: center; gap: .1rem; padding: 0 .12rem; background: #32dcae; color: #0b3a2f; }
 .tcard__pin { position: absolute; left: 50%; top: -.39rem; width: .14rem; height: .14rem; margin-left: -.07rem; background: #32dcae; }
