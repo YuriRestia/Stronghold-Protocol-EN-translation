@@ -10,91 +10,63 @@
 //     spine-unity's MeshGenerator writes them: render/dynillust/spine-shader.js vertexColor), the deform offsets of the
 //     slots an animation deforms (only those rows), and the draw order as an index list.
 //   Clipping attachments clip through the stencil buffer (the same pixels as spine-core's triangle clipping).
-// The fragment math is render/dynillust/spine-shader.js's (the official Spine materials, Dev 51), ported to GLSL 3.00
-// here because that file's shader is Pixi's GLSL 1.00 batch template [TODO(dev51): one shared source].
+// The fragment stage is render/dynillust/spine-shader.js's own source (spineFragmentSource: the official Spine
+// materials, Dev 51), one sampler per atlas page; the vertex stage here is GLSL ES 1.00 to link with it.
 //
-// WebGL2 is all it needs (vertex texture fetch, RGBA32F textures read with texelFetch — no float filtering or
-// float render targets), which every WebGL2 phone has. Without WebGL2 the skeleton draws through pixi-spine.
+// WebGL2 is all it needs (vertex texture fetch of RGBA32F textures with NEAREST, 32-bit indices — no float filtering
+// or float render targets), which every WebGL2 phone has. Without WebGL2, or with more than 16 atlas pages, the
+// skeleton draws through pixi-spine.
 
-import { compileLook, slotRoute, vertexColor } from './spine-shader.js';
+import { compileLook, slotRoute, vertexColor, spineFragmentSource } from './spine-shader.js';
 
 const ROW = 1024;            // texels per row of the data textures
 const MAX_WEIGHTS = 32;      // weight entries per vertex the shader loops over (the 98 illustrations: at most 9)
 const CLIPPING = 6, MESH = 2, LINKED = 3, REGION = 0; // spine-core 3.8 AttachmentType
 
-const VS = `#version 300 es
-precision highp float;
-precision highp int;
-in vec2 aWeight;     // first weight entry, count
-in vec2 aUv;
-in float aSlot;
-in float aPage;
-uniform highp sampler2D uBones;
-uniform highp sampler2D uWeights;
-uniform highp sampler2D uDeform;
-uniform highp sampler2D uSlots;
+// GLSL ES 1.00, so it links with spine-shader.js's fragment source as it is (Dev 51's varyings: vTextureCoord, vColor
+// = the vertex colour × uColor, vDark, vTextureId). The data textures are RGBA32F read with NEAREST at texel centres
+// (exact: indices stay far below 2^24); uRows holds their heights (bones, weights, deform, slots).
+const VS = `precision highp float;
+attribute vec2 aWeight;     // first weight entry, count
+attribute vec2 aUv;
+attribute float aSlot;
+attribute float aPage;
+uniform sampler2D uBones;
+uniform sampler2D uWeights;
+uniform sampler2D uDeform;
+uniform sampler2D uSlots;
+uniform vec4 uRows;
 uniform mat3 uXform;  // skeleton px (y down) → clip
 uniform vec4 uColor;
-out vec2 vTextureCoord;
-out vec4 vColor;
-out vec3 vDark;
-flat out int vPage;
-ivec2 at(int i) { return ivec2(i & ${ROW - 1}, i >> ${Math.log2(ROW)}); }
-void main() {
-  int start = int(aWeight.x), n = int(aWeight.y);
+varying vec2 vTextureCoord;
+varying vec4 vColor;
+varying vec3 vDark;
+varying float vTextureId;
+vec4 fetch(sampler2D t, float i, float h) {
+  float r = floor(i / ${ROW}.0);
+  return texture2D(t, vec2((i - r * ${ROW}.0 + 0.5) / ${ROW}.0, (r + 0.5) / h));
+}
+void main(void) {
+  float start = aWeight.x, n = aWeight.y;
   vec2 p = vec2(0.0);
   for (int k = 0; k < ${MAX_WEIGHTS}; k++) {
-    if (k >= n) break;
-    int i = start + k;
-    vec4 w = texelFetch(uWeights, at(i), 0);
-    vec2 l = w.yz + texelFetch(uDeform, at(i), 0).xy;
-    int b = int(w.x);
-    vec4 m = texelFetch(uBones, at(2 * b), 0);
-    vec2 t = texelFetch(uBones, at(2 * b + 1), 0).xy;
+    if (float(k) >= n) break;
+    float i = start + float(k);
+    vec4 w = fetch(uWeights, i, uRows.y);
+    vec2 l = w.yz + fetch(uDeform, i, uRows.z).xy;
+    vec4 m = fetch(uBones, 2.0 * w.x, uRows.x);
+    vec2 t = fetch(uBones, 2.0 * w.x + 1.0, uRows.x).xy;
     p += (vec2(m.x * l.x + m.z * l.y, m.y * l.x + m.w * l.y) + t) * w.w;
   }
   gl_Position = vec4((uXform * vec3(p, 1.0)).xy, 0.0, 1.0);
-  int s = int(aSlot);
-  vColor = texelFetch(uSlots, at(2 * s), 0) * uColor;
-  vDark = texelFetch(uSlots, at(2 * s + 1), 0).rgb;
+  vColor = fetch(uSlots, 2.0 * aSlot, uRows.w) * uColor;
+  vDark = fetch(uSlots, 2.0 * aSlot + 1.0, uRows.w).rgb;
   vTextureCoord = aUv;
-  vPage = int(aPage);
+  vTextureId = aPage;
 }`;
 
-// render/dynillust/spine-shader.js FRAG, the same branches (uMode 1: texture × colour; 2: SkeletonGraphic; tint black;
-// bleed; L2D gray), GLSL 3.00
-const FS = `#version 300 es
-precision highp float;
-in vec2 vTextureCoord;
-in vec4 vColor;
-in vec3 vDark;
-flat in int vPage;
-uniform sampler2D uPage0;
-uniform sampler2D uPage1;
-uniform sampler2D uPage2;
-uniform sampler2D uPage3;
-uniform float uMode;
-uniform float uBleed;
-uniform float uTintBlack;
-uniform float uUseGray;
-uniform float uGrayScale;
-uniform vec4 uColor;
-uniform vec3 uBlack;
-out vec4 fragColor;
-void main() {
-  vec4 color = vPage == 0 ? texture(uPage0, vTextureCoord) : vPage == 1 ? texture(uPage1, vTextureCoord)
-    : vPage == 2 ? texture(uPage2, vTextureCoord) : texture(uPage3, vTextureCoord);
-  if (uMode > 0.5 && uMode < 1.5) { fragColor = color * vColor; return; }
-  vec3 rgb = uBleed > 0.5 ? color.rgb * color.a : color.rgb;
-  if (uMode > 1.5) { vec4 g = vec4(rgb, color.a) * vColor; g.rgb *= g.a; fragColor = g; return; }
-  if (uTintBlack > 0.5) {
-    fragColor = vec4((vDark + uBlack) * (color.a - rgb) * uColor.a + rgb * vColor.rgb, color.a * vColor.a);
-    return;
-  }
-  vec4 c = vec4(rgb, color.a) * vColor;
-  if (uUseGray > 0.0) c.rgb = mix(c.rgb, vec3(dot(c.rgb, vec3(0.299, 0.587, 0.114))), uGrayScale);
-  fragColor = c;
-}`;
+/** Most atlas pages one draw samples (WebGL2's fragment texture-unit minimum); more → pixi-spine draws it. */
+const MAX_PAGES = 16;
 
 // the stencil pass: the clipping polygon's world positions, already in clip space
 const CLIP_VS = `#version 300 es
@@ -110,7 +82,7 @@ export function gpuSkinSupported(gl) {
   return !!gl && typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
 }
 
-const programs = new WeakMap(); // gl → { main, clip }
+const programs = new WeakMap(); // gl → Map(page count → { main, clip, a, u, clipPos })
 
 function compile(gl, vs, fs) {
   const sh = (type, src) => {
@@ -126,27 +98,32 @@ function compile(gl, vs, fs) {
   return p;
 }
 
-function programsFor(gl) {
-  let pr = programs.get(gl);
+/** The programs for `pages` atlas pages: our vertex stage + spine-shader.js's fragment source with that many samplers. */
+function programsFor(gl, pages) {
+  let byCount = programs.get(gl);
+  if (!byCount) { byCount = new Map(); programs.set(gl, byCount); }
+  let pr = byCount.get(pages);
   if (pr) return pr;
-  const main = compile(gl, VS, FS);
+  const main = compile(gl, VS, spineFragmentSource(pages));
   const u = (n) => gl.getUniformLocation(main, n);
   const clip = compile(gl, CLIP_VS, CLIP_FS);
   pr = {
     main, clip,
     a: { weight: gl.getAttribLocation(main, 'aWeight'), uv: gl.getAttribLocation(main, 'aUv'), slot: gl.getAttribLocation(main, 'aSlot'), page: gl.getAttribLocation(main, 'aPage') },
     u: {
-      bones: u('uBones'), weights: u('uWeights'), deform: u('uDeform'), slots: u('uSlots'), xform: u('uXform'), color: u('uColor'),
-      pages: [u('uPage0'), u('uPage1'), u('uPage2'), u('uPage3')], mode: u('uMode'), bleed: u('uBleed'), tintBlack: u('uTintBlack'),
+      bones: u('uBones'), weights: u('uWeights'), deform: u('uDeform'), slots: u('uSlots'), rows: u('uRows'), xform: u('uXform'),
+      // the fragment stage's uniforms, by spine-shader.js's names (SPINE_UNIFORMS)
+      samplers: u('uSamplers'), color: u('uColor'), mode: u('uMode'), bleed: u('uBleed'), tintBlack: u('uTintBlack'),
       useGray: u('uUseGray'), grayScale: u('uGrayScale'), black: u('uBlack'),
     },
+    units: Int32Array.from({ length: pages }, (_, i) => 4 + i), // texture units 0–3 hold the data textures
     clipPos: gl.getAttribLocation(clip, 'aPos'),
   };
-  programs.set(gl, pr);
+  byCount.set(pages, pr);
   return pr;
 }
 
-/** A float RGBA texture of `n` texels (ROW wide), NEAREST, for texelFetch. */
+/** A float RGBA texture of `n` texels (ROW wide), NEAREST, read at texel centres by the vertex stage. */
 function dataTexture(gl, n, data) {
   const h = Math.max(1, Math.ceil(n / ROW));
   const t = gl.createTexture();
@@ -195,8 +172,7 @@ export class GpuSkeleton {
     this.gl = renderer.gl;
     this.spine = spine;
     this.cl = compileLook(look || {});
-    this.pr = programsFor(this.gl);
-    this._build(globalThis.PIXI);
+    this._build(globalThis.PIXI); // sets this.pr once the page count is known
   }
 
   _build(PIXI) {
@@ -265,11 +241,12 @@ export class GpuSkeleton {
         }
       }
     }
+    if (pages.length > MAX_PAGES) throw new Error(`[gpuskin] ${pages.length} atlas pages (at most ${MAX_PAGES})`);
     this.pages = pages;
     this.indices = Uint32Array.from(indices);
     this.drawIdx = new Uint32Array(this.indices.length);
     // GL objects
-    const pr = this.pr;
+    const pr = this.pr = programsFor(gl, Math.max(1, pages.length));
     this.vao = gl.createVertexArray();
     gl.bindVertexArray(this.vao);
     this.vbo = gl.createBuffer();
@@ -398,13 +375,15 @@ export class GpuSkeleton {
     X[6] = 2 * wt.tx / W - 1; X[7] = 1 - 2 * wt.ty / H; X[8] = 1;
     gl.uniformMatrix3fv(u.xform, false, X);
     const tex = [[this.bonesTex.tex, u.bones], [this.weightsTex.tex, u.weights], [this.deformTex.tex, u.deform], [this.slotsTex.tex, u.slots]];
-    for (let i = 0; i < 4; i++) { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, tex[i][0]); gl.uniform1i(tex[i][1], i); }
-    for (let p = 0; p < 4; p++) {
-      const bt = this.pages[Math.min(p, this.pages.length - 1)];
+    // pages first: a page Pixi has not uploaded yet goes up through its texture system on unit 0
+    for (let p = 0; p < pr.units.length; p++) {
+      const bt = this.pages[p], g = bt ? this._glTex(bt) : null;
       gl.activeTexture(gl.TEXTURE4 + p);
-      gl.bindTexture(gl.TEXTURE_2D, bt ? this._glTex(bt) : null);
-      gl.uniform1i(u.pages[p], 4 + p);
+      gl.bindTexture(gl.TEXTURE_2D, g);
     }
+    gl.uniform1iv(u.samplers, pr.units);
+    for (let i = 0; i < 4; i++) { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, tex[i][0]); gl.uniform1i(tex[i][1], i); }
+    gl.uniform4f(u.rows, this.bonesTex.h, this.weightsTex.h, this.deformTex.h, this.slotsTex.h);
     gl.enable(gl.BLEND);
     gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.CULL_FACE);
