@@ -2,7 +2,7 @@
 // evaluated as Unity does (Hermite between keys, clamped outside), the stagger and the card's states.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ANIM_DELAY_S, CLIP_LENGTH_S, SHOW_CLIP, evalCurve, sampleShow, domState, layerState } from '../../public/js/ui/cardEntrance.js';
+import { ANIM_DELAY_S, CARD_BG, CLIP_LENGTH_S, SHOW_CLIP, evalCurve, sampleShow, domState, layerState } from '../../public/js/ui/cardEntrance.js';
 
 const near = (a, b, eps = 1e-4) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`);
 
@@ -42,4 +42,12 @@ test('the mattes\' last frame: the beam gone, the hanger line full, the washes a
   near(wash.color[0], 0.642097); near(wash.color[1], 0.8); near(wash.color[2], 0); near(wash.color[3], 1);
   const tiles = layerState({ id: 'x', alpha: 'group_char_matte/group_complete/char_color/tile_line', pos: [0, 0], size: [1, 1], color: [1, 1, 1, 0.035] }, s);
   near(tiles.color[3], 0, 1e-9);
+});
+
+test('the card background: the prefab\'s card_bg, 300 × 528 at (0, −13), sliced 75 / 43 / 78 / 212 (left / bottom / right / top)', () => {
+  assert.deepEqual(CARD_BG.pos, [0, -13]);
+  assert.deepEqual(CARD_BG.size, [300, 528]);
+  assert.deepEqual(CARD_BG.border, { left: 75, bottom: 43, right: 78, top: 212 });
+  // the slices fit the 159 × 264 sprite
+  assert.ok(CARD_BG.border.left + CARD_BG.border.right < 159 && CARD_BG.border.top + CARD_BG.border.bottom < 264);
 });

@@ -130,8 +130,16 @@ const GROUPS = {
 const SPRITES = {
   complete_up_glow: 'settleCard/complete_up_glow', unfinish_bg: 'settleCard/unfinish_bg', complete_up_bg: 'settleCard/complete_up_bg',
   line_up: 'settleCard/line_up', bg_frame: 'settleCard/bg_frame', char_color_mask: 'settleCard/char_color_mask', tile_line: 'settle/tile_line',
-  m03: 'uiFxMask/img_uifx_basicmask_03', m01: 'uiFxMask/img_uifx_common_basicmask_01',
+  m03: 'uiFxMask/img_uifx_basicmask_03', m01: 'uiFxMask/img_uifx_common_basicmask_01', card_bg: 'settleCard/card_bg',
 };
+
+/**
+ * The card's background (prefab panel_player/group_bg/bg: Image `card_bg`, Type 1 sliced, colour white, anchored at
+ * (0, −13), 300 × 528 under the 234 × 486 card; the sprite's rect 159 × 264 and border left 75 / bottom 43 / right 78 /
+ * top 212 at 100 px per unit [src: official [uc]autochessouter.ab auto_chess_settle_game_player_item, Sprite card_bg
+ * m_Rect / m_Border]). Drawn behind the card as a CSS border-image (the 9-slice), not in the matte canvases.
+ */
+export const CARD_BG = Object.freeze({ pos: [0, -13], size: [300, 528], border: { left: 75, bottom: 43, right: 78, top: 212 } });
 
 /** The canvases' extent in panel units: the beam comes down from above the card, the washes run below it. */
 export const OVERLAY = Object.freeze({ top: 760, bottom: -320, left: -117, right: 117 });
@@ -257,7 +265,7 @@ export function entranceSprites(m = data.get('assets')) {
 /** Load every texture (a promise; rejects when one fails). */
 export function loadEntrance(urls) {
   if (!glInit()) return Promise.reject(new Error('no WebGL2'));
-  return Promise.all(Object.entries(urls).map(([k, url]) => texture(url, k === 'tile_line')));
+  return Promise.all(Object.entries(urls).filter(([k]) => k !== 'card_bg').map(([k, url]) => texture(url, k === 'tile_line')));
 }
 
 /** A layer's quads: [x, y, u, v, qu, qv] × 6 per quad, in panel units relative to the overlay's bottom-left. */
@@ -362,7 +370,9 @@ export function useCardEntrance(ref, { index, kind }) {
     if (!urls || !el) return undefined;
     const [base, add] = el.querySelectorAll('.tcard__ce');
     const head = el.querySelector('.tcard__head');
-    const t0 = performance.now() + Math.max(0, index) * ANIM_DELAY_S * 1000;
+    const bg = el.querySelector('.tcard__cardbg');
+    if (bg) { bg.style.borderImageSource = `url("${urls.card_bg}")`; bg.style.borderImageSlice = `${CARD_BG.border.top} ${CARD_BG.border.right} ${CARD_BG.border.bottom} ${CARD_BG.border.left} fill`; }
+    const t0 =performance.now() + Math.max(0, index) * ANIM_DELAY_S * 1000;
     let raf = 0, ready = false, now = 0, live = true;
     const apply = (t) => {
       now = t;
@@ -376,6 +386,11 @@ export function useCardEntrance(ref, { index, kind }) {
       el.style.setProperty('--ce-round', String(d.round));
       const top = (head ? head.offsetTop : 0) - (OVERLAY.top - STRIP_TOP) * scale;
       for (const c of [base, add]) { c.style.top = `${top}px`; c.style.height = `${(OVERLAY.top - OVERLAY.bottom) * scale}px`; }
+      if (bg) {
+        const [bx, by] = CARD_BG.pos, [bw, bh] = CARD_BG.size, b = CARD_BG.border;
+        Object.assign(bg.style, { left: `${(bx - bw / 2 - OVERLAY.left) * scale}px`, top: `${top + (OVERLAY.top - (by + bh / 2)) * scale}px`,
+          width: `${bw * scale}px`, height: `${bh * scale}px`, borderWidth: `${b.top * scale}px ${b.right * scale}px ${b.bottom * scale}px ${b.left * scale}px` });
+      }
       if (ready) drawMattes({ base, add }, kind, t, scale * (globalThis.devicePixelRatio || 1), urls);
     };
     const tick = () => {

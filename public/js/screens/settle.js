@@ -578,6 +578,7 @@ function TeamCard({ p, i, gd, self, victory, raw, opts }) {
   const cardRef = useRef(null);
   const ce = useCardEntrance(cardRef, { index: i, kind: cleared ? 'complete' : 'normal' });
   return html`<article ref=${cardRef} class=${cx('tcard', self && 'is-self', p.alive === false && 'is-dead', p.left && 'is-left', cleared ? 'is-clear' : 'is-fail', ce && 'has-ce')} style=${`--i:${i}`}>
+    ${ce ? html`<i class="tcard__cardbg" aria-hidden="true"></i>` : null}
     ${ce ? html`<canvas class="tcard__ce" aria-hidden="true"></canvas><canvas class="tcard__ce tcard__ce--add" aria-hidden="true"></canvas>` : null}
     <header class="tcard__head" aria-hidden="true"><i class="tcard__pin"></i><span class="tcard__code"><i></i><i></i><i></i>STRONGHOLD PROTOCOL</span><span class="tcard__seat num">${pad2(p.seat + 1)}</span></header>
     <div class="tcard__art">

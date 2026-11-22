@@ -548,9 +548,9 @@ export const UI_EXTRAS = (() => {
   L.push(['skillIcon', 'empty_large', 'arts/ui/[uc]charcommon/skills/empty_skill_large.png']);
   L.push(['entry', 'season_logo_settle', 'activity/[uc]act2autochess/arts/seasonlogo/season_logo_settle_game.png']);
   // (fork) the result card's entrance (the official auto_chess_settle_game_player_item prefab and its show clip;
-  // screens/settle.js CardEntrance): its frame, mattes, glow and line sprites
+  // screens/settle.js CardEntrance): its background (group_bg/bg, sliced), frame, mattes, glow and line sprites
   const pi = 'ui/autochess/[uc]autochessouter/settlegame/auto_chess_settle_game_player_item/';
-  for (const k of ['bg_frame', 'char_color_mask', 'char_mask', 'complete_up_bg', 'complete_up_glow', 'line_up', 'round_complete_bg', 'unfinish_bg']) {
+  for (const k of ['card_bg', 'bg_frame', 'char_color_mask', 'char_mask', 'complete_up_bg', 'complete_up_glow', 'line_up', 'round_complete_bg', 'unfinish_bg']) {
     L.push(['settleCard', k, `${pi}${k}.png`]);
   }
   // its materials' dissolve masks (Torappu/UI/Dissolve/UI-DoubleDissolve-Tex _DissolveTex1 / _DissolveTex2)
