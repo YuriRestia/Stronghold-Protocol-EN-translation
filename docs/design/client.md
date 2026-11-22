@@ -177,8 +177,25 @@ history and the open points: DESIGN §32.14.25.
   source is in the repository): basic, legacy premultiplied / alpha-blended, standard unlit, dissolve (tween, vertex
   colour, double, custom data), disturb (origin, anchor, custom data, ramp), ramp, mask, rim, flipbook and multiply,
   with `_Time` on the battle clock, the custom vertex streams and FxUVRotation as DESIGN §33.6 / §33.11 resolve them.
-  A shader of no ported family (GrabPass distortion, RGB split, blur, toon, matcap, outline, …) draws with the basic or
-  dissolve program by its name and is logged once (`materials.js fallbackLog`).
+  (fork) The animated illustrations' effects (动态立绘) add `glsl-l2d.js`, each family after the official D3D11
+  program of its shader in the CN client's `[uc]shaders.ab` (Unity 2021.3, read 2026-11-22): Dissolve AB / Add Double
+  edge (Torappu/ and Hidden/), Disturb GrabPass / GrabPassOnce and Particle-Blur (they read a copy of the frame drawn so
+  far: `gl.js _grabFrame` copies the bound framebuffer's viewport before each renderer of an unnamed GrabPass, once per
+  frame for the named `_DisturbGrabTexture`), RGBsplit, Unlit-Outline (its outline hull is the material's second pass:
+  `materials.js` `second`, drawn right after the first), Mask/Erase, 3D/Toon and 3D/MatCapTransparent (the camera's
+  rotation: `draw` frame `viewRot`), Particles-Poker-Reflect (a mesh's tangents and second UV set, a cubemap) and
+  UI/AlphaBlend. A vertex variant (`defs.vx`) only appends code to the kind's vertex shader; the battle families'
+  programs and keys are unchanged. Unity's `Standard` appears in two illustrations only on inactive placeholder quads
+  no clip enables, so it is never drawn. A shader of no ported family (the battle set's GrabPass and blur shaders —
+  the battle layer has no frame of its own to copy —, SimSpine, …) draws with the basic or dissolve program by its name
+  and is logged once (`materials.js fallbackLog`).
+  The illustrations' Spine skeletons draw through `render/dynillust/spine-shader.js` (`createDynSpine`): one Pixi batch
+  plugin applies the official Spine materials — Torappu Skeleton-AlphaSplit (L2D) with bleed and gray, the Tint Black
+  twins, the PMA Multiply and SkeletonGraphic shaders — per slot as spine-unity routes its blend mode (a blend-mode
+  material when the SkeletonDataAsset lists one: Dusk 'Hazy Jade''s multiply material is the plain AlphaSplit shader,
+  so those slots blend normally), with spine-unity's vertex colours (PMA bytes, an additive slot's alpha 0). It also
+  clips only while a slot shows its clipping attachment: pixi-spine kept a clip after an animation swapped it for a
+  mesh and masked every later slot (Hazy Jade's eyes, brows and props: the blank face).
 - **Wiring** (`wiring.js FxWiring`, from index.json §33.12). An attack: its cast rows on the attacker — the
   ON_CAST_START ones when the attack's wind-up starts its Spine clip (`app.js onUpcoming` → `castStart`, as far into the
   effect as the clip started), the ON_SPELL_ON ones at the 'atk' event; a NONE row's first slot, a directional row's
