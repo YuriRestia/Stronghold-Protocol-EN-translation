@@ -9,7 +9,10 @@ import assert from 'node:assert/strict';
 import { compileMaterial, familyOf } from '../../public/js/render/vfx/materials.js';
 import { vertexSource, fragmentSource, FAMILIES } from '../../public/js/render/vfx/glsl.js';
 import { L2D_FAMILIES } from '../../public/js/render/vfx/glsl-l2d.js';
-import { compileMaterial as spineMaterial, compileLook, slotRoute, vertexColor, MODE, PAGE_TEXTURE_OPTIONS } from '../../public/js/render/dynillust/spine-shader.js';
+import {
+  compileMaterial as spineMaterial, compileLook, slotRoute, vertexColor, MODE, PAGE_TEXTURE_OPTIONS,
+  spineFragmentSource, SPINE_FRAGMENT_TEMPLATE, SPINE_VERTEX_SOURCE, SPINE_UNIFORMS, materialUniforms,
+} from '../../public/js/render/dynillust/spine-shader.js';
 
 const GRAB_PASSES = [
   { blend: ['One', 'Zero', 'One', 'Zero'], zTest: 'Always', cull: 'Off' },            // the GrabPass itself
@@ -142,6 +145,19 @@ describe('dynamic illustration Spine shader (spine-shader.js)', () => {
     assert.deepEqual(unpack(vertexColor(1, 0.5, 0.25, 0.5, true, false)), [127, 63, 31, 127]);
     assert.deepEqual(unpack(vertexColor(1, 0.5, 0.25, 0.5, true, true)), [127, 63, 31, 0]);
     assert.deepEqual(unpack(vertexColor(1, 0.5, 0.25, 0.5, false, true)), [255, 127, 63, 127], 'straight colours: no additive rule');
+  });
+
+  test('the fragment source and uniform list for another vertex stage (GPU skinning)', () => {
+    const one = spineFragmentSource(1), four = spineFragmentSource(4);
+    assert.doesNotMatch(one + four, /%count%|%forloop%/);
+    assert.match(one, /uniform sampler2D uSamplers\[1\];/);
+    assert.match(one, /color = texture2D\(uSamplers\[0\], vTextureCoord\)/);
+    assert.equal((four.match(/if \(vTextureId < /g) || []).length, 3);
+    for (const v of ['vTextureCoord', 'vColor', 'vDark', 'vTextureId']) assert.match(one, new RegExp(`varying [a-z0-9]+ ${v};`));
+    for (const u of SPINE_UNIFORMS) assert.ok((SPINE_FRAGMENT_TEMPLATE + SPINE_VERTEX_SOURCE).includes(u), u);
+    const mu = materialUniforms(compileLook({ material: { shader: L2D, keywords: ['_USEBLEED_ON'] } }).base);
+    assert.deepEqual(Object.keys(mu).sort(), SPINE_UNIFORMS.filter((u) => u !== 'uSamplers').sort());
+    assert.equal(mu.uBleed, 1);
   });
 
   test('looks default to the renderer kind and page textures load raw', () => {
