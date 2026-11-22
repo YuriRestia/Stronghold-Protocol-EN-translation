@@ -1,0 +1,8027 @@
+{
+ "_source": "tools/card-art-framing.mjs: generated, do not edit by hand. l2d: each animated illustration's full art registered on the illustration at the card framing (card units from the centre, u = min(w/232, h/458)); stills: a full art framed on the face of its official portrait.",
+ "l2d": {
+  "char_003_kalts_boc#6": {
+   "art": "char_003_kalts_boc_6.webp",
+   "rect": [
+    -738.27,
+    -522.41,
+    1505.84,
+    1201.44
+   ],
+   "score": 0.805
+  },
+  "char_003_kalts_sale#14": {
+   "art": "char_003_kalts_sale_14.webp",
+   "rect": [
+    -742.05,
+    -565.95,
+    1428.42,
+    1153.62
+   ],
+   "score": 0.869
+  },
+  "char_1012_skadi2_boc#4": {
+   "art": "char_1012_skadi2_boc_4.webp",
+   "rect": [
+    -598.18,
+    -520.52,
+    1285.4,
+    932.66
+   ],
+   "score": 0.773
+  },
+  "char_1012_skadi2_iteration#2": {
+   "art": "char_1012_skadi2_iteration_2.webp",
+   "rect": [
+    -700.41,
+    -558.38,
+    1442.71,
+    1252.51
+   ],
+   "score": 0.594
+  },
+  "char_1012_skadi2_2": {
+   "art": "char_1012_skadi2_default.webp",
+   "rect": [
+    -702.3,
+    -630.31,
+    1444.16,
+    1194.53
+   ],
+   "score": 0.596
+  },
+  "char_1013_chen2_boc#6": {
+   "art": "char_1013_chen2_boc_6.webp",
+   "rect": [
+    -615.22,
+    -618.96,
+    1238.86,
+    1238.86
+   ],
+   "score": 0.846
+  },
+  "char_1013_chen2_summer#20": {
+   "art": "char_1013_chen2_summer_20.webp",
+   "rect": [
+    -675.8,
+    -448.59,
+    1316.4,
+    1025.87
+   ],
+   "score": 0.867
+  },
+  "char_1013_chen2_2": {
+   "art": "char_1013_chen2_default.webp",
+   "rect": [
+    -575.47,
+    -617.06,
+    1170.49,
+    1170.49
+   ],
+   "score": 0.724
+  },
+  "char_1014_nearl2_epoque#17": {
+   "art": "char_1014_nearl2_epoque_17.webp",
+   "rect": [
+    -569.79,
+    -459.94,
+    1149.75,
+    1045.33
+   ],
+   "score": 0.555
+  },
+  "char_1014_nearl2_2": {
+   "art": "char_1014_nearl2_default.webp",
+   "rect": [
+    -641.72,
+    -662.49,
+    1380.89,
+    1268.96
+   ],
+   "score": 0.512
+  },
+  "char_1015_aglna2_2": {
+   "art": "char_1015_aglna2_default.webp",
+   "rect": [
+    -607.65,
+    -471.3,
+    1181.05,
+    1138.38
+   ],
+   "score": 0.566
+  },
+  "char_1016_agoat2_epoque#34": {
+   "art": "char_1016_agoat2_epoque_34.webp",
+   "rect": [
+    -711.76,
+    -463.73,
+    1467.4,
+    1057.56
+   ],
+   "score": 0.71
+  },
+  "char_1016_agoat2_epoque#57": {
+   "art": "char_1016_agoat2_epoque_57.webp",
+   "rect": [
+    -698.51,
+    -514.84,
+    1275.17,
+    1085.89
+   ],
+   "score": 0.889
+  },
+  "char_1016_agoat2_2": {
+   "art": "char_1016_agoat2_default.webp",
+   "rect": [
+    -734.48,
+    -670.07,
+    1482.08,
+    1428.53
+   ],
+   "score": 0.764
+  },
+  "char_1019_siege2_epoque#50": {
+   "art": "char_1019_siege2_epoque_50.webp",
+   "rect": [
+    -734.48,
+    -632.21,
+    1473.27,
+    1453.13
+   ],
+   "score": 0.816
+  },
+  "char_1020_reed2_epoque#30": {
+   "art": "char_1020_reed2_epoque_30.webp",
+   "rect": [
+    -711.76,
+    -569.74,
+    1490.93,
+    1106.55
+   ],
+   "score": 0.644
+  },
+  "char_1020_reed2_summer#17": {
+   "art": "char_1020_reed2_summer_17.webp",
+   "rect": [
+    -725.01,
+    -456.16,
+    1464.43,
+    958.17
+   ],
+   "score": 0.586
+  },
+  "char_1023_ghost2_boc#6": {
+   "art": "char_1023_ghost2_boc_6.webp",
+   "rect": [
+    -817.77,
+    -594.35,
+    1470.29,
+    1438.7
+   ],
+   "score": 0.724
+  },
+  "char_1023_ghost2_2": {
+   "art": "char_1023_ghost2_default.webp",
+   "rect": [
+    -770.45,
+    -624.63,
+    1630.68,
+    1273.97
+   ],
+   "score": 0.609
+  },
+  "char_1026_gvial2_summer#12": {
+   "art": "char_1026_gvial2_summer_12.webp",
+   "rect": [
+    -789.38,
+    -567.84,
+    1496.9,
+    1206
+   ],
+   "score": 0.859
+  },
+  "char_1026_gvial2_2": {
+   "art": "char_1026_gvial2_default.webp",
+   "rect": [
+    -622.79,
+    -706.03,
+    1338.93,
+    1528.5
+   ],
+   "score": 0.464
+  },
+  "char_1028_texas2_epoque#36": {
+   "art": "char_1028_texas2_epoque_36.webp",
+   "rect": [
+    -687.15,
+    -511.06,
+    1303.36,
+    1123.9
+   ],
+   "score": 0.802
+  },
+  "char_1028_texas2_iteration#1": {
+   "art": "char_1028_texas2_iteration_1.webp",
+   "rect": [
+    -683.37,
+    -494.02,
+    1394.7,
+    1190.4
+   ],
+   "score": 0.892
+  },
+  "char_1028_texas2_2": {
+   "art": "char_1028_texas2_default.webp",
+   "rect": [
+    -562.22,
+    -569.74,
+    1175.17,
+    1175.17
+   ],
+   "score": 0.719
+  },
+  "char_1032_excu2_sale#12": {
+   "art": "char_1032_excu2_sale_12.webp",
+   "rect": [
+    -681.48,
+    -692.78,
+    1482.08,
+    1214.32
+   ],
+   "score": 0.782
+  },
+  "char_1035_wisdel_sale#14": {
+   "art": "char_1035_wisdel_sale_14.webp",
+   "rect": [
+    -738.27,
+    -730.64,
+    1473.27,
+    1444.5
+   ],
+   "score": 0.698
+  },
+  "char_1035_wisdel_2": {
+   "art": "char_1035_wisdel_default.webp",
+   "rect": [
+    -634.15,
+    -635.99,
+    1461.56,
+    1240.33
+   ],
+   "score": 0.675
+  },
+  "char_1038_whitw2_sale#15": {
+   "art": "char_1038_whitw2_sale_15.webp",
+   "rect": [
+    -668.22,
+    -757.14,
+    1484.99,
+    1405.23
+   ],
+   "score": 0.748
+  },
+  "char_1038_whitw2_2": {
+   "art": "char_1038_whitw2_default.webp",
+   "rect": [
+    -711.76,
+    -651.14,
+    1484.99,
+    1210.91
+   ],
+   "score": 0.868
+  },
+  "char_1039_thorn2_marthe#9": {
+   "art": "char_1039_thorn2_marthe_9.webp",
+   "rect": [
+    -660.65,
+    -531.88,
+    1490.93,
+    1234.68
+   ],
+   "score": 0.935
+  },
+  "char_1041_angel2_iteration#6": {
+   "art": "char_1041_angel2_iteration_6.webp",
+   "rect": [
+    -789.38,
+    -662.49,
+    1556.18,
+    1281.11
+   ],
+   "score": 0.902
+  },
+  "char_1041_angel2_2": {
+   "art": "char_1041_angel2_default.webp",
+   "rect": [
+    -721.23,
+    -692.78,
+    1470.29,
+    1441.57
+   ],
+   "score": 0.854
+  },
+  "char_1042_phatm2_sightseer#4": {
+   "art": "char_1042_phatm2_sightseer_4.webp",
+   "rect": [
+    -630.37,
+    -630.31,
+    1360.4,
+    1305.93
+   ],
+   "score": 0.78
+  },
+  "char_1044_hsgma2_whirlwind#11": {
+   "art": "char_1044_hsgma2_whirlwind_11.webp",
+   "rect": [
+    -887.81,
+    -681.42,
+    1702.05,
+    1485.97
+   ],
+   "score": 0.866
+  },
+  "char_1044_hsgma2_2": {
+   "art": "char_1044_hsgma2_default.webp",
+   "rect": [
+    -696.62,
+    -675.75,
+    1374.01,
+    1449
+   ],
+   "score": 0.587
+  },
+  "char_1045_svash2_sale#20": {
+   "art": "char_1045_svash2_sale_20.webp",
+   "rect": [
+    -918.1,
+    -607.6,
+    1540.77,
+    1522.72
+   ],
+   "score": 0.732
+  },
+  "char_1045_svash2_2": {
+   "art": "char_1045_svash2_default.webp",
+   "rect": [
+    -709.87,
+    -607.6,
+    1545.29,
+    1320.44
+   ],
+   "score": 0.606
+  },
+  "char_1046_sbell2_ambiencesynesthesia#8": {
+   "art": "char_1046_sbell2_ambienceSynesthesia_8.webp",
+   "rect": [
+    -683.37,
+    -567.84,
+    1436.96,
+    1292.42
+   ],
+   "score": 0.618
+  },
+  "char_1052_kalts2_2": {
+   "art": "char_1052_kalts2_default.webp",
+   "rect": [
+    -851.84,
+    -776.07,
+    1708.85,
+    1620.41
+   ],
+   "score": 0.766
+  },
+  "char_113_cqbw_epoque#7": {
+   "art": "char_113_cqbw_epoque_7.webp",
+   "rect": [
+    -499.75,
+    -495.91,
+    918.97,
+    918.97
+   ],
+   "score": 0.825
+  },
+  "char_113_cqbw_2": {
+   "art": "char_113_cqbw_default.webp",
+   "rect": [
+    -539.5,
+    -564.06,
+    1237.67,
+    1237.67
+   ],
+   "score": 0.493
+  },
+  "char_172_svrash_ambiencesynesthesia#4": {
+   "art": "char_172_svrash_ambienceSynesthesia_4.webp",
+   "rect": [
+    -700.41,
+    -664.39,
+    1365.84,
+    1263.14
+   ],
+   "score": 0.922
+  },
+  "char_179_cgbird_sightseer#1": {
+   "art": "char_179_cgbird_sightseer_1.webp",
+   "rect": [
+    -478.93,
+    -560.27,
+    1231.5,
+    1125.67
+   ],
+   "score": 0.768
+  },
+  "char_2014_nian_cfa#1": {
+   "art": "char_2014_nian_cfa_1.webp",
+   "rect": [
+    -590.61,
+    -494.02,
+    1270.09,
+    1295.39
+   ],
+   "score": 0.848
+  },
+  "char_2014_nian_nian#4": {
+   "art": "char_2014_nian_nian_4.webp",
+   "rect": [
+    -547.07,
+    -393.69,
+    1003.13,
+    1003.13
+   ],
+   "score": 0.972
+  },
+  "char_2014_nian_2": {
+   "art": "char_2014_nian_default.webp",
+   "rect": [
+    -736.37,
+    -562.17,
+    1562.31,
+    1254.12
+   ],
+   "score": 0.695
+  },
+  "char_2015_dusk_nian#12": {
+   "art": "char_2015_dusk_nian_12.webp",
+   "rect": [
+    -785.59,
+    -713.6,
+    1574.84,
+    1657.38
+   ],
+   "score": 0.748
+  },
+  "char_2015_dusk_nian#7": {
+   "art": "char_2015_dusk_nian_7.webp",
+   "rect": [
+    -422.14,
+    -370.97,
+    812.25,
+    812.25
+   ],
+   "score": 0.914
+  },
+  "char_2015_dusk_2": {
+   "art": "char_2015_dusk_default.webp",
+   "rect": [
+    -603.86,
+    -539.45,
+    1209.61,
+    1209.61
+   ],
+   "score": 0.663
+  },
+  "char_202_demkni_ambiencesynesthesia#7": {
+   "art": "char_202_demkni_ambienceSynesthesia_7.webp",
+   "rect": [
+    -815.88,
+    -552.7,
+    1611.37,
+    1331.27
+   ],
+   "score": 0.937
+  },
+  "char_2023_ling_ncg#1": {
+   "art": "char_2023_ling_ncg_1.webp",
+   "rect": [
+    -711.76,
+    -628.42,
+    1457.13,
+    1205.27
+   ],
+   "score": 0.646
+  },
+  "char_2023_ling_nian#12": {
+   "art": "char_2023_ling_nian_12.webp",
+   "rect": [
+    -726.91,
+    -759.04,
+    1484.99,
+    1597.3
+   ],
+   "score": 0.917
+  },
+  "char_2023_ling_nian#9": {
+   "art": "char_2023_ling_nian_9.webp",
+   "rect": [
+    -649.29,
+    -653.03,
+    1344.29,
+    1344.29
+   ],
+   "score": 0.595
+  },
+  "char_2023_ling_2": {
+   "art": "char_2023_ling_default.webp",
+   "rect": [
+    -723.12,
+    -666.28,
+    1534.63,
+    1432.73
+   ],
+   "score": 0.589
+  },
+  "char_2024_chyue_cfa#1": {
+   "art": "char_2024_chyue_cfa_1.webp",
+   "rect": [
+    -422.14,
+    -446.69,
+    894.55,
+    780.11
+   ],
+   "score": 0.948
+  },
+  "char_2024_chyue_nian#10": {
+   "art": "char_2024_chyue_nian_10.webp",
+   "rect": [
+    -605.76,
+    -723.07,
+    1313.81,
+    1361.68
+   ],
+   "score": 0.843
+  },
+  "char_2024_chyue_2": {
+   "art": "char_2024_chyue_default.webp",
+   "rect": [
+    -4096.87,
+    -4141.47,
+    6418.06,
+    7985.53
+   ],
+   "score": 0.412
+  },
+  "char_2025_shu_nian#11": {
+   "art": "char_2025_shu_nian_11.webp",
+   "rect": [
+    -494.07,
+    -556.49,
+    993.2,
+    1038.85
+   ],
+   "score": 0.966
+  },
+  "char_2025_shu_nlc#1": {
+   "art": "char_2025_shu_nlc_1.webp",
+   "rect": [
+    -571.68,
+    -467.52,
+    1248.79,
+    1186.6
+   ],
+   "score": 0.759
+  },
+  "char_2025_shu_2": {
+   "art": "char_2025_shu_default.webp",
+   "rect": [
+    -577.36,
+    -624.63,
+    1161.25,
+    1177.34
+   ],
+   "score": 0.802
+  },
+  "char_2026_yu_nian#12": {
+   "art": "char_2026_yu_nian_12.webp",
+   "rect": [
+    -607.65,
+    -605.7,
+    1266.25,
+    1210.6
+   ],
+   "score": 0.729
+  },
+  "char_2026_yu_2": {
+   "art": "char_2026_yu_default.webp",
+   "rect": [
+    -772.34,
+    -675.75,
+    1435.58,
+    1475.94
+   ],
+   "score": 0.654
+  },
+  "char_2027_wang_2": {
+   "art": "char_2027_wang_default.webp",
+   "rect": [
+    -759.09,
+    -565.95,
+    1540.77,
+    1271.44
+   ],
+   "score": 0.593
+  },
+  "char_245_cello_sale#12": {
+   "art": "char_245_cello_sale_12.webp",
+   "rect": [
+    -664.44,
+    -569.74,
+    1332.26,
+    1233.38
+   ],
+   "score": 0.638
+  },
+  "char_245_cello_2": {
+   "art": "char_245_cello_default.webp",
+   "rect": [
+    -675.8,
+    -690.89,
+    1330.98,
+    1176.3
+   ],
+   "score": 0.756
+  },
+  "char_249_mlyss_ambiencesynesthesia#6": {
+   "art": "char_249_mlyss_ambienceSynesthesia_6.webp",
+   "rect": [
+    -713.66,
+    -524.31,
+    1365.84,
+    1273.81
+   ],
+   "score": 0.844
+  },
+  "char_249_mlyss_boc#8": {
+   "art": "char_249_mlyss_boc_8.webp",
+   "rect": [
+    -645.51,
+    -469.41,
+    1376.71,
+    1243.61
+   ],
+   "score": 0.679
+  },
+  "char_249_mlyss_2": {
+   "art": "char_249_mlyss_default.webp",
+   "rect": [
+    -961.64,
+    -594.35,
+    1470.29,
+    1389.88
+   ],
+   "score": 0.542
+  },
+  "char_250_phatom_sale#4": {
+   "art": "char_250_phatom_sale_4.webp",
+   "rect": [
+    -749.62,
+    -635.99,
+    1451.33,
+    1451.33
+   ],
+   "score": 0.808
+  },
+  "char_322_lmlee_witch#3": {
+   "art": "char_322_lmlee_witch_3.webp",
+   "rect": [
+    -689.05,
+    -581.1,
+    1275.17,
+    1275.17
+   ],
+   "score": 0.874
+  },
+  "char_332_archet_sale#14": {
+   "art": "char_332_archet_sale_14.webp",
+   "rect": [
+    -569.79,
+    -581.1,
+    1352.32,
+    1212.34
+   ],
+   "score": 0.806
+  },
+  "char_350_surtr_ambiencesynesthesia#6": {
+   "art": "char_350_surtr_ambienceSynesthesia_6.webp",
+   "rect": [
+    -619.01,
+    -611.38,
+    1352.32,
+    1295.53
+   ],
+   "score": 0.77
+  },
+  "char_350_surtr_summer#9": {
+   "art": "char_350_surtr_summer_9.webp",
+   "rect": [
+    -622.79,
+    -651.14,
+    1184.59,
+    1086.26
+   ],
+   "score": 0.745
+  },
+  "char_377_gdglow_summer#12": {
+   "art": "char_377_gdglow_summer_12.webp",
+   "rect": [
+    -405.1,
+    -410.73,
+    810.61,
+    844.42
+   ],
+   "score": 0.762
+  },
+  "char_391_rosmon_epoque#17": {
+   "art": "char_391_rosmon_epoque_17.webp",
+   "rect": [
+    -439.17,
+    -558.38,
+    1194.01,
+    1194.01
+   ],
+   "score": 0.844
+  },
+  "char_391_rosmon_sale#16": {
+   "art": "char_391_rosmon_sale_16.webp",
+   "rect": [
+    -690.94,
+    -781.75,
+    1419.94,
+    1467.22
+   ],
+   "score": 0.77
+  },
+  "char_391_rosmon_2": {
+   "art": "char_391_rosmon_default.webp",
+   "rect": [
+    -420.24,
+    -687.1,
+    989.24,
+    1139.46
+   ],
+   "score": 0.649
+  },
+  "char_4010_etlchi_winter#5": {
+   "art": "char_4010_etlchi_winter_5.webp",
+   "rect": [
+    -569.79,
+    -545.13,
+    1202.43,
+    1092.05
+   ],
+   "score": 0.891
+  },
+  "char_4055_bgsnow_wild#7": {
+   "art": "char_4055_bgsnow_wild_7.webp",
+   "rect": [
+    -564.11,
+    -600.03,
+    1201.22,
+    1201.22
+   ],
+   "score": 0.801
+  },
+  "char_4058_pepe_sightseer#2": {
+   "art": "char_4058_pepe_sightseer_2.webp",
+   "rect": [
+    -583.04,
+    -660.6,
+    1184.59,
+    1328.61
+   ],
+   "score": 0.82
+  },
+  "char_4058_pepe_2": {
+   "art": "char_4058_pepe_default.webp",
+   "rect": [
+    -581.15,
+    -634.1,
+    1233.93,
+    1212.24
+   ],
+   "score": 0.693
+  },
+  "char_4064_mlynar_epoque#28": {
+   "art": "char_4064_mlynar_epoque_28.webp",
+   "rect": [
+    -673.9,
+    -547.02,
+    1346.93,
+    1254.86
+   ],
+   "score": 0.766
+  },
+  "char_4080_lin_nian#10": {
+   "art": "char_4080_lin_nian_10.webp",
+   "rect": [
+    -641.72,
+    -635.99,
+    1270.09,
+    1482.98
+   ],
+   "score": 0.884
+  },
+  "char_4080_lin_summer#19": {
+   "art": "char_4080_lin_summer_19.webp",
+   "rect": [
+    -810.2,
+    -607.6,
+    1338.93,
+    1131.03
+   ],
+   "score": 0.893
+  },
+  "char_4087_ines_ambiencesynesthesia#5": {
+   "art": "char_4087_ines_ambienceSynesthesia_5.webp",
+   "rect": [
+    -736.37,
+    -635.99,
+    1484.99,
+    1406.68
+   ],
+   "score": 0.813
+  },
+  "char_4087_ines_boc#8": {
+   "art": "char_4087_ines_boc_8.webp",
+   "rect": [
+    -702.3,
+    -675.75,
+    1428.42,
+    1462.71
+   ],
+   "score": 0.741
+  },
+  "char_4098_vvana_epoque#59": {
+   "art": "char_4098_vvana_epoque_59.webp",
+   "rect": [
+    -698.51,
+    -656.82,
+    1277.68,
+    1387.43
+   ],
+   "score": 0.843
+  },
+  "char_4116_blkkgt_witch#5": {
+   "art": "char_4116_blkkgt_witch_5.webp",
+   "rect": [
+    -706.08,
+    -639.78,
+    1405.88,
+    1326.25
+   ],
+   "score": 0.467
+  },
+  "char_4121_zuole_nian#11": {
+   "art": "char_4121_zuole_nian_11.webp",
+   "rect": [
+    -615.22,
+    -495.91,
+    1467.4,
+    1291.14
+   ],
+   "score": 0.905
+  },
+  "char_4132_ascln_iteration#4": {
+   "art": "char_4132_ascln_iteration_4.webp",
+   "rect": [
+    -687.15,
+    -609.49,
+    1340.22,
+    1455.34
+   ],
+   "score": 0.844
+  },
+  "char_4133_logos_ambiencesynesthesia#6": {
+   "art": "char_4133_logos_ambienceSynesthesia_6.webp",
+   "rect": [
+    -685.26,
+    -692.78,
+    1369.91,
+    1347.17
+   ],
+   "score": 0.754
+  },
+  "char_4134_cetsyr_epoque#50": {
+   "art": "char_4134_cetsyr_epoque_50.webp",
+   "rect": [
+    -683.37,
+    -772.29,
+    1275.17,
+    1478.8
+   ],
+   "score": 0.924
+  },
+  "char_4179_monstr_boc#11": {
+   "art": "char_4179_monstr_boc_11.webp",
+   "rect": [
+    -919.99,
+    -495.91,
+    1776.53,
+    1295.97
+   ],
+   "score": 0.664
+  },
+  "char_4202_haruka_iteration#6": {
+   "art": "char_4202_haruka_iteration_6.webp",
+   "rect": [
+    -615.22,
+    -552.7,
+    1330.98,
+    1081.42
+   ],
+   "score": 0.737
+  },
+  "char_4247_oxi_2": {
+   "art": "char_4247_oxi_default.webp",
+   "rect": [
+    -974.39,
+    -1038.36,
+    2127.35,
+    1755.48
+   ],
+   "score": 0.767
+  },
+  "char_437_mizuki_sale#7": {
+   "art": "char_437_mizuki_sale_7.webp",
+   "rect": [
+    -480.82,
+    -539.45,
+    953.43,
+    953.43
+   ],
+   "score": 0.772
+  },
+  "char_450_necras_summer#20": {
+   "art": "char_450_necras_summer_20.webp",
+   "rect": [
+    -664.44,
+    -558.38,
+    1476.17,
+    1137.4
+   ],
+   "score": 0.681
+  },
+  "char_472_pasngr_epoque#17": {
+   "art": "char_472_pasngr_epoque_17.webp",
+   "rect": [
+    -690.94,
+    -651.14,
+    1226.6,
+    1226.6
+   ],
+   "score": 0.806
+  }
+ },
+ "stills": {
+  "char_010_chen_sale_10.webp": {
+   "rect": [
+    -718.3,
+    -436.69,
+    1424.89,
+    1458.28
+   ],
+   "score": 0.929,
+   "zoom": 1.75,
+   "uncovered": 0.4,
+   "face": [
+    0.5041,
+    0.2618,
+    0.2139
+   ]
+  },
+  "char_010_chen_nian_2.webp": {
+   "rect": [
+    -930.81,
+    -454.61,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.753,
+   "zoom": 2,
+   "uncovered": 25.29,
+   "face": [
+    0.5716,
+    0.2454,
+    0.1695
+   ]
+  },
+  "char_017_huang_witch_5.webp": {
+   "rect": [
+    -805.98,
+    -635.76,
+    1628.44,
+    1704.78
+   ],
+   "score": 0.934,
+   "zoom": 2,
+   "uncovered": 1.47,
+   "face": [
+    0.4949,
+    0.3407,
+    0.2917
+   ]
+  },
+  "char_017_huang_as_1.webp": {
+   "rect": [
+    -736.97,
+    -662.42,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.92,
+   "zoom": 1.75,
+   "uncovered": 30.29,
+   "face": [
+    0.5172,
+    0.4263,
+    0.3641
+   ]
+  },
+  "char_1020_reed2_snow_8.webp": {
+   "rect": [
+    -847.52,
+    -540.26,
+    1628.44,
+    1552.11
+   ],
+   "score": 0.93,
+   "zoom": 2,
+   "uncovered": 3.47,
+   "face": [
+    0.5204,
+    0.3127,
+    0.2725
+   ]
+  },
+  "char_1021_kroos2_nian_8.webp": {
+   "rect": [
+    -709.88,
+    -484.42,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.907,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.4982,
+    0.3014,
+    0.2536
+   ]
+  },
+  "char_1021_kroos2_game_3.webp": {
+   "rect": [
+    -717.02,
+    -402.58,
+    1424.89,
+    1413.76
+   ],
+   "score": 0.968,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5032,
+    0.2459,
+    0.1835
+   ]
+  },
+  "char_102_texas_epoque_7.webp": {
+   "rect": [
+    -815.19,
+    -457.18,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.911,
+   "zoom": 2,
+   "uncovered": 14.35,
+   "face": [
+    0.5006,
+    0.247,
+    0.1842
+   ]
+  },
+  "char_102_texas_winter_1.webp": {
+   "rect": [
+    -565.2,
+    -215.59,
+    1099.2,
+    1099.2
+   ],
+   "score": 0.918,
+   "zoom": 1.35,
+   "uncovered": 68.28,
+   "face": [
+    0.5142,
+    0.081,
+    0.0003
+   ]
+  },
+  "char_1031_slent2_epoque_32.webp": {
+   "rect": [
+    -874.88,
+    -485.01,
+    1628.44,
+    1081.39
+   ],
+   "score": 0.828,
+   "zoom": 2,
+   "uncovered": 0,
+   "face": [
+    0.5372,
+    0.3977,
+    0.334
+   ]
+  },
+  "char_1032_excu2_sanrio_2.webp": {
+   "rect": [
+    -795.36,
+    -335.5,
+    1424.89,
+    1213.38
+   ],
+   "score": 0.828,
+   "zoom": 1.75,
+   "uncovered": 0.07,
+   "face": [
+    0.5582,
+    0.2312,
+    0.1796
+   ]
+  },
+  "char_1033_swire2_ambienceSynesthesia_4.webp": {
+   "rect": [
+    -694.74,
+    -399.33,
+    1424.89,
+    1191.12
+   ],
+   "score": 0.928,
+   "zoom": 1.75,
+   "uncovered": 0.16,
+   "face": [
+    0.4876,
+    0.2891,
+    0.2298
+   ]
+  },
+  "char_1033_swire2_nlc_1.webp": {
+   "rect": [
+    -555.23,
+    -430.91,
+    1099.2,
+    1039.09
+   ],
+   "score": 0.976,
+   "zoom": 1.35,
+   "uncovered": 0.15,
+   "face": [
+    0.5051,
+    0.3618,
+    0.3201
+   ]
+  },
+  "char_1034_jesca2_cfa_1.webp": {
+   "rect": [
+    -778.87,
+    -612.73,
+    1628.44,
+    1615.72
+   ],
+   "score": 0.889,
+   "zoom": 2,
+   "uncovered": 1.52,
+   "face": [
+    0.4783,
+    0.3452,
+    0.2719
+   ]
+  },
+  "char_1035_wisdel_game_9.webp": {
+   "rect": [
+    -638.76,
+    -585.47,
+    1424.89,
+    1692.06
+   ],
+   "score": 0.458,
+   "zoom": 1.75,
+   "uncovered": 0.21,
+   "face": [
+    0.4483,
+    0.3135,
+    0.281
+   ]
+  },
+  "char_103_angel_sale_8.webp": {
+   "rect": [
+    -852.97,
+    -561.76,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.95,
+   "zoom": 2,
+   "uncovered": 1.99,
+   "face": [
+    0.5238,
+    0.3112,
+    0.2588
+   ]
+  },
+  "char_103_angel_wild_1.webp": {
+   "rect": [
+    -809.04,
+    -251.11,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.939,
+   "zoom": 2,
+   "uncovered": 72.71,
+   "face": [
+    0.4968,
+    0.1205,
+    0.0363
+   ]
+  },
+  "char_103_angel_kfc_1.webp": {
+   "rect": [
+    -407.11,
+    -229,
+    814.22,
+    814.22
+   ],
+   "score": 0.957,
+   "zoom": 1,
+   "uncovered": 60.06,
+   "face": [
+    0.5026,
+    0.1506,
+    0.074
+   ]
+  },
+  "char_1040_blaze2_winter_5.webp": {
+   "rect": [
+    -691.53,
+    -475.76,
+    1424.89,
+    1291.31
+   ],
+   "score": 0.846,
+   "zoom": 1.75,
+   "uncovered": 0.27,
+   "face": [
+    0.4853,
+    0.3259,
+    0.2734
+   ]
+  },
+  "char_1040_blaze2_nlc_1.webp": {
+   "rect": [
+    -839.31,
+    -667.94,
+    1628.44,
+    1603
+   ],
+   "score": 0.92,
+   "zoom": 2,
+   "uncovered": 1.97,
+   "face": [
+    0.5154,
+    0.3824,
+    0.3422
+   ]
+  },
+  "char_1043_leizi2_game_8.webp": {
+   "rect": [
+    -809.67,
+    -537.67,
+    1628.44,
+    1603
+   ],
+   "score": 0.909,
+   "zoom": 2,
+   "uncovered": 6.92,
+   "face": [
+    0.4972,
+    0.3011,
+    0.2531
+   ]
+  },
+  "char_107_liskam_nian_2.webp": {
+   "rect": [
+    -820.29,
+    -560.73,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.967,
+   "zoom": 2,
+   "uncovered": 0,
+   "face": [
+    0.5037,
+    0.3106,
+    0.2396
+   ]
+  },
+  "char_107_liskam_striker_1.webp": {
+   "rect": [
+    -793.35,
+    -438.39,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.933,
+   "zoom": 2,
+   "uncovered": 12.5,
+   "face": [
+    0.4872,
+    0.2355,
+    0.1851
+   ]
+  },
+  "char_108_silent_winter_2.webp": {
+   "rect": [
+    -839.8,
+    -322.13,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.919,
+   "zoom": 2,
+   "uncovered": 39.45,
+   "face": [
+    0.5157,
+    0.1641,
+    0.0892
+   ]
+  },
+  "char_108_silent_sweep_1.webp": {
+   "rect": [
+    -850.95,
+    -313.3,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.953,
+   "zoom": 2,
+   "uncovered": 33.81,
+   "face": [
+    0.5226,
+    0.1586,
+    0.091
+   ]
+  },
+  "char_109_fmout_epoque_2.webp": {
+   "rect": [
+    -901.64,
+    -495.91,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.933,
+   "zoom": 2,
+   "uncovered": 22.16,
+   "face": [
+    0.5537,
+    0.2708,
+    0.2113
+   ]
+  },
+  "char_112_siege_wild_2.webp": {
+   "rect": [
+    -755.97,
+    -508.86,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.974,
+   "zoom": 2,
+   "uncovered": 24.15,
+   "face": [
+    0.4642,
+    0.2787,
+    0.2067
+   ]
+  },
+  "char_112_siege_striker_2.webp": {
+   "rect": [
+    -769.4,
+    -531.89,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.97,
+   "zoom": 2,
+   "uncovered": 23.59,
+   "face": [
+    0.4725,
+    0.2929,
+    0.2432
+   ]
+  },
+  "char_126_shotst_epoque_10.webp": {
+   "rect": [
+    -869.17,
+    -414.75,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.975,
+   "zoom": 2,
+   "uncovered": 39.68,
+   "face": [
+    0.5337,
+    0.2209,
+    0.1528
+   ]
+  },
+  "char_126_shotst_epoque_28.webp": {
+   "rect": [
+    -800.16,
+    -427.08,
+    1628.44,
+    2061
+   ],
+   "score": 0.958,
+   "zoom": 2,
+   "uncovered": 1.54,
+   "face": [
+    0.4914,
+    0.1806,
+    0.113
+   ]
+  },
+  "char_127_estell_epoque_50.webp": {
+   "rect": [
+    -643.2,
+    -367.3,
+    1424.89,
+    1335.83
+   ],
+   "score": 0.812,
+   "zoom": 1.75,
+   "uncovered": 0.07,
+   "face": [
+    0.4514,
+    0.2338,
+    0.1758
+   ]
+  },
+  "char_128_plosis_epoque_3.webp": {
+   "rect": [
+    -862.15,
+    -312.3,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.895,
+   "zoom": 2,
+   "uncovered": 3.66,
+   "face": [
+    0.5294,
+    0.158,
+    0.085
+   ]
+  },
+  "char_128_plosis_yun_4.webp": {
+   "rect": [
+    -921.15,
+    -483.9,
+    1628.44,
+    1297.67
+   ],
+   "score": 0.943,
+   "zoom": 2,
+   "uncovered": 7.98,
+   "face": [
+    0.5657,
+    0.3305,
+    0.2584
+   ]
+  },
+  "char_133_mm_summer_20.webp": {
+   "rect": [
+    -614.82,
+    -465.07,
+    1221.33,
+    1097.29
+   ],
+   "score": 0.9,
+   "zoom": 1.5,
+   "uncovered": 0,
+   "face": [
+    0.5034,
+    0.3737,
+    0.3038
+   ]
+  },
+  "char_134_ifrit_summer_1.webp": {
+   "rect": [
+    -558.26,
+    -389.01,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.962,
+   "zoom": 1.5,
+   "uncovered": 25.14,
+   "face": [
+    0.4571,
+    0.2735,
+    0.2169
+   ]
+  },
+  "char_134_ifrit_kfc_1.webp": {
+   "rect": [
+    -833.06,
+    -337.51,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.953,
+   "zoom": 2,
+   "uncovered": 51.78,
+   "face": [
+    0.5116,
+    0.1735,
+    0.1
+   ]
+  },
+  "char_134_ifrit_rilakkuma_1.webp": {
+   "rect": [
+    -779.25,
+    -513.04,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.955,
+   "zoom": 2,
+   "uncovered": 1.99,
+   "face": [
+    0.4785,
+    0.2813,
+    0.2216
+   ]
+  },
+  "char_135_halo_epoque_25.webp": {
+   "rect": [
+    -720.84,
+    -463.67,
+    1424.89,
+    1168.85
+   ],
+   "score": 0.815,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5059,
+    0.3497,
+    0.2987
+   ]
+  },
+  "char_136_hsguma_nian_3.webp": {
+   "rect": [
+    -774.47,
+    -364.88,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.98,
+   "zoom": 2,
+   "uncovered": 29.17,
+   "face": [
+    0.4756,
+    0.1903,
+    0.1325
+   ]
+  },
+  "char_136_hsguma_summer_16.webp": {
+   "rect": [
+    -895.54,
+    -688.58,
+    1628.44,
+    1666.61
+   ],
+   "score": 0.925,
+   "zoom": 2,
+   "uncovered": 8.18,
+   "face": [
+    0.5499,
+    0.3802,
+    0.3337
+   ]
+  },
+  "char_140_whitew_boc_1.webp": {
+   "rect": [
+    -806.26,
+    -473.86,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.97,
+   "zoom": 2,
+   "uncovered": 11.06,
+   "face": [
+    0.4951,
+    0.2572,
+    0.1868
+   ]
+  },
+  "char_143_ghost_winter_1.webp": {
+   "rect": [
+    -775.54,
+    -365.11,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.974,
+   "zoom": 2,
+   "uncovered": 39.38,
+   "face": [
+    0.4762,
+    0.1905,
+    0.1109
+   ]
+  },
+  "char_145_prove_summer_3.webp": {
+   "rect": [
+    -724.35,
+    -483.3,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.945,
+   "zoom": 2,
+   "uncovered": 41.49,
+   "face": [
+    0.4448,
+    0.263,
+    0.1937
+   ]
+  },
+  "char_145_prove_wild_5.webp": {
+   "rect": [
+    -847.13,
+    -490.52,
+    1628.44,
+    1539.39
+   ],
+   "score": 0.935,
+   "zoom": 2,
+   "uncovered": 1.75,
+   "face": [
+    0.5202,
+    0.2829,
+    0.2376
+   ]
+  },
+  "char_147_shining_summer_1.webp": {
+   "rect": [
+    -821.47,
+    -701.57,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.946,
+   "zoom": 2,
+   "uncovered": 15.5,
+   "face": [
+    0.5045,
+    0.3971,
+    0.334
+   ]
+  },
+  "char_1502_crosly_iteration_5.webp": {
+   "rect": [
+    -698.18,
+    -652.79,
+    1628.44,
+    1577.56
+   ],
+   "score": 0.911,
+   "zoom": 2,
+   "uncovered": 4.63,
+   "face": [
+    0.4287,
+    0.379,
+    0.3458
+   ]
+  },
+  "char_150_snakek_wild_1.webp": {
+   "rect": [
+    -807.63,
+    -395.1,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.988,
+   "zoom": 2,
+   "uncovered": 25.1,
+   "face": [
+    0.496,
+    0.2097,
+    0.1104
+   ]
+  },
+  "char_150_snakek_yun_7.webp": {
+   "rect": [
+    -744.59,
+    -456.76,
+    1424.89,
+    1391.49
+   ],
+   "score": 0.98,
+   "zoom": 1.75,
+   "uncovered": 0.1,
+   "face": [
+    0.5226,
+    0.2888,
+    0.2165
+   ]
+  },
+  "char_171_bldsk_summer_7.webp": {
+   "rect": [
+    -629.11,
+    -505.15,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.942,
+   "zoom": 2,
+   "uncovered": 30.47,
+   "face": [
+    0.3863,
+    0.2765,
+    0.2142
+   ]
+  },
+  "char_171_bldsk_witch_1.webp": {
+   "rect": [
+    -653.39,
+    -548.36,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.983,
+   "zoom": 1.75,
+   "uncovered": 29.88,
+   "face": [
+    0.4586,
+    0.3463,
+    0.2903
+   ]
+  },
+  "char_172_svrash_summer_4.webp": {
+   "rect": [
+    -870.23,
+    -276.71,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.97,
+   "zoom": 2,
+   "uncovered": 16.71,
+   "face": [
+    0.5344,
+    0.1362,
+    0.0813
+   ]
+  },
+  "char_172_svrash_snow_1.webp": {
+   "rect": [
+    -562.2,
+    -229,
+    1099.2,
+    1099.2
+   ],
+   "score": 0.955,
+   "zoom": 1.35,
+   "uncovered": 26,
+   "face": [
+    0.5115,
+    0.104,
+    0.0406
+   ]
+  },
+  "char_173_slchan_wild_1.webp": {
+   "rect": [
+    -807.83,
+    -226.65,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.936,
+   "zoom": 2,
+   "uncovered": 31.46,
+   "face": [
+    0.4961,
+    0.0765,
+    0.007
+   ]
+  },
+  "char_173_slchan_wwf_1.webp": {
+   "rect": [
+    -828.61,
+    -347.48,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.956,
+   "zoom": 2,
+   "uncovered": 3.65,
+   "face": [
+    0.5088,
+    0.1796,
+    0.1006
+   ]
+  },
+  "char_174_slbell_snow_1.webp": {
+   "rect": [
+    -792.18,
+    -315.98,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.949,
+   "zoom": 2,
+   "uncovered": 2.28,
+   "face": [
+    0.4865,
+    0.1603,
+    0.0844
+   ]
+  },
+  "char_179_cgbird_witch_1.webp": {
+   "rect": [
+    -798.37,
+    -570.87,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.886,
+   "zoom": 2,
+   "uncovered": 5.69,
+   "face": [
+    0.4903,
+    0.3168,
+    0.2513
+   ]
+  },
+  "char_180_amgoat_summer_5.webp": {
+   "rect": [
+    -786.52,
+    -491.01,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.939,
+   "zoom": 2,
+   "uncovered": 2.49,
+   "face": [
+    0.483,
+    0.2678,
+    0.2043
+   ]
+  },
+  "char_180_amgoat_sanrio_2.webp": {
+   "rect": [
+    -534.1,
+    -433.49,
+    1099.2,
+    1064.85
+   ],
+   "score": 0.957,
+   "zoom": 1.35,
+   "uncovered": 0.33,
+   "face": [
+    0.4859,
+    0.3555,
+    0.3028
+   ]
+  },
+  "char_181_flower_daily_1.webp": {
+   "rect": [
+    -896.62,
+    -198.08,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.982,
+   "zoom": 2,
+   "uncovered": 64.76,
+   "face": [
+    0.5506,
+    0.0918,
+    -0.0105
+   ]
+  },
+  "char_181_flower_epoque_9.webp": {
+   "rect": [
+    -970.55,
+    -664.02,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.959,
+   "zoom": 2,
+   "uncovered": 4.5,
+   "face": [
+    0.596,
+    0.374,
+    0.3064
+   ]
+  },
+  "char_183_skgoat_epoque_30.webp": {
+   "rect": [
+    -775.1,
+    -380.4,
+    1628.44,
+    1832
+   ],
+   "score": 0.963,
+   "zoom": 2,
+   "uncovered": 17.64,
+   "face": [
+    0.476,
+    0.1776,
+    0.1091
+   ]
+  },
+  "char_188_helage_boc_2.webp": {
+   "rect": [
+    -805.19,
+    -259.51,
+    1628.44,
+    1030.5
+   ],
+   "score": 0.887,
+   "zoom": 2,
+   "uncovered": 20.16,
+   "face": [
+    0.4945,
+    0.1985,
+    0.1441
+   ]
+  },
+  "char_196_sunbr_summer_1.webp": {
+   "rect": [
+    -883.85,
+    -549.4,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.958,
+   "zoom": 2,
+   "uncovered": 2.45,
+   "face": [
+    0.5428,
+    0.3036,
+    0.2421
+   ]
+  },
+  "char_197_poca_epoque_12.webp": {
+   "rect": [
+    -813,
+    -519.01,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.875,
+   "zoom": 2,
+   "uncovered": 1.03,
+   "face": [
+    0.4993,
+    0.285,
+    0.2398
+   ]
+  },
+  "char_197_poca_rilakkuma_1.webp": {
+   "rect": [
+    -774.19,
+    -590.81,
+    1628.44,
+    1513.94
+   ],
+   "score": 0.958,
+   "zoom": 2,
+   "uncovered": 1.06,
+   "face": [
+    0.4754,
+    0.3539,
+    0.3029
+   ]
+  },
+  "char_198_blackd_winter_1.webp": {
+   "rect": [
+    -788.85,
+    -229,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.816,
+   "zoom": 2,
+   "uncovered": 53,
+   "face": [
+    0.4844,
+    0.1062,
+    0.0208
+   ]
+  },
+  "char_198_blackd_as_1.webp": {
+   "rect": [
+    -805.71,
+    -319.91,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.866,
+   "zoom": 2,
+   "uncovered": 27.88,
+   "face": [
+    0.4948,
+    0.1627,
+    0.0965
+   ]
+  },
+  "char_199_yak_summer_1.webp": {
+   "rect": [
+    -610.83,
+    -229,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.923,
+   "zoom": 1.5,
+   "uncovered": 70.35,
+   "face": [
+    0.5001,
+    0.1213,
+    0.0512
+   ]
+  },
+  "char_2012_typhon_summer_17.webp": {
+   "rect": [
+    -615.38,
+    -572,
+    1628.44,
+    1539.39
+   ],
+   "score": 0.974,
+   "zoom": 2,
+   "uncovered": 0.45,
+   "face": [
+    0.3779,
+    0.3359,
+    0.2757
+   ]
+  },
+  "char_2012_typhon_wild_9.webp": {
+   "rect": [
+    -510.93,
+    -473.86,
+    1099.2,
+    1288.13
+   ],
+   "score": 0.967,
+   "zoom": 1.35,
+   "uncovered": 0.25,
+   "face": [
+    0.4648,
+    0.3252,
+    0.2594
+   ]
+  },
+  "char_2013_cerber_whirlwind_2.webp": {
+   "rect": [
+    -706.09,
+    -488.77,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.962,
+   "zoom": 1.75,
+   "uncovered": 0.08,
+   "face": [
+    0.4955,
+    0.3045,
+    0.2455
+   ]
+  },
+  "char_2013_cerber_summer_4.webp": {
+   "rect": [
+    -839.57,
+    -411.66,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.852,
+   "zoom": 2,
+   "uncovered": 20.98,
+   "face": [
+    0.5156,
+    0.219,
+    0.1562
+   ]
+  },
+  "char_202_demkni_test_1.webp": {
+   "rect": [
+    -849.42,
+    -530.83,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.942,
+   "zoom": 2,
+   "uncovered": 7.54,
+   "face": [
+    0.5216,
+    0.2922,
+    0.2464
+   ]
+  },
+  "char_202_demkni_boc_1.webp": {
+   "rect": [
+    -834.73,
+    -375.25,
+    1628.44,
+    1348.56
+   ],
+   "score": 0.949,
+   "zoom": 2,
+   "uncovered": 16.97,
+   "face": [
+    0.5126,
+    0.2375,
+    0.1707
+   ]
+  },
+  "char_206_gnosis_boc_4.webp": {
+   "rect": [
+    -717.13,
+    -544.39,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.885,
+   "zoom": 1.75,
+   "uncovered": 0.03,
+   "face": [
+    0.5033,
+    0.3435,
+    0.306
+   ]
+  },
+  "char_213_mostma_epoque_5.webp": {
+   "rect": [
+    -818.33,
+    -531.85,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.816,
+   "zoom": 2,
+   "uncovered": 1.4,
+   "face": [
+    0.5025,
+    0.2928,
+    0.2334
+   ]
+  },
+  "char_213_mostma_ambienceSynesthesia_6.webp": {
+   "rect": [
+    -836.16,
+    -644.73,
+    1628.44,
+    1513.94
+   ],
+   "score": 0.824,
+   "zoom": 2,
+   "uncovered": 0.07,
+   "face": [
+    0.5135,
+    0.3896,
+    0.3418
+   ]
+  },
+  "char_215_mantic_epoque_4.webp": {
+   "rect": [
+    -985.57,
+    -627.16,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.973,
+   "zoom": 2,
+   "uncovered": 2.96,
+   "face": [
+    0.6052,
+    0.3514,
+    0.2857
+   ]
+  },
+  "char_215_mantic_epoque_19.webp": {
+   "rect": [
+    -778.93,
+    -503.02,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.968,
+   "zoom": 2,
+   "uncovered": 4.82,
+   "face": [
+    0.4783,
+    0.2751,
+    0.2067
+   ]
+  },
+  "char_218_cuttle_epoque_12.webp": {
+   "rect": [
+    -608.95,
+    -458.57,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.959,
+   "zoom": 1.5,
+   "uncovered": 0.3,
+   "face": [
+    0.4986,
+    0.3305,
+    0.2798
+   ]
+  },
+  "char_222_bpipe_epoque_28.webp": {
+   "rect": [
+    -841.17,
+    -286.44,
+    1628.44,
+    1157.72
+   ],
+   "score": 0.955,
+   "zoom": 2,
+   "uncovered": 0.3,
+   "face": [
+    0.5165,
+    0.1999,
+    0.1295
+   ]
+  },
+  "char_222_bpipe_epoque_40.webp": {
+   "rect": [
+    -756.75,
+    -333.96,
+    1628.44,
+    1208.61
+   ],
+   "score": 0.935,
+   "zoom": 2,
+   "uncovered": 0.08,
+   "face": [
+    0.4647,
+    0.2308,
+    0.1581
+   ]
+  },
+  "char_222_bpipe_race_1.webp": {
+   "rect": [
+    -834.72,
+    -523.18,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.971,
+   "zoom": 2,
+   "uncovered": 0.08,
+   "face": [
+    0.5126,
+    0.2875,
+    0.2279
+   ]
+  },
+  "char_225_haak_nian_4.webp": {
+   "rect": [
+    -844.74,
+    -637.95,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.938,
+   "zoom": 2,
+   "uncovered": 0.08,
+   "face": [
+    0.5187,
+    0.358,
+    0.3071
+   ]
+  },
+  "char_225_haak_nian_5.webp": {
+   "rect": [
+    -790.55,
+    -636.88,
+    1628.44,
+    1437.61
+   ],
+   "score": 0.932,
+   "zoom": 2,
+   "uncovered": 1.54,
+   "face": [
+    0.4855,
+    0.4048,
+    0.3389
+   ]
+  },
+  "char_230_savage_sale_17.webp": {
+   "rect": [
+    -759.45,
+    -743.9,
+    1628.44,
+    1450.33
+   ],
+   "score": 0.919,
+   "zoom": 2,
+   "uncovered": 0.52,
+   "face": [
+    0.4664,
+    0.475,
+    0.4324
+   ]
+  },
+  "char_230_savage_boc_8.webp": {
+   "rect": [
+    -618.6,
+    -325.52,
+    1424.89,
+    1057.53
+   ],
+   "score": 0.899,
+   "zoom": 1.75,
+   "uncovered": 0.14,
+   "face": [
+    0.4341,
+    0.2558,
+    0.2107
+   ]
+  },
+  "char_230_savage_kitchen_3.webp": {
+   "rect": [
+    -486.36,
+    -370.19,
+    1099.2,
+    1082.02
+   ],
+   "score": 0.814,
+   "zoom": 1.35,
+   "uncovered": 0,
+   "face": [
+    0.4425,
+    0.2913,
+    0.2273
+   ]
+  },
+  "char_237_gravel_winter_2.webp": {
+   "rect": [
+    -798.91,
+    -278.33,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.918,
+   "zoom": 2,
+   "uncovered": 57.02,
+   "face": [
+    0.4906,
+    0.1372,
+    0.0617
+   ]
+  },
+  "char_243_waaifu_whirlwind_2.webp": {
+   "rect": [
+    -804.28,
+    -695.33,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.928,
+   "zoom": 2,
+   "uncovered": 0.55,
+   "face": [
+    0.4939,
+    0.3932,
+    0.327
+   ]
+  },
+  "char_248_mgllan_kitchen_1.webp": {
+   "rect": [
+    -805.81,
+    -588.7,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.904,
+   "zoom": 2,
+   "uncovered": 19.39,
+   "face": [
+    0.4948,
+    0.3278,
+    0.2732
+   ]
+  },
+  "char_250_phatom_ghost_1.webp": {
+   "rect": [
+    -707.23,
+    -527.06,
+    1424.89,
+    1213.38
+   ],
+   "score": 0.688,
+   "zoom": 1.75,
+   "uncovered": 0.36,
+   "face": [
+    0.4963,
+    0.3891,
+    0.3443
+   ]
+  },
+  "char_253_greyy_epoque_8.webp": {
+   "rect": [
+    -797.46,
+    -752.38,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.939,
+   "zoom": 2,
+   "uncovered": 1.3,
+   "face": [
+    0.4897,
+    0.4283,
+    0.3514
+   ]
+  },
+  "char_253_greyy_epoque_515.webp": {
+   "rect": [
+    -701.19,
+    -573.42,
+    1424.89,
+    1168.85
+   ],
+   "score": 0.963,
+   "zoom": 1.75,
+   "uncovered": 0.16,
+   "face": [
+    0.4921,
+    0.4436,
+    0.3588
+   ]
+  },
+  "char_254_vodfox_witch_2.webp": {
+   "rect": [
+    -843.38,
+    -641.37,
+    1628.44,
+    1679.33
+   ],
+   "score": 0.921,
+   "zoom": 2,
+   "uncovered": 8.26,
+   "face": [
+    0.5179,
+    0.3492,
+    0.2933
+   ]
+  },
+  "char_254_vodfox_yun_8.webp": {
+   "rect": [
+    -933.41,
+    -536.51,
+    1628.44,
+    1463.06
+   ],
+   "score": 0.924,
+   "zoom": 2,
+   "uncovered": 0,
+   "face": [
+    0.5732,
+    0.3291,
+    0.2643
+   ]
+  },
+  "char_258_podego_epoque_9.webp": {
+   "rect": [
+    -652.71,
+    -546.54,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.968,
+   "zoom": 1.75,
+   "uncovered": 11.21,
+   "face": [
+    0.4581,
+    0.3461,
+    0.2325
+   ]
+  },
+  "char_263_skadi_summer_3.webp": {
+   "rect": [
+    -722.07,
+    -527.15,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.97,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5068,
+    0.3314,
+    0.2487
+   ]
+  },
+  "char_263_skadi_marthe_5.webp": {
+   "rect": [
+    -581.67,
+    -334.28,
+    1221.33,
+    906.46
+   ],
+   "score": 0.952,
+   "zoom": 1.5,
+   "uncovered": 0.04,
+   "face": [
+    0.4763,
+    0.3081,
+    0.2382
+   ]
+  },
+  "char_264_f12yin_epoque_15.webp": {
+   "rect": [
+    -965.48,
+    -494.41,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.96,
+   "zoom": 2,
+   "uncovered": 7.68,
+   "face": [
+    0.5929,
+    0.2699,
+    0.2171
+   ]
+  },
+  "char_264_f12yin_marthe_13.webp": {
+   "rect": [
+    -850.22,
+    -229,
+    1628.44,
+    1183.17
+   ],
+   "score": 0.91,
+   "zoom": 2,
+   "uncovered": 8.46,
+   "face": [
+    0.5221,
+    0.144,
+    0.0698
+   ]
+  },
+  "char_264_f12yin_boc_3.webp": {
+   "rect": [
+    -813.09,
+    -500.54,
+    1628.44,
+    1577.56
+   ],
+   "score": 0.95,
+   "zoom": 2,
+   "uncovered": 5.88,
+   "face": [
+    0.4993,
+    0.2825,
+    0.2428
+   ]
+  },
+  "char_271_spikes_winter_2.webp": {
+   "rect": [
+    -845.08,
+    -452.09,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.944,
+   "zoom": 2,
+   "uncovered": 1.17,
+   "face": [
+    0.519,
+    0.2439,
+    0.1796
+   ]
+  },
+  "char_271_spikes_unveiling_1.webp": {
+   "rect": [
+    -858.03,
+    -455.49,
+    1628.44,
+    2290
+   ],
+   "score": 0.899,
+   "zoom": 2,
+   "uncovered": 2.1,
+   "face": [
+    0.5269,
+    0.1749,
+    0.1175
+   ]
+  },
+  "char_279_excu_boc_1.webp": {
+   "rect": [
+    -633.68,
+    -543.86,
+    1628.44,
+    1386.72
+   ],
+   "score": 0.963,
+   "zoom": 2,
+   "uncovered": 0.77,
+   "face": [
+    0.3891,
+    0.3526,
+    0.2944
+   ]
+  },
+  "char_290_vigna_summer_1.webp": {
+   "rect": [
+    -747.19,
+    -611.85,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.979,
+   "zoom": 2,
+   "uncovered": 3.07,
+   "face": [
+    0.4588,
+    0.342,
+    0.2791
+   ]
+  },
+  "char_290_vigna_as_1.webp": {
+   "rect": [
+    -817.22,
+    -442.69,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.951,
+   "zoom": 2,
+   "uncovered": 21.34,
+   "face": [
+    0.5018,
+    0.2381,
+    0.1603
+   ]
+  },
+  "char_291_aglina_summer_5.webp": {
+   "rect": [
+    -863,
+    -633.66,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.839,
+   "zoom": 2,
+   "uncovered": 3.56,
+   "face": [
+    0.53,
+    0.3554,
+    0.2982
+   ]
+  },
+  "char_291_aglina_boc_1.webp": {
+   "rect": [
+    -803.33,
+    -505.6,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.977,
+   "zoom": 2,
+   "uncovered": 31.46,
+   "face": [
+    0.4933,
+    0.2767,
+    0.2148
+   ]
+  },
+  "char_293_thorns_boc_8.webp": {
+   "rect": [
+    -756.91,
+    -385.81,
+    1424.89,
+    1179.99
+   ],
+   "score": 0.887,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5312,
+    0.2804,
+    0.2318
+   ]
+  },
+  "char_293_thorns_it_1.webp": {
+   "rect": [
+    -846.84,
+    -506.87,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.895,
+   "zoom": 2,
+   "uncovered": 0.73,
+   "face": [
+    0.52,
+    0.2775,
+    0.2209
+   ]
+  },
+  "char_294_ayer_boc_3.webp": {
+   "rect": [
+    -799.61,
+    -617.54,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.639,
+   "zoom": 2,
+   "uncovered": 0.08,
+   "face": [
+    0.491,
+    0.3455,
+    0.3056
+   ]
+  },
+  "char_300_phenxi_witch_4.webp": {
+   "rect": [
+    -835.83,
+    -428.53,
+    1628.44,
+    1335.83
+   ],
+   "score": 0.958,
+   "zoom": 2,
+   "uncovered": 7.28,
+   "face": [
+    0.5133,
+    0.2797,
+    0.2385
+   ]
+  },
+  "char_300_phenxi_boc_9.webp": {
+   "rect": [
+    -991.7,
+    -418.28,
+    1628.44,
+    1259.5
+   ],
+   "score": 0.489,
+   "zoom": 2,
+   "uncovered": 11.94,
+   "face": [
+    0.609,
+    0.2885,
+    0.2397
+   ]
+  },
+  "char_304_zebra_wild_6.webp": {
+   "rect": [
+    -807.63,
+    -611.76,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.959,
+   "zoom": 2,
+   "uncovered": 0.85,
+   "face": [
+    0.496,
+    0.3419,
+    0.2882
+   ]
+  },
+  "char_306_leizi_game_3.webp": {
+   "rect": [
+    -692.92,
+    -541.41,
+    1628.44,
+    1450.33
+   ],
+   "score": 0.927,
+   "zoom": 2,
+   "uncovered": 1.92,
+   "face": [
+    0.4255,
+    0.3354,
+    0.2744
+   ]
+  },
+  "char_308_swire_nian_2.webp": {
+   "rect": [
+    -604.44,
+    -509.1,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.963,
+   "zoom": 1.5,
+   "uncovered": 0,
+   "face": [
+    0.4949,
+    0.3718,
+    0.3058
+   ]
+  },
+  "char_311_mudrok_summer_6.webp": {
+   "rect": [
+    -783,
+    -498.58,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.97,
+   "zoom": 1.75,
+   "uncovered": 0.23,
+   "face": [
+    0.5495,
+    0.3113,
+    0.25
+   ]
+  },
+  "char_311_mudrok_wild_10.webp": {
+   "rect": [
+    -749.75,
+    -529.93,
+    1628.44,
+    1590.28
+   ],
+   "score": 0.91,
+   "zoom": 2,
+   "uncovered": 0.3,
+   "face": [
+    0.4604,
+    0.2987,
+    0.2348
+   ]
+  },
+  "char_311_mudrok_ambienceSynesthesia_2.webp": {
+   "rect": [
+    -936.87,
+    -387.55,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.946,
+   "zoom": 2,
+   "uncovered": 2.15,
+   "face": [
+    0.5753,
+    0.2042,
+    0.1407
+   ]
+  },
+  "char_322_lmlee_whirlwind_10.webp": {
+   "rect": [
+    -768.44,
+    -527.33,
+    1424.89,
+    1179.99
+   ],
+   "score": 0.941,
+   "zoom": 1.75,
+   "uncovered": 0.36,
+   "face": [
+    0.5393,
+    0.4003,
+    0.3444
+   ]
+  },
+  "char_322_lmlee_sanrio_1.webp": {
+   "rect": [
+    -1092.42,
+    -640.85,
+    1628.44,
+    1895.61
+   ],
+   "score": 0.951,
+   "zoom": 2,
+   "uncovered": 3.28,
+   "face": [
+    0.6708,
+    0.3091,
+    0.2346
+   ]
+  },
+  "char_332_archet_shining_1.webp": {
+   "rect": [
+    -724.49,
+    -619.1,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.807,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5085,
+    0.3959,
+    0.3515
+   ]
+  },
+  "char_337_utage_epoque_15.webp": {
+   "rect": [
+    -808.26,
+    -679.69,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.867,
+   "zoom": 2,
+   "uncovered": 6.26,
+   "face": [
+    0.4963,
+    0.3836,
+    0.3106
+   ]
+  },
+  "char_337_utage_summer_4.webp": {
+   "rect": [
+    -601.29,
+    -538.22,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.971,
+   "zoom": 1.5,
+   "uncovered": 0.23,
+   "face": [
+    0.4923,
+    0.3957,
+    0.3306
+   ]
+  },
+  "char_340_shwaz_snow_1.webp": {
+   "rect": [
+    -1008.49,
+    -584.6,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.973,
+   "zoom": 2,
+   "uncovered": 1.38,
+   "face": [
+    0.6193,
+    0.3252,
+    0.2482
+   ]
+  },
+  "char_340_shwaz_striker_1.webp": {
+   "rect": [
+    -909.39,
+    -552.45,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.908,
+   "zoom": 2,
+   "uncovered": 0.01,
+   "face": [
+    0.5584,
+    0.3055,
+    0.242
+   ]
+  },
+  "char_341_sntlla_summer_15.webp": {
+   "rect": [
+    -589.74,
+    -360.1,
+    1099.2,
+    1039.09
+   ],
+   "score": 0.968,
+   "zoom": 1.35,
+   "uncovered": 11.49,
+   "face": [
+    0.5365,
+    0.2937,
+    0.2168
+   ]
+  },
+  "char_344_beewax_epoque_9.webp": {
+   "rect": [
+    -786.49,
+    -731.55,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.974,
+   "zoom": 2,
+   "uncovered": 14.73,
+   "face": [
+    0.483,
+    0.4155,
+    0.343
+   ]
+  },
+  "char_344_beewax_summer_11.webp": {
+   "rect": [
+    -683.25,
+    -499.06,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.946,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.4795,
+    0.3117,
+    0.252
+   ]
+  },
+  "char_345_folnic_wild_4.webp": {
+   "rect": [
+    -673.09,
+    -634.17,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.963,
+   "zoom": 1.75,
+   "uncovered": 14.3,
+   "face": [
+    0.4724,
+    0.4065,
+    0.3505
+   ]
+  },
+  "char_348_ceylon_summer_13.webp": {
+   "rect": [
+    -552.96,
+    -347.64,
+    1221.33,
+    1125.92
+   ],
+   "score": 0.945,
+   "zoom": 1.5,
+   "uncovered": 0.07,
+   "face": [
+    0.4528,
+    0.2599,
+    0.1768
+   ]
+  },
+  "char_350_surtr_it_1.webp": {
+   "rect": [
+    -839.12,
+    -513.85,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.925,
+   "zoom": 2,
+   "uncovered": 30.93,
+   "face": [
+    0.5153,
+    0.2818,
+    0.229
+   ]
+  },
+  "char_355_ethan_epoque_7.webp": {
+   "rect": [
+    -592.41,
+    -480.47,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.98,
+   "zoom": 1.5,
+   "uncovered": 0,
+   "face": [
+    0.485,
+    0.3484,
+    0.2868
+   ]
+  },
+  "char_358_lisa_epoque_22.webp": {
+   "rect": [
+    -508.61,
+    -455.05,
+    977.07,
+    977.07
+   ],
+   "score": 0.958,
+   "zoom": 1.2,
+   "uncovered": 0.01,
+   "face": [
+    0.5205,
+    0.4095,
+    0.3544
+   ]
+  },
+  "char_358_lisa_wild_3.webp": {
+   "rect": [
+    -826.92,
+    -656.88,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.957,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5803,
+    0.4224,
+    0.3696
+   ]
+  },
+  "char_358_lisa_lxh_1.webp": {
+   "rect": [
+    -538.12,
+    -516.92,
+    1099.2,
+    1099.2
+   ],
+   "score": 0.945,
+   "zoom": 1.35,
+   "uncovered": 0.04,
+   "face": [
+    0.4896,
+    0.4203,
+    0.3574
+   ]
+  },
+  "char_362_saga_sale_9.webp": {
+   "rect": [
+    -896.34,
+    -553.65,
+    1628.44,
+    1412.17
+   ],
+   "score": 0.607,
+   "zoom": 2,
+   "uncovered": 0,
+   "face": [
+    0.5504,
+    0.3531,
+    0.3093
+   ]
+  },
+  "char_373_lionhd_snow_3.webp": {
+   "rect": [
+    -583.99,
+    -569.99,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.906,
+   "zoom": 1.5,
+   "uncovered": 0.1,
+   "face": [
+    0.4782,
+    0.4217,
+    0.3653
+   ]
+  },
+  "char_373_lionhd_wild_3.webp": {
+   "rect": [
+    -624.14,
+    -551.26,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.94,
+   "zoom": 1.5,
+   "uncovered": 0.1,
+   "face": [
+    0.511,
+    0.4064,
+    0.3377
+   ]
+  },
+  "char_377_gdglow_snow_5.webp": {
+   "rect": [
+    -725.21,
+    -648.72,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.936,
+   "zoom": 2,
+   "uncovered": 3.36,
+   "face": [
+    0.4453,
+    0.3646,
+    0.2973
+   ]
+  },
+  "char_377_gdglow_sanrio_1.webp": {
+   "rect": [
+    -583.4,
+    -429.57,
+    1099.2,
+    1099.2
+   ],
+   "score": 0.889,
+   "zoom": 1.35,
+   "uncovered": 0.26,
+   "face": [
+    0.5308,
+    0.3408,
+    0.2747
+   ]
+  },
+  "char_381_bubble_marthe_11.webp": {
+   "rect": [
+    -990.62,
+    -478.5,
+    1628.44,
+    1463.06
+   ],
+   "score": 0.84,
+   "zoom": 2,
+   "uncovered": 0,
+   "face": [
+    0.6083,
+    0.2895,
+    0.2202
+   ]
+  },
+  "char_388_mint_epoque_22.webp": {
+   "rect": [
+    -732.5,
+    -501.56,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.933,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5141,
+    0.3134,
+    0.2619
+   ]
+  },
+  "char_388_mint_epoque_30.webp": {
+   "rect": [
+    -857.32,
+    -582.54,
+    1628.44,
+    1857.44
+   ],
+   "score": 0.97,
+   "zoom": 2,
+   "uncovered": 1.03,
+   "face": [
+    0.5265,
+    0.284,
+    0.2308
+   ]
+  },
+  "char_4004_pudd_snow_5.webp": {
+   "rect": [
+    -727.62,
+    -502.04,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.823,
+   "zoom": 2,
+   "uncovered": 0.64,
+   "face": [
+    0.4468,
+    0.2745,
+    0.205
+   ]
+  },
+  "char_4009_irene_ambienceSynesthesia_3.webp": {
+   "rect": [
+    -865,
+    -520.65,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.928,
+   "zoom": 2,
+   "uncovered": 29.24,
+   "face": [
+    0.5312,
+    0.286,
+    0.2346
+   ]
+  },
+  "char_4009_irene_game_3.webp": {
+   "rect": [
+    -642.89,
+    -689.85,
+    1221.33,
+    1793.83
+   ],
+   "score": 0.956,
+   "zoom": 1.5,
+   "uncovered": 0,
+   "face": [
+    0.5264,
+    0.3539,
+    0.3047
+   ]
+  },
+  "char_400_weedy_snow_2.webp": {
+   "rect": [
+    -872.5,
+    -469.59,
+    1628.44,
+    1564.83
+   ],
+   "score": 0.94,
+   "zoom": 2,
+   "uncovered": 1.93,
+   "face": [
+    0.5358,
+    0.265,
+    0.2169
+   ]
+  },
+  "char_400_weedy_sightseer_1.webp": {
+   "rect": [
+    -778.73,
+    -403.34,
+    1628.44,
+    1335.83
+   ],
+   "score": 0.946,
+   "zoom": 2,
+   "uncovered": 14.56,
+   "face": [
+    0.4782,
+    0.2608,
+    0.1995
+   ]
+  },
+  "char_4011_lessng_whirlwind_7.webp": {
+   "rect": [
+    -716.12,
+    -442.06,
+    1424.89,
+    1536.21
+   ],
+   "score": 0.841,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5026,
+    0.252,
+    0.197
+   ]
+  },
+  "char_4013_kjera_epoque_18.webp": {
+   "rect": [
+    -849.82,
+    -432.53,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.95,
+   "zoom": 2,
+   "uncovered": 2.77,
+   "face": [
+    0.5219,
+    0.2319,
+    0.1653
+   ]
+  },
+  "char_4016_kazema_witch_3.webp": {
+   "rect": [
+    -908.35,
+    -431.85,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.969,
+   "zoom": 2,
+   "uncovered": 0,
+   "face": [
+    0.5578,
+    0.2314,
+    0.1593
+   ]
+  },
+  "char_4026_vulpis_epoque_55.webp": {
+   "rect": [
+    -566.38,
+    -390.24,
+    1099.2,
+    1073.44
+   ],
+   "score": 0.859,
+   "zoom": 1.35,
+   "uncovered": 0,
+   "face": [
+    0.5153,
+    0.3123,
+    0.2613
+   ]
+  },
+  "char_4027_heyak_epoque_50.webp": {
+   "rect": [
+    -788.19,
+    -379.77,
+    1628.44,
+    1437.61
+   ],
+   "score": 0.854,
+   "zoom": 2,
+   "uncovered": 1.34,
+   "face": [
+    0.484,
+    0.2259,
+    0.1752
+   ]
+  },
+  "char_4027_heyak_ambienceSynesthesia_4.webp": {
+   "rect": [
+    -802.16,
+    -397,
+    1628.44,
+    1475.78
+   ],
+   "score": 0.967,
+   "zoom": 2,
+   "uncovered": 7.43,
+   "face": [
+    0.4926,
+    0.2318,
+    0.1712
+   ]
+  },
+  "char_4036_forcer_epoque_20.webp": {
+   "rect": [
+    -796.54,
+    -608.92,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.94,
+   "zoom": 2,
+   "uncovered": 2.49,
+   "face": [
+    0.4891,
+    0.3402,
+    0.2712
+   ]
+  },
+  "char_4039_horn_epoque_24.webp": {
+   "rect": [
+    -552.61,
+    -411.02,
+    1099.2,
+    1099.2
+   ],
+   "score": 0.945,
+   "zoom": 1.35,
+   "uncovered": 0,
+   "face": [
+    0.5027,
+    0.3239,
+    0.2595
+   ]
+  },
+  "char_4039_horn_epoque_59.webp": {
+   "rect": [
+    -791.06,
+    -438.99,
+    1628.44,
+    1323.11
+   ],
+   "score": 0.954,
+   "zoom": 2,
+   "uncovered": 14.72,
+   "face": [
+    0.4858,
+    0.2902,
+    0.2362
+   ]
+  },
+  "char_4040_rockr_lxh_1.webp": {
+   "rect": [
+    -481.57,
+    -328.58,
+    977.07,
+    977.07
+   ],
+   "score": 0.872,
+   "zoom": 1.2,
+   "uncovered": 0,
+   "face": [
+    0.4929,
+    0.28,
+    0.1952
+   ]
+  },
+  "char_4042_lumen_ambienceSynesthesia_3.webp": {
+   "rect": [
+    -606.03,
+    -452.39,
+    1099.2,
+    1099.2
+   ],
+   "score": 0.822,
+   "zoom": 1.35,
+   "uncovered": 0.33,
+   "face": [
+    0.5513,
+    0.3616,
+    0.3102
+   ]
+  },
+  "char_4042_lumen_sanrio_2.webp": {
+   "rect": [
+    -562.87,
+    -414.83,
+    1099.2,
+    1124.96
+   ],
+   "score": 0.935,
+   "zoom": 1.35,
+   "uncovered": 0.25,
+   "face": [
+    0.5121,
+    0.3199,
+    0.2615
+   ]
+  },
+  "char_4045_heidi_epoque_24.webp": {
+   "rect": [
+    -766.65,
+    -434.13,
+    1628.44,
+    1030.5
+   ],
+   "score": 0.9,
+   "zoom": 2,
+   "uncovered": 0.34,
+   "face": [
+    0.4708,
+    0.3679,
+    0.2899
+   ]
+  },
+  "char_4046_ebnhlz_boc_6.webp": {
+   "rect": [
+    -836.92,
+    -602.18,
+    1628.44,
+    1475.78
+   ],
+   "score": 0.938,
+   "zoom": 2,
+   "uncovered": 0.34,
+   "face": [
+    0.5139,
+    0.3708,
+    0.3223
+   ]
+  },
+  "char_4048_doroth_witch_4.webp": {
+   "rect": [
+    -818.07,
+    -514.75,
+    1628.44,
+    1386.72
+   ],
+   "score": 0.954,
+   "zoom": 2,
+   "uncovered": 12.58,
+   "face": [
+    0.5024,
+    0.3316,
+    0.2939
+   ]
+  },
+  "char_4051_akkord_summer_23.webp": {
+   "rect": [
+    -526.05,
+    -387.26,
+    1099.2,
+    1116.38
+   ],
+   "score": 0.936,
+   "zoom": 1.35,
+   "uncovered": 0,
+   "face": [
+    0.4786,
+    0.2977,
+    0.2234
+   ]
+  },
+  "char_4054_malist_summer_14.webp": {
+   "rect": [
+    -803.32,
+    -517.09,
+    1628.44,
+    1526.67
+   ],
+   "score": 0.917,
+   "zoom": 2,
+   "uncovered": 2.66,
+   "face": [
+    0.4933,
+    0.3027,
+    0.2516
+   ]
+  },
+  "char_4055_bgsnow_yun_7.webp": {
+   "rect": [
+    -849.3,
+    -745.01,
+    1628.44,
+    1793.83
+   ],
+   "score": 0.625,
+   "zoom": 2,
+   "uncovered": 0.73,
+   "face": [
+    0.5215,
+    0.3847,
+    0.3464
+   ]
+  },
+  "char_4064_mlynar_iteration_3.webp": {
+   "rect": [
+    -644.63,
+    -472.72,
+    1221.33,
+    1078.21
+   ],
+   "score": 0.975,
+   "zoom": 1.5,
+   "uncovered": 0.41,
+   "face": [
+    0.5278,
+    0.3875,
+    0.3405
+   ]
+  },
+  "char_4065_judge_epoque_33.webp": {
+   "rect": [
+    -840.63,
+    -581.09,
+    1628.44,
+    1603
+   ],
+   "score": 0.789,
+   "zoom": 2,
+   "uncovered": 3.66,
+   "face": [
+    0.5162,
+    0.3282,
+    0.2699
+   ]
+  },
+  "char_4065_judge_snow_6.webp": {
+   "rect": [
+    -725.21,
+    -455.37,
+    1424.89,
+    1469.42
+   ],
+   "score": 0.901,
+   "zoom": 1.75,
+   "uncovered": 0.11,
+   "face": [
+    0.509,
+    0.2725,
+    0.2228
+   ]
+  },
+  "char_4072_ironmn_summer_11.webp": {
+   "rect": [
+    -697.46,
+    -483.67,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.73,
+   "zoom": 1.75,
+   "uncovered": 0.48,
+   "face": [
+    0.4895,
+    0.3009,
+    0.2414
+   ]
+  },
+  "char_4072_ironmn_ambienceSynesthesia_5.webp": {
+   "rect": [
+    -771.95,
+    -467.95,
+    1628.44,
+    1145
+   ],
+   "score": 0.88,
+   "zoom": 2,
+   "uncovered": 1.74,
+   "face": [
+    0.474,
+    0.3607,
+    0.3008
+   ]
+  },
+  "char_4079_haini_epoque_45.webp": {
+   "rect": [
+    -1018.9,
+    -809.88,
+    1628.44,
+    1692.06
+   ],
+   "score": 0.925,
+   "zoom": 2,
+   "uncovered": 11.95,
+   "face": [
+    0.6257,
+    0.4462,
+    0.3996
+   ]
+  },
+  "char_4080_lin_littlePony_1.webp": {
+   "rect": [
+    -889.33,
+    -484.54,
+    1628.44,
+    1374
+   ],
+   "score": 0.933,
+   "zoom": 2,
+   "uncovered": 0,
+   "face": [
+    0.5461,
+    0.3126,
+    0.2632
+   ]
+  },
+  "char_4082_qiubai_epoque_31.webp": {
+   "rect": [
+    -580.26,
+    -430.52,
+    1099.2,
+    978.97
+   ],
+   "score": 0.901,
+   "zoom": 1.35,
+   "uncovered": 0.16,
+   "face": [
+    0.5279,
+    0.3836,
+    0.3243
+   ]
+  },
+  "char_4082_qiubai_ncg_1.webp": {
+   "rect": [
+    -836.14,
+    -321.51,
+    1628.44,
+    1348.56
+   ],
+   "score": 0.787,
+   "zoom": 2,
+   "uncovered": 0.34,
+   "face": [
+    0.5135,
+    0.1977,
+    0.1537
+   ]
+  },
+  "char_4088_hodrer_sightseer_1.webp": {
+   "rect": [
+    -836.6,
+    -490.75,
+    1628.44,
+    1679.33
+   ],
+   "score": 0.967,
+   "zoom": 2,
+   "uncovered": 1.86,
+   "face": [
+    0.5137,
+    0.2595,
+    0.2181
+   ]
+  },
+  "char_4098_vvana_epoque_40.webp": {
+   "rect": [
+    -738.89,
+    -693.65,
+    1424.89,
+    1447.15
+   ],
+   "score": 0.967,
+   "zoom": 1.75,
+   "uncovered": 0.05,
+   "face": [
+    0.5186,
+    0.4413,
+    0.3984
+   ]
+  },
+  "char_4100_caper_summer_18.webp": {
+   "rect": [
+    -842.15,
+    -469.5,
+    1628.44,
+    1183.17
+   ],
+   "score": 0.981,
+   "zoom": 2,
+   "uncovered": 0.36,
+   "face": [
+    0.5171,
+    0.3504,
+    0.2841
+   ]
+  },
+  "char_4114_harold_snow_7.webp": {
+   "rect": [
+    -636.23,
+    -408.88,
+    1424.89,
+    1191.12
+   ],
+   "score": 0.928,
+   "zoom": 1.75,
+   "uncovered": 0.22,
+   "face": [
+    0.4465,
+    0.2971,
+    0.2358
+   ]
+  },
+  "char_4117_ray_summer_22.webp": {
+   "rect": [
+    -565.2,
+    -518.57,
+    1221.33,
+    1106.83
+   ],
+   "score": 0.935,
+   "zoom": 1.5,
+   "uncovered": 0,
+   "face": [
+    0.4628,
+    0.4189,
+    0.353
+   ]
+  },
+  "char_4117_ray_shining_2.webp": {
+   "rect": [
+    -609.37,
+    -550.74,
+    1221.33,
+    1259.5
+   ],
+   "score": 0.943,
+   "zoom": 1.5,
+   "uncovered": 0.15,
+   "face": [
+    0.4989,
+    0.3936,
+    0.3313
+   ]
+  },
+  "char_4119_wanqin_epoque_41.webp": {
+   "rect": [
+    -779.65,
+    -550.19,
+    1628.44,
+    1310.39
+   ],
+   "score": 0.71,
+   "zoom": 2,
+   "uncovered": 0.04,
+   "face": [
+    0.4788,
+    0.3779,
+    0.3141
+   ]
+  },
+  "char_4121_zuole_sale_16.webp": {
+   "rect": [
+    -806.73,
+    -480.9,
+    1628.44,
+    1221.33
+   ],
+   "score": 0.528,
+   "zoom": 2,
+   "uncovered": 2.89,
+   "face": [
+    0.4954,
+    0.3487,
+    0.3063
+   ]
+  },
+  "char_4122_grabds_yun_3.webp": {
+   "rect": [
+    -725.82,
+    -454.26,
+    1424.89,
+    1391.49
+   ],
+   "score": 0.658,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5094,
+    0.287,
+    0.2339
+   ]
+  },
+  "char_4137_udflow_epoque_46.webp": {
+   "rect": [
+    -741.04,
+    -740.7,
+    1628.44,
+    1844.72
+   ],
+   "score": 0.905,
+   "zoom": 2,
+   "uncovered": 1.04,
+   "face": [
+    0.4551,
+    0.3717,
+    0.3262
+   ]
+  },
+  "char_4138_narant_breaker_1.webp": {
+   "rect": [
+    -891.3,
+    -506.33,
+    1628.44,
+    1424.89
+   ],
+   "score": 0.962,
+   "zoom": 2,
+   "uncovered": 4.44,
+   "face": [
+    0.5473,
+    0.3168,
+    0.2612
+   ]
+  },
+  "char_4138_narant_littlePony_1.webp": {
+   "rect": [
+    -725.68,
+    -586.87,
+    1424.89,
+    1402.62
+   ],
+   "score": 0.92,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5093,
+    0.3792,
+    0.3285
+   ]
+  },
+  "char_4139_papyrs_game_8.webp": {
+   "rect": [
+    -667.21,
+    -398.26,
+    1424.89,
+    1313.57
+   ],
+   "score": 0.798,
+   "zoom": 1.75,
+   "uncovered": 0.11,
+   "face": [
+    0.4683,
+    0.2613,
+    0.1936
+   ]
+  },
+  "char_4145_ulpia_epoque_48.webp": {
+   "rect": [
+    -784.3,
+    -716,
+    1424.89,
+    1380.36
+   ],
+   "score": 0.937,
+   "zoom": 1.75,
+   "uncovered": 0.42,
+   "face": [
+    0.5504,
+    0.4789,
+    0.4282
+   ]
+  },
+  "char_4146_nymph_epoque_42.webp": {
+   "rect": [
+    -504.84,
+    -440.52,
+    1221.33,
+    1211.79
+   ],
+   "score": 0.958,
+   "zoom": 1.5,
+   "uncovered": 0,
+   "face": [
+    0.4134,
+    0.3182,
+    0.2721
+   ]
+  },
+  "char_4146_nymph_ambienceSynesthesia_6.webp": {
+   "rect": [
+    -538.43,
+    -479.79,
+    1099.2,
+    978.97
+   ],
+   "score": 0.917,
+   "zoom": 1.35,
+   "uncovered": 0,
+   "face": [
+    0.4898,
+    0.434,
+    0.3971
+   ]
+  },
+  "char_4148_philae_nian_12.webp": {
+   "rect": [
+    -831.5,
+    -537,
+    1628.44,
+    1666.61
+   ],
+   "score": 0.829,
+   "zoom": 2,
+   "uncovered": 2.11,
+   "face": [
+    0.5106,
+    0.2892,
+    0.233
+   ]
+  },
+  "char_4151_tinman_sale_11.webp": {
+   "rect": [
+    -868.23,
+    -459.14,
+    1628.44,
+    1386.72
+   ],
+   "score": 0.889,
+   "zoom": 2,
+   "uncovered": 14.71,
+   "face": [
+    0.5332,
+    0.2915,
+    0.2387
+   ]
+  },
+  "char_4162_cathy_kitchen_5.webp": {
+   "rect": [
+    -730.46,
+    -396.54,
+    1628.44,
+    1526.67
+   ],
+   "score": 0.949,
+   "zoom": 2,
+   "uncovered": 7.44,
+   "face": [
+    0.4486,
+    0.2237,
+    0.1609
+   ]
+  },
+  "char_4163_rosesa_game_7.webp": {
+   "rect": [
+    -638.99,
+    -565.3,
+    1221.33,
+    1269.04
+   ],
+   "score": 0.963,
+   "zoom": 1.5,
+   "uncovered": 0.49,
+   "face": [
+    0.5232,
+    0.4021,
+    0.3223
+   ]
+  },
+  "char_416_zumama_boc_3.webp": {
+   "rect": [
+    -817.67,
+    -643.11,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.956,
+   "zoom": 2,
+   "uncovered": 2.84,
+   "face": [
+    0.5021,
+    0.3612,
+    0.3058
+   ]
+  },
+  "char_4182_oblvns_avemujica_1.webp": {
+   "rect": [
+    -862.23,
+    -677.44,
+    1628.44,
+    1946.5
+   ],
+   "score": 0.954,
+   "zoom": 2,
+   "uncovered": 4.78,
+   "face": [
+    0.5295,
+    0.3198,
+    0.2677
+   ]
+  },
+  "char_4191_tippi_epoque_57.webp": {
+   "rect": [
+    -860.8,
+    -797.31,
+    1628.44,
+    1908.33
+   ],
+   "score": 0.923,
+   "zoom": 2,
+   "uncovered": 0,
+   "face": [
+    0.5286,
+    0.389,
+    0.3285
+   ]
+  },
+  "char_4193_lemuen_ambienceSynesthesia_7.webp": {
+   "rect": [
+    -627.59,
+    -418.73,
+    1221.33,
+    1288.13
+   ],
+   "score": 0.97,
+   "zoom": 1.5,
+   "uncovered": 0,
+   "face": [
+    0.5139,
+    0.2824,
+    0.2297
+   ]
+  },
+  "char_4194_rmixer_boc_12.webp": {
+   "rect": [
+    -821.25,
+    -575.04,
+    1628.44,
+    1501.22
+   ],
+   "score": 0.809,
+   "zoom": 2,
+   "uncovered": 3.23,
+   "face": [
+    0.5043,
+    0.3464,
+    0.3118
+   ]
+  },
+  "char_4195_radian_game_8.webp": {
+   "rect": [
+    -856.99,
+    -475.95,
+    1628.44,
+    1145
+   ],
+   "score": 0.893,
+   "zoom": 2,
+   "uncovered": 4.17,
+   "face": [
+    0.5263,
+    0.3677,
+    0.3123
+   ]
+  },
+  "char_4196_reckpr_yun_12.webp": {
+   "rect": [
+    -815.17,
+    -573.22,
+    1628.44,
+    1653.89
+   ],
+   "score": 0.908,
+   "zoom": 2,
+   "uncovered": 0.93,
+   "face": [
+    0.5006,
+    0.3134,
+    0.2722
+   ]
+  },
+  "char_4204_mantra_sightseer_4.webp": {
+   "rect": [
+    -513.33,
+    -552.06,
+    1424.89,
+    1380.36
+   ],
+   "score": 0.971,
+   "zoom": 1.75,
+   "uncovered": 0.36,
+   "face": [
+    0.3603,
+    0.3601,
+    0.3107
+   ]
+  },
+  "char_4207_branch_yun_10.webp": {
+   "rect": [
+    -684.6,
+    -298.85,
+    1628.44,
+    1284.94
+   ],
+   "score": 0.913,
+   "zoom": 2,
+   "uncovered": 7.21,
+   "face": [
+    0.4204,
+    0.1898,
+    0.1215
+   ]
+  },
+  "char_420_flamtl_game_2.webp": {
+   "rect": [
+    -669,
+    -331.63,
+    1221.33,
+    1106.83
+   ],
+   "score": 0.964,
+   "zoom": 1.5,
+   "uncovered": 35.54,
+   "face": [
+    0.5478,
+    0.25,
+    0.1938
+   ]
+  },
+  "char_422_aurora_boc_4.webp": {
+   "rect": [
+    -840.4,
+    -373.32,
+    1628.44,
+    1284.94
+   ],
+   "score": 0.96,
+   "zoom": 2,
+   "uncovered": 0.12,
+   "face": [
+    0.5161,
+    0.2478,
+    0.197
+   ]
+  },
+  "char_423_blemsh_witch_2.webp": {
+   "rect": [
+    -551.8,
+    -369.22,
+    1221.33,
+    1078.21
+   ],
+   "score": 0.956,
+   "zoom": 1.5,
+   "uncovered": 0.38,
+   "face": [
+    0.4518,
+    0.2915,
+    0.2459
+   ]
+  },
+  "char_423_blemsh_littlePony_1.webp": {
+   "rect": [
+    -657.71,
+    -328.01,
+    1221.33,
+    1154.54
+   ],
+   "score": 0.876,
+   "zoom": 1.5,
+   "uncovered": 0.11,
+   "face": [
+    0.5385,
+    0.2365,
+    0.1771
+   ]
+  },
+  "char_426_billro_summer_8.webp": {
+   "rect": [
+    -736.15,
+    -487.8,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.951,
+   "zoom": 1.75,
+   "uncovered": 0.04,
+   "face": [
+    0.5166,
+    0.3038,
+    0.2292
+   ]
+  },
+  "char_426_billro_snow_3.webp": {
+   "rect": [
+    -655.02,
+    -566.61,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.972,
+   "zoom": 1.75,
+   "uncovered": 0.08,
+   "face": [
+    0.4597,
+    0.3591,
+    0.3096
+   ]
+  },
+  "char_427_vigil_epoque_27.webp": {
+   "rect": [
+    -530.03,
+    -420.47,
+    1221.33,
+    1020.96
+   ],
+   "score": 0.972,
+   "zoom": 1.5,
+   "uncovered": 0.41,
+   "face": [
+    0.434,
+    0.358,
+    0.2905
+   ]
+  },
+  "char_430_fartth_whirlwind_5.webp": {
+   "rect": [
+    -760.44,
+    -526.35,
+    1628.44,
+    1692.06
+   ],
+   "score": 0.895,
+   "zoom": 2,
+   "uncovered": 2.3,
+   "face": [
+    0.467,
+    0.2786,
+    0.2371
+   ]
+  },
+  "char_431_ashlok_epoque_28.webp": {
+   "rect": [
+    -807.68,
+    -551.49,
+    1628.44,
+    1539.39
+   ],
+   "score": 0.969,
+   "zoom": 2,
+   "uncovered": 1.08,
+   "face": [
+    0.496,
+    0.3226,
+    0.2741
+   ]
+  },
+  "char_437_mizuki_game_6.webp": {
+   "rect": [
+    -743.31,
+    -414.46,
+    1424.89,
+    1280.17
+   ],
+   "score": 0.912,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5217,
+    0.2808,
+    0.213
+   ]
+  },
+  "char_440_pinecn_epoque_31.webp": {
+   "rect": [
+    -867.62,
+    -671.02,
+    1628.44,
+    1857.44
+   ],
+   "score": 0.96,
+   "zoom": 2,
+   "uncovered": 0.36,
+   "face": [
+    0.5328,
+    0.3317,
+    0.2573
+   ]
+  },
+  "char_440_pinecn_shining_1.webp": {
+   "rect": [
+    -820.47,
+    -484.05,
+    1628.44,
+    1195.89
+   ],
+   "score": 0.914,
+   "zoom": 2,
+   "uncovered": 3.34,
+   "face": [
+    0.5038,
+    0.3588,
+    0.3142
+   ]
+  },
+  "char_446_aroma_epoque_54.webp": {
+   "rect": [
+    -601.17,
+    -486.05,
+    1221.33,
+    1345.38
+   ],
+   "score": 0.795,
+   "zoom": 1.5,
+   "uncovered": 0,
+   "face": [
+    0.4922,
+    0.3204,
+    0.2637
+   ]
+  },
+  "char_449_glider_epoque_17.webp": {
+   "rect": [
+    -676.86,
+    -451.21,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.939,
+   "zoom": 1.75,
+   "uncovered": 0.33,
+   "face": [
+    0.475,
+    0.2781,
+    0.2357
+   ]
+  },
+  "char_449_glider_nian_10.webp": {
+   "rect": [
+    -592.25,
+    -513.33,
+    1221.33,
+    1354.92
+   ],
+   "score": 0.977,
+   "zoom": 1.5,
+   "uncovered": 0,
+   "face": [
+    0.4849,
+    0.3383,
+    0.2884
+   ]
+  },
+  "char_450_necras_ambienceSynesthesia_7.webp": {
+   "rect": [
+    -723.16,
+    -415.81,
+    1628.44,
+    1234.06
+   ],
+   "score": 0.563,
+   "zoom": 2,
+   "uncovered": 12.2,
+   "face": [
+    0.4441,
+    0.2924,
+    0.2503
+   ]
+  },
+  "char_469_indigo_nian_7.webp": {
+   "rect": [
+    -838.74,
+    -638.59,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.919,
+   "zoom": 2,
+   "uncovered": 0.88,
+   "face": [
+    0.5151,
+    0.3584,
+    0.3045
+   ]
+  },
+  "char_473_mberry_epoque_14.webp": {
+   "rect": [
+    -746.59,
+    -421.64,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.933,
+   "zoom": 1.75,
+   "uncovered": 19.04,
+   "face": [
+    0.524,
+    0.2573,
+    0.2045
+   ]
+  },
+  "char_473_mberry_nian_9.webp": {
+   "rect": [
+    -584.92,
+    -377.35,
+    1221.33,
+    1183.17
+   ],
+   "score": 0.943,
+   "zoom": 1.5,
+   "uncovered": 0.34,
+   "face": [
+    0.4789,
+    0.2725,
+    0.2274
+   ]
+  },
+  "char_474_glady_epoque_33.webp": {
+   "rect": [
+    -869.26,
+    -613.52,
+    1628.44,
+    1615.72
+   ],
+   "score": 0.962,
+   "zoom": 2,
+   "uncovered": 0.64,
+   "face": [
+    0.5338,
+    0.3457,
+    0.3016
+   ]
+  },
+  "char_474_glady_boc_5.webp": {
+   "rect": [
+    -802.21,
+    -500.1,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.975,
+   "zoom": 2,
+   "uncovered": 3.41,
+   "face": [
+    0.4926,
+    0.2734,
+    0.2193
+   ]
+  },
+  "char_479_sleach_epoque_14.webp": {
+   "rect": [
+    -754.3,
+    -453.47,
+    1424.89,
+    1246.78
+   ],
+   "score": 0.886,
+   "zoom": 1.75,
+   "uncovered": 0.05,
+   "face": [
+    0.5294,
+    0.3196,
+    0.275
+   ]
+  },
+  "char_479_sleach_summer_11.webp": {
+   "rect": [
+    -717.92,
+    -531.51,
+    1424.89,
+    1269.04
+   ],
+   "score": 0.9,
+   "zoom": 1.75,
+   "uncovered": 0.16,
+   "face": [
+    0.5038,
+    0.3755,
+    0.3233
+   ]
+  },
+  "char_485_pallas_epoque_12.webp": {
+   "rect": [
+    -758.3,
+    -670.52,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.825,
+   "zoom": 2,
+   "uncovered": 0.01,
+   "face": [
+    0.4657,
+    0.378,
+    0.3352
+   ]
+  },
+  "char_485_pallas_epoque_19.webp": {
+   "rect": [
+    -835.99,
+    -350.45,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.935,
+   "zoom": 2,
+   "uncovered": 15.82,
+   "face": [
+    0.5134,
+    0.1815,
+    0.1148
+   ]
+  },
+  "char_491_humus_marthe_10.webp": {
+   "rect": [
+    -689.08,
+    -466.24,
+    1221.33,
+    935.08
+   ],
+   "score": 0.912,
+   "zoom": 1.5,
+   "uncovered": 0.03,
+   "face": [
+    0.5642,
+    0.4398,
+    0.3727
+   ]
+  },
+  "char_494_vendla_game_10.webp": {
+   "rect": [
+    -663.98,
+    -695.3,
+    1628.44,
+    1857.44
+   ],
+   "score": 0.88,
+   "zoom": 2,
+   "uncovered": 1.03,
+   "face": [
+    0.4077,
+    0.3447,
+    0.3018
+   ]
+  },
+  "char_496_wildmn_epoque_16.webp": {
+   "rect": [
+    -790.26,
+    -464.33,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.939,
+   "zoom": 2,
+   "uncovered": 13.57,
+   "face": [
+    0.4853,
+    0.2514,
+    0.191
+   ]
+  },
+  "char_498_inside_summer_22.webp": {
+   "rect": [
+    -501.8,
+    -670.86,
+    1628.44,
+    1615.72
+   ],
+   "score": 0.95,
+   "zoom": 2,
+   "uncovered": 0.6,
+   "face": [
+    0.3081,
+    0.3812,
+    0.3141
+   ]
+  },
+  "char_498_inside_kitchen_2.webp": {
+   "rect": [
+    -918.43,
+    -628.78,
+    1628.44,
+    1755.67
+   ],
+   "score": 0.761,
+   "zoom": 2,
+   "uncovered": 1.23,
+   "face": [
+    0.564,
+    0.3268,
+    0.2693
+   ]
+  },
+  "char_003_kalts_default.webp": {
+   "rect": [
+    -892.66,
+    -1088.81,
+    1628.44,
+    1742.94
+   ],
+   "score": 0.852,
+   "zoom": 2,
+   "uncovered": 41.94,
+   "face": [
+    0.5482,
+    0.5932,
+    0.5518
+   ]
+  },
+  "char_010_chen_default.webp": {
+   "rect": [
+    -671.53,
+    -686.94,
+    1424.89,
+    1636.4
+   ],
+   "score": 0.931,
+   "zoom": 1.75,
+   "uncovered": 15.57,
+   "face": [
+    0.4713,
+    0.3862,
+    0.3338
+   ]
+  },
+  "char_017_huang_default.webp": {
+   "rect": [
+    -799.23,
+    -799.8,
+    1628.44,
+    1590.28
+   ],
+   "score": 0.967,
+   "zoom": 2,
+   "uncovered": 2.1,
+   "face": [
+    0.4908,
+    0.4684,
+    0.4145
+   ]
+  },
+  "char_1019_siege2_default.webp": {
+   "rect": [
+    -652.39,
+    -481.51,
+    1424.89,
+    1513.94
+   ],
+   "score": 0.97,
+   "zoom": 1.75,
+   "uncovered": 0.48,
+   "face": [
+    0.4579,
+    0.2817,
+    0.2308
+   ]
+  },
+  "char_1020_reed2_default.webp": {
+   "rect": [
+    -791.44,
+    -513.9,
+    1628.44,
+    1068.67
+   ],
+   "score": 0.501,
+   "zoom": 2,
+   "uncovered": 18.82,
+   "face": [
+    0.486,
+    0.4295,
+    0.3801
+   ]
+  },
+  "char_1021_kroos2_default.webp": {
+   "rect": [
+    -700,
+    -494.54,
+    1424.89,
+    1346.97
+   ],
+   "score": 0.957,
+   "zoom": 1.75,
+   "uncovered": 0.41,
+   "face": [
+    0.4913,
+    0.3263,
+    0.2732
+   ]
+  },
+  "char_102_texas_default.webp": {
+   "rect": [
+    -741.73,
+    -285.1,
+    1628.44,
+    2048.28
+   ],
+   "score": 0.976,
+   "zoom": 2,
+   "uncovered": 20.18,
+   "face": [
+    0.4555,
+    0.128,
+    0.0323
+   ]
+  },
+  "char_1031_slent2_default.webp": {
+   "rect": [
+    -567.89,
+    -417.77,
+    1221.33,
+    944.63
+   ],
+   "score": 0.877,
+   "zoom": 1.5,
+   "uncovered": 0.4,
+   "face": [
+    0.465,
+    0.3841,
+    0.3343
+   ]
+  },
+  "char_1032_excu2_default.webp": {
+   "rect": [
+    -608.52,
+    -486.65,
+    1221.33,
+    1125.92
+   ],
+   "score": 0.942,
+   "zoom": 1.5,
+   "uncovered": 0,
+   "face": [
+    0.4982,
+    0.3834,
+    0.3344
+   ]
+  },
+  "char_1033_swire2_default.webp": {
+   "rect": [
+    -843.65,
+    -511.41,
+    1424.89,
+    1157.72
+   ],
+   "score": 0.981,
+   "zoom": 1.75,
+   "uncovered": 0.01,
+   "face": [
+    0.5921,
+    0.3943,
+    0.3434
+   ]
+  },
+  "char_1034_jesca2_default.webp": {
+   "rect": [
+    -757.87,
+    -477.19,
+    1628.44,
+    1348.56
+   ],
+   "score": 0.964,
+   "zoom": 2,
+   "uncovered": 5.96,
+   "face": [
+    0.4654,
+    0.3131,
+    0.2607
+   ]
+  },
+  "char_1039_thorn2_default.webp": {
+   "rect": [
+    -780.8,
+    -533.92,
+    1628.44,
+    1424.89
+   ],
+   "score": 0.42,
+   "zoom": 2,
+   "uncovered": 5.62,
+   "face": [
+    0.4795,
+    0.3361,
+    0.2994
+   ]
+  },
+  "char_103_angel_default.webp": {
+   "rect": [
+    -704.22,
+    -334.07,
+    1424.89,
+    1636.4
+   ],
+   "score": 0.931,
+   "zoom": 1.75,
+   "uncovered": 33.39,
+   "face": [
+    0.4942,
+    0.1766,
+    0.0726
+   ]
+  },
+  "char_1040_blaze2_default.webp": {
+   "rect": [
+    -803.36,
+    -633.89,
+    1424.89,
+    1591.87
+   ],
+   "score": 0.492,
+   "zoom": 1.75,
+   "uncovered": 0.01,
+   "face": [
+    0.5638,
+    0.3637,
+    0.321
+   ]
+  },
+  "char_1042_phatm2_default.webp": {
+   "rect": [
+    -866.8,
+    -514.66,
+    1424.89,
+    1358.1
+   ],
+   "score": 0.767,
+   "zoom": 1.75,
+   "uncovered": 1.45,
+   "face": [
+    0.6083,
+    0.3385,
+    0.2985
+   ]
+  },
+  "char_1043_leizi2_default.webp": {
+   "rect": [
+    -592.33,
+    -619.38,
+    1628.44,
+    1717.5
+   ],
+   "score": 0.933,
+   "zoom": 2,
+   "uncovered": 0.42,
+   "face": [
+    0.3637,
+    0.3286,
+    0.2855
+   ]
+  },
+  "char_1046_sbell2_default.webp": {
+   "rect": [
+    -827.52,
+    -702.29,
+    1628.44,
+    1552.11
+   ],
+   "score": 0.98,
+   "zoom": 2,
+   "uncovered": 0.82,
+   "face": [
+    0.5082,
+    0.4171,
+    0.3751
+   ]
+  },
+  "char_1047_halo2_default.webp": {
+   "rect": [
+    -712.92,
+    -489.15,
+    1424.89,
+    1324.7
+   ],
+   "score": 0.777,
+   "zoom": 1.75,
+   "uncovered": 0.48,
+   "face": [
+    0.5003,
+    0.3278,
+    0.2865
+   ]
+  },
+  "char_1050_chen3_default.webp": {
+   "rect": [
+    -783.88,
+    -526.93,
+    1628.44,
+    1145
+   ],
+   "score": 0.913,
+   "zoom": 2,
+   "uncovered": 0,
+   "face": [
+    0.4814,
+    0.4122,
+    0.3601
+   ]
+  },
+  "char_1051_headb2_default.webp": {
+   "rect": [
+    -782.29,
+    -597.15,
+    1628.44,
+    1488.5
+   ],
+   "score": 0.938,
+   "zoom": 2,
+   "uncovered": 0.12,
+   "face": [
+    0.4804,
+    0.3643,
+    0.3228
+   ]
+  },
+  "char_107_liskam_default.webp": {
+   "rect": [
+    -838.77,
+    -600.4,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.914,
+   "zoom": 2,
+   "uncovered": 40.39,
+   "face": [
+    0.5151,
+    0.3349,
+    0.2733
+   ]
+  },
+  "char_108_silent_default.webp": {
+   "rect": [
+    -483.83,
+    -229,
+    977.07,
+    877.83
+   ],
+   "score": 0.949,
+   "zoom": 1.2,
+   "uncovered": 31.81,
+   "face": [
+    0.4952,
+    0.1435,
+    0.0294
+   ]
+  },
+  "char_109_fmout_default.webp": {
+   "rect": [
+    -862.52,
+    -284.28,
+    1628.44,
+    1577.56
+   ],
+   "score": 0.978,
+   "zoom": 2,
+   "uncovered": 45,
+   "face": [
+    0.5297,
+    0.1454,
+    0.0577
+   ]
+  },
+  "char_112_siege_default.webp": {
+   "rect": [
+    -716.16,
+    -475.23,
+    1628.44,
+    1399.44
+   ],
+   "score": 0.923,
+   "zoom": 2,
+   "uncovered": 29.24,
+   "face": [
+    0.4398,
+    0.3003,
+    0.2026
+   ]
+  },
+  "char_126_shotst_default.webp": {
+   "rect": [
+    -767.54,
+    -633.04,
+    1628.44,
+    2315.44
+   ],
+   "score": 0.846,
+   "zoom": 2,
+   "uncovered": 38.24,
+   "face": [
+    0.4713,
+    0.2622,
+    0.1804
+   ]
+  },
+  "char_127_estell_default.webp": {
+   "rect": [
+    -692.09,
+    -460.31,
+    1099.2,
+    1167.9
+   ],
+   "score": 0.972,
+   "zoom": 1.35,
+   "uncovered": 26.62,
+   "face": [
+    0.7405,
+    0.3471,
+    0.2575
+   ]
+  },
+  "char_128_plosis_default.webp": {
+   "rect": [
+    -770.29,
+    -482.35,
+    1628.44,
+    1730.22
+   ],
+   "score": 0.96,
+   "zoom": 2,
+   "uncovered": 24.44,
+   "face": [
+    0.473,
+    0.247,
+    0.1787
+   ]
+  },
+  "char_133_mm_default.webp": {
+   "rect": [
+    -1003.95,
+    -311.74,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.962,
+   "zoom": 2,
+   "uncovered": 57.54,
+   "face": [
+    0.6165,
+    0.1577,
+    0.086
+   ]
+  },
+  "char_134_ifrit_default.webp": {
+   "rect": [
+    -715.37,
+    -644.15,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.955,
+   "zoom": 2,
+   "uncovered": 13.76,
+   "face": [
+    0.4393,
+    0.3618,
+    0.2915
+   ]
+  },
+  "char_135_halo_default.webp": {
+   "rect": [
+    -798.55,
+    -464.31,
+    1628.44,
+    1310.39
+   ],
+   "score": 0.947,
+   "zoom": 2,
+   "uncovered": 2.85,
+   "face": [
+    0.4904,
+    0.3124,
+    0.2644
+   ]
+  },
+  "char_136_hsguma_default.webp": {
+   "rect": [
+    -761.55,
+    -859.56,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.405,
+   "zoom": 2,
+   "uncovered": 9.69,
+   "face": [
+    0.4677,
+    0.4941,
+    0.4621
+   ]
+  },
+  "char_140_whitew_default.webp": {
+   "rect": [
+    -729.06,
+    -339.81,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.971,
+   "zoom": 2,
+   "uncovered": 27.14,
+   "face": [
+    0.4477,
+    0.1749,
+    0.1068
+   ]
+  },
+  "char_143_ghost_default.webp": {
+   "rect": [
+    -735.88,
+    -446.36,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.938,
+   "zoom": 2,
+   "uncovered": 9.5,
+   "face": [
+    0.4519,
+    0.2404,
+    0.1713
+   ]
+  },
+  "char_145_prove_default.webp": {
+   "rect": [
+    -947.9,
+    -628.04,
+    1628.44,
+    1742.94
+   ],
+   "score": 0.971,
+   "zoom": 2,
+   "uncovered": 20.96,
+   "face": [
+    0.5821,
+    0.3288,
+    0.24
+   ]
+  },
+  "char_147_shining_default.webp": {
+   "rect": [
+    -698.59,
+    -641.52,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.901,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.4903,
+    0.4117,
+    0.3665
+   ]
+  },
+  "char_1502_crosly_default.webp": {
+   "rect": [
+    -803.52,
+    -594.25,
+    1628.44,
+    1284.94
+   ],
+   "score": 0.878,
+   "zoom": 2,
+   "uncovered": 2.03,
+   "face": [
+    0.4934,
+    0.4197,
+    0.3636
+   ]
+  },
+  "char_150_snakek_default.webp": {
+   "rect": [
+    -676.66,
+    -341.79,
+    1628.44,
+    1692.06
+   ],
+   "score": 0.925,
+   "zoom": 2,
+   "uncovered": 23.05,
+   "face": [
+    0.4155,
+    0.1819,
+    0.0748
+   ]
+  },
+  "char_171_bldsk_default.webp": {
+   "rect": [
+    -844.02,
+    -403.67,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.982,
+   "zoom": 2,
+   "uncovered": 59.16,
+   "face": [
+    0.5183,
+    0.2141,
+    0.1513
+   ]
+  },
+  "char_172_svrash_default.webp": {
+   "rect": [
+    -892.9,
+    -431.12,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.973,
+   "zoom": 2,
+   "uncovered": 34.35,
+   "face": [
+    0.5483,
+    0.231,
+    0.178
+   ]
+  },
+  "char_173_slchan_default.webp": {
+   "rect": [
+    -762.65,
+    -398.17,
+    1628.44,
+    1539.39
+   ],
+   "score": 0.974,
+   "zoom": 2,
+   "uncovered": 29.15,
+   "face": [
+    0.4683,
+    0.223,
+    0.1365
+   ]
+  },
+  "char_174_slbell_default.webp": {
+   "rect": [
+    -645.76,
+    -556.46,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.948,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.4532,
+    0.352,
+    0.3011
+   ]
+  },
+  "char_179_cgbird_default.webp": {
+   "rect": [
+    -878.13,
+    -546.91,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.891,
+   "zoom": 2,
+   "uncovered": 14.58,
+   "face": [
+    0.5392,
+    0.3021,
+    0.2507
+   ]
+  },
+  "char_180_amgoat_default.webp": {
+   "rect": [
+    -896.09,
+    -382.98,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.974,
+   "zoom": 2,
+   "uncovered": 46.08,
+   "face": [
+    0.5503,
+    0.2014,
+    0.1272
+   ]
+  },
+  "char_181_flower_default.webp": {
+   "rect": [
+    -816.69,
+    -317.68,
+    1424.89,
+    1436.02
+   ],
+   "score": 0.977,
+   "zoom": 1.75,
+   "uncovered": 25.21,
+   "face": [
+    0.5732,
+    0.1829,
+    0.0793
+   ]
+  },
+  "char_183_skgoat_default.webp": {
+   "rect": [
+    -721.85,
+    -694.72,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.987,
+   "zoom": 2,
+   "uncovered": 50.63,
+   "face": [
+    0.4433,
+    0.3929,
+    0.3294
+   ]
+  },
+  "char_188_helage_default.webp": {
+   "rect": [
+    -451.38,
+    -765.51,
+    1628.44,
+    1335.83
+   ],
+   "score": 0.987,
+   "zoom": 2,
+   "uncovered": 16.53,
+   "face": [
+    0.2772,
+    0.5319,
+    0.4806
+   ]
+  },
+  "char_196_sunbr_default.webp": {
+   "rect": [
+    -806.71,
+    -511.36,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.973,
+   "zoom": 2,
+   "uncovered": 11.4,
+   "face": [
+    0.4954,
+    0.2803,
+    0.2114
+   ]
+  },
+  "char_197_poca_default.webp": {
+   "rect": [
+    -728.27,
+    -634.3,
+    1628.44,
+    1501.22
+   ],
+   "score": 0.885,
+   "zoom": 2,
+   "uncovered": 2.52,
+   "face": [
+    0.4472,
+    0.3859,
+    0.3378
+   ]
+  },
+  "char_198_blackd_default.webp": {
+   "rect": [
+    -407.11,
+    -228.92,
+    814.22,
+    890.56
+   ],
+   "score": 0.917,
+   "zoom": 1,
+   "uncovered": 67.58,
+   "face": [
+    0.5562,
+    0.113,
+    0.0348
+   ]
+  },
+  "char_199_yak_default.webp": {
+   "rect": [
+    -625.14,
+    -640.6,
+    1221.33,
+    1211.79
+   ],
+   "score": 0.961,
+   "zoom": 1.5,
+   "uncovered": 0.16,
+   "face": [
+    0.5118,
+    0.4833,
+    0.4122
+   ]
+  },
+  "char_2012_typhon_default.webp": {
+   "rect": [
+    -851.38,
+    -507.42,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.94,
+   "zoom": 2,
+   "uncovered": 1.17,
+   "face": [
+    0.5228,
+    0.2778,
+    0.2085
+   ]
+  },
+  "char_2013_cerber_default.webp": {
+   "rect": [
+    -752.09,
+    -570.11,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.785,
+   "zoom": 2,
+   "uncovered": 5.39,
+   "face": [
+    0.4618,
+    0.3163,
+    0.2355
+   ]
+  },
+  "char_202_demkni_default.webp": {
+   "rect": [
+    -789.32,
+    -782.21,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.948,
+   "zoom": 2,
+   "uncovered": 2.82,
+   "face": [
+    0.4847,
+    0.4466,
+    0.3937
+   ]
+  },
+  "char_206_gnosis_default.webp": {
+   "rect": [
+    -611.1,
+    -428.05,
+    1221.33,
+    1020.96
+   ],
+   "score": 0.753,
+   "zoom": 1.5,
+   "uncovered": 0.36,
+   "face": [
+    0.5004,
+    0.3654,
+    0.3273
+   ]
+  },
+  "char_213_mostma_default.webp": {
+   "rect": [
+    -919.88,
+    -605.98,
+    1628.44,
+    1284.94
+   ],
+   "score": 0.958,
+   "zoom": 2,
+   "uncovered": 5.17,
+   "face": [
+    0.5649,
+    0.4288,
+    0.3789
+   ]
+  },
+  "char_215_mantic_default.webp": {
+   "rect": [
+    -593.03,
+    -767.44,
+    1628.44,
+    1259.5
+   ],
+   "score": 0.871,
+   "zoom": 2,
+   "uncovered": 7.5,
+   "face": [
+    0.3642,
+    0.5657,
+    0.4954
+   ]
+  },
+  "char_218_cuttle_default.webp": {
+   "rect": [
+    -679.49,
+    -745.31,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.965,
+   "zoom": 2,
+   "uncovered": 19.71,
+   "face": [
+    0.4173,
+    0.4239,
+    0.3696
+   ]
+  },
+  "char_222_bpipe_default.webp": {
+   "rect": [
+    -826.57,
+    -538.45,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.871,
+   "zoom": 2,
+   "uncovered": 30.84,
+   "face": [
+    0.5076,
+    0.2969,
+    0.2341
+   ]
+  },
+  "char_225_haak_default.webp": {
+   "rect": [
+    -963.46,
+    -479.37,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.959,
+   "zoom": 2,
+   "uncovered": 22.6,
+   "face": [
+    0.5916,
+    0.2606,
+    0.1957
+   ]
+  },
+  "char_230_savage_default.webp": {
+   "rect": [
+    -665.05,
+    -416.72,
+    1424.89,
+    1413.76
+   ],
+   "score": 0.952,
+   "zoom": 1.75,
+   "uncovered": 36.47,
+   "face": [
+    0.4667,
+    0.2559,
+    0.2093
+   ]
+  },
+  "char_237_gravel_default.webp": {
+   "rect": [
+    -407.11,
+    -229,
+    814.22,
+    807.86
+   ],
+   "score": 0.947,
+   "zoom": 1,
+   "uncovered": 44.75,
+   "face": [
+    0.5327,
+    0.1929,
+    0.1176
+   ]
+  },
+  "char_243_waaifu_default.webp": {
+   "rect": [
+    -628.58,
+    -566.85,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.966,
+   "zoom": 2,
+   "uncovered": 12.71,
+   "face": [
+    0.386,
+    0.3143,
+    0.2397
+   ]
+  },
+  "char_248_mgllan_default.webp": {
+   "rect": [
+    -815.84,
+    -656.28,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.91,
+   "zoom": 2,
+   "uncovered": 0.4,
+   "face": [
+    0.501,
+    0.3693,
+    0.3231
+   ]
+  },
+  "char_250_phatom_default.webp": {
+   "rect": [
+    -1009.74,
+    -688.69,
+    1628.44,
+    1386.72
+   ],
+   "score": 0.961,
+   "zoom": 2,
+   "uncovered": 1.21,
+   "face": [
+    0.6201,
+    0.457,
+    0.4124
+   ]
+  },
+  "char_253_greyy_default.webp": {
+   "rect": [
+    -740.16,
+    -725.12,
+    1628.44,
+    1692.06
+   ],
+   "score": 0.905,
+   "zoom": 2,
+   "uncovered": 39.54,
+   "face": [
+    0.4545,
+    0.3985,
+    0.3013
+   ]
+  },
+  "char_254_vodfox_default.webp": {
+   "rect": [
+    -636.12,
+    -447.36,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.946,
+   "zoom": 1.5,
+   "uncovered": 39.08,
+   "face": [
+    0.5208,
+    0.3213,
+    0.252
+   ]
+  },
+  "char_258_podego_default.webp": {
+   "rect": [
+    -1000.25,
+    -249.53,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.908,
+   "zoom": 2,
+   "uncovered": 27.12,
+   "face": [
+    0.6142,
+    0.1242,
+    0.021
+   ]
+  },
+  "char_263_skadi_default.webp": {
+   "rect": [
+    -805.96,
+    -673.11,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.977,
+   "zoom": 2,
+   "uncovered": 1.75,
+   "face": [
+    0.4949,
+    0.3796,
+    0.2885
+   ]
+  },
+  "char_264_f12yin_default.webp": {
+   "rect": [
+    -407.11,
+    -296.41,
+    977.07,
+    1007.6
+   ],
+   "score": 0.992,
+   "zoom": 1.2,
+   "uncovered": 25.58,
+   "face": [
+    0.2475,
+    0.2396,
+    0.1743
+   ]
+  },
+  "char_271_spikes_default.webp": {
+   "rect": [
+    -521.48,
+    -476.15,
+    1099.2,
+    1331.06
+   ],
+   "score": 0.941,
+   "zoom": 1.35,
+   "uncovered": 45.96,
+   "face": [
+    0.4744,
+    0.3164,
+    0.2284
+   ]
+  },
+  "char_279_excu_default.webp": {
+   "rect": [
+    -885.9,
+    -455.7,
+    1628.44,
+    1132.28
+   ],
+   "score": 0.897,
+   "zoom": 2,
+   "uncovered": 2.41,
+   "face": [
+    0.544,
+    0.3539,
+    0.2924
+   ]
+  },
+  "char_290_vigna_default.webp": {
+   "rect": [
+    -718.31,
+    -726.51,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.764,
+   "zoom": 2,
+   "uncovered": 18.01,
+   "face": [
+    0.4411,
+    0.4124,
+    0.3558
+   ]
+  },
+  "char_291_aglina_default.webp": {
+   "rect": [
+    -796.96,
+    -375.55,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.968,
+   "zoom": 2,
+   "uncovered": 19.37,
+   "face": [
+    0.4894,
+    0.1969,
+    0.1102
+   ]
+  },
+  "char_293_thorns_default.webp": {
+   "rect": [
+    -675.37,
+    -202.38,
+    1424.89,
+    1291.31
+   ],
+   "score": 0.991,
+   "zoom": 1.75,
+   "uncovered": 52.8,
+   "face": [
+    0.474,
+    0.0706,
+    -0.01
+   ]
+  },
+  "char_294_ayer_default.webp": {
+   "rect": [
+    -738.65,
+    -593.83,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.83,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5184,
+    0.3782,
+    0.328
+   ]
+  },
+  "char_300_phenxi_default.webp": {
+   "rect": [
+    -625.41,
+    -309.9,
+    1221.33,
+    963.71
+   ],
+   "score": 0.938,
+   "zoom": 1.5,
+   "uncovered": 34.44,
+   "face": [
+    0.5121,
+    0.2645,
+    0.2192
+   ]
+  },
+  "char_304_zebra_default.webp": {
+   "rect": [
+    -845.82,
+    -359.65,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.97,
+   "zoom": 2,
+   "uncovered": 38.6,
+   "face": [
+    0.5194,
+    0.1871,
+    0.1141
+   ]
+  },
+  "char_306_leizi_default.webp": {
+   "rect": [
+    -866.64,
+    -614.2,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.802,
+   "zoom": 2,
+   "uncovered": 11.02,
+   "face": [
+    0.5322,
+    0.3434,
+    0.2921
+   ]
+  },
+  "char_308_swire_default.webp": {
+   "rect": [
+    -897.82,
+    -689.71,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.923,
+   "zoom": 2,
+   "uncovered": 1.62,
+   "face": [
+    0.5513,
+    0.3898,
+    0.3384
+   ]
+  },
+  "char_311_mudrok_default.webp": {
+   "rect": [
+    -861.69,
+    -727.86,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.972,
+   "zoom": 2,
+   "uncovered": 1.58,
+   "face": [
+    0.5292,
+    0.4132,
+    0.3655
+   ]
+  },
+  "char_322_lmlee_default.webp": {
+   "rect": [
+    -1019.95,
+    -471.63,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.866,
+   "zoom": 2,
+   "uncovered": 26.1,
+   "face": [
+    0.6263,
+    0.2559,
+    0.1943
+   ]
+  },
+  "char_332_archet_default.webp": {
+   "rect": [
+    -665.03,
+    -737.81,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.949,
+   "zoom": 1.75,
+   "uncovered": 0.04,
+   "face": [
+    0.4667,
+    0.4792,
+    0.4253
+   ]
+  },
+  "char_337_utage_default.webp": {
+   "rect": [
+    -838.22,
+    -535.31,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.949,
+   "zoom": 2,
+   "uncovered": 4.39,
+   "face": [
+    0.5147,
+    0.295,
+    0.2268
+   ]
+  },
+  "char_340_shwaz_default.webp": {
+   "rect": [
+    -730.84,
+    -573.77,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.938,
+   "zoom": 2,
+   "uncovered": 9.84,
+   "face": [
+    0.4488,
+    0.3186,
+    0.2727
+   ]
+  },
+  "char_341_sntlla_default.webp": {
+   "rect": [
+    -808.13,
+    -525.69,
+    1628.44,
+    1552.11
+   ],
+   "score": 0.958,
+   "zoom": 2,
+   "uncovered": 4.92,
+   "face": [
+    0.4963,
+    0.3033,
+    0.2561
+   ]
+  },
+  "char_344_beewax_default.webp": {
+   "rect": [
+    -788.86,
+    -595.57,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.958,
+   "zoom": 2,
+   "uncovered": 16.72,
+   "face": [
+    0.4844,
+    0.332,
+    0.2703
+   ]
+  },
+  "char_345_folnic_default.webp": {
+   "rect": [
+    -760,
+    -543.58,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.968,
+   "zoom": 2,
+   "uncovered": 24.48,
+   "face": [
+    0.4667,
+    0.3001,
+    0.2338
+   ]
+  },
+  "char_348_ceylon_default.webp": {
+   "rect": [
+    -808.12,
+    -635.39,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.958,
+   "zoom": 1.75,
+   "uncovered": 7,
+   "face": [
+    0.5671,
+    0.4074,
+    0.3499
+   ]
+  },
+  "char_350_surtr_default.webp": {
+   "rect": [
+    -939.16,
+    -630.07,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.968,
+   "zoom": 2,
+   "uncovered": 17.69,
+   "face": [
+    0.5767,
+    0.3532,
+    0.3007
+   ]
+  },
+  "char_355_ethan_default.webp": {
+   "rect": [
+    -545.44,
+    -526.24,
+    1099.2,
+    1099.2
+   ],
+   "score": 0.918,
+   "zoom": 1.35,
+   "uncovered": 0,
+   "face": [
+    0.4962,
+    0.4287,
+    0.3814
+   ]
+  },
+  "char_358_lisa_default.webp": {
+   "rect": [
+    -764.95,
+    -732.36,
+    1628.44,
+    1615.72
+   ],
+   "score": 0.939,
+   "zoom": 2,
+   "uncovered": 3.34,
+   "face": [
+    0.4697,
+    0.4193,
+    0.365
+   ]
+  },
+  "char_362_saga_default.webp": {
+   "rect": [
+    -518.86,
+    -658.01,
+    1099.2,
+    1099.2
+   ],
+   "score": 0.962,
+   "zoom": 1.35,
+   "uncovered": 0.04,
+   "face": [
+    0.472,
+    0.5486,
+    0.5064
+   ]
+  },
+  "char_373_lionhd_default.webp": {
+   "rect": [
+    -825.03,
+    -922.23,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.418,
+   "zoom": 1.75,
+   "uncovered": 0.22,
+   "face": [
+    0.579,
+    0.6087,
+    0.5724
+   ]
+  },
+  "char_377_gdglow_default.webp": {
+   "rect": [
+    -724.23,
+    -704.54,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.663,
+   "zoom": 1.75,
+   "uncovered": 0.27,
+   "face": [
+    0.5083,
+    0.4559,
+    0.3903
+   ]
+  },
+  "char_381_bubble_default.webp": {
+   "rect": [
+    -698.93,
+    -601.15,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.939,
+   "zoom": 2,
+   "uncovered": 15.1,
+   "face": [
+    0.4292,
+    0.3354,
+    0.2811
+   ]
+  },
+  "char_388_mint_default.webp": {
+   "rect": [
+    -818.46,
+    -592.08,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.95,
+   "zoom": 2,
+   "uncovered": 5.74,
+   "face": [
+    0.5026,
+    0.3298,
+    0.2796
+   ]
+  },
+  "char_4004_pudd_default.webp": {
+   "rect": [
+    -853.92,
+    -375.58,
+    1628.44,
+    1641.17
+   ],
+   "score": 0.962,
+   "zoom": 2,
+   "uncovered": 12.39,
+   "face": [
+    0.5244,
+    0.1954,
+    0.1133
+   ]
+  },
+  "char_4009_irene_default.webp": {
+   "rect": [
+    -780.12,
+    -566.06,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.921,
+   "zoom": 2,
+   "uncovered": 8.9,
+   "face": [
+    0.4791,
+    0.3139,
+    0.2716
+   ]
+  },
+  "char_400_weedy_default.webp": {
+   "rect": [
+    -706.88,
+    -611.1,
+    1628.44,
+    1793.83
+   ],
+   "score": 0.934,
+   "zoom": 2,
+   "uncovered": 6.94,
+   "face": [
+    0.4341,
+    0.31,
+    0.2607
+   ]
+  },
+  "char_4010_etlchi_default.webp": {
+   "rect": [
+    -600.01,
+    -588.02,
+    1628.44,
+    1577.56
+   ],
+   "score": 0.429,
+   "zoom": 2,
+   "uncovered": 11.05,
+   "face": [
+    0.3685,
+    0.3379,
+    0.2892
+   ]
+  },
+  "char_4011_lessng_default.webp": {
+   "rect": [
+    -616.07,
+    -577.27,
+    1628.44,
+    1539.39
+   ],
+   "score": 0.957,
+   "zoom": 2,
+   "uncovered": 20.76,
+   "face": [
+    0.3783,
+    0.3393,
+    0.3007
+   ]
+  },
+  "char_4013_kjera_default.webp": {
+   "rect": [
+    -784.04,
+    -383.33,
+    1628.44,
+    1323.11
+   ],
+   "score": 0.961,
+   "zoom": 2,
+   "uncovered": 1.88,
+   "face": [
+    0.4815,
+    0.2482,
+    0.2007
+   ]
+  },
+  "char_4016_kazema_default.webp": {
+   "rect": [
+    -789.33,
+    -789.31,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.912,
+   "zoom": 2,
+   "uncovered": 7.94,
+   "face": [
+    0.4847,
+    0.4509,
+    0.4044
+   ]
+  },
+  "char_4026_vulpis_default.webp": {
+   "rect": [
+    -890.68,
+    -710.7,
+    1628.44,
+    1437.61
+   ],
+   "score": 0.968,
+   "zoom": 2,
+   "uncovered": 4.95,
+   "face": [
+    0.5469,
+    0.4561,
+    0.4087
+   ]
+  },
+  "char_4027_heyak_default.webp": {
+   "rect": [
+    -612.16,
+    -486.63,
+    1628.44,
+    1679.33
+   ],
+   "score": 0.978,
+   "zoom": 2,
+   "uncovered": 1.91,
+   "face": [
+    0.3759,
+    0.2571,
+    0.2058
+   ]
+  },
+  "char_4036_forcer_default.webp": {
+   "rect": [
+    -868.2,
+    -498.88,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.889,
+   "zoom": 2,
+   "uncovered": 1.73,
+   "face": [
+    0.5331,
+    0.2726,
+    0.2157
+   ]
+  },
+  "char_4037_demetr_default.webp": {
+   "rect": [
+    -862.24,
+    -536.69,
+    1628.44,
+    1577.56
+   ],
+   "score": 0.921,
+   "zoom": 2,
+   "uncovered": 0.14,
+   "face": [
+    0.5295,
+    0.3054,
+    0.2606
+   ]
+  },
+  "char_4039_horn_default.webp": {
+   "rect": [
+    -724.19,
+    -566.61,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.974,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5082,
+    0.3591,
+    0.3096
+   ]
+  },
+  "char_4040_rockr_default.webp": {
+   "rect": [
+    -772.58,
+    -635.41,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.956,
+   "zoom": 2,
+   "uncovered": 16.08,
+   "face": [
+    0.4744,
+    0.3564,
+    0.3091
+   ]
+  },
+  "char_4042_lumen_default.webp": {
+   "rect": [
+    -670.33,
+    -728.04,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.948,
+   "zoom": 2,
+   "uncovered": 1.55,
+   "face": [
+    0.4116,
+    0.4133,
+    0.3592
+   ]
+  },
+  "char_4045_heidi_default.webp": {
+   "rect": [
+    -934.22,
+    -522.89,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.838,
+   "zoom": 2,
+   "uncovered": 1.37,
+   "face": [
+    0.5737,
+    0.2874,
+    0.2309
+   ]
+  },
+  "char_4046_ebnhlz_default.webp": {
+   "rect": [
+    -724.46,
+    -390.48,
+    1424.89,
+    1135.46
+   ],
+   "score": 0.899,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5084,
+    0.2955,
+    0.2527
+   ]
+  },
+  "char_4048_doroth_default.webp": {
+   "rect": [
+    -599.67,
+    -446.79,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.893,
+   "zoom": 1.5,
+   "uncovered": 0.41,
+   "face": [
+    0.491,
+    0.3208,
+    0.2783
+   ]
+  },
+  "char_4051_akkord_default.webp": {
+   "rect": [
+    -1001.02,
+    -602.4,
+    1628.44,
+    1806.56
+   ],
+   "score": 0.955,
+   "zoom": 2,
+   "uncovered": 11.47,
+   "face": [
+    0.6147,
+    0.303,
+    0.2384
+   ]
+  },
+  "char_4054_malist_default.webp": {
+   "rect": [
+    -842.56,
+    -617.47,
+    1628.44,
+    1552.11
+   ],
+   "score": 0.914,
+   "zoom": 2,
+   "uncovered": 1.03,
+   "face": [
+    0.5174,
+    0.3624,
+    0.3111
+   ]
+  },
+  "char_4055_bgsnow_default.webp": {
+   "rect": [
+    -1000.83,
+    -667.85,
+    1628.44,
+    1819.28
+   ],
+   "score": 0.816,
+   "zoom": 2,
+   "uncovered": 2.14,
+   "face": [
+    0.6146,
+    0.3369,
+    0.2878
+   ]
+  },
+  "char_4056_titi_default.webp": {
+   "rect": [
+    -931.5,
+    -780.47,
+    1628.44,
+    1679.33
+   ],
+   "score": 0.925,
+   "zoom": 2,
+   "uncovered": 1.22,
+   "face": [
+    0.572,
+    0.432,
+    0.3813
+   ]
+  },
+  "char_4064_mlynar_default.webp": {
+   "rect": [
+    -694.81,
+    -551.47,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.971,
+   "zoom": 1.75,
+   "uncovered": 0.47,
+   "face": [
+    0.4876,
+    0.3485,
+    0.2992
+   ]
+  },
+  "char_4065_judge_default.webp": {
+   "rect": [
+    -799.44,
+    -625.57,
+    1628.44,
+    1603
+   ],
+   "score": 0.963,
+   "zoom": 2,
+   "uncovered": 4.24,
+   "face": [
+    0.4909,
+    0.356,
+    0.3138
+   ]
+  },
+  "char_4072_ironmn_default.webp": {
+   "rect": [
+    -736.96,
+    -533.61,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.913,
+   "zoom": 1.75,
+   "uncovered": 0.04,
+   "face": [
+    0.5172,
+    0.3359,
+    0.2783
+   ]
+  },
+  "char_4079_haini_default.webp": {
+   "rect": [
+    -800.25,
+    -612.75,
+    1628.44,
+    1437.61
+   ],
+   "score": 0.943,
+   "zoom": 2,
+   "uncovered": 1.92,
+   "face": [
+    0.4914,
+    0.388,
+    0.3395
+   ]
+  },
+  "char_4080_lin_default.webp": {
+   "rect": [
+    -938.32,
+    -682.28,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.942,
+   "zoom": 2,
+   "uncovered": 0.67,
+   "face": [
+    0.5762,
+    0.3852,
+    0.3344
+   ]
+  },
+  "char_4082_qiubai_default.webp": {
+   "rect": [
+    -946.18,
+    -541.78,
+    1628.44,
+    1552.11
+   ],
+   "score": 0.932,
+   "zoom": 2,
+   "uncovered": 0.78,
+   "face": [
+    0.581,
+    0.3136,
+    0.2705
+   ]
+  },
+  "char_4087_ines_default.webp": {
+   "rect": [
+    -625.04,
+    -602.09,
+    1424.89,
+    1491.68
+   ],
+   "score": 0.94,
+   "zoom": 1.75,
+   "uncovered": 0.03,
+   "face": [
+    0.4387,
+    0.3668,
+    0.3228
+   ]
+  },
+  "char_4088_hodrer_default.webp": {
+   "rect": [
+    -1077.99,
+    -826.7,
+    1628.44,
+    1132.28
+   ],
+   "score": 0.361,
+   "zoom": 2,
+   "uncovered": 32.99,
+   "face": [
+    0.662,
+    0.6816,
+    0.6352
+   ]
+  },
+  "char_4098_vvana_default.webp": {
+   "rect": [
+    -635.31,
+    -474.6,
+    1221.33,
+    1269.04
+   ],
+   "score": 0.928,
+   "zoom": 1.5,
+   "uncovered": 0.42,
+   "face": [
+    0.5202,
+    0.3307,
+    0.2938
+   ]
+  },
+  "char_4100_caper_default.webp": {
+   "rect": [
+    -759.46,
+    -517.8,
+    1628.44,
+    1463.06
+   ],
+   "score": 0.962,
+   "zoom": 2,
+   "uncovered": 11.86,
+   "face": [
+    0.4664,
+    0.3164,
+    0.2455
+   ]
+  },
+  "char_4114_harold_default.webp": {
+   "rect": [
+    -846.92,
+    -466.26,
+    1628.44,
+    1781.11
+   ],
+   "score": 0.814,
+   "zoom": 2,
+   "uncovered": 3.15,
+   "face": [
+    0.5201,
+    0.2309,
+    0.1882
+   ]
+  },
+  "char_4116_blkkgt_default.webp": {
+   "rect": [
+    -803.3,
+    -610.94,
+    1628.44,
+    1412.17
+   ],
+   "score": 0.964,
+   "zoom": 2,
+   "uncovered": 8.55,
+   "face": [
+    0.4933,
+    0.3937,
+    0.3496
+   ]
+  },
+  "char_4117_ray_default.webp": {
+   "rect": [
+    -984.82,
+    -575.86,
+    1628.44,
+    1577.56
+   ],
+   "score": 0.915,
+   "zoom": 2,
+   "uncovered": 2.58,
+   "face": [
+    0.6048,
+    0.3302,
+    0.2771
+   ]
+  },
+  "char_4119_wanqin_default.webp": {
+   "rect": [
+    -1041.53,
+    -653.44,
+    1628.44,
+    1742.94
+   ],
+   "score": 0.936,
+   "zoom": 2,
+   "uncovered": 0.3,
+   "face": [
+    0.6396,
+    0.3434,
+    0.2922
+   ]
+  },
+  "char_4121_zuole_default.webp": {
+   "rect": [
+    -692.88,
+    -398.74,
+    1424.89,
+    1369.23
+   ],
+   "score": 0.907,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.4863,
+    0.2511,
+    0.2014
+   ]
+  },
+  "char_4122_grabds_default.webp": {
+   "rect": [
+    -602.69,
+    -363.84,
+    1221.33,
+    1068.67
+   ],
+   "score": 0.904,
+   "zoom": 1.5,
+   "uncovered": 0.45,
+   "face": [
+    0.4935,
+    0.289,
+    0.2388
+   ]
+  },
+  "char_4132_ascln_default.webp": {
+   "rect": [
+    -866.74,
+    -434.09,
+    1628.44,
+    1374
+   ],
+   "score": 0.961,
+   "zoom": 2,
+   "uncovered": 10.69,
+   "face": [
+    0.5323,
+    0.2759,
+    0.2291
+   ]
+  },
+  "char_4133_logos_default.webp": {
+   "rect": [
+    -1030.94,
+    -577.03,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.837,
+   "zoom": 2,
+   "uncovered": 2.12,
+   "face": [
+    0.6331,
+    0.3206,
+    0.2825
+   ]
+  },
+  "char_4134_cetsyr_default.webp": {
+   "rect": [
+    -784.32,
+    -630.39,
+    1628.44,
+    1895.61
+   ],
+   "score": 0.957,
+   "zoom": 2,
+   "uncovered": 6.94,
+   "face": [
+    0.4816,
+    0.3036,
+    0.2683
+   ]
+  },
+  "char_4137_udflow_default.webp": {
+   "rect": [
+    -823.81,
+    -647.97,
+    1628.44,
+    1310.39
+   ],
+   "score": 0.78,
+   "zoom": 2,
+   "uncovered": 0.14,
+   "face": [
+    0.5059,
+    0.4525,
+    0.4004
+   ]
+  },
+  "char_4138_narant_default.webp": {
+   "rect": [
+    -798.68,
+    -983.93,
+    1628.44,
+    1679.33
+   ],
+   "score": 0.435,
+   "zoom": 2,
+   "uncovered": 0.73,
+   "face": [
+    0.4905,
+    0.5532,
+    0.5201
+   ]
+  },
+  "char_4139_papyrs_default.webp": {
+   "rect": [
+    -995.87,
+    -618.86,
+    1628.44,
+    1577.56
+   ],
+   "score": 0.816,
+   "zoom": 2,
+   "uncovered": 1.33,
+   "face": [
+    0.6115,
+    0.3574,
+    0.2746
+   ]
+  },
+  "char_4145_ulpia_default.webp": {
+   "rect": [
+    -1053.85,
+    -786.92,
+    1628.44,
+    1615.72
+   ],
+   "score": 0.835,
+   "zoom": 2,
+   "uncovered": 8.99,
+   "face": [
+    0.6472,
+    0.453,
+    0.4118
+   ]
+  },
+  "char_4146_nymph_default.webp": {
+   "rect": [
+    -800.2,
+    -547.92,
+    1628.44,
+    1437.61
+   ],
+   "score": 0.948,
+   "zoom": 2,
+   "uncovered": 0,
+   "face": [
+    0.4914,
+    0.3429,
+    0.2939
+   ]
+  },
+  "char_4148_philae_default.webp": {
+   "rect": [
+    -780.56,
+    -487.3,
+    1628.44,
+    1730.22
+   ],
+   "score": 0.908,
+   "zoom": 2,
+   "uncovered": 1.41,
+   "face": [
+    0.4793,
+    0.2499,
+    0.2048
+   ]
+  },
+  "char_4151_tinman_default.webp": {
+   "rect": [
+    -748.51,
+    -614.55,
+    1628.44,
+    1615.72
+   ],
+   "score": 0.961,
+   "zoom": 2,
+   "uncovered": 1.1,
+   "face": [
+    0.4596,
+    0.3463,
+    0.2918
+   ]
+  },
+  "char_4162_cathy_default.webp": {
+   "rect": [
+    -836.01,
+    -454.35,
+    1628.44,
+    1679.33
+   ],
+   "score": 0.963,
+   "zoom": 2,
+   "uncovered": 3.03,
+   "face": [
+    0.5134,
+    0.2378,
+    0.1737
+   ]
+  },
+  "char_4163_rosesa_default.webp": {
+   "rect": [
+    -606.79,
+    -512.17,
+    1424.89,
+    1291.31
+   ],
+   "score": 0.874,
+   "zoom": 1.75,
+   "uncovered": 4.24,
+   "face": [
+    0.4259,
+    0.3541,
+    0.2916
+   ]
+  },
+  "char_416_zumama_default.webp": {
+   "rect": [
+    -772.45,
+    -632.42,
+    1628.44,
+    1399.44
+   ],
+   "score": 0.874,
+   "zoom": 2,
+   "uncovered": 0.59,
+   "face": [
+    0.4743,
+    0.4126,
+    0.3701
+   ]
+  },
+  "char_4179_monstr_default.webp": {
+   "rect": [
+    -813.18,
+    -573.79,
+    1628.44,
+    1374
+   ],
+   "score": 0.903,
+   "zoom": 2,
+   "uncovered": 3.3,
+   "face": [
+    0.4994,
+    0.3776,
+    0.3399
+   ]
+  },
+  "char_4182_oblvns_default.webp": {
+   "rect": [
+    -598.93,
+    -468.84,
+    1221.33,
+    1087.75
+   ],
+   "score": 0.922,
+   "zoom": 1.5,
+   "uncovered": 0.38,
+   "face": [
+    0.4904,
+    0.3805,
+    0.3394
+   ]
+  },
+  "char_4191_tippi_default.webp": {
+   "rect": [
+    -517.31,
+    -385.4,
+    1099.2,
+    1030.5
+   ],
+   "score": 0.934,
+   "zoom": 1.35,
+   "uncovered": 0,
+   "face": [
+    0.4706,
+    0.3207,
+    0.2567
+   ]
+  },
+  "char_4193_lemuen_default.webp": {
+   "rect": [
+    -606.31,
+    -571.79,
+    1221.33,
+    1221.33
+   ],
+   "score": 0.899,
+   "zoom": 1.5,
+   "uncovered": 0.11,
+   "face": [
+    0.4964,
+    0.4232,
+    0.3664
+   ]
+  },
+  "char_4194_rmixer_default.webp": {
+   "rect": [
+    -780.91,
+    -559.16,
+    1628.44,
+    1259.5
+   ],
+   "score": 0.593,
+   "zoom": 2,
+   "uncovered": 0.45,
+   "face": [
+    0.4795,
+    0.4003,
+    0.3592
+   ]
+  },
+  "char_4195_radian_default.webp": {
+   "rect": [
+    -707.68,
+    -748.88,
+    1628.44,
+    1895.61
+   ],
+   "score": 0.91,
+   "zoom": 2,
+   "uncovered": 3.08,
+   "face": [
+    0.4346,
+    0.3661,
+    0.2971
+   ]
+  },
+  "char_4196_reckpr_default.webp": {
+   "rect": [
+    -768.69,
+    -434.72,
+    1628.44,
+    1399.44
+   ],
+   "score": 0.939,
+   "zoom": 2,
+   "uncovered": 4.78,
+   "face": [
+    0.472,
+    0.2714,
+    0.2234
+   ]
+  },
+  "char_4202_haruka_default.webp": {
+   "rect": [
+    -737.76,
+    -449.11,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.899,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5178,
+    0.2766,
+    0.2107
+   ]
+  },
+  "char_4204_mantra_default.webp": {
+   "rect": [
+    -856.35,
+    -541.1,
+    1628.44,
+    1564.83
+   ],
+   "score": 0.806,
+   "zoom": 2,
+   "uncovered": 2.03,
+   "face": [
+    0.5259,
+    0.3107,
+    0.2739
+   ]
+  },
+  "char_4207_branch_default.webp": {
+   "rect": [
+    -692.5,
+    -424.33,
+    1424.89,
+    1157.72
+   ],
+   "score": 0.964,
+   "zoom": 1.75,
+   "uncovered": 0.42,
+   "face": [
+    0.486,
+    0.319,
+    0.2628
+   ]
+  },
+  "char_420_flamtl_default.webp": {
+   "rect": [
+    -792.3,
+    -595.1,
+    1628.44,
+    1806.56
+   ],
+   "score": 0.965,
+   "zoom": 2,
+   "uncovered": 5.54,
+   "face": [
+    0.4865,
+    0.299,
+    0.2602
+   ]
+  },
+  "char_4211_snhunt_default.webp": {
+   "rect": [
+    -838.39,
+    -486.23,
+    1424.89,
+    1191.12
+   ],
+   "score": 0.955,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5884,
+    0.3621,
+    0.3176
+   ]
+  },
+  "char_4212_nasti_default.webp": {
+   "rect": [
+    -889.98,
+    -647.13,
+    1628.44,
+    1704.78
+   ],
+   "score": 0.914,
+   "zoom": 2,
+   "uncovered": 1.23,
+   "face": [
+    0.5465,
+    0.3474,
+    0.3029
+   ]
+  },
+  "char_4226_veen_default.webp": {
+   "rect": [
+    -810.63,
+    -529.72,
+    1628.44,
+    1513.94
+   ],
+   "score": 0.844,
+   "zoom": 2,
+   "uncovered": 0.14,
+   "face": [
+    0.4978,
+    0.3136,
+    0.2735
+   ]
+  },
+  "char_4228_closur_default.webp": {
+   "rect": [
+    -856.57,
+    -510.17,
+    1628.44,
+    1195.89
+   ],
+   "score": 0.86,
+   "zoom": 2,
+   "uncovered": 2.8,
+   "face": [
+    0.526,
+    0.3806,
+    0.3235
+   ]
+  },
+  "char_4229_aphris_default.webp": {
+   "rect": [
+    -833.43,
+    -373.01,
+    1628.44,
+    1399.44
+   ],
+   "score": 0.964,
+   "zoom": 2,
+   "uncovered": 1.7,
+   "face": [
+    0.5118,
+    0.2273,
+    0.1793
+   ]
+  },
+  "char_422_aurora_default.webp": {
+   "rect": [
+    -776.95,
+    -523.27,
+    1628.44,
+    1399.44
+   ],
+   "score": 0.977,
+   "zoom": 2,
+   "uncovered": 2.81,
+   "face": [
+    0.4771,
+    0.3346,
+    0.2816
+   ]
+  },
+  "char_4230_mcnist_default.webp": {
+   "rect": [
+    -630.45,
+    -568.82,
+    1424.89,
+    1369.23
+   ],
+   "score": 0.963,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.4425,
+    0.3753,
+    0.3331
+   ]
+  },
+  "char_4231_clemnt_default.webp": {
+   "rect": [
+    -815.25,
+    -469.82,
+    1628.44,
+    1424.89
+   ],
+   "score": 0.914,
+   "zoom": 2,
+   "uncovered": 0.25,
+   "face": [
+    0.5006,
+    0.2912,
+    0.2451
+   ]
+  },
+  "char_4235_thumpy_default.webp": {
+   "rect": [
+    -729.85,
+    -637.52,
+    1628.44,
+    1692.06
+   ],
+   "score": 0.954,
+   "zoom": 2,
+   "uncovered": 0.05,
+   "face": [
+    0.4482,
+    0.3443,
+    0.2945
+   ]
+  },
+  "char_423_blemsh_default.webp": {
+   "rect": [
+    -707.33,
+    -476.46,
+    1424.89,
+    1046.4
+   ],
+   "score": 0.859,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.4964,
+    0.4028,
+    0.3529
+   ]
+  },
+  "char_4244_tocka_default.webp": {
+   "rect": [
+    -777.7,
+    -712.11,
+    1628.44,
+    1284.94
+   ],
+   "score": 0.393,
+   "zoom": 2,
+   "uncovered": 4.63,
+   "face": [
+    0.4776,
+    0.5114,
+    0.4447
+   ]
+  },
+  "char_4246_dminon_default.webp": {
+   "rect": [
+    -743.09,
+    -533.44,
+    1628.44,
+    1157.72
+   ],
+   "score": 0.846,
+   "zoom": 2,
+   "uncovered": 12.69,
+   "face": [
+    0.4563,
+    0.4133,
+    0.3667
+   ]
+  },
+  "char_426_billro_default.webp": {
+   "rect": [
+    -692.58,
+    -521.76,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.953,
+   "zoom": 2,
+   "uncovered": 16.05,
+   "face": [
+    0.4253,
+    0.2867,
+    0.2306
+   ]
+  },
+  "char_427_vigil_default.webp": {
+   "rect": [
+    -587.73,
+    -387.81,
+    1221.33,
+    1001.88
+   ],
+   "score": 0.947,
+   "zoom": 1.5,
+   "uncovered": 0.34,
+   "face": [
+    0.4812,
+    0.3322,
+    0.2809
+   ]
+  },
+  "char_430_fartth_default.webp": {
+   "rect": [
+    -780.72,
+    -594.26,
+    1628.44,
+    1653.89
+   ],
+   "score": 0.942,
+   "zoom": 2,
+   "uncovered": 2.55,
+   "face": [
+    0.4794,
+    0.3261,
+    0.2851
+   ]
+  },
+  "char_431_ashlok_default.webp": {
+   "rect": [
+    -832,
+    -599.59,
+    1628.44,
+    1564.83
+   ],
+   "score": 0.84,
+   "zoom": 2,
+   "uncovered": 3.17,
+   "face": [
+    0.5109,
+    0.348,
+    0.3045
+   ]
+  },
+  "char_437_mizuki_default.webp": {
+   "rect": [
+    -683.49,
+    -735.11,
+    1424.89,
+    1647.53
+   ],
+   "score": 0.925,
+   "zoom": 1.75,
+   "uncovered": 0.36,
+   "face": [
+    0.4797,
+    0.4128,
+    0.3711
+   ]
+  },
+  "char_440_pinecn_default.webp": {
+   "rect": [
+    -569.82,
+    -650.06,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.958,
+   "zoom": 2,
+   "uncovered": 21.57,
+   "face": [
+    0.3499,
+    0.3654,
+    0.3115
+   ]
+  },
+  "char_446_aroma_default.webp": {
+   "rect": [
+    -602.37,
+    -862.54,
+    1424.89,
+    1580.74
+   ],
+   "score": 0.94,
+   "zoom": 1.75,
+   "uncovered": 0.04,
+   "face": [
+    0.4227,
+    0.5109,
+    0.4412
+   ]
+  },
+  "char_449_glider_default.webp": {
+   "rect": [
+    -723.04,
+    -671.07,
+    1424.89,
+    1736.58
+   ],
+   "score": 0.955,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5074,
+    0.3548,
+    0.299
+   ]
+  },
+  "char_450_necras_default.webp": {
+   "rect": [
+    -678.39,
+    -490.61,
+    1424.89,
+    1024.14
+   ],
+   "score": 0.865,
+   "zoom": 1.75,
+   "uncovered": 2.65,
+   "face": [
+    0.4761,
+    0.4254,
+    0.3771
+   ]
+  },
+  "char_469_indigo_default.webp": {
+   "rect": [
+    -702.17,
+    -533.12,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.814,
+   "zoom": 2,
+   "uncovered": 6.36,
+   "face": [
+    0.4312,
+    0.2936,
+    0.2393
+   ]
+  },
+  "char_472_pasngr_default.webp": {
+   "rect": [
+    -714.46,
+    -555.24,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.926,
+   "zoom": 2,
+   "uncovered": 9.28,
+   "face": [
+    0.4387,
+    0.3072,
+    0.271
+   ]
+  },
+  "char_473_mberry_default.webp": {
+   "rect": [
+    -686.14,
+    -554.56,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.944,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.4815,
+    0.3506,
+    0.2914
+   ]
+  },
+  "char_474_glady_default.webp": {
+   "rect": [
+    -621.05,
+    -410.9,
+    1628.44,
+    1272.22
+   ],
+   "score": 0.471,
+   "zoom": 2,
+   "uncovered": 33.06,
+   "face": [
+    0.3814,
+    0.2798,
+    0.2394
+   ]
+  },
+  "char_479_sleach_default.webp": {
+   "rect": [
+    -787.69,
+    -583.98,
+    1628.44,
+    1374
+   ],
+   "score": 0.815,
+   "zoom": 2,
+   "uncovered": 6.25,
+   "face": [
+    0.4837,
+    0.385,
+    0.3297
+   ]
+  },
+  "char_485_pallas_default.webp": {
+   "rect": [
+    -712.83,
+    -639.93,
+    1424.89,
+    1424.89
+   ],
+   "score": 0.872,
+   "zoom": 1.75,
+   "uncovered": 0,
+   "face": [
+    0.5003,
+    0.4105,
+    0.3509
+   ]
+  },
+  "char_491_humus_default.webp": {
+   "rect": [
+    -797.97,
+    -494.36,
+    1628.44,
+    1310.39
+   ],
+   "score": 0.978,
+   "zoom": 2,
+   "uncovered": 9.03,
+   "face": [
+    0.49,
+    0.3353,
+    0.2856
+   ]
+  },
+  "char_494_vendla_default.webp": {
+   "rect": [
+    -762.87,
+    -616.85,
+    1628.44,
+    1450.33
+   ],
+   "score": 0.976,
+   "zoom": 2,
+   "uncovered": 3.37,
+   "face": [
+    0.4685,
+    0.3874,
+    0.3334
+   ]
+  },
+  "char_496_wildmn_default.webp": {
+   "rect": [
+    -911.21,
+    -627.7,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.773,
+   "zoom": 2,
+   "uncovered": 0.82,
+   "face": [
+    0.5596,
+    0.3517,
+    0.3156
+   ]
+  },
+  "char_498_inside_default.webp": {
+   "rect": [
+    -968.9,
+    -488.12,
+    1628.44,
+    1628.44
+   ],
+   "score": 0.805,
+   "zoom": 2,
+   "uncovered": 13.56,
+   "face": [
+    0.595,
+    0.266,
+    0.223
+   ]
+  },
+  "char_601_cguard_default.webp": {
+   "rect": [
+    -735.34,
+    -387.83,
+    1628.44,
+    2798.89
+   ],
+   "score": 0.412,
+   "zoom": 2,
+   "uncovered": 39.32,
+   "face": [
+    0.4516,
+    0.1304,
+    0.0604
+   ]
+  },
+  "char_602_cdfend_default.webp": {
+   "rect": [
+    -814.22,
+    -691.76,
+    1221.33,
+    2051.46
+   ],
+   "score": 0.392,
+   "zoom": 1.5,
+   "uncovered": 12.38,
+   "face": [
+    0.7437,
+    0.3104,
+    0.2892
+   ]
+  },
+  "char_603_csnipe_default.webp": {
+   "rect": [
+    -495.49,
+    -335.9,
+    1424.89,
+    2393.37
+   ],
+   "score": 0.376,
+   "zoom": 1.75,
+   "uncovered": 52.41,
+   "face": [
+    0.3477,
+    0.1241,
+    0.0504
+   ]
+  },
+  "char_604_ccast_default.webp": {
+   "rect": [
+    -407.11,
+    -891.68,
+    977.07,
+    2373.97
+   ],
+   "score": 0.53,
+   "zoom": 1.2,
+   "uncovered": 15.02,
+   "face": [
+    0.1822,
+    0.3525,
+    0.3392
+   ]
+  },
+  "char_605_cmedic_default.webp": {
+   "rect": [
+    -809.48,
+    -221.05,
+    1628.44,
+    5101.61
+   ],
+   "score": 0.47,
+   "zoom": 2,
+   "uncovered": 21.07,
+   "face": [
+    0.4971,
+    0.0182,
+    0.0042
+   ]
+  },
+  "char_606_csuppo_default.webp": {
+   "rect": [
+    -695.42,
+    -892.53,
+    1628.44,
+    3829.39
+   ],
+   "score": 0.434,
+   "zoom": 2,
+   "uncovered": 6.28,
+   "face": [
+    0.427,
+    0.2187,
+    0.1987
+   ]
+  },
+  "char_608_acpion_default.webp": {
+   "rect": [
+    -836.26,
+    -307,
+    1628.44,
+    2595.33
+   ],
+   "score": 0.987,
+   "zoom": 2,
+   "uncovered": 51.12,
+   "face": [
+    0.5135,
+    0.107,
+    0.0353
+   ]
+  },
+  "char_609_acguad_default.webp": {
+   "rect": [
+    -773.22,
+    -262.1,
+    1424.89,
+    2270.92
+   ],
+   "score": 0.309,
+   "zoom": 1.75,
+   "uncovered": 59.77,
+   "face": [
+    0.5427,
+    0.0968,
+    0.0206
+   ]
+  },
+  "char_610_acfend_default.webp": {
+   "rect": [
+    -539.78,
+    -1116.48,
+    1628.44,
+    2913.39
+   ],
+   "score": 0.277,
+   "zoom": 2,
+   "uncovered": 12.05,
+   "face": [
+    0.3315,
+    0.3644,
+    0.3462
+   ]
+  },
+  "char_611_acnipe_default.webp": {
+   "rect": [
+    -856.67,
+    -241.05,
+    1424.89,
+    2337.71
+   ],
+   "score": 0.559,
+   "zoom": 1.75,
+   "uncovered": 54.4,
+   "face": [
+    0.6012,
+    0.0848,
+    0.011
+   ]
+  },
+  "char_612_accast_default.webp": {
+   "rect": [
+    -1016.86,
+    -1236.06,
+    1628.44,
+    2709.83
+   ],
+   "score": 0.561,
+   "zoom": 2,
+   "uncovered": 13.83,
+   "face": [
+    0.6244,
+    0.4359,
+    0.396
+   ]
+  },
+  "char_613_acmedc_default.webp": {
+   "rect": [
+    -582.77,
+    -352.03,
+    1424.89,
+    2081.67
+   ],
+   "score": 0.635,
+   "zoom": 1.75,
+   "uncovered": 46.61,
+   "face": [
+    0.409,
+    0.1501,
+    0.0657
+   ]
+  },
+  "char_614_acsupo_default.webp": {
+   "rect": [
+    -744.11,
+    -1431.49,
+    1628.44,
+    2722.56
+   ],
+   "score": 0.553,
+   "zoom": 2,
+   "uncovered": 28.84,
+   "face": [
+    0.4569,
+    0.5056,
+    0.4863
+   ]
+  },
+  "char_615_acspec_default.webp": {
+   "rect": [
+    -639.36,
+    -2129.17,
+    1628.44,
+    3753.06
+   ],
+   "score": 0.492,
+   "zoom": 2,
+   "uncovered": 26.74,
+   "face": [
+    0.3926,
+    0.5527,
+    0.5386
+   ]
+  },
+  "char_616_pithst_default.webp": {
+   "rect": [
+    -695.42,
+    -892.53,
+    1628.44,
+    3829.39
+   ],
+   "score": 0.434,
+   "zoom": 2,
+   "uncovered": 6.28,
+   "face": [
+    0.427,
+    0.2187,
+    0.1987
+   ]
+  },
+  "char_617_sharp2_default.webp": {
+   "rect": [
+    -773.22,
+    -262.1,
+    1424.89,
+    2270.92
+   ],
+   "score": 0.309,
+   "zoom": 1.75,
+   "uncovered": 59.77,
+   "face": [
+    0.5427,
+    0.0968,
+    0.0206
+   ]
+  }
+ }
+}

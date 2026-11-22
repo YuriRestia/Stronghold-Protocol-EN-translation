@@ -532,8 +532,9 @@ picture or a missing placement), placed by `dynCards.js CardArt` from `data/card
 `tools/card-art-framing.mjs`: an illustration's full art registered on the illustration itself at the card framing
 (image matching on its zoom-1 render) and moved with that illustration's own framing value, so the art the dissolve
 starts from sits where the illustration draws; a still-only full art framed with the same face rule, its face from the
-official portrait found inside it (the portraits put the eyes at about a third of their height). The dissolve composes a
-placed art at its own box (`object-fit: fill`) inside the card.
+official portrait found inside it (the portraits put the eyes at about a third of their height), up to 2× (`STILL_ZOOMS`:
+a still sits in a wide torn frame; of 440 stills 168 still leave over 5 % of the card bare at 2×, measured 2026-11-23).
+The dissolve composes a placed art at its own box (`object-fit: fill`) inside the card.
 Which pages (the user's choice of 2026-11-22, "automatic by card size"): each card measures its art window and wants half
 pages while it is drawn at most `HALF_MAX_SCALE` 1 device px per unit of the official 232 × 458 window (measured: there half
 kept 74–100 % of full's detail, above it 36–82 %), full above; the page uses full while any card wants full (the renderer's
@@ -546,6 +547,10 @@ screen's team page 4 at a time, the room 4 seats, the Grand Alliance room 8 — 
 operator in that outfit, 动态立绘 on 所有人; PC or a landscape phone frame (half pages), page by page; review-only buttons
 play the special idle or Start now, replay the entrance, and throttle the connection (`&slow=<MB/s>`) to show the late
 switch; `&tier=half|full` picks the page tier on any device (the half-size comparison); `__review.measure(s)` reports the frame intervals for the §7 gates and `&off` gives the 2D baseline.
+On the room and Grand Alliance pages each wide card has a Zoomed / Unzoomed switch (the user, 2026-11-23): it reframes
+the mounted card in place (the renderer's `setFraming`, §33.19) and its 2D art with it, kept per illustration in the
+browser (`dynReview.zoomDecisions`) and exported as `dyn-zoom-decisions.json`; Prev / Next change the page without a
+reload, the illustrations of the page left behind freed.
 (fork) **The result card's entrance** (`ui/cardEntrance.js`, the user's go of 2026-11-22) is the client's own: the clip
 `auto_chess_settle_game_player_item_show` (25 float curves, 1.31667 s — a legacy clip runs to its last key) played once,
 linearly, after the card's place in the row × `_animDelay` 0.083 s (`_PlayShowCardAnim`, GameAssembly.dll 0x28E0C60). It

@@ -8,7 +8,7 @@ const stage = {
   preload: () => Promise.resolve(),
   release() {},
   mount() {
-    const card = { canvas: null, ready: Promise.resolve(false), state: 'failed', start() {}, unmount() { card.state = 'unmounted'; } };
+    const card = { canvas: null, ready: Promise.resolve(false), state: 'failed', start() {}, setFraming() {}, unmount() { card.state = 'unmounted'; } };
     return card;
   },
 };
