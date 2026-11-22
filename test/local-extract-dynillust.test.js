@@ -117,6 +117,24 @@ print(json.dumps([res, ex.dyn_selected(['dynillust']), ex.dyn_selected(['fx']), 
   assert.deepEqual([on, fxOnly, none], [true, false, false]);
 });
 
+const HAS_PIL = !!PY && spawnSync(PY, ['-c', 'import PIL'], { encoding: 'utf8' }).status === 0;
+
+test('half pages: the premultiplied 2 × 2 mean — premultiplied pages per channel, straight pages via premultiply',
+  { skip: !HAS_PIL && 'Pillow is not installed for this Python (tools/local-extract/requirements.txt)' }, () => {
+  // one opaque white texel beside three transparent black ones: a premultiplied page halves to an even grey with the
+  // same alpha (rgb ≤ a); a straight page keeps white colour at a quarter alpha. The old path premultiplied twice and
+  // gave the premultiplied page white at a quarter alpha (the half tier's pale fringes).
+  const got = py(`from PIL import Image
+im = Image.new('RGBA', (2, 2), (0, 0, 0, 0)); im.putpixel((0, 0), (255, 255, 255, 255))
+print(json.dumps([dy.half_page(im, False).getpixel((0, 0)), dy.half_page(im, True).getpixel((0, 0)), dy.half_page(Image.new('RGBA', (5, 3)), False).size]))`);
+  const [pma, straight, odd] = got;
+  assert.ok(Math.max(...pma.slice(0, 3)) <= pma[3], `premultiplied half keeps rgb <= a: ${pma}`);
+  assert.ok(Math.abs(pma[3] - 64) <= 1, `alpha is the mean: ${pma}`);
+  assert.deepEqual(straight.slice(0, 3), [255, 255, 255]);
+  assert.ok(Math.abs(straight[3] - 64) <= 1, `straight alpha is the mean: ${straight}`);
+  assert.deepEqual(odd, [2, 1]);
+});
+
 test('--print-jobs lists dynillust as an opt-in set with its index version', () => {
   const r = spawnSync(PY ?? 'python3', ['-B', 'tools/local-extract/extract.py', '--print-jobs'], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
