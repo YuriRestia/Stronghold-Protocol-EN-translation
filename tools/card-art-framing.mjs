@@ -241,7 +241,8 @@ async function capture() {
         const live = await arts[i].$('.dyn-art__live');
         if (st !== 'live' || !live) continue;
         const b = await live.boundingBox();
-        const buf = await page.screenshot({ clip: { x: b.x, y: b.y, width: b.width, height: b.height }, type: 'jpeg', quality: 92 });
+        // captureBeyondViewport false: a clipped capture beyond the viewport smeared random cards (Dev 50, 2026-11-23)
+        const buf = await page.screenshot({ clip: { x: b.x, y: b.y, width: b.width, height: b.height }, captureBeyondViewport: false, type: 'jpeg', quality: 92 });
         bytes += buf.length;
         if (bytes > BYTES) throw new Error('capture size cap');
         const key = info.keys[i];
