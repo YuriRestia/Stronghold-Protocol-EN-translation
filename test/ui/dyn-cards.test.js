@@ -243,6 +243,25 @@ test('the group shows only after FLIP_SMOOTH_FRAMES smooth frames in a row with 
   } finally { F.restore(); }
 });
 
+test('with the cards drawn in Workers, the group also waits for every Worker\'s card frames to run smooth', async () => {
+  const F = fakeFrames();
+  let logs = [[], []];
+  setDynModule({ getDynIllustStage: () => ({ workers: [1, 2], frames() {}, frameLog: () => Promise.resolve(logs) }), dynIllustKey: () => null });
+  try {
+    const shows = [];
+    const e = { card: { start() {} }, show: () => shows.push('a'), state: 'loading', alone: false };
+    joinGroup(e); groupState(e, 'ready');
+    const tick = async () => { F.tick(16); await Promise.resolve(); await Promise.resolve(); };
+    // [start ms, frame ms, live slots] per Worker: the first at 60 fps, the second at 25 fps
+    const run = (n, dt) => Array.from({ length: n }, (_, i) => [i * dt, 5, 1]);
+    for (let i = 0; i < 60; i++) { logs = [run(16, 16), run(8, 40)]; await tick(); }
+    assert.deepEqual(shows, [], 'the main thread is smooth, but a Worker at 25 fps holds the group');
+    for (let i = 0; i < 40; i++) { logs = [run(16, 16), run(16, 16)]; await tick(); }
+    assert.deepEqual(shows, ['a'], 'every Worker smooth: it shows');
+    leaveGroup(e);
+  } finally { F.restore(); setDynModule(null); }
+});
+
 test('the group shows one card after another in page order, the result row\'s step apart', () => {
   const F = fakeFrames();
   try {

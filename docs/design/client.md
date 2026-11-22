@@ -448,7 +448,9 @@ The room's and the Grand Alliance room's cards switch together (the user, 2026-1
 the same time; `joinGroup`): each keeps its 2D art until every card on the screen is ready or failed, then all start in
 one frame behind their 2D art ("wait until it's ready, then play the animation and switch the live 2d in in the back"),
 and show in one frame only once `FLIP_SMOOTH_FRAMES` 10 frames in a row took at most `FLIP_SMOOTH_MS` (30 fps) — the
-renderer's first frames with the whole group live are its slow ones — [ASSUMED: proposed, not yet OK'd]. Showing is the
+renderer's first frames with the whole group live are its slow ones — on the main thread and, where the cards draw in
+Workers, in every Worker's card-frame log too (`whenSmooth`, read every 250 ms while the group waits)
+[ASSUMED: proposed, not yet OK'd]. Showing is the
 official card's dissolve (the user's pick of 2026-11-22): the illustration and its background appear at once behind the
 2D art, and the art box as it shows — its background, then the 2D art at its object-fit cover crop and filter, composed
 on a canvas while the cards wait — dissolves away over
@@ -462,7 +464,9 @@ sparks (`makeSparks`, the user's "particle effects that runs with the border"): 
 leading edge, over the old picture, they burst off at about the edge's own speed, slow and fade (`SPARKS`)
 [ASSUMED: the band's width and brightness, the glow and its fade, the sparks tuned to the user's descriptions, not yet
 OK'd]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
-the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); the cards go
+the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); while they play, every card's dissolve
+and bloom are drawn in one GL pass a frame (`batchDissolve` / `batchBloom` / `flushBatch`, tiles in one canvas); a card
+that gave up shows `data-dyn="kept"`; the cards go
 one after another in page order, the result row's 0.083 s apart
 (`FLIP_STEP_S` = `_animDelay`; the user, 2026-11-22: "one player card at a time, in quick succession"). The official card
 has no switch from 2D to its illustration; this reuses its reveal. Without WebGL2, the sprites or under reduced motion,
