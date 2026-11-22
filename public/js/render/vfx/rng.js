@@ -29,6 +29,61 @@ export function hashRand(s, f) {
   return (h >>> 0) / 4294967296;
 }
 
+// (fork) The engine's own particle randoms, for the fields whose rule is read from the client [src: official
+// UnityPlayer.dll 2021.3.39 game build with its UnityPlayer.pdb; addresses as dbh lists them]. Unity's Random:
+// x = seed, y = x·1812433253 + 1, z = y·…+1, w = z·…+1; a draw is t = x ^ (x << 11), (x, y, z) ← (y, z, w),
+// w ← w ^ (w >>> 19) ^ t ^ (t >>> 8) (the state init 0x1abf460; the xorshift inlined at its callers). A system's
+// particle seeds come from its InitialModule's four such generators, lane i seeded with the system seed + 0x16f·i
+// (RandN::SetSeed 0x1491090, InitialModule::ResetSeed 0x1b0aec0, from ParticleSystem::ResetSeeds at Play);
+// InitialModule::Start (0x1b0b9f0–0x1b0ba65) draws all four lanes once per four new particles of one emission call,
+// the call's particle j taking lane j mod 4. A field's random is the first draw of Random(particle seed + the field's
+// constant), its low 23 bits / 2^23 (the texture sheet's: UpdateSingleRow2Tpl / UpdateWholeSheet2Tpl, the constants
+// at 0x28a2210, 0x28a2220, 0x28a2230: frame over time, start frame, row).
+const UNITY_K = 0x6c078965;
+
+function unityState(s, st) {
+  st[0] = s >>> 0;
+  st[1] = (Math.imul(st[0], UNITY_K) + 1) >>> 0;
+  st[2] = (Math.imul(st[1], UNITY_K) + 1) >>> 0;
+  st[3] = (Math.imul(st[2], UNITY_K) + 1) >>> 0;
+  return st;
+}
+
+function unityDraw(st) {
+  const x = st[0], w = st[3];
+  const t = (x ^ (x << 11)) >>> 0;
+  st[0] = st[1]; st[1] = st[2]; st[2] = w;
+  return (st[3] = (w ^ (w >>> 19) ^ t ^ (t >>> 8)) >>> 0);
+}
+
+const _ust = new Uint32Array(4);
+
+/** Unity's random of the field with constant `c` (UR) of the particle with engine seed `s`: [0, 1). */
+export function unityRand(s, c) {
+  return (unityDraw(unityState((s + c) >>> 0, _ust)) & 0x7fffff) / 8388608;
+}
+
+/** The field constants of unityRand. */
+export const UR = Object.freeze({ START_FRAME: 0x56b3dbb0, FRAME: 0x13740583, ROW: 0xaf502044 });
+
+/** A system's particle seeds as the engine hands them out (see above): `.batch()` starts an emission call. */
+export class UnitySeeds {
+  constructor(seed) {
+    this.lanes = [0, 1, 2, 3].map((i) => unityState((seed + 0x16f * i) >>> 0, new Uint32Array(4)));
+    this.out = new Uint32Array(4);
+    this.lane = 4;
+  }
+
+  /** A new emission call: its first particle takes lane 0 of a fresh draw. */
+  batch() { this.lane = 4; }
+
+  /** The engine seed of the call's next particle. */
+  next() {
+    if (this.lane >= 4) { for (let i = 0; i < 4; i++) this.out[i] = unityDraw(this.lanes[i]); this.lane = 0; }
+    return this.out[this.lane++];
+  }
+}
+
 /** Field ids of hashRand (one per particle property that keeps a random number). */
 export const RF = Object.freeze({
   LIFETIME: 0, SPEED: 1, SIZE: 2, SIZE_Y: 3, SIZE_Z: 4, ROT: 5, ROT_X: 6, ROT_Y: 7, COLOR: 8, GRAVITY: 9,
