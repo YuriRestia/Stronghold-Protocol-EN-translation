@@ -522,7 +522,7 @@ export function leaveGroup(e) {
  * keeps its 2D art and switches when it is ready (D11). No tap action (D9).
  * @param {{ art: { charId: string, outfit: string|null } | null, animate: boolean, wait?: 'now'|'settled', backdrop?: boolean, class?: string, children?: any }} props
  *   wait: 'now' mounts at once (the result screen: loaded in the pause), 'settled' once the screen has what it needs (room)
- *   backdrop: the official card background behind the live illustration (BACKDROP; the room and Grand Alliance cards)
+ *   backdrop: the official card background behind the live illustration (BACKDROP; a tall card of the official shape)
  */
 export function IllustArt({ art, animate, wait = 'now', backdrop = false, class: cls = '', children }) {
   const on = !!(animate && art);
@@ -716,8 +716,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
   const bg = backdrop && placed ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
   return html`<div ref=${root} class=${`dyn-art${placed ? ' is-live' : ''}${wait === 'settled' ? ' dyn-art--flip' : ''}${reveal === 'dissolve' ? ' dyn-art--dissolve' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${vis}>
     <div class="dyn-art__still">${children}</div>
-    ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg)}></i></div>` : null}
-    ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
+    ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg)}></i></div>` : null}    ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
     ${on && wait === 'settled' ? html`<canvas class="dyn-art__dissolve" ref=${dis} aria-hidden="true"></canvas><canvas class="dyn-art__wash" ref=${wash} aria-hidden="true"></canvas>` : null}
   </div>`;
 }

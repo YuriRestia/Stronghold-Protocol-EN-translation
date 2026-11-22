@@ -118,16 +118,24 @@ export function normalizeSeats(room) {
 export function isLargeRoom(room) { return Number.isInteger(room?.capacity) && room.capacity > MAX_SEATS; }
 
 /**
- * (fork) A large room's seat cards in their two squads (seats 1–4 = A, 5–8 = B), each under its label; any other room's
- * cards as they are.
+ * (fork) A large room's seat cards in their two squads (seats 1–4 = A, 5–8 = B), each under its heading line — the
+ * squad's name, a rule and its doctors' ready count (the bar's count, per squad; the user's pick of 2026-11-22); any other
+ * room's cards as they are.
  */
-function squadGroups(room, cards) {
+function squadGroups(room, facts, cards) {
   // msgid 小队 {name} — en: "Squad {name}"
   if (!isLargeRoom(room)) return cards;
-  return [0, 1].map((sq) => html`<section key=${`sq${sq}`} class="rs-squad" data-squad=${sq ? 'B' : 'A'}>
-    <h3 class="rs-squad__k">${t('小队 {name}', { name: sq ? 'B' : 'A' })}</h3>
-    <div class="rs-squad__cards">${cards.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS)}</div>
-  </section>`);
+  return [0, 1].map((sq) => {
+    const humans = facts.seats.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS).filter((s) => s && !s.isBot);
+    return html`<section key=${`sq${sq}`} class="rs-squad" data-squad=${sq ? 'B' : 'A'}>
+      <header class="rs-squad__head">
+        <h3 class="rs-squad__k">${t('小队 {name}', { name: sq ? 'B' : 'A' })}</h3>
+        <i class="rs-squad__rule" aria-hidden="true"></i>
+        ${humans.length ? html`<span class="rs-squad__ready num"><b>${humans.filter(facts.isReady).length}</b>/${humans.length} ${t('已就绪')}</span>` : null}
+      </header>
+      <div class="rs-squad__cards">${cards.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS)}</div>
+    </section>`;
+  });
 }
 
 /**
@@ -345,21 +353,41 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
   const canPick = isMe && !seat.isBot && !!onPickCard;
   // an AI teammate's name without its 「AI·」 prefix on a phone (room.css; botNameParts)
   const botPrefix = botNameParts(seat);
+  // (fork) a co-op room's wide card (the user's layout I of 2026-11-22, the 4-seat room like it the same day): nothing over
+  // the art — the ready state, the AI tag and the buttons sit in the name plate, the host's 创建者 is a crown on the card's
+  // top edge, one's own card a ring (room.css .rs-seats--wide); the solo room keeps its tall card beside the briefing
+  const wide = coop;
+  const botTag = seat.isBot ? html`<span class="rseat__bot"><${Icon} name="robot" />${t('AI 队友')}</span>` : null;
+  const pickBtn = canPick ? html`<button type="button" class="rseat__pick" data-testid="seat-card-pick" onClick=${onPickCard}
+    title=${t('更换名片干员')} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null;
+  const stateBox = html`<span class=${`rseat__state seat__state--${state}`}>
+    <span class="rseat__box">${lit ? html`<${Icon} name="check" />` : null}</span>
+    <span class="rseat__said">${state === 'ready' ? t('已就绪') : state === 'host' ? t('待命中') : state === 'offline' ? t('连接中断') : t('准备中')}</span>
+  </span>`;
+  const seatBtns = html`${large && facts.isHost && !swapping ? html`<button type="button" class="rseat__swap" data-testid="seat-swap" onClick=${() => onSwap?.(index, null)}
+      title=${t('与另一个座位交换')} aria-label=${t('与另一个座位交换')}><${Icon} name="swap" /></button>` : null}
+    ${swapping && swapFrom === index ? html`<button type="button" class="rseat__swap is-on" onClick=${() => onSwap?.(null, null)}
+      title=${t('取消交换')} aria-label=${t('取消交换')}><${Icon} name="close" /></button>` : null}
+    ${seat.isBot && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `rm${index}`} onClick=${() => onRemoveBot(index)}
+      title=${t('移除该 AI 队友')} aria-label=${t('移除 AI 队友')}><${Icon} name="robot" /><${Icon} name="close" /></button>` : null}
+    ${!seat.isBot && !isMe && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `kick${index}`}
+      onClick=${() => onKick(index, seat.name, seat.playerId)} title=${t('将该博士移出同盟')} aria-label=${t('移出该博士')}><${Icon} name="user" /><${Icon} name="close" /></button>` : null}`;
   return html`<article class=${`seat rseat${isMe ? ' is-me' : ''}${isHostSeat ? ' is-host' : ''}${seat.isBot ? ' is-bot' : ''}${art ? ' has-art' : ''}${lit ? ' is-lit' : ''}${flash ? ' is-flash' : ''} is-${state}`}
       style=${`--i:${index}`}>
-    <span class="rseat__clip" aria-hidden="true"></span>
+    ${wide && isHostSeat
+      ? html`<span class="rseat__crown" role="img" aria-label=${t('创建者')} title=${t('创建者')}><${Icon} name="crown" /></span>`
+      : html`<span class="rseat__clip" aria-hidden="true"></span>`}
     <header class="rseat__strip"><i></i><span class="num">P${index + 1}</span></header>
     <div class="seat__art rseat__art">
       ${art
-        ? html`<${IllustArt} art=${illust?.art || null} animate=${!!illust?.animate} wait="settled" backdrop class="rseat__dyn">
+        ? html`<${IllustArt} art=${illust?.art || null} animate=${!!illust?.animate} wait="settled" backdrop=${!wide} class="rseat__dyn">
             <img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />
           </${IllustArt}>`
         : html`<${AvatarFrame} size="xl" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}
       <div class="rseat__top">
-        ${isHostSeat ? html`<span class="rseat__host"><${Icon} name="crown" />${t('创建者')}</span>` : null}
-        ${seat.isBot ? html`<span class="rseat__bot"><${Icon} name="robot" />${t('AI 队友')}</span>` : null}
-        ${canPick ? html`<button type="button" class="rseat__pick" data-testid="seat-card-pick" onClick=${onPickCard}
-          title=${t('更换名片干员')} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null}
+        ${isHostSeat && !wide ? html`<span class="rseat__host"><${Icon} name="crown" />${t('创建者')}</span>` : null}
+        ${wide ? null : botTag}
+        ${wide ? null : pickBtn}
         ${consent ? html`<span class="rseat__tag" data-testid="script-consented">${t('已同意')}</span>` : null}
         ${facts.needsContent && !seat.isBot ? html`<span class=${`rseat__tag seat__content is-${seat.content || 'loading'}`} data-testid="seat-content">
           ${facts.versionRoom
@@ -367,36 +395,30 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
             : seat.content === 'ready' ? t('插件内容就绪') : seat.content === 'failed' ? t('插件内容校验失败') : t('插件内容载入中')}
         </span>` : null}
       </div>
-      ${offline ? html`<span class="rseat__lost"><${Icon} name="wifiOff" />${t('连接中断')}</span>` : null}
+      ${offline && !wide ? html`<span class="rseat__lost"><${Icon} name="wifiOff" />${t('连接中断')}</span>` : null}
       ${bubble ? html`<div class="rseat__bubble" data-testid="seat-bubble">${bubble.text != null
         ? html`<${ChatBubble} key=${bubble.seq} text=${bubble.text} at=${bubble.at} ttl=${bubble.ttl} />`
         : html`<${EmoteBubble} key=${bubble.seq} id=${bubble.id} />`}</div>` : null}
-      <div class="rseat__low">
+      ${wide && art ? html`<span class="seat__op sr-only">${operator?.name || ''}</span>` : null}
+      ${wide ? null : html`<div class="rseat__low">
         ${art ? html`<span class="seat__op">${operator?.name || ''}</span>` : null}
-        <span class=${`rseat__state seat__state--${state}`}>
-          <span class="rseat__box">${lit ? html`<${Icon} name="check" />` : null}</span>
-          <span class="rseat__said">${state === 'ready' ? t('已就绪') : state === 'host' ? t('待命中') : state === 'offline' ? t('连接中断') : t('准备中')}</span>
-        </span>
-      </div>
+        ${stateBox}
+      </div>`}
     </div>
-    ${large && facts.isHost && !swapping ? html`<button type="button" class="rseat__swap" data-testid="seat-swap" onClick=${() => onSwap?.(index, null)}
-      title=${t('与另一个座位交换')} aria-label=${t('与另一个座位交换')}><${Icon} name="swap" /></button>` : null}
-    ${swapping && swapFrom === index ? html`<button type="button" class="rseat__swap is-on" onClick=${() => onSwap?.(null, null)}
-      title=${t('取消交换')} aria-label=${t('取消交换')}><${Icon} name="close" /></button>` : null}
+    ${wide ? null : seatBtns}
     ${swapping && swapFrom !== index ? html`<div class="rseat__swapbox">${swapHere}</div>` : null}
-    ${seat.isBot && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `rm${index}`} onClick=${() => onRemoveBot(index)}
-      title=${t('移除该 AI 队友')} aria-label=${t('移除 AI 队友')}><${Icon} name="robot" /><${Icon} name="close" /></button>` : null}
-    ${!seat.isBot && !isMe && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `kick${index}`}
-      onClick=${() => onKick(index, seat.name, seat.playerId)} title=${t('将该博士移出同盟')} aria-label=${t('移出该博士')}><${Icon} name="user" /><${Icon} name="close" /></button>` : null}
     <div class="rseat__plate">
-      ${isMe ? html`<span class="rseat__me" role="img" aria-label=${t('你')} title=${t('你')}><${Icon} name="info" /></span>` : null}
+      ${isMe && !wide ? html`<span class="rseat__me" role="img" aria-label=${t('你')} title=${t('你')}><${Icon} name="info" /></span>` : null}
+      ${isMe && wide ? html`<span class="sr-only">${t('你')}</span>` : null}
       ${isMe && !seat.isBot && onPickAvatar
         ? html`<button type="button" class="avedit rseat__face" data-testid="seat-avatar-pick" onClick=${onPickAvatar}
             title=${/* en: "Change profile icon" */ t('更换头像')} aria-label=${t('更换头像')}>
             <${AvatarFrame} size="sm" name=${seat.name} src=${iconSrc} seat=${index} self=${isMe} />
             <span class="avedit__pen" aria-hidden="true"><${Icon} name="edit" /></span></button>`
         : html`<${AvatarFrame} size="sm" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} />`}
-      <span class="rseat__who"><b class="seat__name">${botPrefix ? html`<span class="seat__name-pre">${botPrefix[0]}</span>${botPrefix[1]}` : seat.name || t('博士')}</b>${isMe ? html`<span class="seat__you" aria-hidden="true">${t('你')}</span>` : null}</span>
+      <span class="rseat__who"><b class="seat__name">${botPrefix ? html`<span class="seat__name-pre">${botPrefix[0]}</span>${botPrefix[1]}` : seat.name || t('博士')}</b>${isMe && !wide ? html`<span class="seat__you" aria-hidden="true">${t('你')}</span>` : null}</span>
+      ${wide ? html`<span class="rseat__num num" aria-hidden="true">P${index + 1}</span>
+        <span class="rseat__acts">${botTag}${stateBox}${pickBtn}${seatBtns}</span>` : null}
       <small class="rseat__doc">${seat.isBot ? 'AUTONOMOUS UNIT' : `DOCTOR #${doctorNo(seat.playerId)}`}</small>
       ${chatOn && !isMe && !seat.isBot ? html`<${ChatMuteButton} player=${seat} muted=${muted} class="team__mute rseat__mute" />` : null}
     </div>
@@ -872,8 +894,8 @@ export function RoomScreen() {
       </div>
     </header>
 
-    <main class=${`seats rs-seats${coop ? '' : ' seats--solo'}${isLargeRoom(room) ? ' rs-seats--large' : ''}`}>
-      ${squadGroups(room, facts.seats.map((s, i) => {
+    <main class=${`seats rs-seats${coop ? ' rs-seats--wide' : ' seats--solo'}${isLargeRoom(room) ? ' rs-seats--large' : ''}`}>
+      ${squadGroups(room, facts, facts.seats.map((s, i) => {
         const op = seatOperator(s, cards, { myId: me.playerId, myCard });
         // the player's outfit for that operator (header "Outfits"); null = the default art
         const skin = op ? seatCardSkin(s, op.chess.charId, { myId: me.playerId, localSkins, players: facts.occupied, otherSkins }) : null;

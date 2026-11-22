@@ -165,6 +165,9 @@ function measure(secs = 5) {
 }
 globalThis.__review = { special: () => act('special'), start: () => act('start'), replay: () => { replay++; draw(); }, state: () => review, measure };
 
+const viewportText = () => `Window ${innerWidth}×${innerHeight} @${+(devicePixelRatio || 1).toFixed(3)}`;
+addEventListener('resize', () => { const el = bar?.querySelector('[data-vp]'); if (el) el.textContent = viewportText(); });
+
 function renderBar(target) {
   if (SHOT || !bar) return;
   const total = review ? review.pages.length : 0;
@@ -178,6 +181,8 @@ function renderBar(target) {
     + '<span class="sep"></span>' + btn('Special idle now', false, 'special') + btn('Start now', false, 'start') + btn('Replay entrance', false, 'replay')
     + btn(SLOW ? `Slow ${SLOW} MB/s` : 'Slow connection', !!SLOW, 'slow')
     + btn(TIER === 'half' ? 'Half-size art' : 'Half-size art: off', TIER === 'half', 'tier')
+    // the window as this browser sees it (CSS px and the pixel ratio): the screens the review captures are taken at
+    + `<span class="sep"></span><span data-vp>${viewportText()}</span>`
     + `<span class="names">${review ? (review.pages[page] || []).map((e, i) => `${i + 1}. ${review.allNames[page]?.[i] || e.charId}`).join(' · ') : 'loading…'}</span>`;
   bar.onclick = (ev) => {
     const a = ev.target.closest('button')?.dataset.act;
