@@ -101,6 +101,8 @@ function handle(m) {
       const c = stage.mount(m.key, {
         canvas: m.canvas,
         box: m.box || null,
+        framing: m.framing,
+        centre: m.centre,
         onState: (s) => post({ t: 'state', id: m.id, s }),
         onOpacity: (a) => post({ t: 'opacity', id: m.id, a }),
       });

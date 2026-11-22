@@ -101,6 +101,16 @@ describe('DynIllustHost', () => {
     assert.deepEqual(next.map((c) => c.worker.i), [0, 1, 0]);
   });
 
+  test('the home framing goes to the Worker with the card (mount option framing / centre)', async () => {
+    const H = new DynIllustHost({ workers: 1, manifest: async () => ({ groups: { dynillust: { a: {} } } }) });
+    await H.ready;
+    H.mount('a', { framing: 'home', centre: 'illust' });
+    H.mount('a');
+    await tick();
+    const m = FakeWorker.all[0].sent.filter((x) => x.t === 'mount');
+    assert.deepEqual(m.map((x) => [x.framing, x.centre]), [['home', 'illust'], ['card', undefined]]);
+  });
+
   test('a card follows its Worker: states, ready(), start()', async () => {
     const H = new DynIllustHost({ workers: 1, manifest: async () => ({ groups: { dynillust: { a: {} } } }) });
     await H.ready;

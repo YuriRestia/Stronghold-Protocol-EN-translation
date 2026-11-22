@@ -292,6 +292,8 @@ class HostCard {
     this.key = key;
     this.id = ++H._id;
     this.onState = typeof o.onState === 'function' ? o.onState : null;
+    // the card's framing (DynIllustStage.mount: 'card' | 'home', centre), passed on as it is
+    this.framing = { framing: o.framing === 'home' ? 'home' : 'card', centre: o.centre };
     this.state = 'loading';
     this.started = false;
     this.worker = null;
@@ -315,7 +317,7 @@ class HostCard {
     if (this.state === 'unmounted') { this._ready(false); return; }
     const H = this.H;
     if (H.fallback) {
-      this.inner = H.fallback.mount(this.key, { canvas: this.canvas, onState: (s) => this._set(s) });
+      this.inner = H.fallback.mount(this.key, { ...this.framing, canvas: this.canvas, onState: (s) => this._set(s) });
       if (this.started) this.inner.start();
       this.inner.ready.then((ok) => this._ready(ok));
       return;
@@ -326,7 +328,7 @@ class HostCard {
     // the size now, if the screen placed the canvas already (the observer's first report follows)
     if (this.canvas.isConnected) this._resized(this.canvas.getBoundingClientRect(), false);
     const off = this.canvas.transferControlToOffscreen();
-    w.w.postMessage({ t: 'mount', id: this.id, key: this.key, canvas: off, box: this.box }, [off]);
+    w.w.postMessage({ t: 'mount', id: this.id, key: this.key, canvas: off, box: this.box, ...this.framing }, [off]);
     if (this.started) w.w.postMessage({ t: 'start', id: this.id });
     H.ro?.observe(this.canvas);
     H.io?.observe(this.canvas);

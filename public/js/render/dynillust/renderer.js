@@ -22,7 +22,7 @@
 //   the controller's own non-fast fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor
 //   0x147EF10 fadeDuration 0.15], also straight into Idle (the user's decision of 2026-11-22, doc §33.19 Mount API).
 
-import { unityToCard, cardViewProj } from './framing.js';
+import { unityToCard, unityToHome, cardViewProj } from './framing.js';
 import { IllustSkeleton } from './skeleton.js';
 import { DynIllustInstance } from './instance.js';
 import { CardIllustState, ACTION } from './state.js';
@@ -366,9 +366,10 @@ export class DynIllustStage {
     card.w = w; card.h = h;
     if (card.slot) { card.slot.cards.delete(card); if (!card.slot.cards.size) this._dropSlot(card.slot); card.slot = null; }
     if (!(w > 0 && h > 0)) return null;
-    const id = `${card.key}|${this.quality}|${w}x${h}`;
+    // (a card framed another way — the home screen's — draws its own slot)
+    const id = `${card.key}|${this.quality}|${w}x${h}|${card.frameId}`;
     let slot = this.slots.get(id);
-    if (!slot) { slot = new Slot(this, id, card.key, prep, w, h); this.slots.set(id, slot); }
+    if (!slot) { slot = new Slot(this, id, card.key, prep, w, h, card.frame); this.slots.set(id, slot); }
     slot.cards.add(card);
     card.slot = slot;
     card.canvas.width = w; card.canvas.height = h;
@@ -537,6 +538,10 @@ export class Card {
     this.prep = null;
     this.w = 0; this.h = 0;
     this.box = Array.isArray(o.box) ? o.box : null;   // [w, h] device px from the page (Worker), else measured here
+    // framing: 'card' (the official end-screen card, default) or 'home' (the official home screen, centre 'home' |
+    // 'illust': framing.js unityToHome)
+    this.frame = o.framing === 'home' ? { framing: 'home', centre: o.centre === 'illust' ? 'illust' : 'home' } : { framing: 'card' };
+    this.frameId = this.frame.framing === 'home' ? `home-${this.frame.centre}` : 'card';
     this.onOpacity = typeof o.onOpacity === 'function' ? o.onOpacity : null;
     this.canvas = o.canvas || (typeof document !== 'undefined' ? document.createElement('canvas') : null);
     if (this.canvas) {
@@ -683,7 +688,8 @@ export class Card {
 
 /** One illustration drawn at one size: its skeleton, instance, card state and effect layer. */
 class Slot {
-  constructor(S, id, key, prep, w, h) {
+  /** `frame`: { framing: 'card' | 'home', centre } (Card.frame; DynIllustStage.mount). */
+  constructor(S, id, key, prep, w, h, frame = null) {
     this.S = S;
     this.id = id;
     this.key = key;
@@ -711,7 +717,7 @@ class Slot {
     if (this.fx) this.fx.fx.place({ pos: d.root.pos });
     this.inst = new DynIllustInstance({ skel: this.skel, fx: this.fx, data: d.instance, now: () => this.time });
     this.card = new CardIllustState({ rng: S.opts.rng, onAction: S.opts.onAction ? (a) => S.opts.onAction(key, a) : null, mayStartSpecial: () => S._specialTurn() });
-    this.map = unityToCard(d.framing, w, h);
+    this.map = frame && frame.framing === 'home' ? unityToHome(d.framing, w, h, { centre: frame.centre }) : unityToCard(d.framing, w, h);
     const pos = d.root.pos, rs = d.root.scale;
     const sp = this.skel.spine;
     sp.position.set(this.map.x0 + this.map.scale * pos[0], this.map.y0 - this.map.scale * pos[1]);
