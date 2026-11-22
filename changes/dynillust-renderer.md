@@ -41,7 +41,8 @@
 - The cards are drawn in three Workers, each with its own WebGL context, straight into the cards' canvases: loading,
   warming and every animation frame leave the page's main thread, so the page and its menus stay smooth however heavy
   the cards are. Browsers without Worker canvases draw on the main thread as before [src: notes
-  dev50-l2d-perf-report.md §Workers].
+  dev50-l2d-perf-report.md §Workers]. The cards are shared out by how heavy each illustration is (its download size),
+  not by count, so no Worker gets all the heavy ones [src: notes dev50-l2d-perf-report.md §Cost per card].
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays
   counted from each switch-on, nodes that follow skeleton bones). Battle effects are unchanged.
 

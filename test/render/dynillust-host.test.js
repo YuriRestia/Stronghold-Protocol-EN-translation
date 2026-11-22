@@ -63,8 +63,27 @@ describe('DynIllustHost', () => {
     // release: a key no card shows leaves its Worker
     c1.unmount();
     H.release([]);
-    assert.deepEqual([...H.workers[0].keys].sort(), ['a']);
+    assert.deepEqual([...H.workers[0].keys.keys()].sort(), ['a']);
     assert.ok(w0.sent.some((m) => m.t === 'unmount' && m.id === c1.id));
+  });
+
+  test('preload splits by cost: the heaviest first, each to the least loaded Worker', async () => {
+    const g = { h1: { bytes: 6e6 }, h2: { bytes: 5e6 }, l1: { bytes: 2e6 }, l2: { bytes: 1e6, bytesHalf: 5e5 } };
+    const H = new DynIllustHost({ workers: 2, manifest: async () => ({ groups: { dynillust: g } }) });
+    await H.ready;
+    const done = H.preload(['l2', 'l1', 'h2', 'h1']);   // the screen's order: lightest first
+    await tick();
+    for (const w of FakeWorker.all) for (const m of w.sent) if (m.t === 'preload') w.answer({ t: 'preloaded', rid: m.rid });
+    await done;
+    const asked = FakeWorker.all.map((w) => w.sent.filter((m) => m.t === 'preload').flatMap((m) => m.keys));
+    // h1 → W0 (6), h2 → W1 (5), l1 → W1 (7), l2 → W0 (7): 7 MB each; by count in the screen's order it was 2 + 2
+    // cards with 7 MB against 8 MB, or worse
+    assert.deepEqual(asked, [['h1', 'l2'], ['h2', 'l1']]);
+    assert.deepEqual(H.stats().load, [7e6, 7e6]);
+    // a mount of a preloaded key stays on its Worker
+    H.mount('l1');
+    await tick();
+    assert.ok(FakeWorker.all[1].sent.some((m) => m.t === 'mount' && m.key === 'l1'));
   });
 
   test('a card follows its Worker: states, ready(), start()', async () => {

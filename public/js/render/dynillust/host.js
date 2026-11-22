@@ -80,7 +80,7 @@ export class DynIllustHost {
   }
 
   _spawn(url, i) {
-    const rec = { i, w: null, alive: false, keys: new Set(), origin: 0, ok: null };
+    const rec = { i, w: null, alive: false, keys: new Map(), load: 0, origin: 0, ok: null };   // keys: key → its _cost
     rec.ok = new Promise((resolve) => {
       let done = false;
       const end = (alive) => { if (done) return; done = true; rec.alive = alive; if (!alive) { try { rec.w?.terminate(); } catch { /* gone */ } } resolve(alive); };
@@ -157,13 +157,26 @@ export class DynIllustHost {
 
   entryOf(key) { return this._group ? this._group[key] : undefined; }
 
-  /** The Worker that draws `key`: its own, else the one with the fewest illustrations. */
+  /**
+   * An illustration's drawing cost, estimated before it loads: its download size at the stage's quality (the
+   * manifest's `bytes` / `bytesHalf`). On Grand Alliance page 6 the per-card frame cost ranked the same as the size, the
+   * heaviest (6.4 MB) about 2.3× the lightest (3.1 MB) [src: notes dev50-l2d-perf-report.md §Cost per card]. 1 when
+   * unknown (then the Workers balance by count, as before).
+   */
+  _cost(key) {
+    if (this.opts.split === 'count') return 1;   // (`split: 'count'`: by count, for checks that compare the two)
+    const e = this.entryOf(key);
+    const b = e && (this._quality === 'half' ? e.bytesHalf || e.bytes : e.bytes);
+    return b > 0 ? b : 1;
+  }
+
+  /** The Worker that draws `key`: its own, else the one whose illustrations cost the least in all (_cost). */
   _route(key) {
     let w = this.byKey.get(key);
     if (w && w.alive) return w;
     w = null;
-    for (const x of this.workers) if (x.alive && (!w || x.keys.size < w.keys.size)) w = x;
-    if (w) { w.keys.add(key); this.byKey.set(key, w); }
+    for (const x of this.workers) if (x.alive && (!w || x.load < w.load)) w = x;
+    if (w) { w.keys.set(key, this._cost(key)); w.load += w.keys.get(key); this.byKey.set(key, w); }
     return w;
   }
 
@@ -178,7 +191,9 @@ export class DynIllustHost {
     await this.index();
     if (this.fallback) return this.fallback.preload(keys);
     const per = new Map();
-    for (const k of new Set((keys || []).filter(Boolean))) {
+    // the heaviest first: each then goes to the least loaded Worker (a better split than the screen's order)
+    const list = [...new Set((keys || []).filter(Boolean))].sort((a, b) => this._cost(b) - this._cost(a));
+    for (const k of list) {
       const w = this._route(k);
       if (!w) continue;
       if (!per.has(w)) per.set(w, []);
@@ -193,7 +208,7 @@ export class DynIllustHost {
     for (const c of this.cards) hold.add(c.key);
     for (const w of this.workers) {
       w.w.postMessage({ t: 'release', keep: [...hold] });
-      for (const k of [...w.keys]) if (!hold.has(k)) { w.keys.delete(k); if (this.byKey.get(k) === w) this.byKey.delete(k); }
+      for (const [k, cost] of [...w.keys]) if (!hold.has(k)) { w.keys.delete(k); w.load -= cost; if (this.byKey.get(k) === w) this.byKey.delete(k); }
     }
     if (this.fallback) this.fallback.release(keep);
   }
@@ -216,17 +231,17 @@ export class DynIllustHost {
 
   /**
    * Measuring: `frames(true)` starts each Worker's log of its stage frames; `frameLog()` returns them, per Worker, as
-   * [start ms in this page's time, frame ms, live slots], and clears them.
+   * [start ms in this page's time, frame ms, live slots, drawn 1 / skipped by maxFps 0], and clears them.
    */
   frames(on) { for (const w of this.workers) w.w.postMessage({ t: 'frames', on: !!on }); }
   async frameLog() {
     const out = await Promise.all(this.workers.map((w) => this._ask(w, { t: 'frameLog' })));
     const base = typeof performance !== 'undefined' ? performance.timeOrigin : 0;
-    return out.map((m) => (m.frames || []).map(([t, ms, live]) => [+(t + (m.origin - base)).toFixed(2), ms, live]));
+    return out.map((m) => (m.frames || []).map(([t, ms, live, drawn]) => [+(t + (m.origin - base)).toFixed(2), ms, live, drawn]));
   }
 
   stats() {
-    return { workers: this.workers.length, fallback: !!this.fallback, cards: this.cards.size, keys: this.workers.map((w) => w.keys.size), quality: this._quality };
+    return { workers: this.workers.length, fallback: !!this.fallback, cards: this.cards.size, keys: this.workers.map((w) => w.keys.size), load: this.workers.map((w) => w.load), quality: this._quality };
   }
 
   destroy() {
@@ -262,7 +277,8 @@ class HostCard {
     this.ready = new Promise((r) => { resolve = r; });
     this._resolve = resolve;
     H.byId.set(this.id, this);
-    H.ready.then(() => this._place());
+    // routed once the index is in (the illustration's cost: DynIllustHost._cost)
+    H.ready.then(() => H.index()).then(() => this._place());
   }
 
   /** To the main-thread stage (fallback) or to this key's Worker, with the canvas transferred. */
