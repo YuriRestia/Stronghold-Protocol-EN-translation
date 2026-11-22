@@ -118,7 +118,8 @@ export class DynIllustStage {
     const P = this.P;
     try {
       this.renderer = new P.Renderer({
-        view: this.canvas, width: 2, height: 2, resolution: 1, backgroundAlpha: 0, antialias: true,
+        // not multisampled: the GrabPass / blur materials copy the bound framebuffer (render/vfx/gl.js _grabFrame)
+        view: this.canvas, width: 2, height: 2, resolution: 1, backgroundAlpha: 0, antialias: false,
         premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'high-performance',
       });
     } catch (err) { console.warn('[dynillust] no WebGL', err); return false; }
