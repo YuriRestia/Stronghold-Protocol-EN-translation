@@ -293,7 +293,10 @@ test('a co-op room\'s wide card (the user\'s layout I, 2026-11-22): nothing over
   assert.match(roomJs, /<header class="rs-squad__head">[\s\S]*?<i class="rs-squad__rule" aria-hidden="true"><\/i>[\s\S]*?rs-squad__ready/);
   // the card's shape and size: the art at --rs-ar, its width from the seat area (a size container)
   // 16 : 9 in the 4-seat room, 1.6 in a Grand Alliance room
-  assert.match(css, /\.rs-seats--wide \{[^}]*--rs-ar: 16 \/ 9;[^}]*container-type: size;/);
+  // (the seat area measured by room.js useSeatArea, no container query: Firefox ESR 115 / Safari < 16)
+  assert.match(css, /\.rs-seats--wide \{[^}]*--rs-ar: 16 \/ 9;[^}]*var\(--rs-cw, 100vw\)[^}]*var\(--rs-ch, 70vh\)/);
+  assert.match(roomJs, /<main ref=\$\{seatsRef\} class=\$\{`seats rs-seats/);
+  assert.match(roomJs, /el\.style\.setProperty\('--rs-cw', `\$\{w\}px`\)/);
   assert.match(css, /\.rs-seats--large \{\s*--rs-ar: 1\.6;/);
   assert.match(css, /\.rs-seats--wide \.rseat \{ width: var\(--rs-aw\);/);
   assert.match(css, /\.rs-seats--wide \.rseat__art \{ flex: none; aspect-ratio: var\(--rs-ar\);/);

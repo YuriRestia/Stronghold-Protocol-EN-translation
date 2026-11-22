@@ -783,6 +783,8 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
   const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
   const [state, setState] = useState('off');
+  // the art window's width (px), measured with the page tier below: the backdrop's 9-slice borders
+  const [boxW, setBoxW] = useState(0);
   const tier = useStore((s) => s.tier, Object.is, dynTierStore);
   // this card's wish for the page tier, from its art window's size (re-measured on resize; a change re-mounts the cards)
   const token = useRef(null);
@@ -790,7 +792,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
   useEffect(() => {
     const el = host.current;
     if (!on || !el) { setWant(token.current, null); return undefined; }
-    const measure = () => { const r = el.getBoundingClientRect(); setWant(token.current, cardTier(r.width, r.height)); };
+    const measure = () => { const r = el.getBoundingClientRect(); setWant(token.current, cardTier(r.width, r.height)); setBoxW(r.width); };
     measure();
     let t = 0;
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { clearTimeout(t); t = setTimeout(measure, 250); }) : null;
@@ -1000,10 +1002,18 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
   const vis = state === 'live' && !shown ? 'ready' : state;
   // in place (under the dissolve's cover, or shown)
   const placed = state === 'live' && (shown || covered);
+  // the art box itself learns that its illustration is in place (class `has-live-art` on the component's parent): the
+  // result card drops its panel behind the see-through art with it, where a :has() selector is out (Firefox ESR 115,
+  // Safari < 15.4 — client-static.test.js)
+  useEffect(() => {
+    const box = root.current?.parentElement;
+    box?.classList.toggle('has-live-art', placed);
+    return () => box?.classList.remove('has-live-art');
+  }, [placed]);
   const bg = backdrop && placed ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
   return html`<div ref=${root} class=${`dyn-art${placed ? ' is-live' : ''}${wait === 'settled' ? ' dyn-art--flip' : ''}${reveal === 'dissolve' ? ' dyn-art--dissolve' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${vis}>
     <div class="dyn-art__still">${children}</div>
-    ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg)}></i></div>` : null}
+    ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg, boxW)}></i></div>` : null}
     ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
     ${on && wait === 'settled' ? html`<canvas class="dyn-art__dissolve" ref=${dis} aria-hidden="true"></canvas><canvas class="dyn-art__wash" ref=${wash} aria-hidden="true"></canvas>` : null}
   </div>`;
@@ -1068,11 +1078,13 @@ export const BACKDROP = Object.freeze({ sprite: 'settleCard/card_bg', bg: { pos:
   border: { left: 75, bottom: 43, right: 78, top: 212 } });
 
 /** The backdrop's box in % of the art window and its 9-slice borders in container units (1 official unit = 100cqw / 232). */
-export function backdropStyle(url) {
+export function backdropStyle(url, boxW = 0) {
   const { bg, win, border: b } = BACKDROP;
   const [ww, wh] = win.size, [bw, bh] = bg.size;
   const pct = (v, of) => `${((v / of) * 100).toFixed(3)}%`;
-  const u = (v) => `${((v / ww) * 100).toFixed(3)}cqw`;
+  // the 9-slice borders in px of the art window's measured width (1 official unit = width / 232): no container query
+  // units, which Firefox ESR 115 / Safari < 16 lack (client-static.test.js)
+  const u = (v) => `${((v / ww) * boxW).toFixed(2)}px`;
   const left = (bg.pos[0] - bw / 2) - (win.pos[0] - ww / 2), top = (win.pos[1] + wh / 2) - (bg.pos[1] + bh / 2);
   return `left:${pct(left, ww)};top:${pct(top, wh)};width:${pct(bw, ww)};height:${pct(bh, wh)};`
     + `border-style:solid;border-color:transparent;border-width:${u(b.top)} ${u(b.right)} ${u(b.bottom)} ${u(b.left)};`
