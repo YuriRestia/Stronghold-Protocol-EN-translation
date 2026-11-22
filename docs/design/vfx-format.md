@@ -2047,6 +2047,15 @@ The official card: `group_char` 232 × 458 with a RectMask2D, the holder `root` 
 calls `ApplySkinOffset` (O3) [src: official GameAssembly.dll DynIllustMgr._CreateIllustView 0x14463BF;
 AutoChessSettleGameTeamPlayerCardView._RenderIllust 0x28E17E9; notes dev50-l2d-o1-o3-findings.md].
 
+**Layers.** The illustration camera draws only layer 27 `UI_RT_PS` (`cullingMask = Layers.UI_RT_PS_INDEX_MASK`,
+1 << `LayerMask.NameToLayer("UI_RT_PS")`), and activating an illustration moves its whole instance there,
+inactive children included (`GameObjectUtil.SetLayerRecursively(inst.gameObject, UI_RT_PS_INDEX)`, which walks
+`Transform.GetChild`) [src: official GameAssembly.dll DynIllustMgr._InitDisplay 0x144710B; Layers..cctor 0x60ED72,
+0x60EE58; DynIllustMgr.Active 0x14441E9; GameObjectUtil.SetLayerRecursively 0x697BBD0; globalgamemanagers
+TagManager layers]. Holder effects, loaded later, are on layer 27 in their own prefabs (all 4,486 nodes of
+`arts/dynchars/effect.ab`) [src: official effect.ab m_Layer]. So every node of `fx.json` is drawn; the prefabs' own
+`m_Layer` (some nodes are on 0) does not matter and is not exported.
+
 **Actions** (DynIllust / DynIllustBase fields):
 
 | field | type | official source |
