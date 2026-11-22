@@ -36,6 +36,11 @@ const SHOT = P.has('shot');
 const TIER = ['half', 'full'].includes(P.get('tier')) ? P.get('tier') : null;
 // &framing=card|home|home-illust: every card's framing (dynCards.js setDynFraming; the framing comparison stills)
 const FRAMING = ['card', 'home', 'home-illust'].includes(P.get('framing')) ? P.get('framing') : null;
+// &fr=key~zoom~fx~fy|…: a card-framing zoom about (fx, fy) per illustration key (the framing tool's candidates)
+const FR = new Map((P.get('fr') || '').split('|').filter(Boolean).map((s) => {
+  const [key, z, fx, fy] = s.split('~');
+  return [key, { mode: 'card', zoom: Number(z) || 1, fx: Number(fx), fy: Number(fy) }];
+}));
 const app = document.getElementById('app');
 const bar = document.getElementById('rvbar');
 
@@ -226,7 +231,8 @@ async function boot() {
     clock: { offset: 0, rtt: 20, synced: true } });
   // 动态立绘 on every card, the result cards' default art (the room card), not saved
   settingsStore.set({ dynIllust: P.has('off') ? 'off' : 'all', resultArt: 'card' }); // &off: the 2D cards (the perf baseline)
-  if (FRAMING) setDynFraming(FRAMING);
+  if (FR.size) setDynFraming((key) => FR.get(key) || FRAMING);
+  else if (FRAMING) setDynFraming(FRAMING);
   if (TIER) setDynQuality(TIER);
   else if (FRAME) setDynQuality('half');
   // the page's language as the game picks it (?lang=, a stored choice, else English: ui/lang.js START_LANG)

@@ -283,7 +283,8 @@ test('a co-op room\'s wide card (the user\'s layout I, 2026-11-22): nothing over
   // the state, the AI tag and the buttons in the plate; the art without the result card's background
   assert.match(roomJs, /<span class="rseat__acts">\$\{botTag\}\$\{stateBox\}\$\{pickBtn\}\$\{seatBtns\}<\/span>/);
   assert.match(roomJs, /\$\{wide \? null : seatBtns\}/);
-  assert.match(roomJs, /wait="settled" backdrop=\$\{!wide\} class="rseat__dyn"/);
+  // the wide card's framing per illustration (data/dyn-card-framing.json, the face-aware zoom)
+  assert.match(roomJs, /wait="settled" backdrop=\$\{!wide\} framing=\$\{wide \? 'cover' : null\} class="rseat__dyn"/);
   // a squad's heading line: name, rule, its doctors' ready count
   assert.match(roomJs, /<header class="rs-squad__head">[\s\S]*?<i class="rs-squad__rule" aria-hidden="true"><\/i>[\s\S]*?rs-squad__ready/);
   // the card's shape and size: the art at --rs-ar, its width from the seat area (a size container)
