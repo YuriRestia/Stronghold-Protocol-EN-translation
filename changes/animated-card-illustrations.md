@@ -1,0 +1,43 @@
+## 2026-11-22
+
+### Animated operator illustrations on the result, room and Grand Alliance cards
+
+- The cards on the result screen, in the room and in the Grand Alliance room now play the operators' official animated illustrations, with their effects and backgrounds, framed as on the official end-of-match card. An operator without one keeps its picture.
+- They load only after the last battle of a match is over. The result screen waits for them for at most 3 seconds after the settlement pause and opens as soon as they are ready; a card that is still loading shows its picture and switches when ready. [src: crew-docs/l2d-art-proposal.md §1 Decisions D11]
+- Before: every card showed a still picture.
+
+### New settings: Animated Illustrations and Result Card Art
+
+- Settings → Animated Illustrations: **Off**, **Mine Only** (default on phones) or **Everyone** (default on PC).
+- Settings → Result Card Art: each result card shows the doctor's **Card Operator** in their outfit, or the **Best Unit** of their final lineup.
+
+Kind: player
+
+Server cost:
+
+| Measure | Typical | Worst case |
+|---|---|---|
+| Bandwidth out / in, per player (game socket) | about 0.0000002 / 0 MB/s: one m.public `ending` of 51 B a player per match [src: work/dev-52/ending-size.mjs, 4-player match, 202 B] (estimated per second over a 2,700 s match [unverified]) | 30 m.public frames in the 3 s pause without public deltas, 8 players: 12 KB a match [unverified] (estimated: DELAYS.SETTLE 3 s / PUBLIC_THROTTLE 100 ms) |
+| Bandwidth out / in, per room (8 players) | about 3.3 KB a match [unverified] (estimated: 8 × 51 B × 8 viewers) | 100 KB a match [unverified] (estimated) |
+| Bandwidth out / in, 300 players (game socket) | 0.00002 MB/s, 0.002 GB/day [unverified] (estimated: 75 rooms, one match each per 2,700 s) | 0.0003 MB/s, 0.03 GB/day [unverified] (estimated) |
+| Art downloads from the origin, both servers (static files behind Cloudflare) | 0.008 MB/s, 0.7 GB/day [src: crew-docs/l2d-art-proposal.md §6] (estimated: the set refills once a day per server) | cache rule broken, Grand Alliance at 300 players, 8 largest every match: about 7 MB/s, 600 GB/day [src: crew-docs/l2d-art-proposal.md §6] (estimated) |
+| Server CPU | 0 % [unverified] (one lineup sort per player at the match's end, results.js endingView) | 0 % [unverified] |
+| Memory | 0 MB [unverified] (the `ending` object until the match closes) | 0 MB [unverified] |
+| Disk | 0 MB/day [src: server/match/results.js endingView writes nothing]; the art itself is about 345 MB per server [src: crew-docs/l2d-art-proposal.md §6] (estimated) | 0 MB/day |
+| Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
+
+- Cap: `ending` is sent once per match (results.js endingView, one entry per player, at most 8 [src: shared/largeRoom.js LARGE_ROOM_SEATS]); the art is content-hashed and immutable, so each file downloads once per player until it changes, and a screen holds at most 8 illustrations [src: crew-docs/l2d-art-proposal.md §6].
+- The art numbers are the spec's estimates; measured with the review pages before merge.
+
+News:
+
+- highlight: Result, room and {term:大同盟} cards now play the operators' official animated illustrations
+  zh: 结算、同盟房间和{term:大同盟}的卡片现在会播放干员的官方动态立绘
+  ja: リザルト、同盟ルーム、{term:大同盟}のカードでオペレーターの公式の動く立ち絵が再生されるようになりました
+  ko: 결과, 동맹 방, {term:大同盟} 카드에서 오퍼레이터의 공식 움직이는 일러스트가 재생됩니다
+  zh-TW: 結算、同盟房間和{term:大同盟}的卡片現在會播放幹員的官方動態立繪
+- point: New settings {term:动态立绘} and {term:结算卡片立绘}
+  zh: 新增设置{term:动态立绘}和{term:结算卡片立绘}
+  ja: 新しい設定{term:动态立绘}と{term:结算卡片立绘}
+  ko: 새 설정 {term:动态立绘}, {term:结算卡片立绘}
+  zh-TW: 新增設定{term:动态立绘}和{term:结算卡片立绘}
