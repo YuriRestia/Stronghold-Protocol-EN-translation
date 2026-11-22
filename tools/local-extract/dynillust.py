@@ -559,14 +559,19 @@ def export_one(env, key, path, eff_path, out_dir, budget, helpers, log):
                 root = obj.deref() if hasattr(obj, 'deref') else obj
     if root is None:
         raise ValueError(f'no prefab dyn_illust_{key} in {path.name}')
-    behaviours = []                       # (class, typetree, object) of every MonoBehaviour of the bundle
-    for sf in sfiles:
-        for o in sf.objects.values():
-            if o.type.name == 'MonoBehaviour':
+    def tree_behaviours(cmps):
+        """(class, typetree, object) of every MonoBehaviour in a walked tree."""
+        out = []
+        for _nid, kind, co in cmps.values():
+            if kind == 'MonoBehaviour':
                 try:
-                    behaviours.append((env.script(o)[1], env.tt(o), o))
+                    out.append((env.script(co)[1], env.tt(co), co))
                 except Exception:
                     continue
+        return out
+    # Only the card prefab's own tree: a bundle may also hold sp_dyn_illust_<key> (DynIllustSpecial + lip sync),
+    # dyn_entrance_<key> (DynIllustStartPlay) and dyn_portrait_<key>, each with its own skeleton and separator.
+    behaviours = tree_behaviours(walk(env, root, {})[2])
     dyn = next(((c, t, o) for c, t, o in behaviours if '_cameraSize' in t), None)
     if dyn is None:
         raise ValueError('no DynIllust behaviour')
@@ -602,6 +607,7 @@ def export_one(env, key, path, eff_path, out_dir, budget, helpers, log):
 
     ex = DynExporter(env, out_dir, log, page_tex, helpers['cache'])
     nodes, ids, comps = walk(env, root, extra)
+    behaviours = tree_behaviours(comps)          # now with the holders' effects (their FxDelays, shakes)
     ctx = fx.PrefabCtx(ex, nodes, ids, comps)
     stats = {'nodes': len(nodes), 'particleSystems': 0, 'liveParticles': 0, 'duration': 0.0, 'looping': False}
     for n in nodes:
@@ -659,7 +665,7 @@ def export_one(env, key, path, eff_path, out_dir, budget, helpers, log):
                               'localScale': bool(t.get('followLocalScale')),
                               'appliedLocalScale': bool(t.get('useAppliedLocalScale')),
                               'axis': t.get('maintainedAxisOrientation')})
-        if 'partsRenderers' in t:
+        if 'partsRenderers' in t and _go_key(_ref(env, o.assets_file, t.get('skeletonRenderer'))[1] or sk) == _go_key(sk):
             separator = {'slots': list(st.get('separatorSlotNames') or []),
                          'parts': [_node_of(env, ids, comps, o.assets_file, r) for r in t.get('partsRenderers') or []],
                          'copyPropertyBlock': bool(t.get('copyPropertyBlock')),
