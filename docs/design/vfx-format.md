@@ -4,6 +4,10 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
 **Changelog** (for runtimes reading the files; newest first)
 
+* **2026-11-22 (fork) — dynamic illustrations (§33.19)**: a new file set `dynillust/<dir>/` (`illust.json` version 1,
+  the Spine files, and the effect layer as one §33.4 descriptor) and the screens' mount API. The battle effects' files
+  do not change.
+
 * **2026-10-16 — lingering areas: readings from the client's data and code, no format change (0.3.1, the maintainer's
   report of 2026-10-16; history 0.3.1 §34.5)**. (1) A ground-placed effect's root (`ParticleEffect._spawnLocation` 5,
   7, 17, 26, 35) sits on its point: the client's Effect._InitLocationFromEntity sets the root's localPosition to the
@@ -1930,3 +1934,112 @@ Sources: local official v3 index/prefabs; `pkgrps/btl_pfb_tokens_0.ab` mode `_re
 `SwitchToMelee/Range`; `skill_table.json` (`skchr_wildmn_2`, `skchr_yu_3`, `skchr_mlyss_3`); official client
 `CastEffectOptions.CreateEffect`, `ParticleEffect.FaceTo`, `YuS3EffectBehaviour.OnPlay` and
 `YuS3EffectWithEdgeBehaviour` (addresses and replay evidence in history §34.31). No sim rules change.
+
+### 33.19 Dynamic illustrations (动态立绘): the extracted format and the mount API (fork, 2026-11-22)
+
+The animated official illustrations on the result, room and Grand Alliance cards (build spec: crew-docs
+`l2d-art-proposal.md`, decisions D1–D13). Each one is a Unity prefab `dyn_illust_<key>` in the CN client's
+`arts/dynchars/<key>.ab`: a Spine 3.8 skeleton on the prefab root plus an effect layer (particles, meshes, animators,
+backgrounds) in the §33.4 format. `<key>` is the official `skin_table.charSkins[skinId].dynIllustId` minus its
+`dyn_illust_` prefix (`char_1038_whitw2_2`, `char_1038_whitw2_sale#15`) [src: official skin_table.json dynIllustId;
+container `dyn/arts/dynchars/char_1038_whitw2/dyn_illust_char_1038_whitw2_2.prefab`]. Extractor:
+`extract.py --only dynillust` (`tools/local-extract/dynillust.py`), opt-in like fx. Units: Unity units and the
+client's pixels as stored; seconds; Unity's frames (§33.2).
+
+**Files** (`public/assets/local/dynillust/<dir>/`, `<dir>` = `fx_file(key)`, §33.1):
+
+| file | content |
+|---|---|
+| `illust.json` | the index below |
+| `<stem>.skel` or `<stem>.json` | the skeleton TextAsset as stored: binary 3.8, or Spine JSON (Pepe's E2 art, O6) |
+| `<stem>.atlas` | the atlas text, `size:` per page, no `pma` (`normalize_atlas`, §13) |
+| `p/<page>.webp`, `p/half/<page>.webp` | atlas pages, `[alpha]` texture merged (`merge_alpha`), straight alpha; WebP lossy q90 alpha 100; half = exactly w/2 × h/2 |
+| `fx.json` | the effect layer: one §33.4 descriptor of the whole prefab tree (root = node 0 = the skeleton's node) |
+| `tex/<key>.webp`, `tex/half/<key>.webp`, `mesh/<key>.json` | the descriptor's textures (§33.8) and meshes (§33.9) |
+
+The atlas keeps the client's page names; `spine.pages` maps them to files. A half page is drawn with
+`BaseTexture.resolution = 0.5`, so the atlas's full-size coordinates still apply. `data/local-assets.json` gets one
+group `dynillust`: key → `{ path: '/assets/local/dynillust/<dir>/illust.json', kind: 'DynIllust', charId, skinId,
+bytes, bytesHalf }` (the served view hashes `path`, docs/ASSETS.md). Every other URL is built by the runtime from
+`illust.json` `files`: `hashedPath('/assets/local/dynillust/<dir>/' + rel, files[rel].hash)` (shared/assetPaths.js;
+the hash is the server's asset hash, SHA-256 hex first 16 [src: server/http/assetIndex.js:45]), so every file is
+`immutable` without a per-file list.
+
+**`illust.json`**:
+
+```
+{ format: 'dynillust', version: 1, key, charId, skinId, class ('DynIllust' | 'DynIllustSpecial'),
+  bundle: 'arts/dynchars/<key>.ab', client (CN client version), files: { rel: { hash, bytes } },
+  bytes: { full, half }                       sum of what the full / half tier downloads
+  spine: Spine, framing: Framing, actions: Actions, fx: { file: 'fx.json', textures: { key: Texture }, meshes: { key: Mesh } } }
+```
+
+`fx.textures` / `fx.meshes` are §33.8 / §33.9 entries with paths relative to `<dir>`.
+
+**Spine** (SkeletonAnimation on node 0 and its SkeletonDataAsset):
+
+| field | type | official source |
+|---|---|---|
+| `skeleton`, `format`, `version` | file, `'binary'` \| `'json'`, `'3.8.99'` | `SkeletonDataAsset.skeletonJSON` TextAsset; the version from its header |
+| `atlas`, `pages: [{ name, file, half, w, h }]` | files, px | `atlasAssets[].atlasFile`, `materials[]._MainTex` + `_AlphaTex` |
+| `materials: [Material]` | §33.7 entries, page textures as `'spine:<page>'` | the atlas materials (shader, keywords, floats: Dev 51's Spine shader) |
+| `scale` | number (0.01) | `SkeletonDataAsset.scale` |
+| `mix: { default, pairs: [[from, to, s]] }` | crossfade seconds | `defaultMix`, `fromAnimation` / `toAnimation` / `duration` |
+| `animation`, `loop`, `timeScale`, `skin` | start animation (`Idle`), bool, number, skin name (`''` = default) | `_animationName`, `loop`, `timeScale`, `initialSkinName` |
+| `flipX`, `flipY`, `pmaVertexColors`, `tintBlack`, `zSpacing`, `useClipping` | bool, number | same names on SkeletonAnimation |
+| `blendModes` | `{ requires, applyAdditive }` + the additive / multiply / screen material indexes into `materials` | `blendModeMaterials` |
+| `separator: { slots: [name], parts: [node], copyPropertyBlock, copyMeshRendererFlags } \| null` | slot names split the skeleton mesh; `parts[i]` draws submesh range i with its node's `meshRenderer.m_SortingOrder` | `SkeletonAnimation.separatorSlotNames`, `SkeletonRenderSeparator.partsRenderers` |
+| `followers: [{ node, bone, xy, z, rotation, flip, localScale, appliedLocalScale }]` | the node follows that bone | `BoneFollower` (`boneName`, `followXYPosition`, `followZPosition`, `followBoneRotation`, `followSkeletonFlip`, `followLocalScale`, `useAppliedLocalScale`) |
+
+Animation names are the client's `DynIllustActNames`: `Idle`, `Special`, `Interact`, `Start` [src: official dump.cs
+DynIllustActNames]; which ones a skeleton has is read from the skeleton itself.
+
+**Framing** (DynIllust):
+
+| field | type | official source |
+|---|---|---|
+| `cameraSize` | Unity units (orthographic half-height) | `_cameraSize` |
+| `maxSize` | `[w, h]` px | `_maxSize` |
+| `adjust: { DEFAULT, SKIN, HOME_PAGE }` | each `{ offset: [x, y] px, size: [w, h] px }` | `_adjustes[DynIllustAdjustType]` (0, 1, 2) [src: official dump.cs DynIllustAdjustType] |
+| `root: { pos: [x, y, z], scale: [x, y, z] }` | Unity units | node 0's local transform |
+
+The card formula (crew-docs `l2d-art-proposal.md` §4.1) reads `cameraSize`, `adjust.DEFAULT` (O3 decides the type),
+`root.pos` and `spine.scale`.
+
+**Actions** (DynIllust / DynIllustBase fields):
+
+| field | type | official source |
+|---|---|---|
+| `particles: [{ action, node, delay, holder? }]` | action `'IDLE'` \| `'SPECIAL_IDLE'` \| `'START'` \| `'INTERACTION'`; node id in `fx.json`; delay s or `null` | `_particles[]` (`ActionParticle.action`, `.particle`); `delay` = the `FxDelay._delayTime` on that node [src: official dump.cs DynIllustAction, ActionParticle, FxDelay] |
+| `holders: [{ node, action, path, root }]` | the effect prefab `path` (from the shared `arts/dynchars/effect.ab`) spliced into `fx.json` as `root`, a child of the holder `node` with its own local transform; its set joins `particles` with `holder: true` | `DynIllustEffectHolder._effectPath`, `_action`; `_LoadEffect` instantiates it under the holder's transform [src: GameAssembly.dll 0x14438F0: Component.get_transform → Object.Instantiate<T>(original, parent)] |
+| `animators: [{ node, controller, parameters, layers }]` | the Animator's state machine, below | `_animators[]` and their AnimatorControllers |
+| `fixFxDelay`, `animTimeFixed` | bool | `_fixFxDelay`, `_animTimeFixed` |
+| `extraTracks: [{ track, animation }]` | Spine track ≥ 2 | `_extraTrackAnimations` (`EXTRA_TRACK_START_INDEX` = 2) |
+
+An animator entry: `parameters: [{ name, type ('trigger' | 'bool' | 'float' | 'int'), default }]`; `layers: [{
+defaultState, states: [{ name, clip (index into fx.json clips | null), speed, transitions: [Transition] }],
+anyState: [Transition] }]`; `Transition = { to (state index | null = exit), duration, fixedDuration, offset, exitTime,
+hasExitTime, conditions: [{ mode ('if' | 'ifNot' | 'greater' | 'less' | 'equals' | 'notEqual'), param, threshold }] }`
+(Unity's AnimatorController constants, names from its `m_TOS` table). The triggers the client fires are `OnIdle`,
+`OnSpecial`, `OnStart`, `OnInteract` [src: official stringliteral.json; Lappland the Decadenza's controllers].
+
+**Mount API** (`public/js/render/dynillust/index.js`; the screens call only this):
+
+```
+dynIllustKey(charId, skinId | null) → key | null          the dynillust group of data/local-assets.json
+createDynIllustStage({ parent: HTMLElement, quality: 'full' | 'half' }) → Stage
+  one shared canvas laid over `parent` for the whole screen (never one WebGL context per card)
+Stage.preload(keys) → Promise<void>                         download, decode, build, upload, warm (D10); settles when
+                                                            every key is ready or failed
+Stage.mount(el: HTMLElement, key, { onState? }) → Card       draws into el's rectangle (getBoundingClientRect), framed
+                                                            by §4.1 with w = its width; follows el on layout changes
+Stage.destroy()
+Card.ready → Promise<boolean>                               true when drawable; false = keep the 2D art
+Card.start()                                                fade-in 0.5 s, then the action flow (WP3); before `ready`
+                                                            it starts when ready (D11's late switch)
+Card.state  'loading' | 'ready' | 'live' | 'failed' | 'unmounted'
+Card.unmount()
+```
+
+The caller keeps the card's 2D art in `el` until `ready` is true and hides it then; a hidden page or an `el` out of
+view pauses and frees its card (spec §4.3). One key mounted twice is drawn once (spec §4.3).
