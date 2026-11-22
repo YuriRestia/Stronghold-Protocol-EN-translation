@@ -37,6 +37,19 @@ function adapter() {
   };
 }
 
+/** A red square drawn with the stage's own renderer, read back: [r, g, b, a] of a pixel inside it. */
+function drawProbe(P, r) {
+  const g = new P.Graphics().beginFill(0xff0000).drawRect(0, 0, r.width, r.height).endFill();
+  try {
+    r.render(g, { clear: true });
+    const gl = r.gl, px = new Uint8Array(4);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return Array.from(px);
+  } finally { g.destroy(); }
+}
+
+let probePixel = null;
+
 async function boot() {
   // WebGL2 on an OffscreenCanvas, or the page keeps its own stage (host.js falls back)
   const probe = new OffscreenCanvas(1, 1).getContext('webgl2');
@@ -47,6 +60,10 @@ async function boot() {
   const P = self.PIXI;
   P.settings.ADAPTER = adapter();
   for (const x of [P.AccessibilityManager, P.EventSystem]) if (x) { try { P.extensions.remove(x); } catch { /* not registered */ } }
+  // the site's CSP has no 'unsafe-eval', and it applies here too: Pixi's shader uniforms without generated code, as
+  // on the page (render/app/pixi.js installs the same patch); without it new P.Renderer throws
+  const { installPixiNoEval } = await import('../app/pixiNoEval.js');
+  installPixiNoEval(P);
   importScripts(new URL('../../../vendor/pixi-spine.js', self.location.href).href);
   const { DynIllustStage } = await import('./renderer.js');
   stage = new DynIllustStage({
@@ -55,6 +72,12 @@ async function boot() {
     hidden: () => hidden,
     onAction: (key, a) => post({ t: 'action', key, a }),
   });
+  // the stage must draw before the page hands it cards: its renderer starts, and a test square reads back red;
+  // otherwise boot fails and the page draws the cards itself (host.js falls back to the main-thread stage)
+  if (!stage._ensureGL()) throw new Error('the illustration renderer did not start in the Worker');
+  const px = drawProbe(P, stage.renderer);
+  if (!(px[0] > 200 && px[1] < 50 && px[3] > 200)) throw new Error(`the Worker renderer drew nothing (${px.join(', ')})`);
+  probePixel = px;
   const run = stage._frame.bind(stage);
   stage._frame = (t) => {
     const t0 = performance.now(), n0 = stage.frameNo;
@@ -116,7 +139,7 @@ self.onmessage = (e) => {
     booting = true;
     stageOpts = m.opts || {};
     boot().then(() => {
-      post({ t: 'ok', origin: performance.timeOrigin });
+      post({ t: 'ok', origin: performance.timeOrigin, probe: probePixel });
       for (const x of early.splice(0)) handle(x);
     }, (err) => post({ t: 'fail', message: String(err?.message || err) }));
     return;

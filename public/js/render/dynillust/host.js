@@ -95,7 +95,8 @@ export class DynIllustHost {
       const timer = setTimeout(() => { console.warn('[dynillust] Worker boot timed out'); end(false); }, DYN_BOOT_MS);
       rec.w.onmessage = (e) => {
         const m = e.data || {};
-        if (m.t === 'ok') { clearTimeout(timer); rec.origin = m.origin; end(true); return; }
+        // ok: the Worker's renderer started and drew its test square (m.probe, the pixel read back)
+        if (m.t === 'ok') { clearTimeout(timer); rec.origin = m.origin; rec.probe = m.probe || null; end(true); return; }
         if (m.t === 'fail') { clearTimeout(timer); console.warn('[dynillust] Worker could not start:', m.message); end(false); return; }
         this._message(rec, m);
       };
@@ -269,7 +270,7 @@ export class DynIllustHost {
   }
 
   stats() {
-    return { workers: this.workers.length, fallback: !!this.fallback, cards: this.cards.size, keys: this.workers.map((w) => w.keys.size), load: this.workers.map((w) => w.load), quality: this._quality };
+    return { workers: this.workers.length, fallback: !!this.fallback, cards: this.cards.size, keys: this.workers.map((w) => w.keys.size), load: this.workers.map((w) => w.load), probe: this.workers.map((w) => w.probe), quality: this._quality };
   }
 
   destroy() {

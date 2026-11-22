@@ -570,12 +570,15 @@ export class Card {
   /**
    * Build and warm this card's slot before the card reports 'ready' (STAGE_BUDGET_MS pieces): wait for a layout size,
    * build the slot, enable it and take its first step (the particle prewarm), draw it once offscreen, wait for its
-   * shaders. Resolves to `prep`. Without a canvas or a GL stage, or with no size after STAGE_SIZE_FRAMES frames, it
-   * resolves at once and the slot builds at its first draw, as before.
+   * shaders. Resolves to `prep`. Without a canvas, while the context is lost, or with no size after STAGE_SIZE_FRAMES
+   * frames, it resolves at once and the slot builds at its first draw, as before. A stage whose renderer cannot start
+   * (no WebGL, or a Pixi that needs eval under the site's CSP) rejects: the card is 'failed' and keeps its 2D art,
+   * instead of a 'live' card that never draws.
    */
   _stage(prep) {
     const S = this.S;
-    if (!this.canvas || !S._ensureGL() || S.lost || this.state === 'unmounted') return prep;
+    if (!this.canvas || S.lost || this.state === 'unmounted') return prep;
+    if (!S._ensureGL()) throw new Error('the illustration renderer did not start');
     let waited = 0, slot = null;
     const progsReady = () => !S.glr || (prep.progs || []).every(([kind, mat]) => { S.glr.program(kind, mat); return !S.glr.building(kind, mat); });
     const prewarms = [];   // particle systems whose prewarm waits for the slices below (psys.js setPrewarmSink)

@@ -44,6 +44,9 @@
   dev50-l2d-perf-report.md §Workers]. The cards are shared out by what each Worker draws now (each illustration
   weighted by its download size plus a fixed part per card), so turning a page spreads the new cards evenly again: the
   busiest Worker on a page 5 → 6 swap went from 61 to 78 fps [src: notes dev50-l2d-perf-report.md §Cost per card].
+  The Workers draw under the site's CSP (no eval, as the page does), and a Worker that cannot draw is never given
+  cards: it must draw a test square before it starts, else the page draws the cards itself; a card whose stage cannot
+  draw at all keeps its 2D art. Before, every card on the real server turned live on an empty background.
 - The official effect player gains an illustration mode (effects that never end, nodes switched by their owner, delays
   counted from each switch-on, nodes that follow skeleton bones). Battle effects are unchanged.
 
