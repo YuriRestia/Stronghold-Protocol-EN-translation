@@ -14,13 +14,18 @@
 
 import { assets } from '../../assets.js';
 import { DynIllustStage } from './renderer.js';
+import { DynIllustHost, workersSupported } from './host.js';
 
 let stage = null;
 
-/** The page's stage (made on first use). */
+/**
+ * The page's stage (made on first use): the cards are drawn in Workers (host.js, the same API) where the browser can,
+ * else on the main thread. `globalThis.__dynMainThread` forces the main thread (checks that compare the two).
+ */
 export function getDynIllustStage() {
   if (!stage || stage.destroyed) {
-    stage = new DynIllustStage({ manifest: () => assets.local() });
+    const opts = { manifest: () => assets.local() };
+    stage = workersSupported() && !globalThis.__dynMainThread ? new DynIllustHost(opts) : new DynIllustStage(opts);
     stage.index();
   }
   return stage;
@@ -36,3 +41,4 @@ export function dynIllustKey(charId, skinId = null) {
 }
 
 export { DynIllustStage } from './renderer.js';
+export { DynIllustHost, workersSupported } from './host.js';

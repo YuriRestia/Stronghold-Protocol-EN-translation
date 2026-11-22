@@ -2012,7 +2012,8 @@ A node takes the group of the nearest node (itself or an ancestor) that an actio
 `OnSpecial` / `OnStart` / `OnInteract` / `OnIdle` gives its target that group, one without a trigger passes its
 source's on) [src: the AnimatorControllers' states and transitions, §33.19 Actions]; a node no action switches on is
 always on (IDLE). A file takes the earliest group of the nodes that use it, and a file no node names stays in IDLE.
-A card loads IDLE first and SPECIAL_IDLE later, and never needs START or INTERACTION. Not computed: parts outside the
+A card loads IDLE and SPECIAL_IDLE before it reports ready (the user, 2026-11-22: ready means everything the card will
+show is loaded and warmed), and never START or INTERACTION. Not computed: parts outside the
 232 × 458 window for a whole action (particles move; no safe static bound).
 
 `fx.textures` / `fx.meshes` are §33.8 / §33.9 entries with paths relative to `<dir>`; `fx.paths` maps a node's path
@@ -2125,6 +2126,18 @@ context and a `drawImage` copy into each card's canvas, 0.1 ms median / 0.3 ms p
 measurement, 2026-11-22]. One key mounted on several cards is drawn once (spec §4.3); a hidden page or a canvas out of
 view pauses its card and frees its slot. A screen awaits `getDynIllustStage().index()` before it calls
 `dynIllustKey`.
+
+**Workers** (fork, 2026-11-22): where the browser has `Worker`, `OffscreenCanvas` and
+`transferControlToOffscreen`, `getDynIllustStage()` returns a host (`render/dynillust/host.js`) with the same API, and
+the stage runs in `DYN_WORKERS` (2) Workers (`render/dynillust/worker.js`), each with its own WebGL2 context on an
+OffscreenCanvas and its own frame loop. `Card.canvas` is still a page element; its drawing is transferred to the Worker
+that draws the card, so no card frame, load, staging piece or warm-up runs on the page's main thread. All cards of one
+illustration go to one Worker; a new illustration goes to the Worker with the fewest. The page reports each card's size
+(ResizeObserver: CSS px × the device pixel ratio, capped at 2), whether it is in view, whether the page is hidden, and
+applies the canvas opacity. Without that support, or when no Worker starts (no WebGL2 in a Worker, a script error, no
+answer within 15 s), the main-thread stage draws the cards, as before. A Worker that stops later fails its cards (the
+caller keeps their 2D art). `globalThis.__dynMainThread = true` before the first `getDynIllustStage()` forces the main
+thread.
 
 | `Card.state` | meaning | the caller |
 |---|---|---|
