@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { Effect, compileEffect } from '../../public/js/render/vfx/effect.js';
 import { mat4 } from '../../public/js/render/vfx/math.js';
 import { illustBasis, CAM_DIST, AnimatorRuntime } from '../../public/js/render/dynillust/effects.js';
-import { illustDir, fileUrl, slotData } from '../../public/js/render/dynillust/loader.js';
+import { illustDir, fileUrl, slotData, loadIllust } from '../../public/js/render/dynillust/loader.js';
 
 describe('AnimatorRuntime (the index\'s Animator state machines, §33.19)', () => {
   // Lappland the Decadenza's Idle_01 controller, cut down: Idle 5 s, IdleToSpecial 7 s; OnIdle defaults to set
@@ -74,6 +74,32 @@ describe('loader.js (illust.json, §33.19)', () => {
     assert.deepEqual(d.instance.particles, [{ action: 1, node: 261 }, { action: 3, node: 240 }]);
     assert.deepEqual(d.instance.extraTracks, [{ track: 2, name: 'Blink' }]);
     assert.equal(d.effects.followers[0].bone, 'Wolf_H2');
+  });
+  test('the half tier: the atlas parses at resolution 1 (its frames are full size), the page keeps 0.5, Pixi keeps no parse', async () => {
+    // pixi-spine divides atlas coordinates by the page's resolution [src: public/vendor/pixi-spine.js TextureAtlas]
+    const seen = [], removed = [], promiseCache = {};
+    class BaseTexture { constructor(img, o) { this.resolution = o.resolution; } }
+    const P = {
+      ALPHA_MODES: { PMA: 2 }, BaseTexture,
+      spine: { TextureAtlas: class { constructor(text, pageCb, done) { this.pages = []; pageCb('pg.png', (t) => { seen.push(t.resolution); this.pages.push({ baseTexture: t }); }); done(this); } } },
+      Assets: { cache: { remove: (k) => removed.push(k) }, loader: { promiseCache }, load: async ({ src }) => { promiseCache[src] = 1; return { spineData: { animations: [] } }; } },
+    };
+    const files = { 'a.atlas': { hash: '1111111111111111' }, 's.skel': { hash: '2222222222222222' }, 'p/pg.webp': { hash: '3333333333333333' }, 'p/half/pg.webp': { hash: '4444444444444444' } };
+    const entry = { format: 'dynillust', files, spine: { atlas: 'a.atlas', skeleton: 's.skel', pages: [{ name: 'pg.png', file: 'p/pg.webp', half: 'p/half/pg.webp' }] } };
+    const urls = [];
+    const fetchFn = async (url) => { urls.push(url); return { ok: true, json: async () => entry, text: async () => 'atlas', blob: async () => ({}) }; };
+    const hadBitmap = globalThis.createImageBitmap;
+    globalThis.createImageBitmap = async () => ({});
+    try {
+      const r = await loadIllust('/assets/local/dynillust/k/illust.json', { P, fetch: fetchFn, half: true });
+      assert.deepEqual(seen, [1]);
+      assert.equal([...r.pages.values()][0].resolution, 0.5);
+      assert.ok(urls.some((u) => u.includes('/p/half/pg.webp')));
+      assert.deepEqual(Object.keys(promiseCache), []);
+      assert.ok(removed.some((k) => k.endsWith('s.skel?tier=half')));
+    } finally {
+      if (hadBitmap) globalThis.createImageBitmap = hadBitmap; else delete globalThis.createImageBitmap;
+    }
   });
 });
 
