@@ -469,7 +469,11 @@ picture, painted normally so the white glow does not swallow them; most fall und
 out of its bottom, `sideShare` of them are thrown out of its sides, all on one page-wide layer over everything
 (`.dyn-embers`, cleared each frame, 1 × 1 when idle; `SPARKS`)
 [ASSUMED: the band's width and brightness, the glow and its fade, the glitter tuned to the user's descriptions, not yet
-OK'd]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
+OK'd]. The border's look is one of `GLOW_STYLES` (the user, 2026-11-23: the white glow "drowns out any particle
+effect"; proposals for the user's pick, the review page's `&glow=0…4`, 0 the one above): 1 a thin white edge in a teal
+halo with a short trail and no wash, 2 the old picture dimmed for 0.35 s before a softer white sweep, 3 a teal band with
+a white core and a teal wash (white glitter), 4 a burning orange edge that chars the picture ahead of it (ember glitter)
+[ASSUMED: proposals, not yet chosen]. Each card's dissolve picture is composed, uploaded and drawn once while the cards wait, one card per frame, and
 the shader builds off the main thread (`glReady`, KHR_parallel_shader_compile); while they play, every card's dissolve
 and bloom are drawn in one GL pass a frame (`batchDissolve` / `batchBloom` / `flushBatch`, tiles in one canvas); a card
 that gave up shows `data-dyn="kept"`; the cards go

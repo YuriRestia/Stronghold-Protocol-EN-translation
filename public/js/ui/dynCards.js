@@ -28,7 +28,7 @@ import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
-import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, BLOOM, makeSparks, ANIM_DELAY_S } from './cardEntrance.js';
+import { loadDissolve, coverUv, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, BLOOM, glowStyle, makeSparks, ANIM_DELAY_S } from './cardEntrance.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -648,7 +648,8 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
           const t0 = performance.now() + Math.max(0, delay);
           let dissolved = false, lastS = 0, k = 0, glow = 0;
           // the glitter: falling out of the card, some thrown out of its sides (cardEntrance.js SPARKS)
-          const sparks = makeSparks();
+          const G = glowStyle();
+          const sparks = makeSparks(G.spark);
           const r = cv.getBoundingClientRect();
           const box = { left: r.left, top: r.top, width: r.width, height: r.height };
           if (wc && wc.style.opacity !== '1') wc.style.opacity = '1';
@@ -658,13 +659,16 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
               if (!live) return false;
               const s = (now - t0) / 1000;
               if (s < 0) return true;
-              k = sweepDrive(s);
-              if (!dissolved) batchDissolve(cv, pic, k, W, H);
-              // the bloom: a band on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
-              glow = BLOOM.glow * (k < 1 ? 1 : Math.max(0, 1 - (s - FLIP_SWEEP_S) / BLOOM.fadeS));
+              // the glow's look (GLOW_STYLES): a dim of the old picture first, then the sweep
+              const dimS = G.dim?.s || 0, sw = s - dimS;
+              const dim = G.dim ? 1 - (1 - G.dim.to) * Math.min(1, s / dimS) : 1;
+              k = sweepDrive(sw);
+              if (!dissolved) batchDissolve(cv, pic, k, W, H, dim);
+              // the bloom: bands on the dissolve's edge and a glow behind it; once the picture is gone, the glow fades
+              glow = k < 1 ? 1 : Math.max(0, 1 - (sw - FLIP_SWEEP_S) / G.fadeS);
               if (wc) batchBloom(wc, k, glow, k < 1 ? BLOOM.band : 0, W, H);
-              // the embers: born on the border while it moves, then falling out of the card
-              sparks.step(Math.min(0.05, Math.max(0, s - lastS)), k, k < 1, box);
+              // the glitter: born on the border while it moves, then falling out of the card
+              sparks.step(Math.min(0.05, Math.max(0, s - lastS)), k, k < 1 && sw > 0, box);
               lastS = s;
               return true;
             },
