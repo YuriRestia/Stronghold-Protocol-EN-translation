@@ -262,7 +262,7 @@ export function illustKey(R, art) {
  * Measured per illustration: full median 40 MB, p90 67, max 123; half median 10, p90 17, max 31 [src: work/dev-55
  * gpumem.json, 2026-11-23: every texture decoded RGBA8, no mipmaps].
  */
-export const KEEP_CAP_MB = 160; // [ASSUMED: proposed to the user 2026-11-23, not yet OK'd — 4 cards at full or 16 at half, at the median]
+export const KEEP_CAP_MB = 160; // [ASSUMED: 4 cards at full or 16 at half, at the median; user OK 2026-11-23: "alright, 8s and 160mb"]
 /**
  * GPU bytes per downloaded byte, the measured 90th percentile, for an index entry without its own figure (full 4.3–18.9,
  * median 8.9; half 1.3–8.7, median 3.3) [src: work/dev-55 gpumem.json vs data/local-assets.json bytes / bytesHalf].
@@ -376,7 +376,7 @@ export function endResultLoad() {
  * How long after the server's `ending` the result cards may wait for their illustrations, all waits included (the
  * settlement pause, the result screen's hold, the cards' first frames): one budget, never a second wait on top.
  */
-export const RESULT_GIVE_UP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-23, not yet OK'd — measured basis in the report]
+export const RESULT_GIVE_UP_MS = 8000; // [ASSUMED: proposed on a measured basis (work/dev-55 rw-*.json), user OK 2026-11-23: "alright, 8s and 160mb"]
 /** The least a team page that mounts late (its tab opened afterwards) still gives its cards' first frames (ms). */
 export const RESULT_MOUNT_MIN_MS = 2000; // [ASSUMED: proposed to the user 2026-11-23, not yet OK'd — measured basis in the report]
 

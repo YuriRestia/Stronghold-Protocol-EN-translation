@@ -449,7 +449,7 @@ show only on a server whose index lists illustrations. Loading (D10 / D11): noth
 starts, the room's illustrations are freed except the result cards' own (follow-up A, the user's pick of 2026-11-23:
 `screens/settle.js useKeepResultArt`, `releaseIllusts(arts)`): with 名片干员 the animating players' room cards, one's own
 first, kept at the room's tier (the 动态立绘画质 setting's, if set) while their GPU memory stays within `KEEP_CAP_MB`
-160 MB [ASSUMED: proposed, not yet OK'd] — each index entry's own `gpu` / `gpuHalf` figure, else its download size times
+160 MB (the user's OK of 2026-11-23) — each index entry's own `gpu` / `gpuHalf` figure, else its download size times
 the measured 90th-percentile ratio (full 12.2×, half 4.7×; per illustration full median 40 MB, half 10 MB [src: work/dev-55
 gpumem.json, 2026-11-23]); with 阵容最强干员 nothing (the aces are known only at `ending`). The result screen then stays
 on that tier (`resultPin`), so the kept cards show with no load. The rest of the result cards'
@@ -462,9 +462,10 @@ for the l2d to be ready instead of rushing ahead with the static art, cause the 
 once"): the team page's cards join one gate (`makeEntranceGate`), each settling once its illustration is live or failed
 (or it has none), and every card's entrance starts from the gate's opening with the row's stagger, held on its first,
 unseen frame until then (`useCardEntrance` `gate`). Static art only for a card without an illustration, one that failed,
-or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending`, all waits counted (the settlement
-pause, the screen's hold, the cards' first frames), at least `RESULT_MOUNT_MIN_MS` 2 s after a team page that mounts
-late [ASSUMED: both proposed, not yet OK'd]; such a card keeps its 2D art for good, no switch after its entrance.
+or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending` (the user's OK of 2026-11-23), all
+waits counted (the settlement pause, the screen's hold, the cards' first frames), at least `RESULT_MOUNT_MIN_MS` 2 s after
+a team page that mounts late [ASSUMED: proposed, not yet OK'd]; such a card keeps its 2D art for good, no switch after
+its entrance.
 Measured on the review page (renderer booted, local server, 4 cards, 1440p and 4K): the load 0.70–0.99 s from files not
 yet fetched, 0.45–0.65 s from the HTTP cache, mount to the gate's opening 0.36–0.41 s / 0.27–0.33 s, 0.23–0.25 s with
 the illustrations still in the renderer [src: work/dev-55 rw-1440.json / rw-4k.json, 2026-11-23].
