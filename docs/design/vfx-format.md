@@ -1961,7 +1961,7 @@ the `dyn_illust_<key>` prefab's own tree only; the others are not extracted. The
 | `illust.json` | the index below |
 | `<stem>.skel` or `<stem>.json` | the skeleton TextAsset as stored: binary 3.8, or Spine JSON (4 of the 98: `char_4058_pepe_2` — Pepe's E2 art, O6 —, `char_4058_pepe_sightseer#2`, `char_1016_agoat2_epoque#34`, `char_1020_reed2_summer#17`); all 3.8.99. All 98 card prefabs use `DynIllust` and a SkeletonAnimation, none `DynIllustSpecial` or a SkeletonGraphic |
 | `<stem>.atlas` | the atlas text, `size:` per page, no `pma` (`normalize_atlas`, §13) |
-| `p/<page>.webp`, `p/half/<page>.webp` | atlas pages as stored: the RGB unchanged, A from the `[alpha]` texture (`merge_alpha`); WebP lossy q90, alpha 100, `exact` (the RGB under A = 0 kept); half = exactly w/2 × h/2 |
+| `p/<page>.webp`, `p/half/<page>.webp` | atlas pages as stored: the RGB unchanged, A from the `[alpha]` texture (`merge_alpha`); WebP lossy q90, alpha 100, `exact` (the RGB under A = 0 kept); half = exactly w/2 × h/2, each texel the premultiplied mean of its 2 × 2 source texels (`half_page`: a premultiplied page averaged per channel; a straight page premultiplied, averaged, divided back) |
 | `fx.json` | the effect layer: one §33.4 descriptor of the whole prefab tree, holder effects included (root = node 0 = the skeleton's node; its Spine renderers are drawn from `spine`, not as effect renderers) |
 | `tex/<key>.webp`, `tex/half/<key>.webp`, `mesh/<key>.json` | the descriptor's textures (§33.8) and meshes (§33.9) |
 
@@ -2014,7 +2014,7 @@ settings sit under `meshGenerator.settings` — and its SkeletonDataAsset):
 | `look: { kind, pmaVertexColors, tintBlack, color, material, multiply, screen, additive }` | the Spine shader's inputs (Dev 51's `createDynSpine(…, look)`); `color` = SkeletonGraphic `m_Color` `[r, g, b, a]` or `null`; `material` and each blend mode's first material (or `null`) = `{ index, shader, keywords, queue, color (_Color), black (_Black), useGray (_UseGray), grayScale (_GrayScale) }` | the renderer's settings; the atlas material (SkeletonGraphic: `m_Material`); `blendModeMaterials` |
 | `renderers: [{ node, part, enabled, sortingLayer, sortingLayerID, sortingOrder, queue }]` | the skeleton's MeshRenderer (`part: null`) and each SkeletonPartsRenderer (`part` = its index in `separator.parts`, children `0`, `1`, …); `queue` = its material's render queue | `MeshRenderer.m_Enabled`, `m_SortingLayer(ID)`, `m_SortingOrder`; material `m_CustomRenderQueue` / shader queue |
 | `skeleton`, `format`, `version` | file, `'binary'` \| `'json'`, `'3.8.99'` | `SkeletonDataAsset.skeletonJSON` TextAsset; the version from its header |
-| `atlas`, `pages: [{ name, file, half, w, h }]` | files, px | `atlasAssets[].atlasFile`, `materials[]._MainTex` + `_AlphaTex` |
+| `atlas`, `pages: [{ name, file, half, w, h, pma }]` | files, px; `pma` true = the page holds premultiplied colour (its material has no `_USEBLEED_ON`, the shader takes rgb as it is: 12 of the 98), false = straight colour the shader multiplies by a (`_USEBLEED_ON`: 86) | `atlasAssets[].atlasFile`, `materials[]._MainTex` + `_AlphaTex`; the material's keywords |
 | `materials: [i]` | indexes into `fx.json` `materials` (§33.7), page textures as `'spine:<page>'` | the atlas materials (shader `Torappu/Spine/L2D/…`, keywords, floats: the Spine shader's input) |
 | `scale` | number (0.01) | `SkeletonDataAsset.scale` |
 | `mix: { default, pairs: [[from, to, s]] }` | crossfade seconds | `defaultMix`, `fromAnimation` / `toAnimation` / `duration` |
