@@ -153,17 +153,68 @@ export function setDynModule(next) {
 }
 
 /**
- * The page's stage, its index loaded and its quality set (the phone's half-resolution pages, spec §4.3 — a phone is
- * where 动态立绘's auto is 仅自己): one for the whole page (the renderer's), never destroyed by a screen.
+ * The page's stage, its index loaded and its quality set: one for the whole page (the renderer's), never destroyed by a
+ * screen.
  */
 let qualityOverride = null;
-/** The review page's phone frame: the pages a phone gets ('half' | 'full' | null = by the device). */
-export function setDynQuality(q) { qualityOverride = q === 'half' || q === 'full' ? q : null; }
+/** The review page's tier switch: the pages every card gets ('half' | 'full' | null = by the cards' size). */
+export function setDynQuality(q) { qualityOverride = q === 'half' || q === 'full' ? q : null; tierChanged(); }
 
-async function readyStage() {
+// ---- the page tier: half pages when the cards are drawn small enough (the user's choice of 2026-11-22: "automatic by
+// card size") ---------------------------------------------------------------------------------------------------------
+
+/** The official card's illustration window (group_char, 232 × 458 units) [src: ui/dynCards.js BACKDROP.win]. */
+const WIN_W = 232, WIN_H = 458;
+/**
+ * Half pages while the art window is drawn at most this many device px per official unit: there a half page still has
+ * about one texel per screen pixel. Measured on the GPU preview (work/dev-52 tierdata: the sharpness of each card's
+ * canvas, half ÷ full): at 0.79–1.01 px/unit half kept 74–100 % of full's detail, at 1.18 it kept 62–82 %, at 1.43 58–75 %,
+ * at 1.88 36–50 % — so up to 1, full above.
+ */
+export const HALF_MAX_SCALE = 1;
+/** The renderer draws a card at most at this device pixel ratio [src: render/dynillust/renderer.js MAX_DPR]. */
+const MAX_DPR = 2;
+
+/** A card's tier from its art window's CSS size: 'half' when drawn at ≤ HALF_MAX_SCALE device px per official unit. */
+export function cardTier(cssW, cssH, dpr = globalThis.devicePixelRatio || 1) {
+  const d = Math.min(MAX_DPR, Math.max(1, dpr));
+  if (!(cssW > 0) || !(cssH > 0)) return null;
+  return Math.min((cssW * d) / WIN_W, (cssH * d) / WIN_H) <= HALF_MAX_SCALE ? 'half' : 'full';
+}
+
+/**
+ * The result card's art window before the screen exists (the result load starts in the settlement pause, D10):
+ * screens/settle.css `.tcard` 3.47rem wide, `.tcard__art` 5.4rem tall.
+ */
+export function resultCardTier() {
+  const rem = parseFloat(globalThis.getComputedStyle?.(globalThis.document?.documentElement)?.fontSize) || 0;
+  return cardTier(3.47 * rem, 5.4 * rem) || 'full';
+}
+
+/** The tier each mounted card wants (its art window's size, kept current on resize). */
+const wants = new Map();
+let pageTier = 'full';
+/** Ticks when the page tier changes: every card re-mounts at the new tier. */
+export const dynTierStore = createStore({ tier: pageTier });
+let tierTimer = 0;
+/** The page tier: the override, else full while any card wants full, else half; cards that agree change it together. */
+function tierChanged() {
+  clearTimeout(tierTimer);
+  tierTimer = setTimeout(() => {
+    const vals = [...wants.values()];
+    const next = qualityOverride || (vals.length ? (vals.includes('full') ? 'full' : 'half') : pageTier);
+    if (next !== pageTier) { pageTier = next; dynTierStore.set({ tier: next }); }
+  }, 0);
+}
+function setWant(token, tier) {
+  if (tier) wants.set(token, tier); else wants.delete(token);
+  tierChanged();
+}
+
+async function readyStage(tier = qualityOverride || pageTier) {
   const R = await renderer();
   const st = R.getDynIllustStage();
-  st.quality = qualityOverride || (phoneDevice() ? 'half' : 'full');
+  st.quality = tier;
   await st.index();
   return { R, st };
 }
@@ -212,6 +263,8 @@ export function startResultLoad(cardsOf) {
   const state = { pending: true };
   resultLoad = state;
   const done = () => { if (state.pending) { state.pending = false; resultGateStore.set({ n: resultGateStore.get().n + 1 }); } };
+  // the result cards' tier from their size before they exist; the cards confirm it when they mount
+  if (!qualityOverride) { pageTier = resultCardTier(); dynTierStore.set({ tier: pageTier }); }
   readyStage().then(({ R, st }) => {
     if (resultLoad !== state) return null;
     const cards = cardsOf().slice().sort((a, b) => Number(!!b.mine) - Number(!!a.mine));
@@ -249,11 +302,25 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
   const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
   const [state, setState] = useState('off');
+  const tier = useStore((s) => s.tier, Object.is, dynTierStore);
+  // this card's wish for the page tier, from its art window's size (re-measured on resize; a change re-mounts the cards)
+  const token = useRef(null);
+  if (!token.current) token.current = {};
+  useEffect(() => {
+    const el = host.current;
+    if (!on || !el) { setWant(token.current, null); return undefined; }
+    const measure = () => { const r = el.getBoundingClientRect(); setWant(token.current, cardTier(r.width, r.height)); };
+    measure();
+    let t = 0;
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { clearTimeout(t); t = setTimeout(measure, 250); }) : null;
+    ro?.observe(el);
+    return () => { clearTimeout(t); ro?.disconnect(); setWant(token.current, null); };
+  }, [on]);
   useEffect(() => {
     setState(on ? 'loading' : 'off');
     if (!on) return undefined;
     let card = null, live = true;
-    const go = () => readyStage().then(({ R, st }) => {
+    const go = () => readyStage(tier).then(({ R, st }) => {
       const key = live ? illustKey(R, art) : null;
       if (!key || !host.current) { if (live) setState('off'); return null; }
       // the renderer's card: its own 2D canvas in the art window, under the card's overlays (§33.19); 'live' = drawn
@@ -272,7 +339,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
       live = false;
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
     };
-  }, [id, on, wait]);
+  }, [id, on, wait, tier]);
   const bg = backdrop && state === 'live' ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
   return html`<div class=${`dyn-art${state === 'live' ? ' is-live' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${state}>
     <div class="dyn-art__still">${children}</div>

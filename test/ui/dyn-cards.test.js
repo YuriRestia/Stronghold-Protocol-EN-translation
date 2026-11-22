@@ -5,8 +5,21 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   RESULT_WAIT_MS, dynIllustMode, cardAnimates, phoneDevice, cardArtOf, resultCardArt, illustKey,
-  setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle,
+  setDynModule, startResultLoad, resultWaitMs, endResultLoad, releaseIllusts, BACKDROP, backdropStyle, cardTier, HALF_MAX_SCALE,
 } from '../../public/js/ui/dynCards.js';
+
+test('the tier by card size: half up to one device px per official unit of the 232 × 458 window, full above', () => {
+  assert.equal(HALF_MAX_SCALE, 1);
+  // measured windows (work/dev-52 tierdata): the room card at 1280×720 and 1366×768, the result card at 1920×1080
+  assert.equal(cardTier(223, 435, 1), 'half');
+  assert.equal(cardTier(238, 465, 1), 'full', '1.01 px a unit');
+  assert.equal(cardTier(347, 540, 1), 'full');
+  // the Grand Alliance card at 1546×905 (272 × 249 CSS px at 1.5): its height decides — 374 / 458 = 0.82
+  assert.equal(cardTier(272, 249, 1.5), 'half');
+  // the renderer draws at most at 2× (MAX_DPR): a phone at 3× counts as 2×
+  assert.equal(cardTier(116, 229, 3), 'half');
+  assert.equal(cardTier(0, 300, 1), null, 'not laid out yet');
+});
 
 test('the backdrop: the official card background around group_char\'s window, as the prefab places them', () => {
   assert.deepEqual(BACKDROP.bg, { pos: [0, -13], size: [300, 528] });

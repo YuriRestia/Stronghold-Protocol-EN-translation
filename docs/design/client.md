@@ -453,6 +453,11 @@ An illustration's see-through pixels (its erasers) show the official card backgr
 before the illustration (group_bg/bg, the same 9-slice `bg_normal2` / `card_bg`): behind the result card the real one
 (below), and on the room and Grand Alliance cards `IllustArt backdrop`, mapped onto the art window as the prefab places it
 around group_char (`BACKDROP`), only while the illustration is live.
+Which pages (the user's choice of 2026-11-22, "automatic by card size"): each card measures its art window and wants half
+pages while it is drawn at most `HALF_MAX_SCALE` 1 device px per unit of the official 232 × 458 window (measured: there half
+kept 74–100 % of full's detail, above it 36–82 %), full above; the page uses full while any card wants full (the renderer's
+tier is page-wide), re-picks on resize, and the cards re-mount when it changes; the result load picks it from the result
+card's size before the screen exists (`resultCardTier`). The review page's `&tier` overrides it.
 Review (D12): `public/dev/dyn-review.html` puts every illustration of the server's index on the real screens — the result
 screen's team page 4 at a time, the room 4 seats, the Grand Alliance room 8 — with made-up players whose room card is that
 operator in that outfit, 动态立绘 on 所有人; PC or a landscape phone frame (half pages), page by page; review-only buttons
