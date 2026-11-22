@@ -160,7 +160,9 @@ history and the open points: DESIGN §32.14.25.
   system whose particle dies in a step is refilled in that step (fork, 2026-11-23: the evenly spread birth left
   Nightingale's Iakhu of Flows ring balls, one particle each, gone for seconds) [src: official UnityPlayer.dll
   2021.3.39 game build with its UnityPlayer.pdb: EmissionModule::EmitCommon, ParticleSystem::StartModules,
-  ParticleSystem::Update1Incremental]. `clips.js` samples
+  ParticleSystem::Update1Incremental]. A loop boundary inside a step splits its emission, and what a piece emits
+  also ages through the rest of the step, as the engine runs each piece's simulate → emit → start in turn (her gold
+  bars, life = loop = 1 / rate, were otherwise empty a whole second now and then). `clips.js` samples
   the prefabs' clips (transforms, active flags, material, renderer and system properties). `effect.js Effect` runs the
   hierarchy and the behaviours: ParticleEffect (delays, loop and stop fade, max lifetime, direction helpers, spawn
   location), ProjectileEffect, FxDelay, FxUVTweener(Advance), FxUVRotation, FxLODSetting, FollowMountPoint /
