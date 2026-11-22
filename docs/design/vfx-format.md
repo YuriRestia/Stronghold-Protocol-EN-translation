@@ -1961,7 +1961,7 @@ the `dyn_illust_<key>` prefab's own tree only; the others are not extracted. The
 | `illust.json` | the index below |
 | `<stem>.skel` or `<stem>.json` | the skeleton TextAsset as stored: binary 3.8, or Spine JSON (4 of the 98: `char_4058_pepe_2` — Pepe's E2 art, O6 —, `char_4058_pepe_sightseer#2`, `char_1016_agoat2_epoque#34`, `char_1020_reed2_summer#17`); all 3.8.99. All 98 card prefabs use `DynIllust` and a SkeletonAnimation, none `DynIllustSpecial` or a SkeletonGraphic |
 | `<stem>.atlas` | the atlas text, `size:` per page, no `pma` (`normalize_atlas`, §13) |
-| `p/<page>.webp`, `p/half/<page>.webp` | atlas pages as stored: the RGB unchanged, A from the `[alpha]` texture (`merge_alpha`); WebP lossy q90, alpha 100, `exact` (the RGB under A = 0 kept); half = exactly w/2 × h/2 |
+| `p/<page>.webp`, `p/half/<page>.webp` | atlas pages as stored: the RGB unchanged, A from the `[alpha]` texture (`merge_alpha`); WebP lossy q90, alpha 100, `exact` (the RGB under A = 0 kept); half = exactly w/2 × h/2, each texel the premultiplied mean of its 2 × 2 source texels (`half_page`: a premultiplied page averaged per channel; a straight page premultiplied, averaged, divided back) |
 | `fx.json` | the effect layer: one §33.4 descriptor of the whole prefab tree, holder effects included (root = node 0 = the skeleton's node; its Spine renderers are drawn from `spine`, not as effect renderers) |
 | `tex/<key>.webp`, `tex/half/<key>.webp`, `mesh/<key>.json` | the descriptor's textures (§33.8) and meshes (§33.9) |
 
@@ -2014,7 +2014,7 @@ settings sit under `meshGenerator.settings` — and its SkeletonDataAsset):
 | `look: { kind, pmaVertexColors, tintBlack, color, material, multiply, screen, additive }` | the Spine shader's inputs (Dev 51's `createDynSpine(…, look)`); `color` = SkeletonGraphic `m_Color` `[r, g, b, a]` or `null`; `material` and each blend mode's first material (or `null`) = `{ index, shader, keywords, queue, color (_Color), black (_Black), useGray (_UseGray), grayScale (_GrayScale) }` | the renderer's settings; the atlas material (SkeletonGraphic: `m_Material`); `blendModeMaterials` |
 | `renderers: [{ node, part, enabled, sortingLayer, sortingLayerID, sortingOrder, queue }]` | the skeleton's MeshRenderer (`part: null`) and each SkeletonPartsRenderer (`part` = its index in `separator.parts`, children `0`, `1`, …); `queue` = its material's render queue | `MeshRenderer.m_Enabled`, `m_SortingLayer(ID)`, `m_SortingOrder`; material `m_CustomRenderQueue` / shader queue |
 | `skeleton`, `format`, `version` | file, `'binary'` \| `'json'`, `'3.8.99'` | `SkeletonDataAsset.skeletonJSON` TextAsset; the version from its header |
-| `atlas`, `pages: [{ name, file, half, w, h }]` | files, px | `atlasAssets[].atlasFile`, `materials[]._MainTex` + `_AlphaTex` |
+| `atlas`, `pages: [{ name, file, half, w, h, pma }]` | files, px; `pma` true = the page holds premultiplied colour (its material has no `_USEBLEED_ON`, the shader takes rgb as it is: 12 of the 98), false = straight colour the shader multiplies by a (`_USEBLEED_ON`: 86) | `atlasAssets[].atlasFile`, `materials[]._MainTex` + `_AlphaTex`; the material's keywords |
 | `materials: [i]` | indexes into `fx.json` `materials` (§33.7), page textures as `'spine:<page>'` | the atlas materials (shader `Torappu/Spine/L2D/…`, keywords, floats: the Spine shader's input) |
 | `scale` | number (0.01) | `SkeletonDataAsset.scale` |
 | `mix: { default, pairs: [[from, to, s]] }` | crossfade seconds | `defaultMix`, `fromAnimation` / `toAnimation` / `duration` |
@@ -2037,9 +2037,24 @@ DynIllustActNames]; which ones a skeleton has is read from the skeleton itself.
 | `root: { node, pos: [x, y, z], rot: [x, y, z, w], scale: [x, y, z] }` | Unity units | the skeleton node's local transform (node 0 in every illustration; Lappland the Decadenza's E2 art (−0.18, −4, 5)) |
 
 The card formula (crew-docs `l2d-art-proposal.md` §4.1) reads `cameraSize`, `adjust.DEFAULT`, `root.pos` and
-`spine.scale`. The card uses `DEFAULT`: every view the manager creates calls `ApplyAdjust(DEFAULT)`, and the card never
+`spine.scale`. The adjust values are as stored; an offset or size equal to `DynIllustAdjust.DisabledValue`
+(−3.40282e38 on both components) is not applied, and the view keeps what `_CreateIllustView` gave it: offset (0, 0),
+size 2048 × 2048 (`char_1014_nearl2_epoque#17` has every adjust disabled) [src: official GameAssembly.dll
+DynIllustView.ApplyAdjust 0x144D35F–0x144D3C8 (anchoredPosition = offset, sizeDelta = size, each skipped when
+disabled); DynIllustMgr._CreateIllustView 0x144629C–0x14462D2 (SetParent(parent, false), sizeDelta 2048 × 2048)].
+The official card: `group_char` 232 × 458 with a RectMask2D, the holder `root` at (0, −39) from its centre, scale
+0.73 [src: official [uc]autochessouter.ab auto_chess_settle_game_player_item]. The card uses `DEFAULT`: every view the manager creates calls `ApplyAdjust(DEFAULT)`, and the card never
 calls `ApplySkinOffset` (O3) [src: official GameAssembly.dll DynIllustMgr._CreateIllustView 0x14463BF;
 AutoChessSettleGameTeamPlayerCardView._RenderIllust 0x28E17E9; notes dev50-l2d-o1-o3-findings.md].
+
+**Layers.** The illustration camera draws only layer 27 `UI_RT_PS` (`cullingMask = Layers.UI_RT_PS_INDEX_MASK`,
+1 << `LayerMask.NameToLayer("UI_RT_PS")`), and activating an illustration moves its whole instance there,
+inactive children included (`GameObjectUtil.SetLayerRecursively(inst.gameObject, UI_RT_PS_INDEX)`, which walks
+`Transform.GetChild`) [src: official GameAssembly.dll DynIllustMgr._InitDisplay 0x144710B; Layers..cctor 0x60ED72,
+0x60EE58; DynIllustMgr.Active 0x14441E9; GameObjectUtil.SetLayerRecursively 0x697BBD0; globalgamemanagers
+TagManager layers]. Holder effects, loaded later, are on layer 27 in their own prefabs (all 4,486 nodes of
+`arts/dynchars/effect.ab`) [src: official effect.ab m_Layer]. So every node of `fx.json` is drawn; the prefabs' own
+`m_Layer` (some nodes are on 0) does not matter and is not exported.
 
 **Actions** (DynIllust / DynIllustBase fields):
 
@@ -2050,7 +2065,7 @@ AutoChessSettleGameTeamPlayerCardView._RenderIllust 0x28E17E9; notes dev50-l2d-o
 | `animators: [{ node, controller, parameters, layers }]` | the Animator's state machine, below | `_animators[]` and their AnimatorControllers |
 | `fixFxDelay`, `animTimeFixed` | bool | `_fixFxDelay`, `_animTimeFixed` |
 | `extraTracks: [{ track, animation }]` | Spine track ≥ 2 | `_extraTrackAnimations` (`EXTRA_TRACK_START_INDEX` = 2) |
-| `cameraShakes: [{ node, enabled, trigs: [{ delay, duration, strength: [x, y, z], vibrato, randomness, fadeOut }] }]` | s, Unity units, as stored; 1 of the 98 has one (Hoshiguma the Breacher's E2 art: 4) | `FxDynIllustCameraShake._shakeTrigs` on that node |
+| `cameraShakes: [{ node, enabled, trigs: [{ delay, duration, strength: [x, y, z], vibrato, randomness, fadeOut }] }]` | s, Unity units, as stored; 2 of the 98 have some (Hoshiguma the Breacher's E2 art: 4; Talulah's E2 art: 1, in a holder effect) | `FxDynIllustCameraShake._shakeTrigs` on that node |
 
 An animator entry: `parameters: [{ name, type ('trigger' | 'bool' | 'float' | 'int'), default }]`; `layers: [{
 defaultState, states: [{ name, clip (index into fx.json clips | null), speed, transitions: [Transition] }],
