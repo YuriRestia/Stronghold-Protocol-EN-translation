@@ -61,11 +61,29 @@ export class IllustSkeleton {
   current(track) { return this.spine.state.getCurrent(track) || null; }
   onComplete(cb) { this._listeners.push(cb); }
 
+  /**
+   * Skin on the GPU (render/dynillust/gpuskin.js) from now on: the CPU keeps only the animation and the bones' world
+   * transforms; pixi-spine's slot meshes are hidden (Pixi skips them) and the parts draw through `gpu`.
+   */
+  enableGpu(gpu) {
+    this.gpu = gpu;
+    for (const c of this.spine.children) c.visible = false;
+  }
+
   /** Advance by dt s and pose (fires the complete events), then split the draw order into the parts. */
   update(dt) {
-    this.spine.update(dt);
+    if (this.gpu) {
+      // spine-core's own steps (pixi-spine's Spine.update minus its per-slot mesh work)
+      const sp = this.spine;
+      sp.state.update(dt);
+      sp.state.apply(sp.skeleton);
+      sp.skeleton.updateWorldTransform();
+    } else this.spine.update(dt);
     this._split();
   }
+
+  /** GPU path: upload this frame's bones, colours, deforms and draw order (before the frame is drawn). */
+  upload() { if (this.gpu) this.gpu.update(); }
 
   /** Draw-order ranges [from, to] of the parts (children of the Spine display follow the draw order). */
   _split() {
@@ -81,6 +99,7 @@ export class IllustSkeleton {
 
   /** Render part `p`'s slot containers with Pixi (from inside the Spine display's render). */
   renderPart(renderer, p) {
+    if (this.gpu) { this.gpu.draw(p.from, p.to, this.spine.worldTransform, renderer.width, renderer.height); return; }
     const ch = this.spine.children;
     for (let i = p.from; i <= p.to && i < ch.length; i++) ch[i].render(renderer);
   }
@@ -103,5 +122,8 @@ export class IllustSkeleton {
     return p;
   }
 
-  destroy() { try { this.spine.destroy({ children: true }); } catch { /* already gone */ } }
+  destroy() {
+    try { this.gpu?.destroy(); } catch { /* the context may be gone */ }
+    try { this.spine.destroy({ children: true }); } catch { /* already gone */ }
+  }
 }
