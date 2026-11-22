@@ -9,6 +9,7 @@ import { compileSystem, PSys, setPrewarmSink } from '../../public/js/render/vfx/
 import { Shape } from '../../public/js/render/vfx/shapes.js';
 import { Rng } from '../../public/js/render/vfx/rng.js';
 import { mat4, mat4Trs, quatEuler } from '../../public/js/render/vfx/math.js';
+import { sheetRect } from '../../public/js/render/vfx/geom.js';
 
 const ID = { m: mat4(), scale: [1, 1, 1] };
 const frameAt = (x, y, z, rot = [0, 0, 0, 1], s = [1, 1, 1]) => ({ m: mat4Trs([x, y, z], rot, s), scale: s });
@@ -82,6 +83,32 @@ describe('emission', () => {
     assert.equal(ps.count, 2);
     const ages = [...ps.age.subarray(0, 2)].sort((a, b) => a - b);
     assert.ok(Math.abs(ages[0] - 0.02) < 1e-6 && Math.abs(ages[1] - 0.06) < 1e-6, `ages ${ages}`);
+  });
+
+  // Texas the Omertosa's Il Segreto Della Notte balloons (qiqiu01 (1): fixed seed 881279541, a 2 × 4 sheet, one row
+  // at random, frame 0.5 + random 0…0.9999) [src: official fx.json char_1028_texas2_epoque#36 node 13]; the expected
+  // cells are the engine's rule (rng.js UnitySeeds / unityRand, read from UnityPlayer.dll) worked out apart from it
+  const balloons = (rate) => compileSystem(sys({
+    top: { looping: true, randomSeed: 881279541 }, I: { startLifetime: 10 }, E: { rateOverTime: rate },
+    extra: { UVModule: { mode: 0, timeMode: 0, fps: 30, frameOverTime: { min: 0, max: 0.9999 }, startFrame: 0.5,
+      tilesX: 2, tilesY: 4, animationType: 1, rowIndex: 0, cycles: 1, rowMode: 1, flipU: 0, flipV: 0 } },
+  }));
+  const cell = (def, ps, i) => { const r = sheetRect(def, ps, i, 0.5, [0, 0, 0, 0]); return [Math.round((1 - r[1]) / 0.25) - 1, Math.round(r[0] / 0.5)]; };
+
+  test('a fixed-seed texture sheet shows the engine\'s sprites: one call\'s particles take the seed lanes in turn', () => {
+    const def = balloons(60), ps = new PSys(def, {});
+    ps.play(ID);
+    ps.update(0.1, ID);   // one engine Update: one emission call of 6 particles (lanes 0–3, then 0–1 of the next draw)
+    assert.equal(ps.count, 6);
+    assert.deepEqual([0, 1, 2, 3, 4, 5].map((i) => cell(def, ps, i)), [[0, 1], [3, 0], [0, 0], [3, 0], [1, 1], [2, 0]]);
+  });
+
+  test('a fixed-seed texture sheet: each emission call starts a new draw of the seed lanes', () => {
+    const def = balloons(8), ps = new PSys(def, {});
+    ps.play(ID);
+    for (let k = 0; k < 3; k++) ps.update(0.125, ID);   // three Updates of one particle each: lane 0 of draws 1, 2, 3
+    assert.equal(ps.count, 3);
+    assert.deepEqual([0, 1, 2].map((i) => cell(def, ps, i)), [[0, 1], [1, 1], [3, 1]]);
   });
 
   test('a looping system keeps emitting; stopEmitting lets the particles finish', () => {
