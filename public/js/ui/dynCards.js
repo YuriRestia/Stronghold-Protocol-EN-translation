@@ -647,8 +647,8 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, class:
           setShown(true);
           const t0 = performance.now() + Math.max(0, delay);
           let dissolved = false, lastS = 0, k = 0, glow = 0;
-          // the embers: style A (out of the sides) or B (a shower, the default); the review page picks with &sparks=a|b
-          const sparks = makeSparks(globalThis.__dynSparks === 'a' ? 'A' : 'B');
+          // the glitter: falling out of the card, some thrown out of its sides (cardEntrance.js SPARKS)
+          const sparks = makeSparks();
           const r = cv.getBoundingClientRect();
           const box = { left: r.left, top: r.top, width: r.width, height: r.height };
           if (wc && wc.style.opacity !== '1') wc.style.opacity = '1';

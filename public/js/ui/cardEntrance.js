@@ -515,19 +515,21 @@ function flushTiles(items) {
 // old and new in the glow … Currently it looks too bland and 'clean'") -------------------------------------------------
 
 /**
- * Embers that fall out of the card (the user, 2026-11-22: "I expected it to fall out of the card itself, and currently
- * it's swallowed up in the glow"), drawn on one page-wide layer over everything, so they leave the card, as warm embers
- * painted normally (not added: an added spark is lost in the white glow). Born on the glow's leading edge, where the
- * mask reads `lead` past the dissolve's edge, over the old picture. Two styles to choose from:
- *   A, out of the sides: born near the card's left and right edges, thrown outward and up, then falling;
- *   B, an ember shower: born all along the border, falling down through the card and out of its bottom.
- * `rate` births per second per card while the border moves, `life` s / `size` CSS px ranges, `vx` / `vy` CSS px per
- * second at birth (A: `vx` outward), `gravity` CSS px/s², `side` (A) the share of the card's width at each edge births
- * keep to, `near` how close to the birth line's value a point must read, `max` live embers per card.
+ * Glitter that falls out of the card (the user, 2026-11-22: "I expected it to fall out of the card itself, and currently
+ * it's swallowed up in the glow"; 2026-11-23: "a star … the glitter/sparkling shape", "a better color", "dies faster and
+ * spawn less", "B looks better, but having a bit of A would make it better"), drawn on one page-wide layer over
+ * everything, so it leaves the card, painted normally (not added: an added spark is lost in the white glow). Born on the
+ * glow's leading edge, where the mask reads `lead` past the dissolve's edge, over the old picture. Most fall down through
+ * the card and out of its bottom (B); `sideShare` of them are born near the card's left and right edges (`side`, the
+ * share of the width) and thrown outward and up (A: `sideVx` outward, `sideVy`). `rate` births per second per card
+ * while the border moves, `life` s / `size` (the star's ray, CSS px) ranges, `vx` / `vy` CSS px per second at birth,
+ * `gravity` CSS px/s², `twinkle` the flicker's rate (Hz), `near` how close to the birth line's value a point must read,
+ * `max` live stars per card.
  */
-export const SPARKS = Object.freeze({ // [ASSUMED: tuned to the user's descriptions of 2026-11-22, not yet OK'd on the clip]
-  A: { rate: 110, life: [0.7, 1.3], size: [2, 4.5], vx: [150, 420], vy: [-320, -80], gravity: 1100, side: 0.16, near: 0.05, lead: 0.2, max: 160 },
-  B: { rate: 130, life: [0.9, 1.5], size: [1.8, 4], vx: [-60, 60], vy: [-40, 90], gravity: 700, near: 0.04, lead: 0.2, max: 180 },
+export const SPARKS = Object.freeze({ // [ASSUMED: tuned to the user's descriptions of 2026-11-22/23, not yet OK'd on the clip]
+  rate: 38, life: [0.35, 0.7], size: [4, 8], vx: [-50, 50], vy: [-30, 80], gravity: 650,
+  sideShare: 0.3, side: 0.16, sideVx: [140, 360], sideVy: [-280, -90],
+  twinkle: [6, 11], near: 0.04, lead: 0.2, max: 45,
 });
 
 /** The dissolve mask's red channel on the CPU, top row first (texture rows are uploaded flipped: row = y / H of the box). */
@@ -549,24 +551,41 @@ function maskPixels(url) {
 /** The dissolve edge's mask value at progress k (drawBloom, drawDissolve: half alpha at d = 2k − 0.75). */
 export const edgeOf = (k) => 2 * k - 0.75;
 
-let dot = null;
-/** An ember: a pale core, gold, an orange rim fading out (painted over: visible on the white glow and the dark room). */
-function sparkDot() {
-  if (dot || typeof OffscreenCanvas !== 'function') return dot;
-  const c = new OffscreenCanvas(32, 32), g = c.getContext('2d');
-  const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
-  grad.addColorStop(0, 'rgba(255,250,228,1)'); grad.addColorStop(0.3, 'rgba(255,206,112,0.95)'); grad.addColorStop(0.65, 'rgba(255,150,52,0.4)'); grad.addColorStop(1, 'rgba(255,120,30,0)');
-  g.fillStyle = grad; g.fillRect(0, 0, 32, 32);
-  return (dot = c);
+let star = null;
+const STAR_PX = 64;
+/**
+ * A glitter star: four thin pinched rays (a sparkle, not a five-pointed star) and a shorter diagonal pair, a white core,
+ * the rays a pale mint-cyan (the cards' teal; painted over, so they read on the white glow too) and a faint halo.
+ */
+function sparkStar() {
+  if (star || typeof OffscreenCanvas !== 'function') return star;
+  const c = new OffscreenCanvas(STAR_PX, STAR_PX), g = c.getContext('2d'), m = STAR_PX / 2;
+  const halo = g.createRadialGradient(m, m, 0, m, m, m * 0.45);
+  halo.addColorStop(0, 'rgba(170,255,236,0.55)'); halo.addColorStop(1, 'rgba(120,235,215,0)');
+  g.fillStyle = halo; g.fillRect(0, 0, STAR_PX, STAR_PX);
+  // a ray pair: tips at `len` on both axes, the sides pinched in to `waist` (quadratic curves through the centre's side)
+  const rays = (len, waist, rot, alpha) => {
+    g.save(); g.translate(m, m); g.rotate(rot);
+    const fill = g.createRadialGradient(0, 0, 0, 0, 0, len);
+    fill.addColorStop(0, `rgba(255,255,255,${alpha})`); fill.addColorStop(0.3, `rgba(214,255,246,${alpha})`);
+    fill.addColorStop(0.75, `rgba(110,232,214,${alpha * 0.75})`); fill.addColorStop(1, 'rgba(90,220,205,0)');
+    g.fillStyle = fill;
+    g.beginPath(); g.moveTo(0, -len);
+    g.quadraticCurveTo(waist, -waist, len, 0); g.quadraticCurveTo(waist, waist, 0, len);
+    g.quadraticCurveTo(-waist, waist, -len, 0); g.quadraticCurveTo(-waist, -waist, 0, -len);
+    g.fill(); g.restore();
+  };
+  rays(m * 0.98, m * 0.07, 0, 1);
+  rays(m * 0.5, m * 0.06, Math.PI / 4, 0.8);
+  return (star = c);
 }
 
 /**
- * A card's embers in page coordinates: `step` them by dt s with the border at progress k (births only while `born`) over
- * the card's box `{ left, top, width, height }` (CSS px), `draw` them on the page-wide layer (device px = CSS × dpr).
- * @param {'A'|'B'} style
+ * A card's glitter in page coordinates: `step` it by dt s with the border at progress k (births only while `born`) over
+ * the card's box `{ left, top, width, height }` (CSS px), `draw` it on the page-wide layer (device px = CSS × dpr).
  */
-export function makeSparks(style = 'B') {
-  const P = SPARKS[style] || SPARKS.B;
+export function makeSparks() {
+  const P = SPARKS;
   const list = [];
   let acc = 0;
   const rnd = (a) => a[0] + Math.random() * (a[1] - a[0]);
@@ -583,26 +602,34 @@ export function makeSparks(style = 'B') {
       if (e < -P.near || e > 1 + P.near) return;
       acc += P.rate * dt;
       for (let tries = 0; acc >= 1 && tries < 400 && list.length < P.max; tries++) {
+        const thrown = Math.random() < P.sideShare;
         let x = Math.random();
-        if (style === 'A') x = x < 0.5 ? x * 2 * P.side : 1 - (x - 0.5) * 2 * P.side;
+        if (thrown) x = x < 0.5 ? x * 2 * P.side : 1 - (x - 0.5) * 2 * P.side;
         const y = Math.random();
         const d = maskPx.r[Math.min(maskPx.h - 1, (y * maskPx.h) | 0) * maskPx.w + Math.min(maskPx.w - 1, (x * maskPx.w) | 0)] / 255;
         if (Math.abs(d - e) > P.near) continue;
-        const vx = style === 'A' ? (x < 0.5 ? -1 : 1) * rnd(P.vx) : rnd(P.vx);
-        list.push({ x: box.left + x * box.width, y: box.top + y * box.height, vx, vy: rnd(P.vy), age: 0, life: rnd(P.life), size: rnd(P.size) });
+        const vx = thrown ? (x < 0.5 ? -1 : 1) * rnd(P.sideVx) : rnd(P.vx);
+        list.push({ x: box.left + x * box.width, y: box.top + y * box.height, vx, vy: rnd(thrown ? P.sideVy : P.vy), age: 0,
+          life: rnd(P.life), size: rnd(P.size), rot: Math.random() * Math.PI / 2, spin: (Math.random() - 0.5) * 3, tw: rnd(P.twinkle) * 2 * Math.PI, ph: Math.random() * 6.3 });
         acc -= 1;
       }
       if (acc > 1) acc = 1;
     },
     draw(ctx, dpr) {
-      const img = sparkDot();
+      const img = sparkStar();
       if (!img || !list.length) return;
       for (const s of list) {
         const t = s.age / s.life;
-        const r = s.size * dpr * (1 - 0.4 * t);
-        ctx.globalAlpha = 1 - t * t;
-        ctx.drawImage(img, s.x * dpr - r * 2, s.y * dpr - r * 2, r * 4, r * 4);
+        // a quick flare in, a twinkle, then shrinking out
+        const flick = 0.75 + 0.25 * Math.sin(s.ph + s.age * s.tw);
+        const r = s.size * dpr * Math.min(1, t * 8) * (1 - 0.6 * t) * flick;
+        if (r < 0.3) continue;
+        ctx.globalAlpha = (1 - t * t) * (0.8 + 0.2 * flick);
+        const a = s.rot + s.spin * s.age, cs = Math.cos(a), sn = Math.sin(a);
+        ctx.setTransform(cs, sn, -sn, cs, s.x * dpr, s.y * dpr);
+        ctx.drawImage(img, -r, -r, 2 * r, 2 * r);
       }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
     },
   };
