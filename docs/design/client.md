@@ -162,7 +162,18 @@ history and the open points: DESIGN §32.14.25.
   2021.3.39 game build with its UnityPlayer.pdb: EmissionModule::EmitCommon, ParticleSystem::StartModules,
   ParticleSystem::Update1Incremental]. A loop boundary inside a step splits its emission, and what a piece emits
   also ages through the rest of the step, as the engine runs each piece's simulate → emit → start in turn (her gold
-  bars, life = loop = 1 / rate, were otherwise empty a whole second now and then). `clips.js` samples
+  bars, life = loop = 1 / rate, were otherwise empty a whole second now and then). A texture sheet's random start
+  frame, frame and row are the engine's own (fork, 2026-11-23): each particle also gets the seed the engine would
+  give it — four Unity Randoms seeded with the system seed + 0x16f · lane, drawn once per four particles of one
+  emission call (one per Update and loop piece; the prewarm is one Update) and again from the start at each play —, and
+  a field's random is the first draw of Random(that seed + the field's constant) (`rng.js UnitySeeds`, `unityRand`)
+  [src: official UnityPlayer.dll 2021.3.39 game build: RandN::SetSeed, InitialModule::ResetSeed / Start,
+  UpdateSingleRow2Tpl / UpdateWholeSheet2Tpl, ParticleSystem::Play / Simulate]. So a system with a fixed seed shows
+  the sprites the game shows (Texas the Omertosa's Il Segreto Della Notte balloons, a 2 × 4 sheet of blue, purple and
+  orange balloons: 810 such systems in 67 of the 98 illustrations); one with an automatic seed stays random, as in the
+  game. Not reproduced: the engine's prewarm is a single step that emits once per loop at its end, ours steps through
+  it, so which prewarmed particles are alive at the start may differ; the other fields keep our own per-field hash.
+  `clips.js` samples
   the prefabs' clips (transforms, active flags, material, renderer and system properties). `effect.js Effect` runs the
   hierarchy and the behaviours: ParticleEffect (delays, loop and stop fade, max lifetime, direction helpers, spawn
   location), ProjectileEffect, FxDelay, FxUVTweener(Advance), FxUVRotation, FxLODSetting, FollowMountPoint /
