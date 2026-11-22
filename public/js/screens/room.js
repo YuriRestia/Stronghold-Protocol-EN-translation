@@ -380,7 +380,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
     <header class="rseat__strip"><i></i><span class="num">P${index + 1}</span></header>
     <div class="seat__art rseat__art">
       ${art
-        ? html`<${IllustArt} art=${illust?.art || null} animate=${!!illust?.animate} wait="settled" backdrop=${!wide} fill=${wide} class="rseat__dyn">
+        ? html`<${IllustArt} art=${illust?.art || null} animate=${!!illust?.animate} wait="settled" backdrop=${!wide} class="rseat__dyn">
             <img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />
           </${IllustArt}>`
         : html`<${AvatarFrame} size="xl" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}

@@ -901,7 +901,7 @@
   /* the art window's width : height, a design choice: the 4-seat room 16 : 9 (the user, 2026-11-22: "pick a size that
      keeps the phone side ways framing, but doesn't show too much of the jagged border"; of the 98 illustrations 86 %
      leave at most 5 % of the card uncovered there, 92 % at 1.6, crew-docs ga-room-redesign edge survey), a Grand Alliance
-     room 1.6 (its layout I); what a scene leaves uncovered shows the scene fill (ui/dynCards.js fillGaps) */
+     room 1.6 (its layout I); what a scene leaves uncovered shows the card's dark panel */
   --rs-ar: 16 / 9;
   --rs-gap: max(.12rem, 14px);
   --rs-pad: max(.14rem, 14px);

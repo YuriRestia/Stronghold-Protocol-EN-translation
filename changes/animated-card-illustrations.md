@@ -10,7 +10,6 @@
 
 - In a Team Simulation room the four cards are now wide windows onto the operators' illustrations, two by two; in the Grand Alliance room each squad has a row of four wide cards under its name and its ready count.
 - Nothing covers the art any more: the ready state, the buttons and the seat number sit in the name plate under each card. Your own card has a mint ring around it, and the host's card a crown on its top edge.
-- Where an illustration's scene ends before the card's edge, the card carries on in that scene's own colours.
 - Before: tall cards with the host tag, the operator's name and the ready state over the art.
 
 ### Result cards enter as in the official client

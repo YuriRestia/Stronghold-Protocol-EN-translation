@@ -428,65 +428,6 @@ export function leaveGroup(e) {
   } else checkGroup(g);
 }
 
-// ---- the scene fill (wide cards) -----------------------------------------------------------------------------------
-
-/**
- * A wide card's background where the illustration's painted scene runs out (the user, 2026-11-22: "a different background
- * color for the cards that'll blend in with the exposed parts"): the card's own live frame sampled at FILL_W × FILL_H, each
- * uncovered cell given the average of its covered neighbours, spreading outward until every cell has a colour, and shown
- * blurred behind the illustration — so a gap beside a light scene is light, beside a dark one dark. A design choice, not
- * the official card's (which shows its card_bg there). Sampled after the card goes live and on a resize: no per-frame cost.
- */
-export const FILL_W = 32, FILL_H = 20;
-const N8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
-/** RGBA pixels (straight alpha, w × h) → a copy with every cell opaque, gaps filled from the covered ones; null if none is. */
-export function fillGaps(px, w, h) {
-  const out = new Uint8ClampedArray(px);
-  let known = new Uint8Array(w * h);
-  let any = false;
-  for (let i = 0; i < w * h; i++) if (px[i * 4 + 3] >= 128) { known[i] = 1; any = true; }
-  if (!any) return null;
-  for (let pass = 0; pass < w + h; pass++) {
-    const next = known.slice();
-    let left = 0;
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const i = y * w + x;
-        if (known[i]) continue;
-        let r = 0, g = 0, b = 0, n = 0;
-        for (const [dx, dy] of N8) {
-          const X = x + dx, Y = y + dy;
-          if (X < 0 || Y < 0 || X >= w || Y >= h || !known[Y * w + X]) continue;
-          const j = (Y * w + X) * 4;
-          r += out[j]; g += out[j + 1]; b += out[j + 2]; n++;
-        }
-        if (n) { out[i * 4] = r / n; out[i * 4 + 1] = g / n; out[i * 4 + 2] = b / n; next[i] = 1; } else left++;
-      }
-    }
-    known = next;
-    if (!left) break;
-  }
-  for (let i = 0; i < w * h; i++) out[i * 4 + 3] = 255;
-  return out;
-}
-/** Draws the scene fill of `src` (the card's 2D canvas) into `dst` (FILL_W × FILL_H); false when it could not. */
-function paintFill(src, dst) {
-  if (!src?.width || !src?.height || !dst) return false;
-  try {
-    const s = document.createElement('canvas');
-    s.width = FILL_W; s.height = FILL_H;
-    const sc = s.getContext('2d', { willReadFrequently: true });
-    sc.imageSmoothingQuality = 'high';
-    sc.drawImage(src, 0, 0, FILL_W, FILL_H);
-    const px = fillGaps(sc.getImageData(0, 0, FILL_W, FILL_H).data, FILL_W, FILL_H);
-    if (!px) return false;
-    dst.getContext('2d').putImageData(new ImageData(px, FILL_W, FILL_H), 0, 0);
-    return true;
-  } catch { return false; }
-}
-/** When a live card's fill is (re)sampled: a few frames after it goes live, once more after its entrance settles. */
-const FILL_AT_MS = [300, 2500];
-
 // ---- the card ------------------------------------------------------------------------------------------------------
 
 /**
@@ -496,15 +437,11 @@ const FILL_AT_MS = [300, 2500];
  * @param {{ art: { charId: string, outfit: string|null } | null, animate: boolean, wait?: 'now'|'settled', backdrop?: boolean, class?: string, children?: any }} props
  *   wait: 'now' mounts at once (the result screen: loaded in the pause), 'settled' once the screen has what it needs (room)
  *   backdrop: the official card background behind the live illustration (BACKDROP; a tall card of the official shape)
- *   fill: the scene fill behind the live illustration (fillGaps; a co-op room's wide card)
  */
-export function IllustArt({ art, animate, wait = 'now', backdrop = false, fill = false, class: cls = '', children }) {
+export function IllustArt({ art, animate, wait = 'now', backdrop = false, class: cls = '', children }) {
   const on = !!(animate && art);
   const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
-  const fillEl = useRef(null);
-  const cardRef = useRef(null);
-  const [filled, setFilled] = useState(false);
   const [state, setState] = useState('off');
   const tier = useStore((s) => s.tier, Object.is, dynTierStore);
   // this card's wish for the page tier, from its art window's size (re-measured on resize; a change re-mounts the cards)
@@ -659,7 +596,6 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, fill =
       if (!key || !host.current) { if (live) setState('off'); return null; }
       // the renderer's card: its own 2D canvas in the art window, under the card's overlays (§33.19); 'live' = drawn
       card = st.mount(key, { onState: (s) => { if (!live || kept) return; cur = s; setState(s); if (entry) { groupState(entry, s); if (s === 'live') cover(); } } });
-      cardRef.current = card;
       if (card.canvas) host.current.append(card.canvas);
       if (entry) { entry.card = card; prepare(); joinGroup(entry); } else card.start();
       return card.ready;
@@ -672,23 +608,12 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, fill =
     else go();
     return () => {
       live = false;
-      cardRef.current = null;
       if (raf) cancelAnimationFrame(raf);
       freeDissolvePicture(pic); pic = null;
       if (entry) leaveGroup(entry);
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
     };
   }, [id, on, wait, tier]);
-  // the scene fill: sampled from the live card's canvas a few frames after it goes live, once more later, and on a resize
-  useEffect(() => {
-    if (!fill || state !== 'live') { setFilled(false); return undefined; }
-    const paint = () => { if (paintFill(cardRef.current?.canvas, fillEl.current)) setFilled(true); };
-    const timers = FILL_AT_MS.map((ms) => setTimeout(paint, ms));
-    let t = 0;
-    const ro = typeof ResizeObserver === 'function' && host.current ? new ResizeObserver(() => { clearTimeout(t); t = setTimeout(paint, 400); }) : null;
-    ro?.observe(host.current);
-    return () => { timers.forEach(clearTimeout); clearTimeout(t); ro?.disconnect(); };
-  }, [fill, state, id, tier]);
   // what the card shows: 'ready' while it runs hidden before its group shows
   const vis = state === 'live' && !shown ? 'ready' : state;
   // in place (under the dissolve's cover, or shown)
@@ -696,9 +621,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, fill =
   const bg = backdrop && placed ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
   return html`<div ref=${root} class=${`dyn-art${placed ? ' is-live' : ''}${wait === 'settled' ? ' dyn-art--flip' : ''}${reveal === 'dissolve' ? ' dyn-art--dissolve' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${vis}>
     <div class="dyn-art__still">${children}</div>
-    ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg)}></i></div>` : null}
-    ${fill && on ? html`<canvas class=${`dyn-art__fill${filled && placed ? ' is-on' : ''}`} ref=${fillEl} width=${FILL_W} height=${FILL_H} aria-hidden="true"></canvas>` : null}
-    ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
+    ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg)}></i></div>` : null}    ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}
     ${on && wait === 'settled' ? html`<canvas class="dyn-art__dissolve" ref=${dis} aria-hidden="true"></canvas><canvas class="dyn-art__wash" ref=${wash} aria-hidden="true"></canvas>` : null}
   </div>`;
 }

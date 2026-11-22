@@ -482,13 +482,8 @@ before the illustration (group_bg/bg, the same 9-slice `bg_normal2` / `card_bg`)
 (below), and on a tall card of the official shape (the solo room's) `IllustArt backdrop`, mapped onto the art window as the
 prefab places it around group_char (`BACKDROP`), only while the illustration is live. A co-op room's wide card draws none:
 cut for the tall card, the 9-slice stretched across a wide one showed its light half and + marks where a scene ends (the
-user, 2026-11-22). There the scene fill shows instead (`IllustArt fill`, `fillGaps`; the user's idea of a background that
-blends with the exposed parts): the card's own live frame sampled at 32 × 20, each uncovered cell given its covered
-neighbours' colour until all have one, blurred behind the illustration — light beside a light scene, dark beside a dark
-one; sampled a few frames after the card goes live, again after 2.5 s and on a resize, never per frame. With the cards drawn
-in Workers (the card canvas transferred to its Worker) the page cannot read the frame, so the fill stays off and the card's
-dark panel shows until the renderer offers a sample of a card's frame (measured on the merged build, 2026-11-22: 0 of 8 / 4
-cards filled).
+user, 2026-11-22), so there the card's own dark panel shows. Nothing is sampled or blurred at runtime (the user,
+2026-11-22: a blurred background, if chosen, is prepared per illustration with the art, not made in the browser).
 (fork) **A co-op room's wide cards** (the 4-seat and the Grand Alliance room, the user's layout I and its 4-seat follow-up
 of 2026-11-22; room.js SeatCard `wide`, room.css `.rs-seats--wide`): the event's tall card gives way to a wide window onto
 the art (`--rs-ar`, a design choice: 16 : 9 in the 4-seat room — the user asked for a phone's sideways framing without too
