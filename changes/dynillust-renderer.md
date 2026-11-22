@@ -8,9 +8,12 @@
 - The official card's action timing is read from the client: idle, a special idle 3–8 s after appearing and then every
   10–23 s, the 90 s idle re-sync, action effects with their delays [src: official GameAssembly.dll
   UICharacterDynIllust..ctor 0x14950FA; RandomUtil.Range 0x6992E80; DynIllust IDLE_COMPLETE_SYNC_THRESHOLD_SECONDS].
-- The cards fit the official card window by height and centre it, so a card wider than the official one shows the
-  official vertical range plus more art at the sides instead of a zoomed, bottom-cut picture [src: notes
-  dev49-l2d-review-findings.md §1].
+- Each card contains the whole official card window, centred, at every screen size: a card of another shape only adds
+  art around it, instead of a zoomed picture cut at the bottom (the Grand Alliance card at 1546 × 905 showed 46 % of
+  the official height) [src: notes dev49-l2d-review-findings.md §1, §4].
+- Skeletons are posed y-up as the official runtime poses them, and path constraints use Spine's own math: Angelina the
+  Mellow Wish's face and Exusiai the New Covenant's legs were torn into flat pale shapes [src: notes
+  dev50-gpu-skinning-report.md §Pale shapes].
 - Skeletons skin on the GPU (WebGL2, phones included): the CPU keeps only the animation and bone transforms, the
   vertex shader places every vertex. 8 heavy illustrations at once: 35 → 43 fps on the dev PC, the same pixels as the
   CPU path on 17 illustrations [src: notes dev50-l2d-perf-report.md §GPU skinning].

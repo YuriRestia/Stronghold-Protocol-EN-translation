@@ -434,7 +434,8 @@ class Slot {
     const pos = d.root.pos, rs = d.root.scale;
     const sp = this.skel.spine;
     sp.position.set(this.map.x0 + this.map.scale * pos[0], this.map.y0 - this.map.scale * pos[1]);
-    sp.scale.set(this.map.scale * this.skel.scale * rs[0], this.map.scale * this.skel.scale * rs[1]);
+    // y flipped here: the skeleton is posed y-up, as spine-unity poses it (skeleton.js poseYUp)
+    sp.scale.set(this.map.scale * this.skel.scale * rs[0], -this.map.scale * this.skel.scale * rs[1]);
     sp.render = (renderer) => S._renderSlot(renderer, this);
     this.root = new P.Container();
     const mask = new P.Graphics().beginFill(0xffffff).drawRect(0, 0, w, h).endFill();

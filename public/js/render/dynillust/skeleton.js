@@ -11,8 +11,111 @@
 //   A part ends with its separator slot, the next part starts after it [unverified: spine-unity 3.8
 //   MeshGenerator.GenerateSkeletonRendererInstruction as recalled — the client's copy is not disassembled yet].
 //
-// pixi-spine keeps the skeleton y-down: a bone's `matrix` (a PIXI Matrix: b / c are spine's c / b) maps bone space to
-// the Spine display's local px. Unity's skeleton space is y-up and in skeleton units × `scale`.
+// The pose is computed y-UP, as spine-unity computes it, with pixi-spine's global y-down flip (PIXI.spine.settings.yDown)
+// off for that moment; the Spine display is flipped instead (renderer.js: a negative y scale). Spine 3.8's world
+// transform for bones that drop their parent's scale or rotation (transform modes NoScale, NoScaleOrReflection,
+// NoRotationOrReflection) strips a y flip along with the scale, so posing y-down mirrors those bones against the rest
+// (Angelina the Mellow Wish's E2 art: the face-turn bones HM_Head_X' / X'' / Y' are NoScale and her face tore into a
+// pale wedge) [src: notes dev50-gpu-skinning-report.md §Pale shapes; spine-runtimes 3.8 Bone.updateWorldTransformWith].
+// A bone's `matrix` (a PIXI Matrix: b / c are spine's c / b) then maps bone space to the display's local px, y up,
+// in skeleton units; Unity's skeleton space is the same y-up space × `scale`.
+
+/** Run `fn` with pixi-spine's y-down flip off (the pose as spine-unity computes it). */
+function poseYUp(fn) {
+  const S = globalThis.PIXI && globalThis.PIXI.spine && globalThis.PIXI.spine.settings;
+  if (!S || !S.yDown) return fn();
+  S.yDown = false;
+  try { return fn(); } finally { S.yDown = true; }
+}
+
+const PATH = 4;                 // spine-core 3.8 AttachmentType.Path
+const PATH_EPSILON = 0.00001;  // spine-core 3.8 PathConstraint.epsilon
+
+/** spine-core 3.8 Utils.setArraySize: resize in place, new entries 0. */
+function sized(a, n) {
+  if (a.length < n) for (let k = a.length; k < n; k++) a[k] = 0;
+  else a.length = n;
+  return a;
+}
+
+/**
+ * spine-core 3.8 PathConstraint.update, installed on each of an illustration's path constraints. pixi-spine 4.0.6's 3.8
+ * port sets the bone angle from the path only in Tangent mode (`if (tangents && (tangents ? … : …))`), so a Chain or
+ * ChainScale constraint turns its bones flat to angle 0 (Exusiai the New Covenant's E2 art: both legs, the right calf
+ * a pale plank across her hips) [src: public/vendor/pixi-spine.js PathConstraint.update, read 2026-11-22; spine-runtimes
+ * 3.8 spine-ts PathConstraint.update: `if (tangents) r = positions[p - 1]; else if (spaces[i + 1] == 0) r =
+ * positions[p + 2]; else r = Math.atan2(dy, dx);`]. Bone matrices are PIXI Matrices: b / c are spine's c / b.
+ */
+export function pathConstraintUpdate() {
+  const attachment = this.target.getAttachment();
+  if (!attachment || attachment.type !== PATH) return;
+  const rotateMix = this.rotateMix, translateMix = this.translateMix;
+  const translate = translateMix > 0, rotate = rotateMix > 0;
+  if (!translate && !rotate) return;
+  const data = this.data;
+  const spacingMode = data.spacingMode, lengthSpacing = spacingMode === 0;          // SpacingMode Length 0, Fixed 1, Percent 2
+  const rotateMode = data.rotateMode, tangents = rotateMode === 0, scale = rotateMode === 2; // Tangent 0, Chain 1, ChainScale 2
+  const bones = this.bones, boneCount = bones.length, spacesCount = tangents ? boneCount : boneCount + 1;
+  const spaces = sized(this.spaces, spacesCount);
+  let lengths = null;
+  const spacing = this.spacing;
+  if (scale || lengthSpacing) {
+    if (scale) lengths = sized(this.lengths, boneCount);
+    for (let i = 0, n = spacesCount - 1; i < n;) {
+      const bone = bones[i], setupLength = bone.data.length;
+      if (setupLength < PATH_EPSILON) {
+        if (scale) lengths[i] = 0;
+        spaces[++i] = 0;
+      } else {
+        const x = setupLength * bone.matrix.a, y = setupLength * bone.matrix.b;
+        const length = Math.sqrt(x * x + y * y);
+        if (scale) lengths[i] = length;
+        spaces[++i] = (lengthSpacing ? setupLength + spacing : spacing) * length / setupLength;
+      }
+    }
+  } else {
+    for (let i = 1; i < spacesCount; i++) spaces[i] = spacing;
+  }
+  const positions = this.computeWorldPositions(attachment, spacesCount, tangents, data.positionMode === 1, spacingMode === 2);
+  let boneX = positions[0], boneY = positions[1], offsetRotation = data.offsetRotation;
+  let tip;
+  if (offsetRotation === 0) tip = rotateMode === 1;
+  else {
+    tip = false;
+    const p = this.target.bone.matrix;
+    offsetRotation *= p.a * p.d - p.c * p.b > 0 ? Math.PI / 180 : -Math.PI / 180;
+  }
+  for (let i = 0, p = 3; i < boneCount; i++, p += 3) {
+    const bone = bones[i], m = bone.matrix;
+    m.tx += (boneX - m.tx) * translateMix;
+    m.ty += (boneY - m.ty) * translateMix;
+    const x = positions[p], y = positions[p + 1], dx = x - boneX, dy = y - boneY;
+    if (scale) {
+      const length = lengths[i];
+      if (length !== 0) { const s = (Math.sqrt(dx * dx + dy * dy) / length - 1) * rotateMix + 1; m.a *= s; m.b *= s; }
+    }
+    boneX = x; boneY = y;
+    if (rotate) {
+      const a = m.a, b = m.c, c = m.b, d = m.d; // spine's a, b, c, d
+      let r;
+      if (tangents) r = positions[p - 1];
+      else if (spaces[i + 1] === 0) r = positions[p + 2];
+      else r = Math.atan2(dy, dx);
+      r -= Math.atan2(c, a);
+      if (tip) {
+        const cos = Math.cos(r), sin = Math.sin(r), length = bone.data.length;
+        boneX += (length * (cos * a - sin * c) - dx) * rotateMix;
+        boneY += (length * (sin * a + cos * c) - dy) * rotateMix;
+      } else r += offsetRotation;
+      if (r > Math.PI) r -= 2 * Math.PI;
+      else if (r < -Math.PI) r += 2 * Math.PI;
+      r *= rotateMix;
+      const cos = Math.cos(r), sin = Math.sin(r);
+      m.a = cos * a - sin * c; m.c = cos * b - sin * d; m.b = sin * a + cos * c; m.d = sin * b + cos * d;
+    }
+    bone.appliedValid = false;
+  }
+}
 
 /** Spine/Skeleton's render queue: Transparent [unverified: spine-unity Spine-Skeleton.shader Tags Queue as recalled]. */
 export const SKELETON_QUEUE = 3000;
@@ -30,6 +133,9 @@ export class IllustSkeleton {
     // Dev 51's createDynSpine (render/dynillust/spine-shader.js: the official Spine fragment math) when the stage has it
     this.spine = o.makeSpine ? o.makeSpine(spineData) : new P.spine.Spine(spineData);
     this.spine.autoUpdate = false;
+    // spine-core's path constraint math on this skeleton's constraints only (pathConstraintUpdate: pixi-spine's 3.8
+    // port lost the Chain / ChainScale bone angle); other pixi-spine skeletons in the game keep the library's
+    for (const c of this.spine.skeleton.pathConstraints || []) c.update = pathConstraintUpdate;
     this.scale = Number(o.scale) > 0 ? Number(o.scale) : 0.01;
     if (o.skin) { try { this.spine.skeleton.setSkinByName(o.skin); this.spine.skeleton.setSlotsToSetupPose(); } catch { /* the default skin */ } }
     const sd = this.spine.stateData;
@@ -72,13 +178,15 @@ export class IllustSkeleton {
 
   /** Advance by dt s and pose (fires the complete events), then split the draw order into the parts. */
   update(dt) {
-    if (this.gpu) {
-      // spine-core's own steps (pixi-spine's Spine.update minus its per-slot mesh work)
-      const sp = this.spine;
-      sp.state.update(dt);
-      sp.state.apply(sp.skeleton);
-      sp.skeleton.updateWorldTransform();
-    } else this.spine.update(dt);
+    poseYUp(() => {
+      if (this.gpu) {
+        // spine-core's own steps (pixi-spine's Spine.update minus its per-slot mesh work)
+        const sp = this.spine;
+        sp.state.update(dt);
+        sp.state.apply(sp.skeleton);
+        sp.skeleton.updateWorldTransform();
+      } else this.spine.update(dt);
+    });
     this._split();
   }
 
@@ -116,9 +224,9 @@ export class IllustSkeleton {
     if (!b) return null;
     const m = b.matrix;
     const a = m ? m.a : b.a, bb = m ? m.b : b.c, tx = m ? m.tx : b.worldX, ty = m ? m.ty : b.worldY;
-    // y-down px → y-up skeleton units → Unity units (one reused record: read it before the next call)
+    // y-up skeleton units → Unity units (one reused record: read it before the next call)
     const p = this._pose || (this._pose = { x: 0, y: 0, rot: 0, scaleX: 1, scaleY: 1 });
-    p.x = tx * this.scale; p.y = -ty * this.scale; p.rot = Math.atan2(-bb, a) * 180 / Math.PI; p.scaleX = b.scaleX; p.scaleY = b.scaleY;
+    p.x = tx * this.scale; p.y = ty * this.scale; p.rot = Math.atan2(bb, a) * 180 / Math.PI; p.scaleX = b.scaleX; p.scaleY = b.scaleY;
     return p;
   }
 
