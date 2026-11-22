@@ -102,7 +102,65 @@ function diagCard(c) {
     pages: c.prep ? [...c.prep.pages.values()].map((t) => [t.width, t.height, t.realWidth, t.realHeight, !!t.valid, !!t.destroyed]) : null,
     // the effect nodes drawing particles now: [node, particles] (at most 60)
     fx: s && s.fx ? liveNodes(s.fx.fx) : null,
+    // the card canvas's own pixels: mean |difference| of horizontal neighbours (green, every 4th row): a blurred copy is low
+    sharp: sharpness(c),
+    // the GPU skeleton's atlas pages: [ours (this card's prep), destroyed] per page
+    skelPages: s && s.skel.gpu && c.prep ? s.skel.gpu.pages.map((bt) => [[...c.prep.pages.values()].includes(bt), !!bt.destroyed]) : null,
+    // the slot was built from this card's prep (its data), and its id
+    slotPrep: s && c.prep ? s.data === c.prep.data : null,    slotId: s ? s.id : null,
   };
+}
+
+function sharpness(c) {
+  if (!c.ctx || !(c.w > 1 && c.h > 1)) return null;
+  const d = c.ctx.getImageData(0, 0, c.w, c.h).data;
+  let sum = 0, n = 0;
+  for (let y = 0; y < c.h; y += 4) for (let x = 1; x < c.w; x++) { const o = (y * c.w + x) * 4; sum += Math.abs(d[o + 1] - d[o - 3]); n++; }
+  return n ? Math.round(sum / n * 100) / 100 : null;
+}
+
+/** The stage's canvas and context state (host.js diag): sizes, resolution, sampler bindings, one atlas page's sampling. */
+function diagStage() {
+  const r = stage.renderer;
+  if (!r) return null;
+  const gl = r.gl, out = { r: [r.width, r.height], res: r.resolution, view: [r.view.width, r.view.height], screen: [r.screen.width, r.screen.height] };
+  out.samplers = [];
+  for (let u = 0; u < 8; u++) out.samplers.push(gl.getParameter ? (gl.activeTexture(gl.TEXTURE0 + u), !!gl.getParameter(gl.SAMPLER_BINDING)) : null);
+  gl.activeTexture(gl.TEXTURE0);
+  // the first card's first atlas page: its GL texture's filters and levels
+  const c = [...cards.values()].find((x) => x.prep && x.prep.pages.size);
+  const bt = c && [...c.prep.pages.values()][0];
+  const g = bt && bt._glTextures && bt._glTextures[r.CONTEXT_UID];
+  out.slots = [...stage.slots.values()].map((s) => [s.id, s.cards.size]);
+  out.cache = [...stage.cache.keys()];
+  // Pixi's asset cache: the skeleton entries it still holds
+  try {
+    const A = globalThis.PIXI.Assets, skel = (k) => /\.(skel|json|atlas)/.test(String(k));
+    const m = A.cache._cache, pc = A.loader && A.loader.promiseCache, rc = A.resolver && (A.resolver._resolverHash || A.resolver._cache);
+    out.assetSkel = {
+      cache: m ? [...m.keys()].filter(skel).length : null,
+      promise: pc ? Object.keys(pc).filter(skel).slice(0, 3) : null,
+      resolver: rc ? Object.keys(rc).filter(skel).length : null,
+      parsers: (A.loader && A.loader.parsers || []).map((p) => p.extension && p.extension.name || p.name).filter(Boolean).slice(0, 20),
+    };
+  } catch (e) { out.assetSkel = String(e); }
+  out.pageGl = bt ? { has: !!g, dirty: g ? [g.dirtyId, bt.dirtyId] : null, valid: bt.valid, res: bt.resource && bt.resource.constructor && bt.resource.constructor.name, src: bt.resource && bt.resource.source ? [bt.resource.source.width, bt.resource.source.height] : null } : null;
+  if (g) {
+    gl.bindTexture(gl.TEXTURE_2D, g.texture);
+    const P = (k) => gl.getTexParameter(gl.TEXTURE_2D, k);
+    out.page = { key: c.key, size: [g.width, g.height], mip: g.mipmap, isTex: gl.isTexture(g.texture), min: P(gl.TEXTURE_MIN_FILTER), base: P(gl.TEXTURE_BASE_LEVEL), max: P(gl.TEXTURE_MAX_LEVEL) };
+    // the texel at the page's centre (level 0), through a throwaway framebuffer
+    const fb = gl.createFramebuffer(), px = new Uint8Array(4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, g.texture, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) { gl.readPixels(g.width >> 1, g.height >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); out.page.texel = [...px]; }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteFramebuffer(fb);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    r.texture.reset?.();
+    r.framebuffer?.reset?.();
+  }
+  return out;
 }
 
 function liveNodes(e) {
@@ -132,6 +190,7 @@ function handle(m) {
     }
     case 'box': { const c = cards.get(m.id); if (c) { c.box = [m.w, m.h]; stage._kick(); } break; }
     case 'framing': cards.get(m.id)?.setFraming(m.framing, m.centre); break;
+    case 'debug': stage.debugHide = m.hide || null; stage._kick(); break;
     case 'view': { const c = cards.get(m.id); if (c) { c.inView = !!m.v; stage._kick(); } break; }
     case 'start': cards.get(m.id)?.start(); break;
     case 'unmount': { const c = cards.get(m.id); cards.delete(m.id); c?.unmount(); break; }
@@ -147,7 +206,7 @@ function handle(m) {
       stage._kick();
       break;
     case 'frames': frames = m.on ? [] : null; break;
-    case 'diag': post({ t: 'diag', rid: m.rid, gl: stage.renderer?.gl?.getError?.() ?? null, cards: [...cards.values()].map(diagCard) }); break;
+    case 'diag': post({ t: 'diag', rid: m.rid, gl: stage.renderer?.gl?.getError?.() ?? null, stage: diagStage(), cards: [...cards.values()].map(diagCard) }); break;
     case 'frameLog': post({ t: 'frameLog', rid: m.rid, origin: performance.timeOrigin, frames: frames || [] }); if (frames) frames = []; break;
     default: break;
   }

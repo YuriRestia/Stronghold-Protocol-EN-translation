@@ -33,10 +33,21 @@ export function getDynIllustStage() {
 
 /** The illustration key of an operator's outfit (null skinId: the E2 art), or null without one / before the index. */
 export function dynIllustKey(charId, skinId = null) {
-  const g = getDynIllustStage()._group;
-  if (!g || !charId) return null;
-  const want = skinId || `${charId}#2`;
-  for (const [k, e] of Object.entries(g)) if (e && e.charId === charId && e.skinId === want) return k;
+  return findDynIllustKey(getDynIllustStage()._group, charId, skinId);
+}
+
+/**
+ * The key in a `dynillust` group (data/local-assets.json) of an operator's outfit. Ids compare without case: the index
+ * spells 7 Ambience Synesthesia outfits `@ambiencesynesthesia#N` where the outfit data and players' choices have
+ * `@ambienceSynesthesia#N` (char_1046_sbell2 #8, mlyss #6, ines #5, logos #6, svrash #4, demkni #7, surtr #6), so
+ * a player wearing one never got the illustration [src: Dev 52, 2026-11-23].
+ */
+export function findDynIllustKey(group, charId, skinId = null) {
+  if (!group || !charId) return null;
+  const cid = String(charId).toLowerCase(), want = String(skinId || `${charId}#2`).toLowerCase();
+  for (const [k, e] of Object.entries(group)) {
+    if (e && typeof e.charId === 'string' && typeof e.skinId === 'string' && e.charId.toLowerCase() === cid && e.skinId.toLowerCase() === want) return k;
+  }
   return null;
 }
 

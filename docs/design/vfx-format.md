@@ -1943,7 +1943,12 @@ The animated official illustrations on the result, room and Grand Alliance cards
 `arts/dynchars/<key>.ab`: a Spine 3.8 skeleton on the prefab root plus an effect layer (particles, meshes, animators,
 backgrounds) in the §33.4 format. `<key>` is the official `skin_table.charSkins[skinId].dynIllustId` minus its
 `dyn_illust_` prefix (`char_1038_whitw2_2`, `char_1038_whitw2_sale#15`) [src: official skin_table.json dynIllustId;
-container `dyn/arts/dynchars/char_1038_whitw2/dyn_illust_char_1038_whitw2_2.prefab`]. Extractor:
+container `dyn/arts/dynchars/char_1038_whitw2/dyn_illust_char_1038_whitw2_2.prefab`]. Bundle files and container
+paths are lower case, so `key` (and `<dir>`) is lower case too (`char_172_svrash_ambiencesynesthesia#4`); `skinId`
+keeps the official case from the prefab's GameObject name (`dyn_illust_char_172_svrash_ambienceSynesthesia#4` →
+`char_172_svrash@ambienceSynesthesia#4`), and every outfit `skinId` must be exactly an id of `data/outfits.json`
+(the run logs any that is not; `test/local-extract-dynillust.test.js` checks the index) [src: official
+arts/dynchars/char_172_svrash_ambiencesynesthesia#4.ab prefab m_Name; data/outfits.json]. Extractor:
 `extract.py --only dynillust` (`tools/local-extract/dynillust.py`), opt-in like fx. Units: Unity units and the
 client's pixels as stored; seconds; Unity's frames (§33.2).
 
@@ -2100,7 +2105,7 @@ hasExitTime, conditions: [{ mode ('if' | 'ifNot' | 'greater' | 'less' | 'equals'
 ```
 dynIllustKey(charId, skinId | null) → key | null    the dynillust group of data/local-assets.json; skinId null = the
                                                     E2 art, the entry whose skinId is `<charId>#2`; null until that
-                                                    file is loaded: await Stage.index() first
+                                                    file is loaded: await Stage.index() first; ids match without case
 getDynIllustStage() → Stage                         one per page, made on first use: one WebGL context, offscreen
 Stage.index() → Promise<void>                       settles once data/local-assets.json is loaded (dynIllustKey's input)
 Stage.quality = 'full' | 'half'                     set from the D7 setting before preload
