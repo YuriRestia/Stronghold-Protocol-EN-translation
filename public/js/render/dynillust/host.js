@@ -117,7 +117,7 @@ export class DynIllustHost {
       case 'ready': this.byId.get(m.id)?._ready(m.ok); break;
       case 'opacity': { const c = this.byId.get(m.id); if (c) c.canvas.style.opacity = String(m.a); break; }
       case 'action': if (this.opts.onAction) { try { this.opts.onAction(m.key, m.a); } catch { /* the caller's */ } } break;
-      case 'preloaded': case 'frameLog': case 'diag': { const r = this._waits.get(m.rid); this._waits.delete(m.rid); if (r) r(m); break; }
+      case 'preloaded': case 'frameLog': case 'diag': case 'net': { const r = this._waits.get(m.rid); this._waits.delete(m.rid); if (r) r(m); break; }
       case 'error': console.warn('[dynillust] Worker:', m.message); break;
       default: break;
     }
@@ -267,6 +267,17 @@ export class DynIllustHost {
     const out = await Promise.all(this.workers.map((w) => this._ask(w, { t: 'frameLog' })));
     const base = typeof performance !== 'undefined' ? performance.timeOrigin : 0;
     return out.map((m) => (m.frames || []).map(([t, ms, live, drawn]) => [+(t + (m.origin - base)).toFixed(2), ms, live, drawn]));
+  }
+
+  /**
+   * (fork) The downloads of every Worker's stage and the fallback's, summed (DynIllustStage.netState): the room's stall
+   * check (ui/dynCards.js). A Worker that never answers leaves the promise pending, which the caller treats as no
+   * reading (never as a stall).
+   */
+  async netState() {
+    const out = await Promise.all(this.workers.map((w) => this._ask(w, { t: 'net' })));
+    if (this.fallback) out.push(this.fallback.netState());
+    return out.reduce((s, m) => ({ open: s.open + (m.open || 0), received: s.received + (m.received || 0), moves: s.moves + (m.moves || 0) }), { open: 0, received: 0, moves: 0 });
   }
 
   /**

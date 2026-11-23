@@ -10,8 +10,8 @@
 // use for either.
 //
 // Messages from the page (host.js): manifest, opts, quality, preload, mount (with the transferred canvas and the
-// card's size), box, framing, view, start, unmount, release, hidden, act, frames, frameLog, diag. To the page: ok / fail (after
-// boot), preloaded, state, ready, opacity, action, frameLog, diag, error.
+// card's size), box, framing, view, start, unmount, release, hidden, act, frames, frameLog, diag, net. To the page: ok / fail
+// (after boot), preloaded, state, ready, opacity, action, frameLog, diag, net (its downloads: DynIllustStage.netState), error.
 
 /* global importScripts */
 const post = (m) => self.postMessage(m);
@@ -207,6 +207,7 @@ function handle(m) {
       break;
     case 'frames': frames = m.on ? [] : null; break;
     case 'diag': post({ t: 'diag', rid: m.rid, gl: stage.renderer?.gl?.getError?.() ?? null, stage: diagStage(), cards: [...cards.values()].map(diagCard) }); break;
+    case 'net': post({ t: 'net', rid: m.rid, ...stage.netState() }); break;
     case 'frameLog': post({ t: 'frameLog', rid: m.rid, origin: performance.timeOrigin, frames: frames || [] }); if (frames) frames = []; break;
     default: break;
   }

@@ -616,7 +616,8 @@ export const gateWaitStore = createStore({ n: 0 });
  * then all start in one animation frame and fade in together over FLIP_FADE_S (CSS `.dyn-art--flip`). A card that
  * fails (a download or build error: the renderer's 'failed') keeps its 2D and does not hold the others. There is no time
  * limit: a slow link only switches the whole screen later, never one card at a time (the user's pick B of 2026-11-23,
- * after a cap that left a slow room on its 2D art). A card mounted after the flip (a player who joins, a new outfit or
+ * after a cap that left a slow room on its 2D art); only a stalled download (DOWNLOAD_STALL_MS with a download open and
+ * no byte arriving) drops the cards still loading, which keep their 2D art until the screen is opened again. A card mounted after the flip (a player who joins, a new outfit or
  * portrait) is a new card and swaps alone when ready. The result screen does not group (its entrance gate,
  * makeEntranceGate).
  *
@@ -837,13 +838,61 @@ function checkGroup(g) {
   // a frame later, so every card mounting in this burst has joined
   g.check = requestAnimationFrame(() => {
     g.check = 0;
-    if ([...g.entries].every((e) => e.state === 'ready' || e.state === 'failed')) flipGroup(g);
+    if ([...g.entries].every((e) => e.state === 'ready' || e.state === 'failed' || e.stalled)) flipGroup(g);
   });
+}
+
+/**
+ * A stalled download: while the group waits, a download is open and no byte of it (nor of any other) came for this long
+ * (the stage's netState, render/dynillust/progress.js). A slow link keeps sending bytes and never reads as a stall, and
+ * building an illustration after its files are in is no download, so a slow computer does not either. The user's ask of
+ * 2026-11-23 (pick B: no time limit on the room's cards, "but how would the download no progress for awhile work?").
+ */
+export const DOWNLOAD_STALL_MS = 10000; // [ASSUMED: proposed to the user 2026-11-23, not yet OK'd — a live link sends a chunk well under a second apart]
+/** How often the group's stall check reads the stage's downloads (ms). */
+const NET_POLL_MS = 500;
+/** The page's stage when it counts its downloads (netState), else null (the stand-in: no check). */
+function netStage() {
+  if (!mod || mod === stub) return null;
+  try {
+    const st = mod.getDynIllustStage?.();
+    return st && typeof st.netState === 'function' ? st : null;
+  } catch { return null; }
+}
+/** Watch the group's downloads until it flips; a stall drops the cards still loading (2D art) and the rest flip. */
+function watchStall(g) {
+  const st = netStage();
+  if (!st) return null;
+  let moves = -1, since = Date.now(), polling = false, timer = 0, stopped = false;
+  const tick = () => {
+    timer = 0;
+    if (stopped || g.flipped) return;
+    if (!polling) {
+      polling = true;
+      Promise.resolve().then(() => st.netState()).then((n) => {
+        polling = false;
+        if (stopped || g.flipped || !n) return;
+        const now = Date.now();
+        // nothing open (the cards are building, or waiting) or something arrived: the clock starts again
+        if (!(n.open > 0) || n.moves !== moves) { moves = n.moves; since = now; return; }
+        if (now - since >= DOWNLOAD_STALL_MS) stallGroup(g);
+      }, () => { polling = false; });
+    }
+    timer = setTimeout(tick, NET_POLL_MS);
+  };
+  timer = setTimeout(tick, NET_POLL_MS);
+  return () => { stopped = true; clearTimeout(timer); };
+}
+/** The downloads stalled: the cards still loading keep their 2D art until the screen is opened again; the rest flip. */
+function stallGroup(g) {
+  for (const e of g.entries) if (e.state === 'loading' && !e.stalled) { e.stalled = true; giveUpCard(e); }
+  checkGroup(g);
 }
 /** A room card's illustration is mounted (not started): it joins the screen's group, or swaps alone after the flip. */
 export function joinGroup(e) {
   if (!group) {
-    group = { entries: new Set(), flipped: false, check: 0 };
+    group = { entries: new Set(), flipped: false, check: 0, stall: null };
+    group.stall = watchStall(group);
   }
   e.group = group;
   group.entries.add(e);
@@ -855,7 +904,7 @@ export function groupState(e, s) {
   const was = e.state;
   e.state = s;
   const g = e.group;
-  if (!g) return;
+  if (!g || e.stalled) return;
   if (e.alone) { if (s === 'ready' && was !== 'ready') startAlone(e); } else checkGroup(g);
 }
 /** The card left (the screen closed, the seat emptied, its art changed): a group with no card left is forgotten. */
@@ -867,7 +916,7 @@ export function leaveGroup(e) {
   g.entries.delete(e);
   e.group = null;
   if (!g.entries.size) {
-    if (g.check) cancelAnimationFrame(g.check); if (g.hold) cancelAnimationFrame(g.hold); g.wait?.();
+    g.stall?.(); if (g.check) cancelAnimationFrame(g.check); if (g.hold) cancelAnimationFrame(g.hold); g.wait?.();
     if (group === g) group = null;
   } else checkGroup(g);
 }
