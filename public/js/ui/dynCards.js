@@ -663,7 +663,7 @@ export function sweepDrive(s, S = glowStyle()) {
 export const FLIP_STEP_S = ANIM_DELAY_S;
 /** A smooth frame: 30 fps, the flip's gate (no frame over 33 ms: the lead's brief of 2026-11-22), +1 ms of frame-timer jitter as the review page's gates allow [src: public/dev/dyn-review.js measure]. */
 export const FLIP_SMOOTH_MS = 1000 / 30 + 1;
-export const FLIP_SMOOTH_FRAMES = 10; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — about 0.17–0.33 s of smooth frames before the cards show]
+export const FLIP_SMOOTH_FRAMES = 10; // [ASSUMED: about 0.17–0.33 s of smooth frames before the cards show; user OK 2026-11-23 (in the lead's session, to "Are the 0.5 s floor and 10 smooth frames OK?"): "Both OK"]
 export const FLIP_GIVE_UP_MS = 3000; // [ASSUMED: the user's PC settled 0.06–0.28 s after the start; user OK 2026-11-23 (in the lead's session): "i think if frame rate isnt good enough after 3s, then still art for everyone else, and keep the animated l2d for yourself. If yourself isnt good enough after 3s as well, then still art for everyone"]
 let group = null; // { entries: Set, flipped, timer, check, hold, wait, gaveUp }
 

@@ -518,7 +518,7 @@ one frame behind their 2D art ("wait until it's ready, then play the animation a
 and show in one frame only once `FLIP_SMOOTH_FRAMES` 10 frames in a row took at most `FLIP_SMOOTH_MS` (30 fps) — the
 renderer's first frames with the whole group live are its slow ones — on the main thread and, where the cards draw in
 Workers, in every Worker's card-frame log too (`whenSmooth`, read every 250 ms while the group waits)
-[ASSUMED: proposed, not yet OK'd]. Showing is the
+[ASSUMED: the 10 frames; user OK 2026-11-23, to "Are the 0.5 s floor and 10 smooth frames OK?": "Both OK"]. Showing is the
 official card's dissolve (the user's pick of 2026-11-22): the illustration and its background appear at once behind the
 2D art, and the art box as it shows — its background, then the 2D art at its object-fit cover crop and filter, composed
 on a canvas while the cards wait — dissolves away over `FLIP_SWEEP_S` 0.35 s (the user's value of 2026-11-23, after
