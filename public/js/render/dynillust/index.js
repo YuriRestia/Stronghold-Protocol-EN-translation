@@ -15,6 +15,7 @@
 import { assets } from '../../assets.js';
 import { DynIllustStage } from './renderer.js';
 import { DynIllustHost, workersSupported } from './host.js';
+import { findDynIllustKey } from './key.js';
 
 let stage = null;
 
@@ -36,20 +37,8 @@ export function dynIllustKey(charId, skinId = null) {
   return findDynIllustKey(getDynIllustStage()._group, charId, skinId);
 }
 
-/**
- * The key in a `dynillust` group (data/local-assets.json) of an operator's outfit. Ids compare without case: the index
- * spells 7 Ambience Synesthesia outfits `@ambiencesynesthesia#N` where the outfit data and players' choices have
- * `@ambienceSynesthesia#N` (char_1046_sbell2 #8, mlyss #6, ines #5, logos #6, svrash #4, demkni #7, surtr #6), so
- * a player wearing one never got the illustration [src: Dev 52, 2026-11-23].
- */
-export function findDynIllustKey(group, charId, skinId = null) {
-  if (!group || !charId) return null;
-  const cid = String(charId).toLowerCase(), want = String(skinId || `${charId}#2`).toLowerCase();
-  for (const [k, e] of Object.entries(group)) {
-    if (e && typeof e.charId === 'string' && typeof e.skinId === 'string' && e.charId.toLowerCase() === cid && e.skinId.toLowerCase() === want) return k;
-  }
-  return null;
-}
+// the lookup itself imports nothing (key.js), so the cards can use it without loading the renderer
+export { findDynIllustKey };
 
 export { DynIllustStage } from './renderer.js';
 export { DynIllustHost, workersSupported } from './host.js';
