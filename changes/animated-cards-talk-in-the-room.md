@@ -28,7 +28,7 @@ Server cost:
 | Origin (our server) | under 0.5 GB/day per Cloudflare data centre [unverified] (estimated: /assets/ cached at the edge with max-age=86400, server/http/files.js:80, so each file leaves the origin at most once a day per data centre) | the Cloudflare rule broken: 0.42 MB/s, 36 GB/day [unverified] |
 | Server CPU | 0 % [unverified] (static files only) | 0 % |
 | Memory | 0 MB [unverified] | 0 MB |
-| Disk | 0 MB/day; about 455 MB once per server for the new lines in all dubs, and the same again inside the full release zip [unverified] (estimated from the mirror's file sizes, proposal §3) | same |
+| Disk | 0 MB/day; 510.2 MB once per server for the 3,399 new line files in all dubs (中文 106.2, 日本語 139.1, English 110.6, 한국어 126.6, own-language 27.7), and about the same again inside the full release zip [src: work/dev-60 exact.mjs, HEAD sizes of every planned file on the mirror, 2026-11-23] | same |
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
 - Cap: one chatter line per 120 s of quiet per player (the official home-screen timer) plus a random 0–60 s, one card at most once per 300 s, at most 8 waiting join lines (a room's seats); lines only for animated cards on screen, never with the voice off [src: public/js/ui/lobbyVoice.js CHATTER_QUIET_MS / CARD_REST_MS / JOIN_QUEUE_MAX].

@@ -214,6 +214,21 @@ test('lobby joins: the newest cuts the one on air after about 2 of its words; fa
   assert.equal(x.audio.calls.length, 0);
 });
 
+test('a manifest without the lobby lines (before the fetch): no chatter, no error; a join without word counts plays out uncut', () => {
+  const clock = { t: 1e6 };
+  const audio = fakeAudio({ char_x: { select: 2, place: 2 } }); // battle slots only, no voiceWords
+  const lv = new LobbyVoice({ voice: audio, now: () => clock.t, random: () => 0, setTimer: () => 0, clearTimer: () => {} });
+  lv.setCards([{ id: 'p1', charId: 'char_x', live: true }, { id: 'p2', charId: 'char_y', live: true }]);
+  for (let i = 0; i < 400; i += 1) { clock.t += 1000; lv.tick(1000); }
+  assert.equal(audio.calls.length, 0, 'no 交谈 / 闲置 in the manifest: silent');
+  assert.doesNotThrow(() => lv.join('p2'));
+  assert.equal(audio.calls.length, 0, 'an operator with no join line: nothing');
+  lv.join('p1');
+  assert.equal(audio.calls.length, 1, 'the battle slot 部署 is a join line already');
+  audio.calls[0].onStart(3);
+  assert.equal(lv.cutAt, 1e6 + 400000 + 3000, 'no word count: the whole line, nobody cuts it early');
+});
+
 test('leaving the room: our line fades out and nothing waits', () => {
   const { audio, lv, run } = rig();
   lv.setCards([{ id: 'p1', charId: 'char_a', live: true }, { id: 'p2', charId: 'char_b', live: true }]);
