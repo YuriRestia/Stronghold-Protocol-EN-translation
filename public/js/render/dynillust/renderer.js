@@ -383,13 +383,13 @@ export class DynIllustStage {
     }
   }
 
-  /** D10: get every key ready (or failed) before its cards are shown. Settles when all have. */
   /**
    * (fork) Its downloads now (render/dynillust/progress.js): `open` responses still arriving, `received` bytes and
    * `moves` (headers and chunks) so far. The room's stall check reads it (ui/dynCards.js).
    */
   netState() { return { open: this.net.open, received: this.net.received, moves: this.net.moves }; }
 
+  /** D10: get every key ready (or failed) before its cards are shown. Settles when all have. */
   async preload(keys) {
     await Promise.allSettled([...new Set(keys || [])].filter(Boolean).map((k) => this._prepare(k)));
   }
