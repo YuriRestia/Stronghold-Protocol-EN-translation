@@ -3,6 +3,7 @@
 ### The room and Grand Alliance screens fit phones
 
 - On a phone held sideways, the room and the Grand Alliance room keep the PC layout, scaled to the screen: the animated cards fill the space between the top bar and the footer, and their name plates stay readable.
+- In a 4-player room on a phone, the four cards stand side by side as tall cards, so the whole operator shows and the screen's sides are no longer empty.
 - A name plate on a phone shows the player's name, the ready mark and the buttons; the ready word, the seat number and, in a Grand Alliance room, the other players' profile icons give way to the name. The plate's buttons are easier to tap.
 - A Grand Alliance squad's name and ready count stand beside its row of cards, so the cards get the height. The footer's lines sit side by side, and the chat button shows only its icon and unread count.
 - On tablets and small windows, the plate text no longer shrinks below a readable size. The PC screens are unchanged.

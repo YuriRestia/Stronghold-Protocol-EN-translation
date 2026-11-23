@@ -1067,6 +1067,18 @@
      remove and mute buttons, still shows the name (4–5 letters were left with them) */
   .rs-seats--large .rseat__acts .rseat__box { display: none; }
   .rs-seats--large .rseat__plate > .avatar { display: none; }
+  /* the 4-seat room: one row of tall cards (the user's pick of 2026-11-23 from the phone mock-ups, "yeah one row tall is a
+     good idea": the 2 × 2 of 16 : 9 cards left the screen's sides empty). Each card a quarter of the seat area's width, its
+     art as tall as the area allows under the own card's ring and the host's crown (14 px), about 0.8 wide : tall on
+     667 × 375 to 932 × 430 phones, nearer the illustrations' own tall window; the room chat's button keeps its place at
+     the row's left (58 px) */
+  .rs-seats--wide:not(.rs-seats--large) {
+    grid-template-columns: repeat(4, auto);
+    --rs-aw: calc((var(--rs-cw, 100vw) - 2 * var(--rs-pad) - 3 * var(--rs-gap)) / 4);
+  }
+  .rs-seats--wide:not(.rs-seats--large) .rseat__art { aspect-ratio: auto;
+    height: calc(var(--rs-ch, 70vh) - 2 * var(--rs-pad) - var(--rs-plate) - var(--rs-plate-gap) - 14px); }
+  .rs--chat .rs-seats--wide:not(.rs-seats--large) { padding-left: 58px; }
   /* the footer: the status line beside the difficulty pill while both fit (above it, as on PC, when they do not), the
      host's 搜寻队友 switch (or its place) beside the big button, so the cards get the height */
   .rs-foot__center { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 4px; }
