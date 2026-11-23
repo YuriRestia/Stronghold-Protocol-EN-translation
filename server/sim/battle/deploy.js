@@ -226,7 +226,7 @@ export class BattleDeploy {
     const sk = unit.skill;
     const keep = keepSp && sk && !sk.noSkill && sk.kind !== 'passive' ? { sp: sk.sp, charges: sk.charges } : null;
     if (this._deploy(unit, { initial: false, tile: at, keepSp: keep })) return true;
-    if (paid > 0 && ps) ps.dp = Math.min(this.flags.dpMax, ps.dp + paid);
+    if (paid > 0 && ps) ps.dp = Math.min(this.dpCapOf(ps), ps.dp + paid);
     return false;
   }
 

@@ -58,9 +58,9 @@
         "enemy_10043_sailor": [25,19,5,3805,90336]
       },
       "hooks": [1,65,3300,472,471,468,489,41,31,50,18,17,0,20532,41,29,44,17,1,32,1,0,0],
-      "events": {"atk":471,"bounty":1,"cast":8,"deploy":18,"die":33,"dmg":489,"engage":8,"fx":39,"heal":41,"layer":1,"leak":17,"rate":3,"skill":35,"spawn":59,"status":81},
-      "fx": {"beam":21,"blink":2,"displace":8,"dp":5,"garrison":1,"telegraph":1,"turretOnline":1},
-      "snaps": "61b1ed8c 2422c35c c91a369b ea018369 abdc9893 86365c38 ccc16d86 2ba15c2a 23d483c3 ad32530d 6902b199"
+      "events": {"atk":471,"bounty":1,"cast":8,"deploy":18,"die":33,"dmg":489,"engage":8,"fx":52,"heal":41,"layer":1,"leak":17,"rate":3,"skill":35,"spawn":59,"status":81},
+      "fx": {"beam":21,"blink":2,"displace":8,"dp":5,"explode":8,"garrison":1,"telegraph":1,"tick":5,"turretOnline":1},
+      "snaps": "61b1ed8c 97ea7b28 1bfd1903 c3b48101 366f8f2b 583d4da0 ec9f229e 0eb2f692 153edf8b 294a8f55 a12b3b01"
     },
     "standin-02": {
       "about": "normal band 3 as stand-ins: chess_char_3_02_a→char_602_cdfend chess_char_2_11_a→char_601_cguard chess_char_2_12_a→char_607_cspec chess_char_3_03_a→char_607_cspec chess_char_3_05_a→char_601_cguard chess_char_2_10_a→char_604_ccast chess_char_2_15_a→char_606_csuppo chess_char_3_01_a→char_603_csnipe chess_char_3_04_a→char_605_cmedic chess_char_3_10_a→char_606_csuppo chess_char_3_11_a→char_604_ccast",
@@ -451,8 +451,8 @@
         "enemy_1200_msfjin": [1,0,1,0,24]
       },
       "hooks": [1,82,5100,922,922,874,874,2573,30,68,33,31,0,14101,110,30,53,34,1,30,4,0,0],
-      "events": {"atk":921,"bounty":1,"deploy":27,"die":34,"dmg":874,"engage":8,"fx":48,"heal":46,"layer":4,"leak":34,"rate":96,"skill":64,"spawn":66,"status":308},
-      "fx": {"blink":4,"displace":11,"garrison":4,"liberate":12,"phase":12,"revive":3,"summon":2},
+      "events": {"atk":921,"bounty":1,"deploy":27,"die":34,"dmg":874,"engage":8,"fx":49,"heal":46,"layer":4,"leak":34,"rate":96,"skill":64,"spawn":66,"status":308},
+      "fx": {"ability":1,"blink":4,"displace":11,"garrison":4,"liberate":12,"phase":12,"revive":3,"summon":2},
       "snaps": "ff75fb68 5b1a3a40 26d339fa feff1df1 f02f1f24 75307a00 9be808a2 ccc9f00c 2aa4b456 3890ef37 6d41c718 5bd1772e d34a9f3c 0cf3f509 9531d4d2 fbc207f7 2f378393"
     },
     "standin-09": {

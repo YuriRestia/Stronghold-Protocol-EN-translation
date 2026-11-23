@@ -69,6 +69,11 @@ function pasngr(bb, chess, def) {
     skills,
     skill: {
       kind: 'charges',
+      // The official row is ALWAYS (AutoChessBattleTrigger._TryTriggerSkill: no range check), but the cast itself needs a
+      // target: CastSkill.DoCast fails, nothing spent, while the skill's SelectorTrigger (enemies, ground and air,
+      // `_minTargetNum` 1, on the skill's own x-3: `_rangeIdUsageType` 7, `_extendable` 0) finds none and `_allowNoTarget`
+      // is 0 (battle/prefabs/[uc]skills.ab skchr_pasngr_3). So she waits with full SP for a selectable enemy on the x-3.
+      ...(skillGrid ? { trigger: { rule: 'CUSTOM_RANGE', grid: skillGrid } } : {}),
       onStart({ battle, unit }) {
         const keys = skillGrid ? absoluteRangeKeys(skillGrid, unit.tileR, unit.tileC, unit.dir, unit.s.rangeExtend) : unit.rangeKeys;
         const cands = enemiesIn(battle, unit, keys);

@@ -20,6 +20,7 @@
 import { getData } from '../../../data.js';
 import { grantedBondsByMorph } from '../../../../shared/plugins/rules.js';
 import { isoPlusBond } from '../../../../shared/ruleData.js';
+import { modZOf } from '../../../../shared/modZ.js';
 import { RECORD_MAPS } from '../../../../shared/plugins/dataUtils.js';
 import { COLS, DIRECT_BONUS_STACKING } from '../../constants.js';
 import { frontOf, offsetTile } from '../../dir.js';
@@ -274,7 +275,9 @@ export function unitBonds(u) {
   const plus = u.player?.morphPairing === 'plus';
   // The official key stays items.join('|'), so a cached official result is unchanged.
   const iso = u.player?.isoPlus ?? null;
-  const key = (plus ? 'plus|' : '') + (iso ? `${iso}|` : '') + items.join('|');
+  const mod = u.def?.raw?.module;
+  const free = !!(mod && mod.active !== false && modZOf(mod.id)?.isoFree);   // (Fish Edition) Mod Z Phantom: no Damazti Isomorph needed
+  const key = (free ? 'free|' : '') + (plus ? 'plus|' : '') + (iso ? `${iso}|` : '') + items.join('|');
   if (cached && cached.key === key) return cached.bonds;
   const out = [...(Array.isArray(u.def?.bonds) ? u.def.bonds : Array.isArray(u.def?.raw?.bonds) ? u.def.raw.bonds : [])];
   // the Damazti Isomorph+ cheat: the battle's item records are the unpatched ones, so its pairs come from the rule
@@ -283,7 +286,7 @@ export function unitBonds(u) {
     const b = r && !r.giveBondId && !r.canGiveBond ? isoPlusBond(id, iso) : null;
     return b ? { ...r, morphBondId: b } : r;
   };
-  for (const b of grantedBondsByMorph(items, rec, { mode: plus ? 'plus' : 'official', bondOk: (id) => !!bondRecord(id) })) {
+  for (const b of grantedBondsByMorph(items, rec, { mode: plus ? 'plus' : 'official', bondOk: (id) => !!bondRecord(id), free })) {
     if (!out.includes(b)) out.push(b);
   }
   const bonds = Object.freeze(out);

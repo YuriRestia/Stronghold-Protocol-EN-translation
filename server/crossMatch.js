@@ -13,7 +13,7 @@
 // planCross is pure; CrossMatch runs on the arbiter only.
 
 import { randomBytes } from 'node:crypto';
-import { MAX_SEATS } from '../shared/constants.js';
+import { DIFFICULTIES, MAX_SEATS } from '../shared/constants.js';
 import { DEFAULT_VERSION } from '../shared/versions.js';
 import { SQUAD_SEATS } from '../shared/largeRoom.js';
 import { planMerges, isLarge, roomVersion } from './matchmaker.js';
@@ -48,7 +48,7 @@ function pseudoRoom(region, e, now) {
  * hosted where its target room is — the squads were fitted to that room — with each member's rooms' squads (`squads`).
  * @param {{ id: string, versions?: string[], rooms: { code: string, humans: number, bots: number, difficulty: string, wait: number,
  *   version?: string, cap?: number, squads?: number[] }[], solos: { id: string, difficulty: string, wait: number, versions?: string[],
- *   large?: boolean }[] }[]} regions every region's waiters
+ *   large?: boolean, at?: Record<string, string> }[] }[]} regions every region's waiters
  * @param {number} now
  * @param {{ crossAfterMs: number, busy?: Set<string> }} opts busy: `room:<code>` / `solo:<id>` already in a plan
  * @returns {{ difficulty: string, version: string, large: boolean, target: string, members: { region: string, rooms: string[],
@@ -70,7 +70,10 @@ export function planCross(regions, now, { crossAfterMs, busy = new Set() }) {
       if (e.wait < crossAfterMs || busy.has(`solo:${e.id}`)) continue;
       const versions = (Array.isArray(e.versions) && e.versions.length ? e.versions : [DEFAULT_VERSION]).filter((v) => shared.includes(v));
       if (!versions.length) continue;
-      solos.push({ playerId: e.id, region: r.id, difficulty: e.difficulty, since: now - e.wait, wait: e.wait, versions, large: e.large === true });
+      // (fork, 2026-11-15) `at`: the versions this Doctor waits at another difficulty (soloQueue.js entryDifficulty)
+      const at = e.at && typeof e.at === 'object' ? Object.fromEntries(versions.filter((v) => DIFFICULTIES.includes(e.at[v])).map((v) => [v, e.at[v]])) : {};
+      solos.push({ playerId: e.id, region: r.id, difficulty: e.difficulty, since: now - e.wait, wait: e.wait, versions, large: e.large === true,
+        ...(Object.keys(at).length ? { at } : {}) });
     }
   }
   solos.sort((a, b) => a.since - b.since || (a.playerId < b.playerId ? -1 : 1));

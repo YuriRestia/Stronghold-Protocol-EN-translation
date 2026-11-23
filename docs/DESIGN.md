@@ -22,6 +22,9 @@ The verified list expands in [§35.20](history/0.3.2.md#3520-verified-skill-atta
 归溟幽灵鲨 S1, 焰影苇草 S2 and 耀骑士临光 S2 use their model's normal attack role across facings and skins.
 The earlier 郁金香 S2 candidate remains unimplemented for the identity mismatch documented in
 [§35.21](history/0.3.2.md#3521-tulips-s2-candidate-remains-unimplemented). Current contract: [design/client.md](design/client.md).
+(fork) 野鬃 S2's mode attack clip and its start without a clip: [§37.107](history/0.3.4.md#37107-wild-mane-s2-no-lunge-at-the-skills-start-fork).
+(fork) When units become impostors, enemies first, and 设置「简化单位动画」: [§37.108](history/0.3.4.md#37108-impostors-later-and-shorter-in-big-fields-设置简化单位动画-fork); contract: [design/client.md](design/client.md) §9.
+(fork) The Hidden Core 铳 pair's second gun at the battle's start, no car damage split and each gun's ×0.2 from the units it marked: [§37.109](history/0.3.4.md#37109-hidden-core-铳-pair-the-cars-chase-both-guns-in-turn-no-damage-split-between-them-fork).
 
 The 0.3.1 sim investigation and rule correction are [§34.32](history/0.3.1.md#3432-瑕光-attacks-the-enemies-she-put-to-sleep-琳琅诗怀雅s-s3-keeps-its-coins):
 瑕光 S2 retains sleeper targeting and attack replay events; 琳琅诗怀雅 S3 keeps double attacks and coins at the cap,

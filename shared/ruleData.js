@@ -175,7 +175,7 @@ export const INVESTOR_SOLD_TAG = N_('<售出时>');
 export const BOOSTER = Object.freeze({ itemId: 'fish_item_booster_pack', iconId: 'trap_1074_acarm074', choices: 6 });
 /** msgids of the Booster Pack (translated by the client's `text`; the name is also the offer's header). */
 export const BOOSTER_NAME = N_('补充包');
-export const BOOSTER_DESC = N_('装备到干员上：免费选择一名同阶干员（按固定顺序轮换，每次6名），补充包留在手牌');
+export const BOOSTER_DESC = N_('装备到干员上：从6名与它同阶的干员中免费选择1名（每次换下一批6名，按固定顺序轮换）。补充包不会消耗，可以反复使用');
 
 /**
  * The itemBoosterPack cheat (Fish, GitHub #56): the Booster Pack's twin for equipment, a separate item with its own
@@ -186,7 +186,7 @@ export const BOOSTER_DESC = N_('装备到干员上：免费选择一名同阶干
 export const ITEM_BOOSTER = Object.freeze({ itemId: 'fish_item_booster_pack_equip', iconId: 'trap_1115_acarm115', choices: 6 });
 /** msgids of the Equipment Booster Pack (the name is also the offer's header). */
 export const ITEM_BOOSTER_NAME = N_('装备补充包');
-export const ITEM_BOOSTER_DESC = N_('装备到任意干员上：免费选择一件装备（按固定顺序轮换全部装备，每次6件），装备补充包留在手牌');
+export const ITEM_BOOSTER_DESC = N_('装备到任意干员上：从6件装备中免费选择1件（每次换下一批6件，按固定顺序轮换全部装备）。装备补充包不会消耗，可以反复使用');
 
 /** A booster's item record in data/items.json's shape: the Booster Pack (boosterPack) or the Equipment Booster Pack
  *  (itemBoosterPack, `boosts: 'items'`). */
@@ -312,6 +312,22 @@ function shiftRounds(text, rounds, mark) {
  * Strategy 1: the Strategy records whose named rounds come one round later (CC.strategyLate), their texts with the
  * new rounds, highlighted in `descRaw`. A record whose text names none of them is left out.
  */
+/**
+ * (fork, GitHub #125) The Strategies Strategy 1 (ccStrategyLate) affects: a named-round buff (CC.strategyLate.keys with
+ * bb.round), not one of the periodic ones. The same test as strategyLateBands, without the text check.
+ * @param {Record<string, any>} bands the bands data
+ * @returns {string[]}
+ */
+export function strategyLateBandIds(bands) {
+  const out = [];
+  if (!bands || typeof bands !== 'object') return out;
+  for (const [id, b] of Object.entries(bands)) {
+    if (!b || CC.strategyLate.periodic.includes(id) || !Array.isArray(b.buffs)) continue;
+    if (b.buffs.some((x) => x && CC.strategyLate.keys.includes(x.key) && Number.isInteger(x.bb?.round))) out.push(id);
+  }
+  return out;
+}
+
 function strategyLateBands(bands) {
   const out = {};
   if (!bands || typeof bands !== 'object') return out;

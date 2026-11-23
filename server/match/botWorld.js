@@ -14,7 +14,7 @@ export const MATCH_FIELDS = Object.freeze(['roomCode', 'mode', 'difficulty', 'mo
   'stageId', 'version', 'cs', 'vs', 'requireCs', 'rules', 'diyKitted', 'factions', 'bossId', 'hiddenBossId', 'disabledBonds',
   'staticInactiveBonds', 'bannedChess', 'wave', 'bossWaves', 'bossPairs', 'bossPairsRound', 'lastResults', 'draft', 'sp',
   'unitePlan', 'hiddenLayerSum', 'hiddenReached', 'teamLp', 'battleContent', 'battlePrefix', 'timerScale', 'gameSpeed',
-  'clientCombat', 'aiPicksLast', 'offers', 'hostId', 'deadline', 'startedAt', 'roomScale',
+  'clientCombat', 'aiPicksLast', 'offers', 'hostId', 'deadline', 'startedAt', 'roomScale', 'oneForAll',
   // (Fish Edition) the room's lobby rules (shared/rules.js): the prep reads them (deploy cap, funds, prices, the risk tags),
   // and the SPA-CC Patriot card's state (MatchSpDraft), which the risk bounties read
   'lobbyRules', 'ccPatriotOffered', 'ccPatriotTaken']);

@@ -71,7 +71,9 @@
 // animated or drawn at all (its clock catches up, ≤ 0.5 s, when it comes back); `opts.lod: 'idle'` (the enemy preview
 // pen: idle loops only) animates through the impostor atlas every 3rd frame; under the view's adaptive load level
 // (`ctx.loadLevel()` 1–3, app.js) small / far units (< ~56 px per tile) animate every 2nd frame, and from level 2 on
-// every unit does. An impostor's slot is sized from every clip the unit can play (`impostorBox`, GitHub #542: a slot sized
+// every unit does — (fork) every enemy: a unit not on the enemy side only at level 3, and a crowd's impostors are the
+// enemies' first (`ctx.impostorInterval(isEnemy)`, render/crowd.js crowdIntervals / loadFloor; 设置「简化单位动画」
+// `ctx.spriteAnim()` 'quality' / 'unlimited' take the load level out of it). An impostor's slot is sized from every clip the unit can play (`impostorBox`, GitHub #542: a slot sized
 // from the first pose drawn cut 野鬃's idle flag and 浊心斯卡蒂's S3 flight, and what crossed its edge was left in the
 // neighbouring slots); its skeleton's clips are measured once, a few frames after the model loads (spine.js clipBounds) —
 // until then the unit is drawn directly —, and a clip too large for the box is drawn directly while it plays.
@@ -83,6 +85,7 @@
 import { progressLabel } from '../itemProgress.js';
 import { needNow } from '../loadLater.js';
 import { MoteRing } from './motes.js';
+import { loadFloor } from './crowd.js';
 import { UF, ANIM } from '../../../shared/constants.js';
 import { SpineActor } from './spine.js';
 import { skillAttackMode } from './skillAttack.js';
@@ -180,39 +183,64 @@ export const START_CLIP_FALLBACK = 1;
 /** Heights above this count as standing on a raised top (bench pads are the lowest raised tiles, 0.16). */
 const RAISED_Z = 0.12;
 /**
- * Flying units hover this many tiles up (PR #211 by @xcdoge; the owner's decision of 2026-10-06;
- * docs/research/12-flying-visuals-official.md): an enemy flyer above the road (z 0) whatever tile it crosses — a raised
- * block under it is no step (GitHub #277) —, an operator or summon above its tile.
+ * (fork, 2026-11-14) Flying heights, in tiles = Unity world units (our camera is the official one: projection.js; the
+ * official high ground is 0.4, `Torappu.Battle.Defaults.HIGHLAND_HEIGHT`). Audit and sources:
+ * docs/research/12-flying-visuals-official.md §7.
  *
- * The official client's fly offset is a **single constant, `Vector3(0, 0.35f, 0)`**: `Torappu.Battle.CharacterAnimator`'s
- * constructor stores it in the instance field at +0x114 (`GameAssembly.dll` 0x180600555 reads the constant at 0x186a78a50 =
- * 0x3EB33333; x and z are 0), and `_SetFlyMountPointOffset` / `_SetFlyHitOffset` add it to the mount / hit transforms
- * while the unit flies and add its negation when it lands (the sign flips through the −0.0 mask at 0x186a77e00). It is
- * model-independent: no store to that field exists anywhere in the binary except the constructor.
+ * - **A flyer** (enemy, or the enemy-model summon 炎佑) hovers its own prefab height, `flyHeightOf(record)`: enemies.json /
+ *   tokens.json `flyHeight` = the prefab root's serialized `Enemy._height`, which the auto-chess spawn hands to
+ *   `Enemy.OnInit` as the start height (tools/build-data.mjs FLY_HEIGHTS: 1.2 for most drones, 1.0, 0.8, 1.5). It starts
+ *   at that height (the client spawns it there) — an enemy flyer above the road (z 0) whatever tile it crosses (GitHub
+ *   #277), its shadow on the tile under it.
+ * - **An operator in 起飞** (UF.LIFTOFF) rises to its own take-off height, `TAKEOFF[charId]`, linearly over the official
+ *   tween time (battle seconds; `ModifyGraphicHolderHeight` → `Unit.SetGraphicHolderHeightOffset` →
+ *   `BattleController.StartBattleTween`, whose tween has no ease set and lerps: `BattleTweenMgr.Tween.Tick` null
+ *   `m_easeFunc` → `TSMath.Lerp`, GameAssembly.dll 0x19DA99A), and lands back the same way.
+ * - FLY_HOVER is the old flat lift (PR #211: research 12 read the client's 0.35 `CharacterAnimator._flyHitOffset` — a
+ *   `[SerializeField]` offset of each face's **hit point**, not of the body — as the lift, ÷ 0.27). It stays only for
+ *   units with no official height read yet: the four boss parts whose prefab says 0 (build-data FLY_HEIGHTS) and an
+ *   operator in 起飞 missing from TAKEOFF.
  *
- * `0.35` is that constant in the client's own (character) space, whose unit is the standard battle-prefab scale **0.27**
- * (our `enemies.json modelScale` is a multiple of it — units.js `enemyModelScale`), so the lift is **0.35 / 0.27 ≈ 1.3
- * tiles** [ASSUMED: the hierarchy that yields the 1 / 0.27 factor]. An official screenshot (帝国炮火先兆者 over a tile)
- * measures the same: the drone's art bottom sits 1.2–1.4 tiles above the ground it crosses.
- *
- * **No per-model term** — (a) the binary never rewrites the offset; (b) the battle prefabs carry no per-model vertical
- * correction for flyers (their `Graphic` node sits at local (0,0,0), or at the (0,−0.2,−0.06) their ground-unit prefab
- * family shares — unrelated to how far each model's art hangs below its pivot). So a model whose art hangs below its
- * origin keeps that hang in the official too: 妖怪 flies with its rotors ≈ 0.9 tiles up, 帝国炮火先兆者 with its art
- * bottom ≈ 1.3. It replaced a flat 0.32 (player report 2026-10-05: 无人机等飞行单位位置明显偏低 — every flyer was ~1 tile
- * too low). The shadow stays on the ground under the unit; the HP bar, damage numbers, projectile hits and skill rings
- * ride the body (`hover`); range highlights are tiles.
+ * The HP bar, damage numbers, projectile hits and skill rings ride the body (`hover`); range highlights are tiles.
  */
 export const FLY_HOVER = 1.3;
+/** A flyer's official height (its data record's `flyHeight`), else the old FLY_HOVER. */
+export function flyHeightOf(rec) {
+  const h = Number(rec && rec.flyHeight);
+  return rec && rec.flyHeight != null && Number.isFinite(h) && h >= 0 ? h : FLY_HOVER;
+}
+/**
+ * Official 起飞 heights by charId (tiles) and their tween times (battle seconds; per skill index where they differ):
+ * `h` the height, `up` / `down` the rise / landing times, `born` the first rise after deployment with its `bornDelay`.
+ * - 蒂比 char_4191_tippi: 0.8 while S1 / S2 runs (skill_table skchr_tippi_1 / _2 `attack@height_offset`, read by
+ *   buff_template_data tippi_height_ctrl[tween]), rising and landing over 0.8333 s (charpack char_4191_tippi
+ *   Modes/S1_TakeOff, S1_Landing, S2_TakeOff, S2_Landing: tippi_height_ctrl[tween] `height_duration`).
+ * - 司霆惊蛰 char_1043_leizi2: 0.4 while no skill runs (charpack char_1043_leizi2 Talents leizi2_t_0 `height_offset`,
+ *   applied by leizi2_t_0[height] when its 0.2 s buff ends — buff_template_data leizi2_t_0 `lifeTime` — over 0.8 s);
+ *   lands as a skill starts over 0.1667 / 0.1333 / 0.1667 s (Modes/S1–S3_Landing leizi2_height_ctrl_s1–s3[tween]) and
+ *   takes off again after it over 0.3 / 0.2667 / 0.2667 s (Modes/S1–S3_TakeOff leizi2_height_ctrl[tween]).
+ * - 凯尔希·思衡托 char_1052_kalts2: 0 — her talent's 起飞 changes only her block mode (kalts2_t_1 ChangeCharBlockMode);
+ *   no buff of hers and nothing in her prefab moves her graphic (no ModifyGraphicHolderHeight).
+ * - (fork) 予愿安洁莉娜 char_1015_aglna2: 0.8 (her trait aglna2_tr's `height_offset`, which aglna2_height_ctrl[tween] and
+ *   aglna2_s_2[chant_end] read). S1 / S3 rise in their take-off modes over 0.8333 s (charpack Modes/S1_TakeOff,
+ *   S3_TakeOff: aglna2_height_ctrl[tween] `height_duration`); S2 has no take-off mode: it stays down through its chant
+ *   (the cast's 'takeoff' fx `land: true`) and rises with the chant's closing Skill_2_Begin over 1 s
+ *   (aglna2_s_2[chant_end] `height_duration`; the kit's 'aglna2Chant' fx `land: false`). Every
+ *   landing mode (Modes/S1–S3_Landing) drops to 0 over 0.8333 s from the landing's start — the kit's 'aglna2Landing' fx
+ *   with `land` (UnitView.liftLand), not the end of the sim's 起飞. While S3 runs, aglna2_s_3[mode] sets 0.4 at once on a
+ *   HIGHLAND tile (CheckHeightTypeOfRootTile; the buff has no `height_duration`: duration 0), re-checked at each re-deploy
+ *   of her S3 move (`high`, by skill index; not while her flight form is on).
+ */
+export const TAKEOFF = Object.freeze({
+  char_4191_tippi: Object.freeze({ h: 0.8, up: [0.8333], down: [0.8333] }),
+  char_1043_leizi2: Object.freeze({ h: 0.4, up: [0.3, 0.2667, 0.2667], down: [0.1667, 0.1333, 0.1667], born: 0.8, bornDelay: 0.2 }),
+  char_1052_kalts2: Object.freeze({ h: 0 }),
+  char_1015_aglna2: Object.freeze({ h: 0.8, up: [0.8333, 1, 0.8333], down: [0.8333], high: [null, null, 0.4] }),
+});
+/** A take-off time of `tk` for skill index `i` (the first entry when the list has no own one), or null. */
+const takeoffTime = (list, i) => (Array.isArray(list) && list.length ? list[Number.isInteger(i) && i >= 0 && i < list.length ? i : 0] : null);
 /** Share of the current HP bar a 屏障 of `r` × max HP covers: r / (1 + r) — 100 % → half, 400 % → 80 %, never all of it. */
 export const barrierShare = (r) => (r > 0 ? r / (1 + r) : 0);
-/**
- * An ally in 起飞 is drawn at FLY_HOVER when a skill lifts it (蒂比: ≈ 0.75 tile rows from feet to shadow in official
- * screenshots, ours 0.73–0.83), at LIFTOFF_HOVER when only a talent does (UF.LIFTOFF_LOW — 凯尔希·思衡托 and 司霆惊蛰
- * hover ≈ 0.25 rows above their shadow in official footage; with this, ours 0.32 and 0.17, their art's own offset
- * included). Measured by eye from videos (2026-10-21), not read from the client.
- */
-export const LIFTOFF_HOVER = 0.3;
 /**
  * A push / pull slide (推拉, PR #380 by @xcdoge). The sim slides the enemy frame by frame (server/sim/battle/displacement.js:
  * momentum and friction, GitHub #60) and holds it in its 失衡 (UNBALANCE) state (PR #392's idea): a push for the
@@ -476,6 +504,8 @@ export const oblvnsStartForm = (info, skillIndex) =>
  *   has no begin clip, its toggle ability no clip field — the S1 mode's hooker turns her Idle into Skill_1_Idle.
  */
 const VVANA = 'char_4098_vvana';
+/** (fork) 予愿安洁莉娜: her S3's blocked attack is its Combat clip (spine.js MELEE_TWIN, UnitView agent). */
+const AGLNA2 = 'char_1015_aglna2';
 const VVANA_S1 = Object.freeze({ begin: null, loop: 'Attack', end: null, idle: null, via: 'attack', keepAttack: true });
 const VVANA_STANCE = Object.freeze({ change: null, roles: Object.freeze({ idle: 'Skill_1_Idle' }) });
 const VVANA_STRIKE = Object.freeze({ begin: null, loop: 'Skill_1_Attack', end: null });
@@ -503,6 +533,22 @@ export function vvanaSkillRole(index, casts, down) {
 }
 
 export const FORMS = Object.freeze({
+  // (fork) 予愿安洁莉娜 S3's flight (op-aglna2.js: the 'aglna2Fly' fx's form `fly`, back to null when she lands): mode
+  // S3Move's clip Skill_3_Move while projectile_chr_aglna2_s3_fly carries her (her charpack Modes/S3Move). S2's chant (the
+  // 'takeoff' fx's form `chant`, then the 'aglna2Chant' fx's `chantEnd`, `rise`, null): skchr_aglna2_2's
+  // ChantBeforeSkill `_animation` Skill_2_Takeoff_Begin → _Loop (until the sweep reaches) → _End, then its `_afterEndAnim`
+  // Skill_2_Begin, then her S2 clips
+  [AGLNA2]: Object.freeze({
+    fly: Object.freeze({ roles: { idle: 'Skill_3_Move',
+      skill: Object.freeze({ begin: 'Skill_3_Begin', loop: 'Skill_3_Loop', end: 'Skill_3_End', idle: 'Skill_3_Move' }) } }),
+    chant: Object.freeze({ change: 'Skill_2_Takeoff_Begin', roles: { idle: 'Skill_2_Takeoff_Loop',
+      skill: Object.freeze({ begin: null, loop: 'Skill_2_Takeoff_Loop', end: null, idle: 'Skill_2_Takeoff_Loop' }) } }),
+    // `hold`: Skill_2_Takeoff_End fades her out (its slot colours reach 0.04 by 0.33 s) and holds there until `rise`, as
+    // the chant goes from it straight to Skill_2_Begin (which fades her in from black) — no Skill_2_Idle frame between
+    chantEnd: Object.freeze({ change: 'Skill_2_Takeoff_End', hold: true, roles: { idle: 'Skill_2_Idle',
+      skill: Object.freeze({ begin: null, loop: 'Skill_2_Idle', end: null, idle: 'Skill_2_Idle' }) } }),
+    rise: Object.freeze({ change: 'Skill_2_Begin', roles: {} }),
+  }),
   [MANIFOLD]: Object.freeze({
     Default: Object.freeze({ roles: { ...clipSet('Idle_1', null, 'Stun', 'Attack'), deploy: 'Start', stun: loop('Stun') } }),
     Melee: Object.freeze({ change: 'Change_A', combat: 'A_Combat', roles: { ...clipSet('A_Idle', null, 'Die', 'A_Attack'), deploy: 'A_Start', stun: loop('A_Stun'), attackDown: null } }),
@@ -866,7 +912,8 @@ export class UnitView {
     this.lord = sub === 'lord';
     // An agent (伊内丝 Ines) melees the enemy it blocks (Combat) and shoots otherwise (Attack); its 'atk' kind is
     // 'none' either way, so the view reads whether the target is blocked on its tile (blocksTarget)
-    this.agent = sub === 'agent';
+    // 予愿安洁莉娜 likewise: her S3's Combat ability (Skill_3_Combat) on the enemy she blocks, her mode's attack otherwise
+    this.agent = sub === 'agent' || (!this.isEnemy && (info?.spine === AGLNA2 || info?.diy?.charId === AGLNA2));
     this.shot = this.fortress || this.lord || this.agent ? 'ranged' : null;
     // the official's own model quirks (enemies.json, read from its battle prefabs — tools/local-extract/enemy_model_offsets.py,
     // PR #211): a vertical stretch (its Graphic scale's sy / sx, the two 帝国炮火先兆者 at 1.263) and a mirrored X scale
@@ -879,12 +926,26 @@ export class UnitView {
     this.x = Number(info.x) || 0; this.y = Number(info.y) || 0; this.z = 0;
     this.zTarget = null;          // battle: standing height the feet ease towards (tile top under the unit; 0 for enemies)
     this.slide = null;            // a push / pull slide (slideTo): held, then easing into the sim's position (update)
+    /** @type {{ ux: number, uy: number, steps: number[], tick: number, dur: number, t: number }|null} */
+    this.follow = null;           // (fork) a graphic follow (followGraphic): the body drawn off the unit's position
+    this.gx = 0; this.gy = 0;     // (fork) that follow's board offset this frame (update; the vfx pose adds it too)
     /** @type {number|null} */
-    this.shadowZ = null;          // an enemy flyer's shadow height (the tile top under it), else null: the shadow is at z
+    this.shadowZ = null;         // an enemy flyer's shadow height (the tile top under it), else null: the shadow is at z
     /** @type {number|null} */
     this.shadowZTarget = null;
     this.flying = info.motion === 'FLY';
-    this.hover = 0;               // flying: body height above the road / the ground under it
+    // the official heights (FLY_HOVER's note): a flyer's prefab height, an operator's 起飞 entry (by its charId)
+    const rec = def || (ctx.lookupDef ? ctx.lookupDef(info) : null);
+    this.flyH = flyHeightOf(rec);
+    this.takeoff = this.isEnemy ? null : TAKEOFF[rec?.charId || info.diy?.charId || info.spine] || null;
+    // flying: body height above the road / the ground under it — a flyer spawns at its height (Enemy.OnInit(initHeight))
+    this.hover = this.flying ? this.flyH : 0;
+    /** @type {{ from: number, to: number, dur: number, wait: number, t: number }|null} */
+    this.hoverTween = null;       // an official 起飞 rise / landing in progress (battle seconds)
+    this.hoverGoal = this.hover;  // the height the view is heading for
+    this.liftedOnce = false;      // whether this life's first 起飞 rise has started (its `born` time, TAKEOFF)
+    this.landing = false;         // (fork) a kit-signalled landing in progress: down to 0 while still in 起飞 (liftLand())
+    this.wasLifted = false;       // (fork) the 起飞 flag on the last hover step (a landing ends when it drops)
     this.dir = this.isEnemy ? null : unitDir(info);
     // whether the direction is known (UnitInfo / piece `dir`), not just the legacy ±1: battle and scouting views show
     // the ground wedge only then (a derived RIGHT would mislabel an UP / DOWN operator)
@@ -1294,7 +1355,7 @@ export class UnitView {
     // an fx handed out late (render/app.js: a stall, a hidden tab) skips a change clip that would already have ended
     const late = fx && Number(fx.late) > 0 ? Number(fx.late) : 0;
     const change = f && f.change && !(late > 0 && late >= (this.actor.dur?.(f.change) ?? Infinity)) ? f.change : null;
-    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null);
+    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold);
     else if (prev) this.actor.setForm(null, prev.leave && !(late > 0 && late >= (this.actor.dur?.(prev.leave) ?? Infinity)) ? prev.leave : null);
   }
 
@@ -2094,6 +2155,7 @@ export class UnitView {
     this._dieForm = null;
     this.dying = 0; this.remove = false; this.alpha = 1;
     this.down = null;
+    this.liftedOnce = false; // a redeployment rises like a first deployment (TAKEOFF `born`)
     this.hp = this.maxHp; this.ghostHp = this.hp;
     if (this.actor) this.actor.revive();
   }
@@ -2161,6 +2223,7 @@ export class UnitView {
         if (sl.t >= sl.dur - 1e-9 || sl.done >= sl.D - 1e-9 || sl.v <= 1e-9) { this.x = sl.lx; this.y = sl.ly; this.slide = null; }
       }
     }
+    this._followStep(dt);
     const P = this.P;
     // the cast's clip still on screen: once it played out and the skill is off, the Back model comes back (_skillFacesFront)
     if (this._faceHold > 0) {
@@ -2186,13 +2249,9 @@ export class UnitView {
     }
     // a flyer keeps its lift through the Die clip and drops only as it fades out: the client removes the fly offset in
     // CharacterAnimator.OnFinish, when the finish state ends; a knocked-down flyer lies on the ground
-    // a flyer — or an ally in 起飞 (UF.LIFTOFF): a skill's at a flyer's height, a talent's just above the ground
-    // (UF.LIFTOFF_LOW, LIFTOFF_HOVER)
-    const low = !this.flying && !this.isEnemy && (this.flags & UF.LIFTOFF_LOW);
-    const aloft = this.flying || (!this.isEnemy && (this.flags & UF.LIFTOFF));
-    const hoverTo = aloft && (this.alive || (this.dying > DIE_FADE_TAIL && !this.down)) ? (low ? LIFTOFF_HOVER : FLY_HOVER) : 0;
-    if (this.hover !== hoverTo) this.hover = Math.abs(hoverTo - this.hover) < 1e-3 ? hoverTo : this.hover + (hoverTo - this.hover) * Math.min(1, dt * 6);
-    const p = cam.project(this.x, this.y, this.z + this.hover + this.lift, this.screen);
+    // a flyer at its prefab height, an ally in 起飞 (UF.LIFTOFF) at its TAKEOFF height (FLY_HOVER's note)
+    this._hoverStep(dt);
+    const p = cam.project(this.x + this.gx, this.y + this.gy, this.z + this.hover + this.lift, this.screen);
     this.placed = true;
     const s = p.s;
     // fades
@@ -2219,10 +2278,10 @@ export class UnitView {
     this.lunge = Math.max(0, this.lunge - dt * 5);
     const lx = this.lungeDir.x * lungeK, ly = this.lungeDir.y * lungeK;
     let bx = p.x, by = p.y;
-    if (lungeK) { const q = cam.project(this.x + lx, this.y + ly, this.z + this.hover + this.lift, LG_P); bx = q.x; by = q.y; }
+    if (lungeK) { const q = cam.project(this.x + this.gx + lx, this.y + this.gy + ly, this.z + this.hover + this.lift, LG_P); bx = q.x; by = q.y; }
     this.root.position.set(bx, by);
     this.root.alpha = alpha;
-    this.root.zIndex = unitDepthKey(cam, this.x, this.y, this.lift, this._planeDepth());
+    this.root.zIndex = unitDepthKey(cam, this.x + this.gx, this.y + this.gy, this.lift, this._planeDepth());
     // off-screen: nothing to animate or draw (bounds / hit-testing still follow `screen`)
     if (this._cull(bx, by, s, dt)) return;
     const flip = this.modelFlip();
@@ -2230,8 +2289,9 @@ export class UnitView {
     // shadow (on a raised top it is drawn with that block row, else in the shadow layer under everything); an enemy
     // flyer's lies on the tile under it while its body hovers from the road (shadowZ, GitHub #277)
     const shz = this.shadowZ ?? this.z;
-    placeOnGround(this.ctx, this.shadow, this.ctx.layers.shadow, this.y, shz);
-    const sh = cam.project(this.x, this.y, shz, SH_P);
+    // (a graphic follow carries the shadow with the body: gx, gy)
+    placeOnGround(this.ctx, this.shadow, this.ctx.layers.shadow, this.y + this.gy, shz);
+    const sh = cam.project(this.x + this.gx, this.y + this.gy, shz, SH_P);
     this.shadow.position.set(sh.x, sh.y);
     const shw = s * (this.isBoss ? 1.6 : 0.95) / this.shadow.texture.width;
     this.shadow.scale.set(shw, shw * (this.shadow.texture === shadowTexture() ? 1 : 1.05));
@@ -2252,12 +2312,15 @@ export class UnitView {
       if (flashK > 0) tint = mixTint(tint, 0xff8a80, flashK * 0.8);
       let animDt = dt * (this.ctx.animRate?.() || 1);
       if (this._offDt > 0) { animDt += Math.min(0.5, this._offDt); this._offDt = 0; }
-      let interval = this.ctx.impostorInterval ? this.ctx.impostorInterval() : 0;
-      if (this.lodIdle) interval = Math.max(interval, 3);
+      // (fork) the crowd's interval for this unit's side and the load level's floor: enemies first, the player's and
+      // the helpers' units stay drawn directly as long as possible; 设置「简化单位动画」 (render/crowd.js)
+      const animMode = this.ctx.spriteAnim ? this.ctx.spriteAnim() : 'auto';
+      let interval = this.ctx.impostorInterval ? this.ctx.impostorInterval(this.isEnemy) : 0;
+      if (this.lodIdle && animMode !== 'unlimited') interval = Math.max(interval, 3);
       const lvl = this.ctx.loadLevel ? this.ctx.loadLevel() : 0;
       if (lvl > 0) {
         this._far = this._far ? s < 60 : s < 52;
-        if (lvl >= 2 || this._far) interval = Math.max(interval, 2);
+        interval = Math.max(interval, loadFloor(lvl, { enemy: this.isEnemy, far: this._far, mode: animMode }));
       }
       let clipFlip = false;
       if (this.actor.clipped) {
@@ -3058,8 +3121,39 @@ export class UnitView {
     }
     const k = imp.sc > 0 ? sc / imp.sc : 1;
     imp.sprite.scale.set(k * flip, k);
+    this._snapImpostor(imp, flip, k);
     imp.sprite.alpha = this.swapT;
     imp.sprite.tint = tint;
+  }
+
+  /**
+   * (fork) The impostor sprite on whole screen pixels. Its slot already holds the skeleton drawn at this scale; a sprite
+   * at a fractional screen position samples it a second time between texels (linear filtering), which softens every
+   * edge by up to half a pixel next to the units drawn directly. A model with a clip that is not an eyelid
+   * (spine.js needsClipping: char_1026_gvial2's F_F and 20 other operator models) is always an impostor, so on an
+   * ordinary field it alone looked blurry. The sprite moves by under one screen pixel so each texel lands on one
+   * pixel. Left at its place when the copy is not 1:1: another scale between refreshes (`k`), a texture resolution
+   * unlike the screen's, or a scaled or rotated parent.
+   */
+  _snapImpostor(imp, flip, k) {
+    const sp = imp.sprite, tex = sp.texture;
+    sp.position.set(0, 0);
+    const res = Number(this.ctx.renderer && this.ctx.renderer.resolution) || 0;
+    const tres = Number(tex && tex.baseTexture && tex.baseTexture.resolution) || res;
+    const f = tex && tex.frame;
+    if (!(res > 0) || !f || Math.abs(k - 1) > 1e-6 || Math.abs(tres - res) > 1e-6) return;
+    const root = this.root, body = this.body;
+    const pw = root.parent && root.parent.worldTransform;
+    if (pw && (pw.a !== 1 || pw.b !== 0 || pw.c !== 0 || pw.d !== 1)) return;
+    if (root.scale.x !== 1 || root.scale.y !== 1 || body.scale.x !== 1 || body.scale.y !== 1) return;
+    if (root.rotation || body.rotation) return;
+    const gx = (pw ? pw.tx : 0) + root.position.x + body.position.x;
+    const gy = (pw ? pw.ty : 0) + root.position.y + body.position.y;
+    const ax = sp.anchor.x * f.width, ay = sp.anchor.y * f.height;
+    // texel edge t (page pixels) lands at screen pixel res·(g + p ∓ (anchor + frame)) ± t: whole when that offset is
+    const dx = res * (flip < 0 ? gx + ax + f.x : gx - ax - f.x);
+    const dy = res * (gy - ay - f.y);
+    sp.position.set((Math.round(dx) - dx) / res, (Math.round(dy) - dy) / res);
   }
 
   _renderImpostor(sc, atlas) {
@@ -3199,7 +3293,102 @@ export class UnitView {
     return { x: this.screen.x - w / 2, y: this.screen.y - h, width: w, height: h + s * 0.1 };
   }
 
+  /**
+   * (fork) The body's height this frame (`hover`). A flyer heads for its prefab height (`flyH`), an ally in 起飞 for its
+   * TAKEOFF height (FLY_HOVER without an entry), anything else for 0. An official 起飞 rise / landing runs linearly over
+   * its tween time in battle seconds (ctx.animRate: battle s per real s), the first rise of a life after its `bornDelay`;
+   * any other change (a flyer's death drop, a unit with no official time) eases at 6/s as before. A flyer keeps its lift
+   * through the Die clip and drops only in the fade tail; a knocked-down flyer lies on the ground.
+   */
+  _hoverStep(dt) {
+    const up = this.alive || (this.dying > DIE_FADE_TAIL && !this.down);
+    const lifted = !this.flying && !this.isEnemy && !!(this.flags & UF.LIFTOFF);
+    // a landing ends when the sim's 起飞 does; a `land` signal that comes before the 起飞 flag (S2's take-off holds her low
+    // through its chant) waits for it
+    if (!lifted && this.wasLifted) this.landing = false;
+    this.wasLifted = lifted;
+    const tk = this.flying || this.isEnemy ? null : this.takeoff;
+    // (fork) a skill's own height on a raised tile (TAKEOFF `high`), set at once; kept while a flight form carries her
+    const hi = tk && Array.isArray(tk.high) ? tk.high[this.skillIndex] : null;
+    const high = hi != null && this.form !== 'fly' ? groundZ(this.ctx, this.x, this.y) > 0 : this.onHigh === true;
+    this.onHigh = hi != null && high;
+    const liftH = tk ? (this.onHigh ? hi : tk.h) : FLY_HOVER;
+    const goal = !up ? 0 : this.flying ? this.flyH : lifted && !this.landing ? liftH : 0;
+    if (goal !== this.hoverGoal) {
+      const rising = goal > this.hover;
+      const born = rising && !this.liftedOnce && tk?.born != null;
+      const swap = lifted && !this.landing && this.hoverGoal > 0 && goal > 0;   // `high` ↔ `h`: duration 0
+      const dur = !up || !tk ? null : swap ? 0 : born ? tk.born : takeoffTime(rising ? tk.up : tk.down, this.skillIndex);
+      const wait = born ? tk.bornDelay || 0 : 0;
+      this.hoverTween = dur != null ? { from: this.hover, to: goal, dur, wait, t: 0 } : null;
+      if (rising && lifted) this.liftedOnce = true;
+      this.hoverGoal = goal;
+    }
+    const tw = this.hoverTween;
+    if (tw) {
+      tw.t += dt * (this.ctx.animRate?.() ?? 1);
+      const k = tw.dur > 0 ? clamp((tw.t - tw.wait) / tw.dur, 0, 1) : tw.t >= tw.wait ? 1 : 0;
+      this.hover = tw.from + (tw.to - tw.from) * k;
+      if (k >= 1) this.hoverTween = null;
+    } else if (this.hover !== goal) {
+      this.hover = Math.abs(goal - this.hover) < 1e-3 ? goal : this.hover + (goal - this.hover) * Math.min(1, dt * 6);
+    }
+  }
+
+  /**
+   * (fork) The part of `hover` that is an operator's take-off lift (the `takeoff` path above: not a flyer, not an
+   * enemy). The client raises only the graphic holder for it (Unit.SetGraphicHolderHeightOffset RVA 0xB1C110 →
+   * DoSetGraphicHolderHeight), so an effect held on the unit (wiring.js pose `uz`) stays at the unit's own height.
+   */
+  get liftZ() { return this.takeoff && !this.flying && !this.isEnemy ? this.hover || 0 : 0; }
+
   setHover(on) { this.hovered = !!on; }
+
+  /** (fork) A kit's landing start (fx `land`: 予愿安洁莉娜's 'aglna2Landing'): down to 0 over its TAKEOFF `down` time while
+   * the sim's 起飞 still holds; `false` (a take-off) lifts again. */
+  liftLand(on = true) { this.landing = !!on; }
+
+  /**
+   * (fork) A graphic follow — the client's GraphicFollowController: while a sim projectile flies, the body (and what the
+   * official effects attach to it: render/vfx/wiring.js pose) is drawn offset by the projectile's move from where it was
+   * born (Tick: source world − origin source world, Unit.RefreshGraphicHolderPosForFollow); the unit's own position,
+   * tile, blocking and range stay. `spec` (a kit fx's `follow`): `ux, uy` the board direction of the move, `steps` the
+   * distance after each sim tick (held at the last one), `tick` s per step, `dur` game s at most (the projectile's life).
+   * null — or a knock-out (die) — ends it and the body is back at once (`_Clear` with `_restoreOnEnd`: the offset to
+   * zero, no tween). 予愿安洁莉娜 S2's glide (kits/ops/op-aglna2.js 'dash' `follow`, ended by the chant's `rise`).
+   * @param {{ ux: number, uy: number, steps: number[], tick: number, dur?: number }|null} spec
+   * @param {number} [late] game s the fx came late (render/app.js LATE): the follow is that far along already
+   */
+  followGraphic(spec, late = 0) {
+    const steps = spec && Array.isArray(spec.steps) ? spec.steps.map(Number).filter(Number.isFinite) : null;
+    if (!steps || !steps.length || !(Number(spec.tick) > 0) || !this.alive) { this.follow = null; this.gx = 0; this.gy = 0; return; }
+    const t = Math.max(0, Number(late) || 0);
+    // (fork) on the clock the official effects run on (ctx.battleTime: render/app.js fxClock), so the body keeps
+    // to the sweep's trail at any speed and through a speed change — frame time × animRate drifted from it (user,
+    // 2026-11-15: her flight against the glow wave); without that clock (a bare view) the frame time × animRate
+    const bt = this.ctx.battleTime?.();
+    this.follow = { ux: Number(spec.ux) || 0, uy: Number(spec.uy) || 0, steps, tick: Number(spec.tick),
+      dur: Number(spec.dur) > 0 ? Number(spec.dur) : Infinity, t, t0: Number.isFinite(bt) ? bt - t : null };
+  }
+
+  /** (fork) The graphic follow's offset for this frame (`gx`, `gy`), on the battle clock; over at its `dur`. */
+  _followStep(dt) {
+    const f = this.follow;
+    if (f && (!this.alive || this.down)) this.follow = null;
+    if (!this.follow) { this.gx = 0; this.gy = 0; return; }
+    const bt = f.t0 != null ? this.ctx.battleTime?.() : null;
+    if (Number.isFinite(bt)) {
+      // a clock that went back (another battle on this view) ends it
+      if (bt < f.t0) { this.follow = null; this.gx = 0; this.gy = 0; return; }
+      f.t = bt - f.t0;
+    } else f.t += dt * (this.ctx.animRate?.() || 1);
+    if (f.t >= f.dur) { this.follow = null; this.gx = 0; this.gy = 0; return; }
+    // the distance after n ticks (0 before the first; the last one held), between two ticks a straight line
+    const D = (n) => (n <= 0 ? 0 : f.steps[Math.min(n, f.steps.length) - 1]);
+    const k = f.t / f.tick, i = Math.floor(k);
+    const d = D(i) + (D(i + 1) - D(i)) * (k - i);
+    this.gx = f.ux * d; this.gy = f.uy * d;
+  }
 
   destroy() {
     if (this.destroyed) return;

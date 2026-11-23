@@ -232,6 +232,8 @@ Spawning based on highest alliance rather than total is a significant nerf overa
   10 s, back to normal when she is blocked or can't move (stunned, frozen, asleep, levitated, bound).
 - **United 3** (Risk 3): the sub-wave has 500 % HP. Her Momentum Murder comes every 9 % of her HP (normally 25 %), and
   each step is a hard gate: she loses no HP until the cast ends. (Cloned 3 is gone.)
+- Her own ATK buff stays off: the game ties it to Snowfall ("Gains increased ATK during Snowfall"), an event mechanic
+  this mode doesn't have (checked 2026-10-16).
 
 ### 19. `ccJunk` (Objective: Junk 1 / 2, prototype)
 

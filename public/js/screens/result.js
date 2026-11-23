@@ -26,7 +26,7 @@ import { CombatSummary } from '../ui/combatSummary.js';
 import { sentText } from '../ui/lang.js';
 import { UnofficialMark, VersionTag } from '../ui/pluginTag.js';
 import { TestMark } from '../ui/testConsole.js';
-import { ruleBadges, RulesChips } from '../ui/lobbyRules.js';
+import { ruleBadges, RulesChips, AwardNotesButton } from '../ui/lobbyRules.js';
 import { rulesInForce } from '../../../shared/rules.js';
 import { t, tParts, N_, shownName } from '../../../shared/i18n.js';
 
@@ -140,7 +140,10 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
   // list of every rule in force (shown in full: a recording of the screen shows how the result was made)
   const rules = pub?.rules || null;
   const inForce = rules ? rulesInForce(rules) : [];
-  const badges = ruleBadges(rules);
+  // (GitHub #125) the Risk tags the autoAward rule added at the end: in the Risk total, and as AUTO chips
+  const awarded = res?.awarded ?? pub?.awarded ?? null;
+  const awardNotes = res?.awardNotes ?? pub?.awardNotes ?? null; // why the others weren't (a panel, closed by default)
+  const badges = ruleBadges(rules, awarded);
   return html`<div class=${cx('screen', 'result', r.victory ? 'is-win' : 'is-lose')}>
     <div class="result__bg" aria-hidden="true" style=${bg ? `--result-bg:url("${bg}")` : undefined}></div>
     <div class="result__grid" aria-hidden="true"></div>
@@ -172,9 +175,10 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
             <${Img} src=${enemyIconUrl(gd.m, hidden.enemyKey)} /><span class="medal__check">${r.hiddenCleared ? html`<${Icon} name="check" />` : html`<${Icon} name="close" />`}</span>
             <span class="medal__label">${t('隐秘核心')}</span></div>` : null}
         </div>
-        ${inForce.length ? html`<div class="result__rules">
+        ${inForce.length || awarded ? html`<div class="result__rules">
           <span class="result__rlabel">${t('本局房间改动')}</span>
-          <${RulesChips} rules=${rules} />
+          <${RulesChips} rules=${rules} awarded=${awarded} />
+          <${AwardNotesButton} notes=${awardNotes} />
         </div>` : null}
         ${mins ? html`<p class="result__time t-lo">${tParts('本局耗时 {n} 分钟', { n: html`<b class="num">${mins}</b>`, mins })}</p>` : null}
         </div>

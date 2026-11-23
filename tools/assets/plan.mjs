@@ -24,7 +24,7 @@
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { BOT_OPERATORS } from '../../shared/constants.js';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, pickEnemySfx, pickEnemyCastSfx, ENEMY_SHOT_SOUNDS, ENEMY_ATTACK_VARIANTS, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { skillAbilitySounds } from './skillSounds.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
@@ -148,6 +148,208 @@ const FX_SOUND_BANKS = Object.freeze({
     'revive|': 'battle.ON_CUSTOM_TRIGGER.reborn_finish',
     'meltdown|': 'battle.ON_CUSTOM_TRIGGER.fire_ep_break',
   }),
+  // (fork) 予愿安洁莉娜 (op-aglna2.js): S2's glide ('dash' aglna2:glide) is projectile_chr_aglna2_s2_fly's BORN, the 浮空 /
+  // 缚地 it gives ('aglna2Bind') the start of buff aglna2_s_2[enemy][levitate] / [ground_bound]; each S3 flight
+  // ('aglna2Fly') is projectile_chr_aglna2_s3_fly's BORN, the return home ('aglna2Restore') her restart clip's play
+  // (aglna2_restart); the landing ('aglna2Landing', by the skill that ends) the landing attack's START: S1 attack.6, S2
+  // attack.7, S3 attack.9 (all p_atk_arstrnstfld)
+  char_1015_aglna2: Object.freeze({
+    'dash|aglna2:glide': 'battle.ON_PROJECTILE_BORN.projectile_chr_aglna2_s2_fly',
+    'aglna2Bind|aglna2:levitate': 'battle.ON_BUFF_START.aglna2_s_2[enemy][levitate]',
+    'aglna2Bind|aglna2:groundbind': 'battle.ON_BUFF_START.aglna2_s_2[enemy][ground_bound]',
+    'aglna2Fly|': 'battle.ON_PROJECTILE_BORN.projectile_chr_aglna2_s3_fly',
+    'aglna2Restore|': 'battle.ON_PLAY_ANIMATION.aglna2_restart',
+    'aglna2Landing|#0': 'battle.ON_ABILITY_START.char_1015_aglna2.attack.6',
+    'aglna2Landing|#1': 'battle.ON_ABILITY_START.char_1015_aglna2.attack.7',
+    'aglna2Landing|#2': 'battle.ON_ABILITY_START.char_1015_aglna2.attack.9',
+  }),
+});
+
+/**
+ * (fork, enemy sound audit job 3) An enemy's official moment sounds no attack or skill cast plays: enemy id → '<sim fx
+ * kind>|<its kind / form>' → bank(s), as FX_SOUND_BANKS (public/js/audio.js _fxSound). 'cast|<skill pk, lower case>'
+ * rings with that skill's cast, 'skill|on' when its skill turns on (its loop then ends with the skill); 'sound|…' and
+ * 'mode' are display-only fx the sim sends for these moments alone. An entry may be { play, loop, endLoop }: `loop` a
+ * held loop bank (one per unit; it stops at its unit's death, its skill's end or an entry with `endLoop`). A spine-event
+ * bank (ON_SPINE_EVENT_TRIGGER) rings `after` game s: its OnPlayAudio event's time in the official skeleton's clip that
+ * our client plays at that moment (public/assets/spine/enemy/<id>/<id>.skel, read with the client's @pixi-spine runtime)
+ * — from the clip's start for a form change or a plain cast, from its OnAttack for an attack-turn cast (render/units.js
+ * _turnCast: that clip plays from its strike frame, which is the cast). Only official values: no bank here without one.
+ */
+const ENEMY_MOMENT_SOUND_BANKS = Object.freeze({
+  // Dublinn Flamechasers: the ember's birth (T.Born) and its return to a warrior (CN buff template
+  // enemy_duskl*_revive_listener ON_BUFF_TRIGGER: SwitchToRebornState + the default max HP back)
+  enemy_1288_duskls: { 'ember|husk': 'battle.ON_ABILITY_START.enemy_1288_duskls.T.Born', 'revive|revived': 'battle.ON_BUFF_TRIGGER.enemy_duskls_revive' },
+  enemy_1288_duskls_2: { 'ember|husk': 'battle.ON_ABILITY_START.enemy_1288_duskls_2.T.Born', 'revive|revived': 'battle.ON_BUFF_TRIGGER.enemy_duskls_revive' },
+  enemy_1292_duskld: { 'ember|husk': 'battle.ON_ABILITY_START.enemy_1292_duskld.T.Born', 'revive|revived': 'battle.ON_BUFF_TRIGGER.enemy_duskld_revive' },
+  // its Cannon (an attack-turn cast, ENEMY_ATTACK_SKILL_CLIP 10 s = clip Skill): Skill's nine OnPlayAudio 'emit' at
+  // 4.033 … 6.7 s, from its OnAttack at 4.033 s (its normal attack's emit: ENEMY_ATTACK_ALSO_BANKS)
+  enemy_1273_stmgun_2: {
+    'cast|cannon': [4.033, 4.367, 4.7, 5.033, 5.367, 5.7, 6.033, 6.367, 6.7]
+      .map((t) => ({ bank: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1273_stmgun_2.emit', after: Math.round((t - 4.033) * 1000) / 1000 })),
+  },
+  // knock-outs (reborn: fx 'telegraph' kind 'reborn', which plays the form's change clip — render/units.js FORMS) and
+  // stand-ups (fx 'revive' kind 'reborn')
+  enemy_1512_mcmstr: { 'telegraph|reborn': 'battle.ON_BUFF_START.mcmstr_t_state_1[reborn]' },
+  // its knock-out clip C1_Die: OnPlayAudio stone_gather at 2.367 s, sword_in at 2.733 s, reborn_bomb at 3.333 s
+  enemy_1516_jakill: {
+    'telegraph|reborn': [
+      { bank: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.stone_gather', after: 2.367 },
+      { bank: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.sword_in', after: 2.733 },
+      { bank: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.reborn_bomb', after: 3.333 },
+    ],
+  },
+  // its knock-out clip Revive_01: OnPlayAudio xi_reborn at 0 s
+  enemy_1517_xi: { 'telegraph|reborn': 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1517_xi.xi_reborn' },
+  enemy_1525_blkswb: {
+    'telegraph|reborn': 'battle.ON_ABILITY_START.enemy_1525_blkswb.T.Reborn',
+    'explode|clearSp': 'battle.ON_ABILITY_START.enemy_1525_blkswb.T.ClearSp',
+  },
+  // Zaaro: T.Reborn starts at the knock-out with its held loop (enemy_wlfmster_reborn_start); its check point is the
+  // stand-up (the fx index's Reborn talent: an EmptyAnimatedAbility whose end-role effects are enemy_wlfmster_a_revive_3*)
+  enemy_1535_wlfmster: {
+    'telegraph|reborn': { play: 'battle.ON_ABILITY_START.enemy_1535_wlfmster.T.Reborn', loop: 'battle.ON_BUFF_START.enemy_wlfmster_reborn_start' },
+    'revive|reborn': { play: 'battle.ON_ABILITY_CHECK_POINT.enemy_1535_wlfmster.T.Reborn', endLoop: true },
+  },
+  // the take-off buff balloon_s's ON_BUFF_FINISH is the landing (fx index: enemy_balloon_land_01_* on it)
+  enemy_2004_balloon: { 'sound|land': 'battle.ON_BUFF_START.balloon_s[land]' },
+  enemy_2010_csdcr: { 'telegraph|songOfWar': 'battle.ON_BUFF_START.csdcr_skill[audio]' },
+  enemy_9008_acbunn: { 'sound|cute': 'battle.ON_BUFF_START.enemy_acbunn[cute]', 'sound|horror': 'battle.ON_BUFF_START.enemy_acbunn[horror]' },
+  // 炎佑 (an ally built from this record): Skill_2's ON loop while its skill is on
+  enemy_9012_acloon: { 'skill|on': { loop: 'battle.ON_ABILITY_ON.enemy_9012_acloon.Skill_2' } },
+  // the blades shot down (CN buff template acstm*_s_1[special_stun]: STUNNED)
+  enemy_9014_acstma: { 'phase|shotDown': 'battle.ON_BUFF_START.acstma_s_1[special_stun]' },
+  enemy_9015_acstmb: { 'phase|shotDown': 'battle.ON_BUFF_START.acstmb_s_1[special_stun]' },
+  // OpFor: Gun S3's chain hit
+  enemy_9017_achunt: { 'link|faithLink': 'battle.ON_CUSTOM_TRIGGER.achunt_line_damage.chain_hit' },
+  enemy_9017_achunt_2: { 'link|faithLink': 'battle.ON_CUSTOM_TRIGGER.achunt_line_damage.chain_hit' },
+  // every NORMAL physical hit on its shield (CN buff template actrpa_t_1 ON_TAKE_DAMAGE)
+  enemy_9018_actrpa: { 'sound|shieldHit': 'battle.ON_CUSTOM_TRIGGER.actrpa_t_1.shield_hit' },
+  // Echoes: the form switches; each form's ensemble — gold is Passion (it reads ep_damage_ratio_passion) — with its
+  // [delay] twin (that bank's own delay 0.7 s, audio_data); the pulse on damage taken (fx index: ability AOE, triggered by
+  // acdums_t_3 ON_TAKE_DAMAGE)
+  enemy_9023_acdums: {
+    'phase|echo_gold': 'battle.ON_CUSTOM_TRIGGER.enemy_9023_acdums.switch_a',
+    'phase|echo_dark': 'battle.ON_CUSTOM_TRIGGER.enemy_9023_acdums.switch_b',
+    'explode|ensembleGold': ['battle.ON_CUSTOM_TRIGGER.acdums_audio[passion]', 'battle.ON_CUSTOM_TRIGGER.acdums_audio[passion][delay]'],
+    'explode|ensembleDark': ['battle.ON_CUSTOM_TRIGGER.acdums_audio[depassion]', 'battle.ON_CUSTOM_TRIGGER.acdums_audio[depassion][delay]'],
+    'explode|echoPulse': 'battle.ON_CUSTOM_TRIGGER.acdums_audio[aoe]',
+  },
+  // Alistair: the golden shield and the advance (fx index: talent advance, buff enemy_vtlionk_advance)
+  enemy_9032_aclionk: {
+    'vest|': 'battle.ON_CUSTOM_TRIGGER.enemy_vtlionk_skill_shld',
+    'phase|lionAdvance': 'battle.ON_CUSTOM_TRIGGER.enemy_vtlionk_advance',
+  },
+  enemy_9033_acdeer: { 'telegraph|samiDoom': 'battle.ON_CUSTOM_TRIGGER.enemy_smdeer_doom[audio]' },
+  // its barrage mark (fx index: skill appear, enemy_vtsk_skill_01_marker_01 / _range_01) and its multicombat (a plain
+  // cast; clip Skill_2: OnPlayAudio zan_hold at 2 s)
+  enemy_10027_vtsk: {
+    'telegraph|barrage': 'battle.ON_CUSTOM_TRIGGER.enemy_vtsk_skillRange',
+    'cast|multicombat': [{ bank: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_10027_vtsk.zan_hold', after: 2 }],
+  },
+  // taking off (fx index: parrot_a[fly] ON_BUFF_ENABLE → enemy_parrot_takeoff)
+  enemy_10045_parrot: { 'phase|float': 'battle.ON_CUSTOM_TRIGGER.parrot_fly' },
+});
+
+/**
+ * (fork, enemy sound audit job 3) Sounds an enemy's normal attack plays besides its swing: a spine event at its Attack
+ * clip's OnAttack (the strike the client's 'atk' marks), appended to `attackNext`. 伦蒂尼姆城防自行炮 (elite): Attack's
+ * OnPlayAudio 'emit' at 0.033 s = its OnAttack at 0.033 s.
+ */
+const ENEMY_ATTACK_ALSO_BANKS = Object.freeze({
+  enemy_1273_stmgun_2: ['battle.ON_SPINE_EVENT_TRIGGER.enemy_1273_stmgun_2.emit'],
+});
+
+/**
+ * (fork, enemy sound audit job 3) Official sounds that ring when one of an enemy's effects starts (OfficialFx.onSpawn →
+ * public/js/audio.js fxKey): enemy id → effect key → bank. Effects off: none.
+ */
+const ENEMY_KEY_SOUND_BANKS = Object.freeze({
+  enemy_9017_achunt: { enemy_achunt_skill_1_hit: 'battle.ON_BUFF_START.achunt_s_1[damage].hit_target' },
+  enemy_9017_achunt_2: { enemy_achunt_skill_1_hit: 'battle.ON_BUFF_START.achunt_s_1[damage].hit_target' },
+  enemy_10138_xdsnow: { enemy_xdsnow_die_01: 'battle.ON_CUSTOM_TRIGGER.enemy_xdsnow_die_01' },
+});
+
+/**
+ * (fork, enemy sound audit job 3) An enemy's attack modes with sounds of their own: enemy id → mode index (the sim's fx
+ * 'mode' n) → its swing / impact event keys in its own banks. 泥岩巨像's Tier 4 / Tier 5 (attack.4 / attack.5); Tier 1-3
+ * keep the plain attack's banks (no attack.1-3 banks).
+ */
+const ENEMY_MODE_ATTACK_BANKS = Object.freeze({
+  enemy_1511_mdrock: {
+    4: { attack: ['ON_ABILITY_START.attack.4', 'ON_ABILITY_ON.attack.4'], hit: ['ON_ABILITY_HIT.attack.4'] },
+    5: { attack: ['ON_ABILITY_START.attack.5', 'ON_ABILITY_ON.attack.5'], hit: ['ON_ABILITY_HIT.attack.5'] },
+  },
+});
+
+/**
+ * (fork, enemy sound leftovers job 2, 2026-11-13) Enemy skill impacts timed by the sim's own events, not by an effect
+ * spawning (crew-docs/enemy-sound-audit.md: "impact has no effect to follow" / "not a cast our sim makes"), so they ring
+ * with battle effects off too → sfx.units[id].fxHits['<fx kind>|<extra.kind>'] (public/js/audio.js _enemyFxHit). The
+ * unit is the fx's `id` / `from` / `src`; an fx with none of them (新手祭司学徒's death flask) is the enemy that died in
+ * the same batch. Every time is in battle seconds, each read from the official client (the comment by each entry names
+ * the file and field); the client turns them into real time at the battle's playback rate. `after`: that long after the
+ * fx; `speed`: a projectile's official movement speed (tiles per s): the sound rings when the shot covers the distance
+ * between the shooter and its target at the fx (audio.js _flightAfter); `gap`: the same fx between the same pair again
+ * within that long stays silent (one chain while the sim re-sends it every second). 'turn|<prefabKey>' is an attack-turn skill (castSlot, then the
+ * attack): its sound replaces the attack's impact after ['cast', id, slot], and that cast's effect-key timing (casts.keys)
+ * is dropped so it does not ring twice. Banks are the official ones (CN audio_data); ids checked in EN gamedata.
+ */
+const VTLIONK_FX_HITS = Object.freeze({
+  // Alistair, Final Flame of the Empire (bosses.js 王权号令): the plus strike's 'telegraph' — s1 is a 0.12 s timer shot
+  'telegraph|royalDecree': 'battle.ON_PROJECTILE_HIT.projectile_enemy_vtlionk_s1',
+});
+const SMDEER_FX_HITS = Object.freeze({
+  // 'Samivilinn,' the Resolution of the Very North (bosses.js 自然涌动): each lasso 'beam' — a timer whose effects start at once
+  'beam|naturalSurge': 'battle.ON_PROJECTILE_HIT.projectile_enemy_smdeer_s',
+});
+export const ENEMY_FX_SOUND_BANKS = Object.freeze({
+  // Novice Acolyte (special.js death heal): the flask's throw at the death; its landing (REACH) at the end of the shot's
+  // life — 0.7 s: projectile_enemy_mncrer_heal's SimpleProjectile `_lifeTimeType` 1 (LIMITED) `_lifeTime` 0.7 with
+  // `_alwaysReachInTheEnd` 1 and no movement (CN client prefab, public/assets/local/fx/index.json projectiles
+  // .projectile_enemy_mncrer_heal lifeTime). The sim heals at the death itself (special.js), so it has no own time here.
+  enemy_10156_mncrer: Object.freeze({
+    'explode|heal': [{ bank: 'battle.ON_PROJECTILE_BORN.projectile_enemy_mncrer_heal' }, { bank: 'battle.ON_PROJECTILE_REACH.projectile_enemy_mncrer_heal', after: 0.7 }],
+  }),
+  // Sarkaz Royal Court Elite Caster (element.js 死亡之眼): the burst's ChargeAttack shot (a 0.05 s flight); the channel's
+  // LineAttack harpoon hits as it reaches the locked target: projectile_enemy_dwlock_line's HarpoonMovement `speed` 8
+  // (CN client prefab, index.json projectiles.projectile_enemy_dwlock_line movement.speed) over the distance at the cast
+  enemy_1275_dwlock_2: Object.freeze({
+    'explode|apoptosis': 'battle.ON_PROJECTILE_HIT.projectile_enemy_dwlock_charge',
+    'beam|deathEye': { bank: 'battle.ON_PROJECTILE_HIT.projectile_enemy_dwlock_line', speed: 8 },
+  }),
+  // Withered Knight (leaders.js 爆炸箭): each arrow's 'telegraph' hits as the arrow reaches its target:
+  // projectile_enemy_dekght_s's AdvancedMovement `speed` 10, `delayToStart` 0 (index.json projectiles
+  // .projectile_enemy_dekght_s movement) over the distance at the shot
+  enemy_1513_dekght_2: Object.freeze({
+    'telegraph|blastArrow': { bank: 'battle.ON_PROJECTILE_HIT.projectile_enemy_dekght_s', speed: 10 },
+  }),
+  // Jesselton Williams (leaders.js kitWarden): 铁沙暴 is an attack turn; its shot's hit and reach at the attack's impact
+  enemy_1516_jakill: Object.freeze({
+    'turn|ironsandstorm': ['battle.ON_PROJECTILE_HIT.projectile_enemy_jakill_s1', 'battle.ON_PROJECTILE_REACH.projectile_enemy_jakill_s1'],
+  }),
+  enemy_1559_vtlionk: VTLIONK_FX_HITS,
+  enemy_2054_smdeer: SMDEER_FX_HITS,
+  // OpFor: BlackCloud (fly.js 抓取): ON_ABILITY_HIT of KillOthers rings at its attack event, 0.633 s after the cast —
+  // KillOthers (CN client battle/enm_pfb_28.ab, enemy_9009_acfort) is an AnimatedActionToTargetAbility with
+  // `_waitForAttackEvent` 1 and `_preDelay` 0, whose channel animation's `beginAnim` is Skill_1_Begin; that clip's OnAttack
+  // event is at 0.633 s (enemy_9009_acfort.skel, .cache/spine-info.json hits.Skill_1_Begin). The sim's own GRAB_DELAY
+  // (0.5 s, fly.js) is the sim's own estimate and differs: the sound keeps the client's time.
+  enemy_9009_acfort: Object.freeze({
+    'beam|devour': { bank: 'battle.ON_ABILITY_HIT.enemy_9009_acfort.KillOthers', after: 0.633 },
+  }),
+  // Yan's Protection (tokens.js 祛恶之焰): each second's hit of the flame line
+  enemy_9012_acloon: Object.freeze({
+    'yanyouFlame|': 'battle.ON_PROJECTILE_HIT.projectile_enemy_acloon_line',
+  }),
+  // OpFor: Gun, hidden core (bosses.js 盲信之誓): the chain ray reaching a spring — the sim re-sends the 'link' every
+  // second; the client's chain is one projectile that lives 60 s: projectile_enemy_achunt_ray `lifeTime` 60 (index.json
+  // projectiles.projectile_enemy_achunt_ray), so one REACH per gun → spring pair in that time
+  enemy_9017_achunt_2: Object.freeze({
+    'link|faithLink': { bank: 'battle.ON_PROJECTILE_REACH.projectile_enemy_achunt_ray', gap: 60 },
+  }),
+  enemy_9032_aclionk: VTLIONK_FX_HITS,
+  enemy_9033_acdeer: SMDEER_FX_HITS,
 });
 /**
  * (fork) Element burst (爆发) sounds, by `<sim element>.<side>` (side as public/js/render/vfx/wiring.js burstSide: 'enemy'
@@ -177,6 +379,8 @@ const UNIT_SOUND_BANKS = Object.freeze({
 
   // (fork) 水月: her swing is the attack's START (p_atk_tentacle_n), its impact the ON (p_imp_tentacle_n)
   char_437_mizuki: Object.freeze({ hit: 'battle.ON_ABILITY_ON.char_437_mizuki.attack' }),
+  // (fork) 予愿安洁莉娜: her deploy plays her born clip, whose ON_PLAY_ANIMATION aglna2_born bank is b_char_arstrnstf
+  char_1015_aglna2: Object.freeze({ born: 'battle.ON_PLAY_ANIMATION.aglna2_born' }),
 });
 /**
  * (fork) A skill's own swing / impact by skill index where the mode pick misses it (assignSkillModeSfx): a bank name, or
@@ -214,6 +418,15 @@ const SKILL_MODE_BANKS = Object.freeze({
     1: Object.freeze({ attack: null, hit: 'battle.ON_ABILITY_ON.char_437_mizuki.attack.2' }),
     2: Object.freeze({ attack: null, hit: 'battle.ON_ABILITY_ON.char_437_mizuki.attack.3' }),
   }),
+  // (fork) 予愿安洁莉娜: each skill's shot lands with its own projectile's HIT (p_imp_arstrnstf_d / _h / _s), not her
+  // normal one; S2's attack also rings its ability ON (p_atk_arstrnstfr_h) — the ON is the attack's release, the sim's
+  // 'atk', so it plays with the swing
+  char_1015_aglna2: Object.freeze({
+    0: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_aglna2_s1' }),
+    1: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_aglna2_s2',
+      attackAlso: Object.freeze(['battle.ON_ABILITY_ON.char_1015_aglna2.attack.2']) }),
+    2: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_aglna2_s3' }),
+  }),
 });
 /**
  * (fork) Sounds at a skill's start beside its ON_SKILL_START sting (`skillOn`, by index; `hold`: cut when the skill
@@ -227,6 +440,12 @@ const SKILL_ON_BANKS = Object.freeze({
     2: Object.freeze({ bank: 'battle.ON_ABILITY_START.skchr_mostma_3' }),
   }),  // (fork) 烛煌 S3: its activation (p_skill_hcnsrfrsr, the skill ability's start)
   char_1040_blaze2: Object.freeze({ 2: Object.freeze({ bank: 'battle.ON_ABILITY_START.skchr_blaze2_3' }) }),
+  // (fork) 予愿安洁莉娜 S2: its Begin clip's play (aglna2_s_2[Begin], p_atk_arstrnstfbk) with the sting; S3 has no plain
+  // ON_SKILL_START bank, only the suffixed one the client's SKILL_START_AUDIO_EMIT_SUFFIX names (p_skill_arstrnstf_s)
+  char_1015_aglna2: Object.freeze({
+    1: Object.freeze({ bank: 'battle.ON_PLAY_ANIMATION.aglna2_s_2[Begin]' }),
+    2: Object.freeze({ bank: 'battle.ON_SKILL_START.skchr_aglna2_3.move_like_projectile.skill_start' }),
+  }),
 });
 const SKILL_OFF_BANKS = Object.freeze({
   char_4193_lemuen: Object.freeze({
@@ -493,6 +712,121 @@ function unitSounds(audio, sfx, poolRef, leafOf = soundLeaf) {
   return { roles, mix };
 }
 
+/**
+ * (fork, enemy sound audit chunk 2) An enemy's skill-cast sounds → sfx.units[id].casts: { [slot]: { pk, start?: [{ url,
+ * pool? }], hit?: { url, pool? }, keys?: string[] } } (docs/ASSETS.md). `start` rings at the sim's ['cast', id, slot];
+ * `hit` when one of `keys` (the effects of that skill's impact) spawns, or on the impact of an attack-turn cast.
+ */
+function enemyCastSounds(audio, banks, slots, poolRef) {
+  if (!Array.isArray(slots) || !slots.length) return null;
+  const part = (paths) => { const e = { url: soundLeaf(paths, 'sfx', 1) }; const p = poolRef(paths); if (p) e.pool = p; return e; };
+  const out = {};
+  for (const s of slots) {
+    const got = pickEnemyCastSfx(banks, audio.bank, s, audio.loopOf);
+    if (!got) continue;
+    const e = { pk: s.pk };
+    if (got.start.length) e.start = got.start.map(part);
+    if (got.hit) {
+      e.hit = part(got.hit);
+      const f = got.hitFrom;
+      const pj = f?.projectile ? s.proj?.[f.projectile] : null;
+      const keys = f?.ev === 'ON_ABILITY_HIT' ? s.hitKeys : f?.ev === 'ON_PROJECTILE_HIT' ? pj?.hit : pj?.reach?.length ? pj.reach : pj?.hit;
+      if (keys?.length) e.keys = [...keys].sort();
+    }
+    out[String(s.slot)] = e;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/**
+ * (fork, enemy sound audit job 3) An enemy's moment sounds onto its sfx entry `u` (docs/ASSETS.md): `fxSounds`
+ * (ENEMY_MOMENT_SOUND_BANKS: { url, pool?, after?, also?: [{ url, pool?, after? }], loop?, loopPool?, endLoop? }; `after` in
+ * game s), `keySounds` (ENEMY_KEY_SOUND_BANKS: effect key → { url, pool? }), its normal attack's extra sounds appended to
+ * `attackNext` (ENEMY_ATTACK_ALSO_BANKS) and the attack modes' `attacks` / `hits` (+ pools) by mode index
+ * (ENEMY_MODE_ATTACK_BANKS). A bank missing from the sound index is a note, never a guess.
+ */
+function enemyMomentSounds(u, id, audio, banks, poolRef, notes) {
+  const part = (s) => {
+    const name = typeof s === 'string' ? s : s?.bank;
+    const paths = typeof name === 'string' ? audio.bank(name) : null;
+    if (!paths?.length) { if (name) notes.push(`${id}: moment bank missing: ${name}`); return null; }
+    const e = { url: soundLeaf(paths, 'sfx', 1) };
+    const p = poolRef(paths);
+    if (p) e.pool = p;
+    if (s?.after > 0) e.after = s.after;
+    return e;
+  };
+  const fx = {};
+  for (const [key, raw] of Object.entries(ENEMY_MOMENT_SOUND_BANKS[id] || {})) {
+    const spec = raw && typeof raw === 'object' && !Array.isArray(raw) && !raw.bank ? raw : { play: raw };
+    const [lead, ...also] = [].concat(spec.play || []).map(part).filter(Boolean);
+    const e = lead ? { ...lead } : {};
+    if (also.length) e.also = also;
+    const loop = spec.loop ? part(spec.loop) : null;
+    if (loop) { e.loop = loop.url; if (loop.pool) e.loopPool = loop.pool; }
+    if (spec.endLoop) e.endLoop = true;
+    if (e.url || e.loop || e.endLoop) fx[key] = e;
+  }
+  if (Object.keys(fx).length) u.fxSounds = fx;
+  const keys = {};
+  for (const [k, name] of Object.entries(ENEMY_KEY_SOUND_BANKS[id] || {})) { const e = part(name); if (e) keys[k] = e; }
+  if (Object.keys(keys).length) u.keySounds = keys;
+  for (const [mode, roles] of Object.entries(ENEMY_MODE_ATTACK_BANKS[id] || {})) {
+    for (const [role, evs] of Object.entries(roles)) {
+      const paths = evs.map((ev) => banks?.get(ev)).find((p) => p?.length);
+      if (!paths) { notes.push(`${id}: mode ${mode} ${role} bank missing: ${evs.join(' / ')}`); continue; }
+      const t = role === 'attack' ? 'attacks' : 'hits';
+      (u[t] ||= {})[mode] = soundLeaf(paths);
+      const p = poolRef(paths);
+      if (p) (u[role === 'attack' ? 'attackPools' : 'hitPools'] ||= {})[mode] = p;
+    }
+  }
+}
+
+/** (fork, enemy sound audit job 3) ENEMY_ATTACK_ALSO_BANKS onto `u.attackNext` (played with each normal attack). */
+function enemyAttackAlso(u, id, audio, poolRef, notes) {
+  for (const name of ENEMY_ATTACK_ALSO_BANKS[id] || []) {
+    const paths = audio.bank(name);
+    if (!paths?.length) { notes.push(`${id}: attack bank missing: ${name}`); continue; }
+    const e = { url: soundLeaf(paths, 'sfx', 1) };
+    const p = poolRef(paths);
+    if (p) e.pool = p;
+    (u.attackNext ||= []).push(e);
+  }
+}
+
+/**
+ * (fork, enemy sound leftovers job 2) ENEMY_FX_SOUND_BANKS[id] → sfx.units[id].fxHits: { [tag]: { url, pool?, after?,
+ * gap?, also?: [{ url, pool?, after? }] } } — the banks that exist (the first is the entry, the rest its `also`).
+ * @param {{ bank: (name: string) => string[] }} audio
+ * @param {Record<string, any>|undefined} table
+ * @param {(paths: string[]) => string|null|undefined} poolRef
+ */
+export function enemyFxHits(audio, table, poolRef) {
+  if (!table) return null;
+  const out = {};
+  for (const [tag, spec] of Object.entries(table)) {
+    const parts = [];
+    let gap = 0;
+    for (const s of [].concat(spec)) {
+      const name = typeof s === 'string' ? s : s?.bank;
+      const paths = name ? audio.bank(name) : null;
+      if (!paths?.length) continue;
+      const e = { url: soundLeaf(paths, 'sfx', 1) };
+      const p = poolRef(paths);
+      if (p) e.pool = p;
+      if (s?.after > 0) e.after = s.after;
+      if (s?.speed > 0) e.speed = s.speed;
+      if (s?.gap > 0) gap = s.gap;
+      parts.push(e);
+    }
+    if (!parts.length) continue;
+    const [lead, ...also] = parts;
+    out[tag] = { ...lead, ...(gap > 0 ? { gap } : {}), ...(also.length ? { also } : {}) };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /** Expected bytes for a 07 {url, bytes} record when it matches `url`. */
 function bytesOf(rec, url) {
   return rec && typeof rec === 'object' && rec.url === url && Number.isInteger(rec.bytes) ? rec.bytes : undefined;
@@ -546,6 +880,61 @@ export function patternOperator(id, x = {}) {
  * @param {any} ops03 docs/research/03-operators.json
  * @returns {Map<string, number[]>}
  */
+/**
+ * (fork, enemy sound audit chunk 2) Per enemy of `enemies` (data skills[] order: the slot of the sim's ['cast', id, slot]),
+ * what audio.mjs pickEnemyCastSfx needs (the skill's prefabKey and ability nodes, its projectiles) and the effect keys of
+ * the skill's own impact in the local fx index: `hitKeys` (the skill plan's `hit` role) and per projectile its onHit /
+ * onReached keys — minus any key the enemy's normal attack also spawns. The client plays the impact sound when one of
+ * them spawns (audio.js fxKey). Without an fx index: the prefabKey as the only node, and no keys.
+ * @param {any} index parsed fx index (or null)
+ * @param {Record<string, any>} enemies enemy records by id (data/enemies.json)
+ * @returns {Map<string, {slot:number, pk:string, nodes:string[], projectiles:string[], hitKeys:string[],
+ *   proj: Record<string, {hit:string[], reach:string[]}>}[]>}
+ */
+export function enemyCastsFromIndex(index, enemies) {
+  const out = new Map();
+  const units = index?.units || {};
+  const prefabs = index?.prefabs || {};
+  const lc = (s) => String(s).toLowerCase();
+  const resolve = (id) => {
+    let u = units[id];
+    const seen = new Set();
+    while (u?.aliasOf && typeof u.aliasOf === 'string' && !seen.has(u.aliasOf)) { seen.add(u.aliasOf); u = units[u.aliasOf]; }
+    return u || null;
+  };
+  const strings = (v, acc = new Set()) => {
+    if (typeof v === 'string') { if (Object.hasOwn(prefabs, lc(v))) acc.add(lc(v)); } else if (Array.isArray(v)) for (const x of v) strings(x, acc);
+    else if (v && typeof v === 'object') for (const x of Object.values(v)) strings(x, acc);
+    return acc;
+  };
+  const list = (v) => (Array.isArray(v) ? v : v == null ? [] : [v]).filter((x) => typeof x === 'string').map(lc);
+  for (const [id, rec] of Object.entries(enemies || {})) {
+    const skills = Array.isArray(rec?.skills) ? rec.skills : [];
+    if (!skills.length) continue;
+    const u = resolve(id);
+    // the normal attack's own effect keys: a skill impact key the attack also spawns would ring on every attack
+    const attackKeys = strings(u?.modes || []);
+    const slots = [];
+    skills.forEach((s, slot) => {
+      if (!s || s.prefabKey == null) return;
+      const pk = String(s.prefabKey);
+      const sk = u?.skills?.[lc(pk)] || null;
+      const abilities = Array.isArray(sk?.abilities) ? sk.abilities : [];
+      const projectiles = [...new Set([...list(sk?.projectiles), ...abilities.flatMap((a) => [...list(a?.projectileKey), ...list(a?.extraProjectileKeys)])])];
+      const free = (keys) => keys.filter((k) => !attackKeys.has(k));
+      const proj = {};
+      for (const p of projectiles) {
+        const d = index?.projectiles?.[p];
+        if (d) proj[p] = { hit: free(list(d.onHit)), reach: free(list(d.onReached)) };
+      }
+      slots.push({ slot, pk, nodes: [pk, ...abilities.map((a) => a?.node).filter((n) => typeof n === 'string')], projectiles,
+        hitKeys: free(list(sk?.roles?.hit)), proj });
+    });
+    if (slots.length) out.set(id, slots);
+  }
+  return out;
+}
+
 /**
  * Compact mode list for {@link assignSkillModeSfx}, from a local fx index (`public/assets/local/fx/index.json`,
  * not committed). `skills[id].mode` is the mode index the skill switches to. An `aliasOf` unit uses the target's modes.
@@ -684,12 +1073,13 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @param {Array<{name:string,rel:string,urls:string[],kind:string}>} [p.statsTemplate] official statistics UI assets
  * @param {Map<string, {modes:{name:string}[], skillMode:Map<string, number|null>}>|null} [p.charModes]
  *   from {@link charModesFromIndex} (the local fx index). Absent: skill attack slots stay on the filename letter.
+ * @param {ReturnType<typeof enemyCastsFromIndex>|null} [p.enemyCasts] (fork) enemy skill slots → sfx.units[id].casts
  * @returns {{ template: any, models: Map<string, any>, notes: string[] }}
  */
 export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsData, charword = null, voiceLang = 'cn',
   voiceJp = true, voiceSlots = VOICE_BATTLE_SLOTS, optionalVoice = false,
   extraEnemyIds = [], eventSfxEnemyIds = [], extraTokenIds = [], extraHandbook = {}, localEnemySpines = {}, localTokenSpines = {}, extraOperators = {},
-  moduleTypes = [], outfits = null, outfitChars = [], statsTemplate = [], charModes = null, extraBands = {}, extraItems = {}, extraBonds = {} }) {
+  moduleTypes = [], outfits = null, outfitChars = [], statsTemplate = [], charModes = null, enemyCasts = null, extraBands = {}, extraItems = {}, extraBonds = {} }) {
   const notes = [];
   /** @type {Map<string, any>} */
   const models = new Map();
@@ -1119,11 +1509,17 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     }
     enemies[id] = e;
     let banks = audio.unitBanks.get(id);
+    let bankOwner = id;
     for (const other of [handbookOf.get(id), e.spineAliasOf, baseIdOf(id)]) {
       if (banks?.size) break;
-      if (other) banks = audio.unitBanks.get(other);
+      if (other) { banks = audio.unitBanks.get(other); bankOwner = other; }
     }
-    const { roles: u, mix } = unitSounds(audio, pickUnitSfx(banks), poolRef);
+    // (fork) the enemy picker (audio.mjs pickEnemySfx): its shot's impact, the fire after the wind-up (`attackNext`) and
+    // a melee set beside the ranged one (`melee`, public/js/audio.js unit())
+    const short = bankOwner.replace(/^enemy_\d+_/, '').replace(/_\d+$/, '');
+    // (fork, enemy sound leftovers job 1) + the shots named for another enemy / a kit moment, the other modes' attacks
+    const picked = pickEnemySfx(banks, audio.bank, short, { shots: ENEMY_SHOT_SOUNDS[id], variants: ENEMY_ATTACK_VARIANTS[id] });
+    const { roles: u, mix } = unitSounds(audio, picked, poolRef);
     if (mix) u.mix = mix;
     // animation-event sounds (爱国者's revive and spear: ON_SPINE_EVENT_TRIGGER.reborn_1 / reborn_3 / spear_1), by event name
     if (eventSfxEnemyIds.includes(id) && banks) {
@@ -1131,6 +1527,43 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
         const m = /^ON_SPINE_EVENT_TRIGGER\.(.+)$/.exec(key);
         if (m && paths.length) (u.events || (u.events = {}))[m[1]] = soundLeaf(paths);
       }
+    }
+    const casts = enemyCastSounds(audio, banks, enemyCasts?.get(id), poolRef);
+    if (casts) u.casts = casts;
+    enemyMomentSounds(u, id, audio, banks, poolRef, notes);
+    // (fork, enemy sound leftovers job 2) skill impacts timed by the sim's fx events (ENEMY_FX_SOUND_BANKS)
+    const fxHits = enemyFxHits(audio, ENEMY_FX_SOUND_BANKS[id], poolRef);
+    if (fxHits) {
+      u.fxHits = fxHits;
+      // an attack-turn skill's impact is the attack's: its effect-key timing would ring it a second time
+      for (const c of Object.values(u.casts || {})) if (fxHits[`turn|${c.pk}`]) delete c.keys;
+    }
+    const nextParts = (list) => (list || []).map((paths) => {
+      const part = { url: soundLeaf(paths, 'sfx', 1) };
+      const p = poolRef(paths);
+      if (p) part.pool = p;
+      return part;
+    });
+    if (picked.next?.length) u.attackNext = nextParts(picked.next);
+    enemyAttackAlso(u, id, audio, poolRef, notes);
+    if (picked.melee) {
+      const { roles: m, mix: mm } = unitSounds(audio, picked.melee, poolRef);
+      if (picked.melee.next?.length) m.attackNext = nextParts(picked.melee.next);
+      if (mm) m.mix = mm;
+      if (Object.keys(m).length) u.melee = m;
+    }
+    // (fork, enemy sound leftovers job 1) the impact's other banks (`hitNext`), a kit fx's own sound (`fxSounds`, as the
+    // operators' FX_SOUND_BANKS: the first part is the entry, the rest its `also`) and the other modes' attacks (`variants`)
+    if (picked.hitNext?.length) u.hitNext = nextParts(picked.hitNext);
+    for (const [tag, list] of Object.entries(picked.fx || {})) {
+      const [lead, ...also] = nextParts(list);
+      (u.fxSounds || (u.fxSounds = {}))[tag] = also.length ? { ...lead, also } : lead;
+    }
+    for (const [key, set] of Object.entries(picked.variants || {})) {
+      const { roles: v, mix: vm } = unitSounds(audio, set, poolRef);
+      if (set.next?.length) v.attackNext = nextParts(set.next);
+      if (vm) v.mix = vm;
+      if (Object.keys(v).length) (u.variants || (u.variants = {}))[key] = v;
     }
     if (Object.keys(u).length) unitsSfx[id] = u;
   }

@@ -22,6 +22,9 @@
 //        the own pieces on its left half, the partner's captured board on the right) | empty | preset:<name> (default hard-normal-r13) &speed=1|2|4 (also changed mid-battle: runner.setSpeed) &imp=0 (normal
 //        rendering) &legacy=1 (old box) &fight=1 (start the battle on load) &notes=ours (Sakiko's notes drawn by our
 //        fallback renderer instead of her official effects, to compare)
+//        &variant=<enemy type> (SPECIAL, FLY, TIMES, ELEMENT, DOT, INVISIBLE, REFLECTION: data/factions.json `types`)
+//        &lead=<enemy key> (the type's entry) — a round's enemies as the match generates them for that type, any map and
+//        version (sandbox-variants.js; the "Variant" / "Training enemy" pickers); absent: the captured round's own pick
 // Operators: the pool's (data/chess.json, normal and elite forms) and the Custom Squad picks (自选: the DIY slots of
 // tier 5 / 6 filled with any operator a slot may field that has a kit — KITTED_CHARS; no module). 补位 stand-ins are not
 // offered. Deploying is the match's prep: "Add to bench" puts the pick in the first free bench slot, then it is dragged
@@ -47,7 +50,8 @@
 // bonds(), layers(), gains(), bank(next), setWave(id), pause(on), step(n), tick(), lastResult, addBond(bondId, elite),
 // ui, click(pieceClick event), camLayer('L' | 'ALL' | 'R'), boardUids(), open(uid) (a unit's drawer), speed(),
 // hold(i, { cast?, infSp?, infDur?, infHp?, retreat? }) (board unit i's skill hold mid-battle, as its link's |cast= / |isp= …;
-// retreat: true withdraws it on the next tick, once) }
+// retreat: true withdraws it on the next tick, once), variants() (the round's variants), variant() (the chosen one and the
+// pick its wave spawns), setVariant(type, entryKey) }
 // The game's widgets ride on top (sandbox-ui.js): the bond strip (stacks, active state) and its popup, the detail card of
 // a clicked piece / unit / enemy / boss with live HP and stats in battle, and icon pickers for operators (by bond) and
 // items (by name). On a boss field in battle, "My side" / "Whole field" / "Partner's side" move the camera like the
@@ -82,6 +86,7 @@ import { BOND_LAYER_CAP, GEO } from '../../shared/constants.js';
 import { isOutfitOf } from '../../shared/outfits.js';
 import { diySlotIds, diySlot, diyPool, diyRecord, isPrototypePick, lockedSelection } from '../../shared/diy.js';
 import * as W from './sandbox-waves.js';
+import * as V from './sandbox-variants.js';
 import { renderOverlay, operatorGroups, itemGroups, HoldControls } from './sandbox-ui.js';
 import { DIRS, EQUIP_SLOTS, parseUnits, parseTokens, unitsParam, battleUnit, skillSpOf, sandboxZoom, leftOutReason, matchUnitsByOperator, holdSkill } from './sandbox-units.js';
 import { MODULE_NONE, chessOptions, pickChoices, defaultPick } from './sandbox-loadout.js';
@@ -100,6 +105,8 @@ globalThis.__sandbox = sb;
 const LOOKAHEAD = q.get('lookahead') === 'off' ? 'off' : Number(q.get('lookahead')) > 0 ? Math.min(1, Number(q.get('lookahead'))) : 0;
 function localFeed(speed) {
   sb.view?.setLocalFeed({ on: true, speed });
+  // timed sounds (audio.js _battleRate) follow the battle's playback rate, as the match screen (game.js setBattleView)
+  audio.setBattleView?.({ rate: () => sb.view?.timeScale?.() ?? 1 });
   const interp = sb.view?.debug?.interp;
   if (!LOOKAHEAD || !interp) return;
   interp.delay = LOOKAHEAD === 'off' ? 0.034 : Math.max(0.034, LOOKAHEAD / (Number(speed) > 0 ? Number(speed) : 2));
@@ -216,7 +223,9 @@ async function main() {
       overlay: async (lang) => { const r = await fetch(genUrl(`/data/${season.dir}i18n/${lang}.json`)).catch(() => null); return r?.ok ? r.json() : null; } });
     seasonSim = { data: values, bounds: officialBoundsOf(values) };
   }
-  await data.loadAll('chess', 'tokens', 'items', 'enemies', 'stages', 'bonds', 'config', 'backups', 'outfits', 'assets', 'garrisons', 'effects', 'terms');
+  await data.loadAll('chess', 'tokens', 'items', 'enemies', 'stages', 'bonds', 'config', 'backups', 'outfits', 'assets', 'garrisons', 'effects', 'terms',
+    // (the wave variants' GameData, below)
+    'bands', 'waves', 'bosses', 'choices', 'factions');
   // English game texts and interface strings (the direction wheel's)
   try { await loadLangIndex(); if (await loadLangChain('en')) setLang('en'); } catch { /* Chinese strings */ }
   try { await data.setLocale('en'); } catch { /* Chinese skill names */ }
@@ -254,15 +263,41 @@ async function main() {
       new Option('Empty wave (add enemies below)', W.EMPTY), ...mapPresets().map((p) => new Option(`Preset: ${p.name}`, W.PRESET_PREFIX + p.name)));
   };
   fillWaveSelect();
+  // the wave variants (sandbox-variants.js): a round's enemies for one enemy type, built by the match's own generator
+  // (server/match/waves.js and gamedata.js, served at /match/ for the host's bot Worker) on the version's data
+  const VARIANT_FILES = ['config', 'chess', 'tokens', 'items', 'enemies', 'stages', 'bonds', 'backups', 'garrisons', 'effects', 'bands', 'waves', 'bosses', 'choices', 'factions'];
+  const variantKit = await Promise.all([import(genUrl('/match/waves.js')), import(genUrl('/match/gamedata.js')), import(genUrl('/sim/rng.js'))])
+    .then(([waves, { GameData }, rng]) => {
+      const raw = seasonSim ? seasonSim.data : Object.fromEntries(VARIANT_FILES.map((n) => [n, data.getRaw(n)]));
+      const modeId = [...templates.values()].find(Boolean)?.spec?.modeId;
+      return { waves, rng, gd: new GameData(raw, modeId) };
+    })
+    .catch((e) => { console.warn('[sandbox] no wave variants: rounds keep their captured enemies', e); return null; });
+  /** The chosen variant (&variant=<enemy type>, &lead=<its entry's enemy key>; '' = the captured round's own pick). */
+  let variant = { type: q.get('variant') || V.OFFICIAL, entry: q.get('lead') || '' };
+  /** The variants the captured round `template` can draw (none for a preset or the empty wave, or without the generator). */
+  const variantsOf = (template, isRound) => (isRound && variantKit ? V.variantList(variantKit.waves, variantKit.gd, template.spec.round) : []);
   const firstRound = templates.get(W.DEFAULT_WAVE) ? W.DEFAULT_WAVE : rounds.find((s) => templates.get(s.name))?.name;
-  /** The wave `id` names on this map (a round, the empty wave or a preset; else the default round) and its template. */
+  /** The wave `id` names on this map (a round, the empty wave or a preset; else the default round) and its template; a
+   *  round in the chosen variant when it can draw it (`wave.pick`: the match's pick it spawns). */
   const waveOf = (id) => {
     const preset = mapPresets().find((p) => W.PRESET_PREFIX + p.name === id) || null;
     const waveId = templates.get(id) || id === W.EMPTY || preset ? id : firstRound;
     const baseName = preset && templates.get(preset.base) ? preset.base : templates.get(waveId) ? waveId : firstRound;
     const template = templates.get(baseName);
     if (!template) throw new Error('The enemy waves failed to load.');
-    const wave = preset ? JSON.parse(JSON.stringify({ ...preset, base: baseName })) : waveId === W.EMPTY ? W.emptyWave(baseName, template) : W.waveOfTemplate(baseName, template);
+    let wave = preset ? JSON.parse(JSON.stringify({ ...preset, base: baseName })) : waveId === W.EMPTY ? W.emptyWave(baseName, template) : W.waveOfTemplate(baseName, template);
+    const v = variant.type ? variantsOf(template, !preset && waveId !== W.EMPTY).find((x) => x.type === variant.type) : null;
+    if (v) {
+      const s = template.spec;
+      // the official weighted draw with a seed of the capture and the type, so the same choice gives the same wave again
+      const rng = variantKit.rng.createRng(variantKit.rng.deriveSeed(s.seed >>> 0, `sandbox:variant:${v.type}`));
+      const built = V.variantWave(variantKit.waves, variantKit.gd, rng, {
+        round: s.round, kind: template.kind, type: v.type, entryKey: v.entries.some((e) => e.key === variant.entry) ? variant.entry : null,
+        bossId: s.bossId ?? null, solo: (s.players || []).length === 1,
+      });
+      wave = { base: baseName, routes: built.routes, spawns: built.spawns, timeLimit: W.BOSS_KINDS.has(template.kind) ? s.timeLimit : built.timeLimit, waveId: built.templateId, overrides: built.overrides, pick: built.pick };
+    }
     return { waveId, preset, template, wave };
   };
   // (another wave of this map swaps these in place: setWave below — the stage, routes and enemy pool stay the map's)
@@ -496,7 +531,9 @@ async function main() {
     if (season) p.set('season', season.id); else p.delete('season');
     p.set('map', $('map').value);
     p.set('enemies', $('enemies').value);
-    $('map-sum').textContent = `${t((season || versionById(DEFAULT_VERSION)).label)} · ${$('map').selectedOptions[0]?.text || ''} · ${$('enemies').selectedOptions[0]?.text || ''}`;
+    if (variant.type) p.set('variant', variant.type); else p.delete('variant');
+    if (variant.type && variant.entry) p.set('lead', variant.entry); else p.delete('lead');
+    $('map-sum').textContent = `${t((season || versionById(DEFAULT_VERSION)).label)} · ${$('map').selectedOptions[0]?.text || ''} · ${$('enemies').selectedOptions[0]?.text || ''}${wave.pick ? ` · ${$('variant').selectedOptions[0]?.text || ''}` : ''}`;
     p.set('speed', String(speed));
     if ($('impostors').checked) p.delete('imp'); else p.set('imp', '0');
     if ($('legacy').checked) p.set('legacy', '1'); else p.delete('legacy');
@@ -1268,6 +1305,7 @@ async function main() {
     if (waveId === W.EMPTY) $('wave-edit').open = true;
     gains = null;
     setBankable(false);
+    fillVariants();
     sync();
     renderWave();
     prep();
@@ -1277,6 +1315,30 @@ async function main() {
     setWave($('enemies').value);
     status(`${waveTitle()} loaded.${sb.benched ? ` ${sb.benched} unit${sb.benched === 1 ? '' : 's'} had no tile on this field: back to the bench.` : ''}${onBoss(template) ? ' Boss fields gain no stacks in battle (the official rule).' : ''}`);
   };
+  // the variant picker: the enemy types this round can draw (official EN names, data/i18n factions), then the type's
+  // entries (its special enemy; "Random" = the official weighted draw); "Official pick" keeps the captured round
+  const variantName = (type) => data.get('factions')?.types?.[type]?.name || type;
+  const enemyName = (key) => nameOf(data.lookup('enemies', key)) || key;
+  function fillVariants() {
+    const list = variantsOf(template, !preset && waveId !== W.EMPTY);
+    const cap = list.length ? V.capturedVariant(variantKit.waves, variantKit.gd, template.spec.round, template.spec.spawns) : null;
+    $('variant').replaceChildren(new Option(cap ? `Official pick (${variantName(cap.type)})` : 'Official pick', V.OFFICIAL), ...list.map((v) => new Option(variantName(v.type), v.type)));
+    const v = wave.pick ? list.find((x) => x.type === wave.pick.type) : null;
+    $('variant').value = v ? v.type : V.OFFICIAL;
+    $('variant').disabled = !list.length;
+    $('variant-entry').replaceChildren(new Option(v ? `Random (${enemyName(wave.pick.key)})` : 'Random', ''), ...(v ? v.entries.map((e) => new Option(enemyName(e.key), e.key)) : []));
+    $('variant-entry').value = v && v.entries.some((e) => e.key === variant.entry) ? variant.entry : '';
+    $('variant-entry').disabled = !v;
+  }
+  fillVariants();
+  const pickVariant = (type, entry) => {
+    if (facing) return;
+    variant = { type: type || V.OFFICIAL, entry: type ? entry || '' : '' };
+    setWave(waveId);
+    status(wave.pick ? `${waveTitle()} · ${variantName(wave.pick.type)}: ${enemyName(wave.pick.key)} (${wave.spawns.length} spawn groups).` : `${waveTitle()}: the captured enemies.`);
+  };
+  $('variant').onchange = () => pickVariant($('variant').value, '');
+  $('variant-entry').onchange = () => pickVariant($('variant').value, $('variant-entry').value);
   // another map: the same round there (an empty wave stays empty; a preset of this map falls back to the round); units
   // standing on a tile the new map does not offer to them are dropped when it loads
   // the game version: a reload in that version (the map and the waves are the version's own; units it has no record of
@@ -1338,6 +1400,8 @@ async function main() {
     const spec = JSON.parse(JSON.stringify(template.spec));
     spec.battleId = `sandbox.${Date.now()}`;
     spec.routes = JSON.parse(JSON.stringify(wave.routes));
+    // a variant wave: its template and the template's enemy overrides (the version's own round template)
+    if (wave.pick) { spec.waveId = wave.waveId ?? spec.waveId; spec.enemyOverrides = JSON.parse(JSON.stringify(wave.overrides ?? {})); }
     // (a boss field's spawns keep their owner: the partner's half has its own; added ones are ours)
     const owners = new Set(spec.players.map((p) => p.playerId));
     spec.spawns = wave.spawns.map((s) => ({ ...JSON.parse(JSON.stringify(s)), ownerPlayerId: owners.has(s.ownerPlayerId) ? s.ownerPlayerId : myId }));
@@ -1462,6 +1526,10 @@ async function main() {
   };
   sb.bench = () => bench.map((u) => (u ? u.chessId : null));
   sb.wave = () => JSON.parse(JSON.stringify(wave));
+  // (tests: the variant picker — the round's variants, the chosen one and the pick the wave spawns)
+  sb.variants = () => variantsOf(template, !preset && waveId !== W.EMPTY).map((v) => ({ type: v.type, name: variantName(v.type), entries: v.entries.map((e) => e.key) }));
+  sb.variant = () => ({ ...variant, pick: wave.pick ? { type: wave.pick.type, key: wave.pick.key } : null });
+  sb.setVariant = pickVariant;
   sb.stageId = mapId;
   sb.benchUids = () => bench.map((u) => (u ? u.uid : null));
   sb.legalTiles = (uid) => [...tiles.keys()].map((k) => k.split(',').map(Number)).filter(([row, col]) => canPlace(uid, { area: 'board', row, col }));

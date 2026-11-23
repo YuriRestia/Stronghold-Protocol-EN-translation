@@ -237,13 +237,13 @@ test('S2 裂潮 (MANUAL, 2 charges, data SP_FULL — official ALWAYS — with th
   done(h);
 });
 
-test('S3 判决 (MANUAL, data SP_FULL — official ALWAYS — on x-1): every ground enemy of x-1 takes 250 % ATK and floats 2 / 3 s, then 10 bombardments every 0.3 s on a random enemy of x-1, radius 1.1 (air too) at 200 % / 230 %; 3.5 s, no normal attack', () => {
+test('S3 判决 (MANUAL, data SP_FULL — official ALWAYS —, kit CUSTOM_RANGE: the cast needs a target on x-1): every ground enemy of x-1 takes 250 % ATK and floats 2 / 3 s, then 10 bombardments every 0.3 s on a random enemy of x-1, radius 1.1 (air too) at 200 % / 230 %; 3.5 s, no normal attack', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, null], [6, true, SWOX]]) {
     const sk = skillOf(tier, elite, S3), mul = skillMulOf(elite, mod), lb = `T${tier} ${elite ? 'elite' : 'normal'} ${mod ?? 'none'}`;
     const { h, u } = field({ tier, elite, mod, skill: 2 });
     assert.deepEqual([u.skill.rule, u.skill.spCost, u.skill.sp, sk.bb.atk_scale, sk.bb.levitate, sk.bb.multi_atk_scale, sk.bb.multi_times, sk.bb.multi_hit_interval, sk.rangeId],
-      ['SP_FULL', elite ? 30 : 32, elite ? 16 : 8, 2.5, elite ? 3 : 2, elite ? 2.3 : 2, 10, 0.3, 'x-1'], lb);
-    assert.deepEqual(sk.trigger.official, ['ALWAYS'], `${lb}: the official ALWAYS row (no skill-range condition)`);
+      ['CUSTOM_RANGE', elite ? 30 : 32, elite ? 16 : 8, 2.5, elite ? 3 : 2, elite ? 2.3 : 2, 10, 0.3, 'x-1'], lb);
+    assert.deepEqual(sk.trigger.official, ['ALWAYS'], `${lb}: the official ALWAYS row (no range check of its own; the cast needs a target: the kit's CUSTOM_RANGE)`);
     u.skill.gainSp(999);
     const a = h.spawn('enemy_dummy', { pos: [10, 7] }); // in x-1
     const b = h.spawn('enemy_dummy', { pos: [10, 8] }); // outside x-1, 1 tile from a

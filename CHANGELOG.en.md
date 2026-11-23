@@ -2,12 +2,28 @@
 
 > English translation of [CHANGELOG.md](CHANGELOG.md). The Chinese original is the authoritative version.
 
-## 0.3.4 — Unreleased
+## 0.3.4-3 — 2026-11-24
 
 ### Fish Edition
 
 This server's own changes. Their numbers are the pull requests of [Fish Edition](https://github.com/evenifyouforget/Stronghold-Protocol-EN).
 
+- Fixed: the shared deck popup and other dialogs without footer buttons could be hard to close (only Esc or a click outside, and in fullscreen Esc leaves fullscreen instead). They now have a close × in the top-right corner (#177, issue #169).
+- Mod Z / W v2: new Alliance memberships (Typhon Z, Rosa Z, Eunectes Z, Phantom Z, Shining Z, Siege Z/W, Weedy Z/W, Zuo Le Z, Saileach W); Typhon and Thorns: max SP the first time their skill ends; Eunectes: +3 Stacks when an enemy dies in her range; Phantom: +3 Stacks per deployment, and items give him Alliances without the Damazti Isomorph; Shining: every Operator starts with Immortal; Fiammetta: new ammo numbers, reloading, and the Laterano ATK effect doubled; Viviana: bursts also lower DEF; Zuo Le: Burn and Arts on every hit; Typhon W: the first 30 fallen enemies are added to the wave again; Weedy W, Siege W and Saileach W are new modules. (#187).
+- New cheat "Alliance Stack limit 9999" (#186, issue #174): every Alliance's Stack limit goes from 999 to 9999.
+- New cheat "No boss hit limit": a single hit of 300000 or more on a Leader is no longer cancelled (made for use with the stack cheat, but separate). (#186).
+- Fixed #175: Viviana's Mod Z warning (Glimmering Touch) now shows the 13-tile diamond it will hit, not a ring. (#185).
+- Fixed #172: the room's bot selector shows each bot's strength score next to its name (for example "Evobot (113)"). (#185).
+- Fixed #183: HR File did nothing under the +2 deployment-limit cheat; it is still +1 over the limit (9 → 11). (#184).
+- Fixed #176: while Siege's Mod Z is on the field her player's DP cap is 999, so DP is no longer wasted at the usual 99. (#184).
+- Mod Z: Shining heals allies at full HP too, to grant Immortal; the English module texts are reworded from Fish's descriptions (#182).
+- Clearer player texts (from blind reads): Swift names its unchanged 20% base; Booster Packs say they're reusable and what you pick from; Transmitter+ explains the original; clearer Isomorph, Alliance bans, Mod Z tab and AI profile texts (Ioleta, Evobot, Level curve); enemy offers say they're enemies (#181).
+- The "Why weren't other tags auto-awarded?" panel now says what happened in the match and how each tag would have touched it, instead of the tag's condition (which read as the opposite); levels with the same reason share a row, and each tag shows its Risk (#179).
+- AI profiles: legacy's and evobot's strength numbers now pool 300 more matches per mode, which moves evobot's team-of-4 win rate from 78% to 71%; each profile shows its own match counts (#178).
+- "Auto-award free Risk tags" now also covers Intern, Barge 1 and 2, Last Line of Defense and Junk 1. These are awarded only in rooms without bots or autoplay, since bots read prices, free hand slots and LP (#173, issue #125).
+- New lobby rule, "Auto-award free Risk tags" (not a cheat): at the end, Risk tags the room didn't take are added to the Risk when the match shows they changed nothing: Investor 1 and 2, Swift, Foresight, Strategy 1 and 2 for now. They show on the end screen as orange chips with corner brackets and an AUTO label. The rule lists each tag's condition and recommends taking tags by hand to be sure (#170, issue #125).
+- AI profiles: one strength score after each name, the Ultimate win rates solo and as a team of 4 added up (0–200), with ± 1 standard deviation; both win rates are listed below it (#168, issue #124).
+- Brought in the English translation's changes of 2026-11-13 to 2026-11-15 ([YuriRestia/Stronghold-Protocol-EN-translation](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation); all of them in [FORK-CHANGELOG.md](https://github.com/evenifyouforget/Stronghold-Protocol-EN/blob/main/FORK-CHANGELOG.md)): enemies' official sounds and effects, a unite phase that can no longer get stuck, AI teammates that play again, One for All gifts outside the shop's stock, Angelina the Mellow Wish as in the official game, the Simplified Sprite Animation setting, and Custom Squad slots first in the Operator Loadout (#166).
 - AI profiles: an AI seat's ⓘ in the room opens a list of every AI profile, how each one plays and, for a tactic profile, its tactics. In a match, an AI player's "AI" badge names its profile. Each profile shows its strength, the win rate (%) in Ultimate solo: Basic AI 38, Level Curve 38, Tier 6 First 25, Adaptive Placement 20, Ioleta Opening 1, Ioleta + Adaptive 0; and, as a second number, the win rate of 4 of them as a team: 65, 65, 33, 28, 60, 23 (#151, issue #124).
 - Custom Lobby Modifications: the room's rules button glows until you open it for the first time, so new players find the cheats, Alliance changes and Risk tags (#149, part of issue #139).
 - Improv: "View Fields" pulls the Improv overlay away to check your Field, the Alliances and teammates' Fields (tap a teammate); the tab at the top, with the countdown, brings it back (#153).

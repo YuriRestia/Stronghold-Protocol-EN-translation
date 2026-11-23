@@ -1001,7 +1001,8 @@ switched off; summon pieces `{ sp }`, "召唤物仅修改技力"); an operator k
 combat carries `{ down: true }` (PRTS 卫戍协议/帮助: "部署完成后…上一阶段为退场状态的干员强制退场"): deployed, then forced out
 at once, it lies on its tile with the redeploy ring and redeploys like after any knock-out (docs/SIM.md §1.1; user
 playtest #5 item 2 — it used to stay out and vanish); its timer is its full redeploy time (the official setup carries
-only hp / tech per operator; confirmed by the user), with the redeploy-time effects that start with the battle (机变 征召); summons are
+only hp / tech per operator; confirmed by the user), with the redeploy-time effects that start with the battle (机变 征召).
+A reached 阿戈尔 revive tier instead spends one slot to revive that member on the battle-start scan (BV1auHq67Eoi); summons are
 fielded as the board has them (their SP carried); `flags.layerGainsEnabled = false`; time limit = the round's combat limit.
 Every enemy still alive at the end (leaked again, or never spawned before the limit) costs its **source** player 1 LP.
 **Only what the escaped wave sent in is billable** (player report, 2026-10-16): an enemy that appears while the field runs
@@ -1086,7 +1087,7 @@ Hidden-Core trophy row only for the players still in when it was cleared — a t
 gets the table value of its own rounds. `onEnd(summary)` receives the same object (without `t`, plus `errors`).
 
 `m.chat { p, x }` / `g.chat { x }`: the fork's match chat, DESIGN "Match chat" (docs/design/network.md), `server/match/chatWallet.js`.
-The text rules, the line cap and the spam limits are shared with room chat: DESIGN "Chat text", "Chat line", "Chat limits" (`shared/text.js`, `server/chatLimit.js`).
+The text rules, the line cap and the spam limits are shared with room chat: DESIGN "Chat text", "Chat line", "Chat limits" (`shared/text.js`, `server/match/chatLimit.js`).
 
 `room.chat { x }` → `room.chat { id, n, x }` · `room.emote { id }` → `room.emote { id, e }` · `room.chatPause { ms }` · `room.chatLog { lines }`: the fork's room chat in the room screen, DESIGN "Room chat", `server/lobby.js` `roomChat`.
 
@@ -1197,7 +1198,8 @@ See [BOT_STRATEGIES](BOT_STRATEGIES.md) for composition and lifecycle details.
 * A 联防 helper's operator knocked out at the end of its own combat is deployed and forced out at once (PRTS 强制退场,
   §4) with HP 0, and redeploys after its full redeploy time: no timer carry (the official setup carries only hp / tech
   per operator), forced out before `battleStart` (its timer re-read after it, so 征召's −50 % applies; 征召's row check
-  does not count it), no knock-out hooks (`kill`, 'killed' deaths) a second time.
+  does not count it), no knock-out hooks (`kill`, 'killed' deaths) a second time. A reached 阿戈尔 revive tier then
+  revives that member on the same scan as the devour's knock-outs, spending one slot of this battle.
 * A merge completed after the prep (SETTLE effects) keeps its reward offer for the next prep; its elite goes where a prep
   merge's would — onto the tile of a consumed deployed copy (PRTS 卫戍协议/帮助 "若消耗已部署至作战区的干员，则发送至作战区
   对应位置"), else to the hand, overflowing into temp (temp pieces that arrive after the prep wait through the next prep).
@@ -1208,9 +1210,16 @@ See [BOT_STRATEGIES](BOT_STRATEGIES.md) for composition and lifecycle details.
 `room.rerollSetup {setupRevision}` and `room.cancelReroll {voteId}` from any seated player and refuses spectators.
 Participants send `g.rerollVote {voteId, agree}`; `g.infoReady {setupRevision?}` accepts an omitted revision only before
 the first reroll. Each seat may start one vote per 30 s (`ERR.RATE`): a completed reroll clears that cooldown (a new
-opening is a new window), a cancelled vote does not, and leaving the seat drops it.
+opening is a new window), a cancelled vote does not, and leaving the seat drops it. (fork, 2026-11-13) The INFO_CHECK
+countdown runs on through a vote; at zero `enterBandDraft` drops the vote and plays the current opening, so no vote can
+delay the start.
 `m.public` includes `setupRevision` and `rerollVote` (null or `{id, proposerId, voters, agreed}`). Old vote/revision
 requests cannot affect a new opening. See DESIGN §28.21 for cancellation and timer behavior.
+(fork, 2026-11-13) A room strangers could join has no reroll: `Lobby.rerollLock` passes `rerollLock` to the match —
+`'public'` for an unlocked Grand Alliance, `'matchmade'` for a room that ever searched (Find Teammates), took players
+from the solo queue, or seats a matched player (a merge or a cross-server move), even if it was made private again
+before the start (`room.wentPublic`, never cleared). `requestSetupReroll` then refuses (`WRONG_PHASE`, detail
+`setup reroll off: <why>`) and `m.public.rerollOff` carries the reason; the briefing shows the button disabled with it.
 
 `botEmotes.js` is isolated from bot decisions and RNG. It sends the existing `m.emote` only in mixed matches, under
 normal cooldown/whitelist rules; `SP_BOT_EMOTES=0` disables it. The cooperation score in `bot.js` and these cosmetic

@@ -140,3 +140,15 @@ test('#88 leftover: under Strategy 2, Ioleta, Du Yaoye and Amiya say what it cha
   const enTwo = ruleDataPatch({ bands: bandsIn('en') }, { ...DEFAULT_RULES, ccStrategyLate: 2 }, { text: t }).bands;
   assert.match(enTwo.band_duyaoy.desc, /\(Risk: only the first 1 manual refresh is special each round\)$/);
 });
+
+test('the auto-award "why not" panel: levels of one tag with the same reasons share a row; different reasons stay apart', async () => {
+  const { groupNotes } = await import('../../public/js/ui/lobbyRules.js');
+  const b = [{ c: 'barge', r: 6 }];
+  const rows = groupNotes([
+    { key: 'ccUpgrade', level: 1, broken: b }, { key: 'ccUpgrade', level: 2, broken: b },
+    { key: 'ccInvestorBench', level: 2, broken: [{ c: 'investorOps', r: 14, id: 'x' }] },
+    { key: 'ccStrategyLate', level: 1, broken: [{ c: 'strategy1', r: null, id: 'band_x' }] },
+    { key: 'ccStrategyLate', level: 2, broken: [{ c: 'strategy1', r: null, id: 'band_x' }, { c: 'strategy2', r: null, id: 'band_x' }] },
+  ]);
+  assert.deepEqual(rows.map((r) => `${r.key}:${r.levels.join('+')}`), ['ccUpgrade:1+2', 'ccInvestorBench:2', 'ccStrategyLate:1', 'ccStrategyLate:2']);
+});

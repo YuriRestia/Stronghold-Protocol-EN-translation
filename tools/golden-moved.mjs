@@ -29,7 +29,8 @@ export function resolveVersions(input) {
   const text = String(input ?? '').trim();
   if (!text || text === 'all') return VERSIONS.map((v) => v.id);
   const known = new Set(VERSIONS.map((v) => v.id));
-  const ids = [...new Set(text.split(',').map((s) => s.trim()).filter(Boolean))];
+  // commas from the button's input; spaces / new lines from the workflow's resolved list (steps.inputs.outputs.versions)
+  const ids = [...new Set(text.split(/[\s,]+/).filter(Boolean))];
   const bad = ids.filter((id) => !known.has(id));
   if (bad.length) throw new Error(`unknown version id(s): ${bad.join(', ')} (known: ${[...known].join(', ')})`);
   return ids;

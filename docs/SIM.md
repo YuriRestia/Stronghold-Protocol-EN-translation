@@ -196,7 +196,7 @@ without a previous state still takes that opening damage. Later combat, HP loss 
 退场状态的干员强制退场", user playtest #5 item 2): `start()` deploys it with everyone (initial `deploy` fires), then — before
 `battleStart` — withdraws it with reason `FORCED_EXIT` (constants.js `'forcedExit'`) and HP 0 (the end-of-phase HP ratio, as after
 `kill`): it is down on its tile (`isDown`, b.snap `down`) with its full redeploy timer and redeploys by the normal rule; no `kill` hook, no `'killed'` death (knock-out
-effects such as 深海 / 不屈 revives or 崇高牺牲 layers fired in its own combat), no `deaths` count. Right after `battleStart`
+effects such as 深海 / 不屈 revives or 崇高牺牲 layers fired in its own combat), no `deaths` count. A reached 阿戈尔 revive tier is the exception: after every player's devour pass, a down member joins `egirReviveScan` and the bond's free redeploy brings it back (full HP, `deploy {initial:false}`, fx `revive` / `bond:egirShip`), spending one `max_free_respawn_cnt` of this battle. With no slot left the operator stays down on the full timer. [ASSUMED] the carried-down state is this battle's first knock-out (BV1auHq67Eoi 21:25–21:40). Right after `battleStart`
 its timer is re-read (`deathAt + respawnTime × persist.redeployMul × s.redeployMul`), so a redeploy-time effect switched on
 by a `battleStart` handler covers it like a later knock-out (机变 征召 −50 %; 征召's row check does not count it [ASSUMED]).
 
@@ -232,7 +232,13 @@ HP, then `kill(old, null)` — uncounted, no bounty; the client sees a `die` and
 puts every 碎铳之簧 into 追逐模式 for its whole 5 s gain (`dog_duration`; invulnerable, no ordinary attacks): the spring
 keeps following the casting gun after reaching it (PR #347; until 0.2.1 arrival or 1 tile ended the chase), and each
 gun casts on its own data timer (20 s after it spawns, then every 45 s), so on a pair field the later call retargets
-every spring to that gun for a new 5 s (PRTS: 「持续召唤场上所有“碎铳之簧”向自身移动」).
+every spring to that gun for a new 5 s (PRTS: 「持续召唤场上所有“碎铳之簧”向自身移动」). The pair's guns take turns: the
+`boss_battle_multi_player` 铳 starts with the battle (0.1 s, right half) and the leader after its 10 s preDelay (left
+half) [src: official level_act1autochess_h08_02.json], `content/bosses.js branchAtStart` (§37.109). A spring's damage
+goes to that one gun only, never to the other springs [src: official buff_template_holder actrpa_passive]. A gun's
+damage ×`4.damage_scale` (未尽的告解) holds while a unit it marked lives: 0.03 s after it appears it marks every other gun
+and spring then on the field, once [src: official enm_pfb_28.ab enemy_9017_achunt CommonAbilities/Ability0
+achunt_passive], so the 0.1 s gun of a pair marks the springs only and the leader the springs and that gun (§37.109).
 
 WALK legs pathfind on the stage grid inside the rect with the official flow field (grid.js: 4-direction SPFA from the
 destination, crates cost 1000, then Bresenham line-of-sight smoothing — research 08 §3.4). The official route stays
@@ -1039,7 +1045,7 @@ registration order. `battle.off(handle)` / `battle.off(name, fn)` / `battle.offO
 | `dollSwitch` | `{ unit, reason, done }` | content switches a 傀儡师 to its <替身> now (归溟幽灵鲨 S2 "技能结束后立刻切换为<替身>": no lethal HP loss); its trait does it unless it already is one or is not on the field, and sets `done` |
 | `dollSwap` | `{ unit, form }` | a 傀儡师 starts a switch — to its <替身> (`form` `'doll'`) or back to its <本体> (`null`); not when it is knocked out as the 替身 (不屈 rolls on it: "切换<替身>与<本体>时"). 远牙's granted `garrison_108_a/b` gains on it too (player-confirmed, DESIGN §28.5), sharing its deployment cap and active-bond checks. |
 | `kill` | `{ killer, victim }` | victim HP reached 0 (a handler may revive by restoring HP) |
-| `death` | `{ unit, reason:'killed'|'leak'|'retreat'|'merchant'|'expired'|'forcedExit', killer, dying, revivedBy? }` | unit removed (`'forcedExit'`: an operator entering 联防 knocked out, §1.1; `dying`: a `retreat` that plays the death animation — 史尔特尔's 余烬, 骑士戒律 + 竞技旗). Revives of a knock-out redeploy the operator inside it, free, where it lies — PRTS "“复活”的实现方式为：受益者因移动之外的原因退场时下次部署的再部署时间和费用归零", so the 被击倒时 and 部署时 effects both run (a deploy-timed skill — `activateOnDeploy` — starts anew: a 突袭 member with one jumps at once, DESIGN §25.17.5): M3茧甲 (`PRIO_RESPAWN` 13) → 埃芒加德 (`PRIO_BAND_REVIVE` 12) — `items/battle.js reviveNow`, which sets `revivedBy` ('item' / 'band'; 阿戈尔 5 does not count such a knock-out as the member's first) — → 阿戈尔 5 (11; a knock-out by the battle-start devour waits for the last devour pass, then the knocked-out members go by board position, DESIGN §25.22.5) → 不屈 (10); until 0.2.0 the two 复活 were `fatal` savers that kept the unit standing |
+| `death` | `{ unit, reason:'killed'|'leak'|'retreat'|'merchant'|'expired'|'forcedExit', killer, dying, revivedBy? }` | unit removed (`'forcedExit'`: an operator entering 联防 knocked out, §1.1; `dying`: a `retreat` that plays the death animation — 史尔特尔's 余烬, 骑士戒律 + 竞技旗). Revives of a knock-out redeploy the operator inside it, free, where it lies — PRTS "“复活”的实现方式为：受益者因移动之外的原因退场时下次部署的再部署时间和费用归零", so the 被击倒时 and 部署时 effects both run (a deploy-timed skill — `activateOnDeploy` — starts anew: a 突袭 member with one jumps at once, DESIGN §25.17.5): M3茧甲 (`PRIO_RESPAWN` 13) → 埃芒加德 (`PRIO_BAND_REVIVE` 12) — `items/battle.js reviveNow`, which sets `revivedBy` ('item' / 'band'; 阿戈尔 5 does not count such a knock-out as the member's first) — → 阿戈尔 5 (11; a knock-out by the battle-start devour waits for the last devour pass, then the knocked-out members go by board position, and a member who entered 联防 already down joins that same scan, DESIGN §25.22.5) → 不屈 (10); until 0.2.0 the two 复活 were `fatal` savers that kept the unit standing |
 | `skillStart` / `skillEnd` | `{ unit, skill, reason }` | mutate `skill.ammoLeft` / `skill.timeLeft` in skillStart (bullets added there raise `skill.ammoMax`, the ammo bar's full mark) |
 | `ammoUsed` | `{ unit, left, skill }` | per ammo consumed |
 | `spGain` | `{ unit, amount, reason:'time'|'attack'|'hurt'|'init'|…, skill }` | mutable `amount` (time gains fire every tick) |
@@ -1178,7 +1184,10 @@ flag alters movement or 失衡.
   `TAKE_DAMAGE` — ready and just hit (重装: "不受技能范围影响，受到伤害时释放技能"; in the data every MANUAL 重装 skill but
   the six of DESIGN §21.29 — 深巡 / 雷蛇 S2, 号角 S2 / S3, 灰毫 S1 / S2 — which are `DEFAULT`, a deliberate deviation (深巡
   S2 then `ACTIVE_RANGE` on its 3-2), and 余 S2 厚礼上宾, `SKILL_RANGE` on its own x-1 since DESIGN §22.10);
-  `SP_FULL` (`ALWAYS`) — immediately;
+  `SP_FULL` (`ALWAYS`) — immediately (the client's ALWAYS checks no range, but a CastSkill whose prefab has a skill
+  trigger and `_allowNoTarget` 0 fails its cast, nothing spent, while that trigger finds no target: those kits wait with
+  full SP through their own `trigger` — 异客 S3, 锏 S3 and 艾丽妮 S3 `CUSTOM_RANGE` on the skill range, 锏 S2
+  `ACTIVE_RANGE` on its 1-4 (ground only), 艾丽妮 S2 its ground guard; DESIGN §37.105);
   `CUSTOM_RANGE` — an enemy inside `trigger.customRangeGrid` (rotated by the unit direction like every grid); `SEARCH` — an
   enemy inside the INITIAL range, checked every tick (no attack needed: "不受基础策略影响，在初始攻击范围内存在敌人时释放技能");
   `GDGLOW_SKILL_2` — "全场存在可选目标时释放技能": a targetable enemy anywhere (a heal skill: an ally that needs healing),
@@ -1618,7 +1627,9 @@ table: `hitSleep` (targets and damages sleeping enemies — "可以攻击沉睡�
 main target — DamageInfo `mul`, after DEF / RES; the later instances give no 受击回复: 砾's two 50 % hits, PRTS 砾 特性备注),
 `storeEnergy` / `releaseEnergy` (the 秘术师 store, below), `priority` (targeting.js PRIORITY_FNS — `'heaviest'`: the 攻城手 trait
 "优先攻击重量最重的敌人", the highest current 重量等级 first: 早露 / 提丰; `'elite'`: "优先攻击精英或领袖敌人", an ELITE / BOSS
-rank enemy or a leader first: 薇薇安娜 S3), `blockFly`, `noHeal`, `skipEnemy(e)` (an enemy the unit never
+rank enemy or a leader first: 薇薇安娜 S3), `meleeShot` (a melee profile whose official attack still flies its `projectile`
+and deals the damage on reach: 予愿安洁莉娜's projectile_chr_aglna2*, kits/ops/op-aglna2.js), `projectileSpeed` (that
+profile's own speed in tiles/s in place of PROJECTILE_SPEEDS: her prefabs' `_speed` 10), `blockFly`, `noHeal`, `skipEnemy(e)` (an enemy the unit never
 selects — its attacks, the enemies it blocks and its skill-trigger targets: targeting.js canTargetEnemy; 嵯峨 "不攻击重伤
 单位"), `healThrough(healer, ally)` (a healer that selects and heals that ally through its 禁疗 — §4; 凯尔希's Mon3tr), `boomerang` (the projectile stays
 `'boomerang'` whatever the data's generic ranged projectile says), `boomerangOnward(ctx)` (a boomerang's flight after its

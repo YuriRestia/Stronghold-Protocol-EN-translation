@@ -10,6 +10,7 @@ import { DeadBattle, syntheticResult, RESULT_GRACE_MS, HARD_CAP_SECONDS, Headles
 import { buildBattleSpec, createBattleFromSpec } from '../../sim/spec.js';
 import { testSlice } from '../testTrace.js';
 import { morphBattleOpt } from '../../../shared/plugins/rules.js';
+import { noteBattle } from '../autoAward.js';
 
 export class MatchClientCombat {
   /** Stop every client-combat timer and the headless pacer (phase end, finish, dispose). */
@@ -39,6 +40,7 @@ export class MatchClientCombat {
    * names the room's content set (`cs`, opts.cs — DESIGN §32) when the match was given one.
    */
   _ccField({ fieldId, kind, players, opts, boss = null }) {
+    noteBattle(this, opts); // (GitHub #125) a real field, fought on the clients
     const seq = `${this.battlePrefix}.${this.round}.${++this._battleSeq}`;
     // protocol ids are ≤ 64 chars (shared/protocol.js isId): the field id is informational, the sequence is unique
     const battleId = seq.length + 1 + String(fieldId).length <= 64 ? `${seq}.${fieldId}` : seq;

@@ -5,7 +5,601 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-11-15
+
+### Big battles keep full animation longer, and your own operators keep it longest
+
+- In big fights, units switch to simplified animation (a cached picture redrawn every few frames) only after the frame rate has stayed low for a while, and switch back once it has been steady again. The first seconds of each battle no longer count, and every battle starts fresh.
+- Enemies are simplified first. Your operators and your helpers' operators keep full animation as long as possible.
+- Before: one slow moment at the start of a battle, while effects loaded, could put the whole field on simplified animation, and it carried over into later battles.
+
+### New setting: Simplified Sprite Animation
+
+- Settings → Simplified Sprite Animation has three choices:
+  - **Auto** (default): full animation; if the frame rate drops, units switch to simplified animation until it recovers.
+  - **Quality**: units keep full animation even if the frame rate drops. Very large crowds (about 90+ units) still use simplified animation.
+  - **Unlimited**: every unit is always fully animated.
+
+### Hidden Core OpFor: Gun with two players: the cars visit both players
+
+- On the two-player Hidden Core field the second gun now arrives right as the fight starts and the first one 10 s
+  later, as in the official game, so the two guns call the cars in turn and the cars drive to each player's half.
+  Before, both guns arrived together and the right one always called last, so the cars only ever gathered on the
+  right.
+- Damage on a car now passes only to one gun, as in the official game; it no longer also drains the other cars.
+- A gun's 80 % damage reduction now lasts while one of the units it found when it appeared lives, as in the official
+  game: with two players the first gun loses it once the cars are destroyed, the second keeps it while the first gun
+  stands. Before, any gun or car on the field counted.
+
+### Vendela's second skill shows its thorns on the ally she protects
+
+- With the official effects on, Vendela's second skill now loops its thorn glow on the operator it taunts (the one with the most max HP in her range, or herself when no one in range has more), for as long as the skill lasts. It goes when the skill ends or that operator is knocked out.
+- Her counter's hit effect now plays on the enemy that attacked the protected operator.
+- Before: the glow always sat on Vendela, whoever she taunted, and the hit effect played on her whenever she took damage.
+
+### Room chat bubbles are no longer cut off by the seat card
+
+- A chat bubble on a seat card in a team room or a Grand Alliance room now always fits inside the card's portrait: it
+  wraps to the portrait's width and slides down to use its full height for a long line. A line that is still too long
+  for a small card (a Grand Alliance room on a phone) ends with "…" on a whole line; the room's chat log shows all of it.
+- Before: a long line grew up past the top of the portrait and lost its first words, most on phones.
+- Short lines and emotes sit where they did.
+
+### Wild Mane's second skill animates as in the official game
+
+- Wild Mane's S2 now starts without an animation of its own, as the official skill does; her S2 attacks still use her
+  charge swing, and when she faces down they use its downward version.
+- Before: the skill's start played a full spear charge at nothing, and facing down she swung the side version.
+
+### Older seasons: longer co-op briefing, skill range preview and keyword tips
+- Season 1 Part 1, Season 1 Part 2 and Season 2 Part 1 now give co-op teams the same 45-second briefing as today's season, so there is time to agree on the core bond call. Before: 25 seconds there, the official value; the fork adds 20 seconds in every season.
+- Operator cards in those seasons now show the Normal/Skill range toggle for skills that change the attack range, and tapping a status keyword shows that season's own official definition.
+- Togawa Sakiko stays a Custom Squad pick in today's season only; the older seasons keep her out, as before.
+
+### Gavial the Invincible and other masked operator models no longer look blurry
+
+- Operators whose models cut part of their art with a mask (Gavial the Invincible and a few others) are drawn through
+  a cached image. That image now lands on whole screen pixels, so these operators look as sharp as the operators
+  around them.
+- Before: the cached image sat between pixels and was smoothed a second time, so these operators looked soft next to
+  the rest of the board.
+
+### Operator Loadout: Custom Squad slots first, with a Custom jump
+
+- The four Custom Squad slots (two of tier 5, two of tier 6) now sit in their own "Custom" group at the very left of
+  the Operator Loadout, before the tier 1 cards: tier 5's slots in one column, tier 6's in the next, a mint line
+  separating the group from tier 1. Each pair has a slim label strip with its tier chip and "Tier 5" / "Tier 6" in
+  that tier's colour, and a small dashed divider sits between the two pairs. Before, they closed the tier 5 and tier 6
+  groups at the far right.
+- The bottom bar starts with a new "Custom" entry, left of Tier 1, that scrolls back to the group; the count of open
+  Custom Squad slots now shows on it instead of on Tier 5 / Tier 6. On narrow screens it shows as a person icon.
+- A jump to the first group of the deck (Custom here, the first class in the Custom Squad picker) now scrolls to the
+  very start, as the deck opens.
+
+### Angelina the Mellow Wish: S2 flies her forward
+
+- During S2's take-off her body now glides forward with the sweep, along her facing, holds there while the take-off ends and returns to her tile as the skill begins, as in the official game. Her tile, blocking and range do not move.
+- Before: she stayed on her tile while only the sweep's trail went forward.
+- She now keeps pace with the glowing wave at any battle speed, and her landing sparkles play when she drops back onto her tile, not when she takes off.
+- The orange ground wave now stays at her tile and sweeps at its own pace while she flies out ahead of it, and she no longer flashes back onto her tile for a moment before she drops in.
+- Her S3 flight is unchanged: as in the official game, she only flies toward an unblocked flying enemy in her range while she blocks no one.
+
+### Solo matchmaking works with older seasons at any difficulty
+
+- Each ticked season now waits at the difficulty it has: with Ultimate picked and every season ticked, Season 2 Part 2
+  matches at Ultimate and Season 1 and Season 2 Part 1 match at Dire, the way creating a room of those seasons does.
+- When you start matchmaking, a popup says which ticked seasons will be matched at a lower difficulty.
+- Before: a pick that only Season 2 Part 2 has (Ultimate) with only an older season ticked was refused with "That
+  version cannot be used in this room".
+
+## 2026-11-14
+
+### Pointing Stick bounty picker: header no longer squeezed
+
+- The Tactical Training bounty picker opened by the Pointing Stick shows its header in one band again: the long English
+  title wraps onto two lines, the description and the timing hint sit beside it in readable lines, and the three
+  bounty cards are fully on screen.
+- Before: the title took the whole header width, so the description and hint were squeezed to one word a line, ran
+  under "Choose one Tactical Training bounty from the offered cards" and pushed the cards off the bottom of the screen.
+
+### Grand Alliance: seats 7 and 8 keep their own result in Statistics
+
+- The match record a browser keeps after a Grand Alliance now holds all 8 players, so the players in seats 7 and 8 see
+  their own win or loss, rounds, trophies and stats in Statistics and Match history, and find themselves marked "You"
+  when they re-view the settlement.
+- Before: the record kept only the first 6 players, and seats 7 and 8 were shown player 1's result instead (a win
+  could read as a loss, with player 1's rounds and trophies).
+
+### Skills that need a target wait for one
+
+- Passenger's S3 and Degenbrecher's S3 now wait with full SP until an enemy is inside the skill's own range, as in the official game, instead of going off with no enemy near. Passenger's S3 counts its large x-3 range, Degenbrecher's S3 her x-1; flying enemies count for both.
+- The same official rule also covers Degenbrecher's S2 (ground enemies on its range in front of her) and Irene's S3 (x-1, flying enemies too), which now wait too. Irene's S2 already waited.
+- Before: these skills fired the moment their SP was full and could be wasted on an empty field.
+
+### OpFor: Gun speeds up the official way
+
+- OpFor: Gun's attacks now speed up from its first hit: each hit on the same target adds 80 attack speed on top of its base 20, up to 5 stacks (ASPD 100, 180, 260, 340, 420), and switching targets starts over at one stack.
+- Before: its first hit on a target added nothing and the bonus was counted from 0 instead of 20, so it fired slower (ASPD 20, 80, 160, 240, 320, 400 over its first six hits).
+
+### Attack intervals of OpFor: Gun, Pipe and String on their cards
+
+- Their cards, the codex and the enemy previews now show their official attack intervals (22.5 s, 15 s and 25 s) without marking them as slowed; a faster OpFor: Gun shows its speed-up in green.
+- Before: the battle card showed "22.5s +18.00" in red for OpFor: Gun, and the codex showed 4.5 s, 3 s and 5 s.
+
+### Angelina the Mellow Wish now fights like the official game
+
+- Her attacks fly as her own projectiles at 10 tiles/s and hit when they arrive, instead of at once.
+- After S1 and S2 end she plays her 1 s landing before she touches down; S3's take-off takes 1 s before she can fly or attack.
+- S3: she only takes off between attacks, flies to a random flyer she can block, along the official speed curve (2.4 slowing to 2.0 tiles/s) and turning after a target that moves; when the skill ends she holds for 0.333 s, immune to stun and freeze, then returns home.
+- S2 starts in the official order: her take-off (0.333 s), the glide, which now moves at its official speed and reaches 4 tiles in about 0.77 s, her 1 s glide end and her 1 s rise; the 22 s skill starts after that. She can't be hurt or controlled and doesn't attack during any of it.
+- S3's shelter for airborne allies now also lowers damage over time.
+- Before: she floated at a flat 1.3 tiles, her hits were instant, she landed the moment a skill ended, S2 played its rise before the glide and then waited out the data's 2.5 s chant time, her glide was too fast, S3 left mid-attack, always chased the nearest flyer and jumped home at once, and damage over time ignored the shelter.
+
+### Her effects and sounds
+
+- S2's glide shows its trail and ground mark, enemies she lifts show her own lift effect, S3's flight plays her flying animation and her S3 attacks while blocking use her S3 combat animation.
+- She flies at her official height: 0.8 tiles up, rising over 0.8333 s (S2 rises over 1 s at the end of its start sequence), landing over 0.8333 s as her landing starts, and 0.4 on high ground during S3, aglna2_s_2[chant_end], aglna2_s_3[mode]].
+- Her skill hits, S2's second attack sound, S3's start, her deployment, the glide, the lift and ground-bind, each S3 flight, the return home and every landing now play their official sounds.
+
+### Flying units and take-offs at their official heights
+
+- Flying enemies now hover at the height the official game gives each of them: most drones 1.2 tiles, a few at 1.0, 0.8 or 1.5, and they appear at that height instead of rising into it. Yan's Protection hovers at 1.0.
+- Operators that take off now rise to their own official height on the official timing: Tippi to 0.8 tiles over 0.83 s, Leizi the Thunderbringer to 0.4 tiles (and down while her skill runs), and Kal'tsit Esperanta stays on the ground.
+- Before: every flyer and every skill take-off hovered at one flat 1.3 tiles, and talent take-offs at 0.3.
+
+## 2026-11-13
+
+### A unite phase can no longer get stuck
+
+- Grand Alliance: when the unite battle's helpers were offline, it sat at "Uniting" with the countdown at 00 for minutes
+  and then charged the leakers as if nobody had played it. The browsers did run it, but their answers were refused once
+  more than 4 players were in it. They now count, and the round goes on as soon as the battle ends. If the browsers
+  still cannot run it, the room now waits for two of them, not for every player in turn. A unite with 5 or more
+  helpers also counts their result again (it used to name only 4 of them and was refused).
+- If something goes wrong while the unite phase ends, the match no longer stays on "Uniting" with the countdown at 00.
+  Once the phase is well past its time, the server closes the unite battle with what it has and moves on to the
+  results. If no result came in, the leakers lose LP for their own leaks, as when the unite battle cannot run.
+  Before: one error on the way out of the unite phase left the whole room stuck there.
+
+### Delayed attack sounds follow the game speed
+
+- Operator attack and hit sounds the official data plays a moment late now count that moment in game time too, as the
+  official game does (every official sound keeps its delay on game time).ignoreTimeScale, false on
+  13990 of 13990 sounds]. At 2× Ch'en's attack sound waits 0.3 s instead of 0.6 s.delay 0.6], a speed change takes hold within a
+  moment, and the dev sandbox's pause holds a waiting sound until the battle goes on.
+
+### Delayed skill sounds follow the game speed
+
+- Skill sounds the official data plays a moment late now count that moment in game time, as the official game does
+  (every official sound keeps its delay on game time).ignoreTimeScale, false on 13990 of 13990 sounds]. At
+  2× the Echoes' 0.7 s delay becomes 0.35 s[delay]
+  sounds[].delay 0.7], a speed change takes hold at once, and the dev sandbox's pause holds a waiting sound until the
+  battle goes on.
+
+### Enemy skill sounds follow the official sound limits
+
+- Enemies casting the same skill together no longer silence each other: every cast plays its sound, and only the
+  official limit for that sound holds it back, as in the official game, which keeps no time gap between two plays of a
+  sound. A crowd of ten casters rings as that limit allows: most enemy skill sounds keep two at once, the oldest
+  giving way to the newest.
+- Sounds the official data plays a moment late now wait that moment: the Echoes' delayed ensemble sounds, Armor Cleaver
+  and Armor Crusher being shot down, and the skill start sounds of Bubble's S2, Mostima's S3 and Waai Fu's S2
+.delay: acdums_audio[passion][delay] / [depassion][delay] 0.7,
+  acstma_s_1[special_stun] / acstmb_s_1[special_stun] 0.27, skchr_bubble_2 / skchr_mostma_3 0.1, skchr_waaifu_2 0.05].
+
+### One for All: strategy and operator item gifts no longer use the shop's stock
+
+- In One for All every player holds the same strategy. The items strategies and operators' garrison effects give are
+  now separate from the shop and reward stock: every player gets them, they take no copies from the shop, and selling
+  or destroying them gives nothing back to it. The shop and rewards keep their normal copies.
+  Before: these items came out of the room's stock, which is sized for one holder per strategy, so the last players got
+  nothing. With 8 players, the 8th Muelsyse holder got no advanced Doctor Hologram, 4 of 8 Malkiewicz holders no
+  Commercial Packaging Plan, and 2 of 8 Justin Jr., Jessica, Fang, Orchid or 'Damazti Cluster' holders missed later
+  items.
+- Every other mode keeps the official rule: equipment from any source takes up the stock.
+
+### Enemy revives, form switches and tiers play their official sounds
+
+- Enemies that revive now sound like the official game: the knock-out and the stand-up of Degenbrecher, Zaaro, Free,
+  Jesselton Williams and The Big Ugly Thing, and the Dublinn Flamechasers' ember and their return. Zaaro's knock-out
+  holds its official loop until Zaaro stands up again.
+- Other official moments that were silent now play too: Jetman's landing, OpFor: Bonespur's switches, Gunshatter's
+  shield taking hits, the Echoes' form switches and ensembles, Alistair's golden shield and advance, Samivilinn's doom,
+  Lucky Flyfin taking off, Snowchild hitting high ground, the OpFor blades being shot down, and more (24 enemies).
+
+- Sounds that belong to a moment inside an enemy's animation now play at that moment of the animation, as in the
+  official game: Jesselton Williams's three knock-out sounds, the Shoulder Cannon Crawler's volley, each shot of it.
+
+- Mudrock's attacks now change sound as Mudrock's charge grows, by the official rule: tiers 4 and 5 swing with their own heavy
+  sounds.; server/sim/content/enemies/leaders.js:65]
+- Yans Protection's flame holds its official looping sound while its skill runs.
+
+### More enemy skill impacts can be heard
+
+- These enemy skills now play their official impact sound when they hit, with battle effects on or off:
+  - Sarkaz Royal Court Elite Caster: its lock-on line and the burst at its end
+  - Withered Knight: its explosive arrows
+  - OpFor: BlackCloud: devouring flying enemies
+  - Yan's Protection: each hit of its flame line
+  - OpFor: Gun (Hidden Core): its chain reaching a spring
+  - Alistair, Final Flame of the Empire: [Royal Decree]
+  - 'Samivilinn,' the Resolution of the Very North: [Surge of Nature]
+  - Novice Acolyte: the heal when defeated (the flask thrown, then landing)
+  - Jesselton Williams: the shot that stuns several units (Jailer Form)
+- Before, these impacts were silent.
+- Each one is timed like the official game: the Elite Caster's line and the Withered Knight's arrows ring when they reach
+  their target (at the official projectile speed, so a farther target hears it later, and the arrow's look lands at the
+  same moment), BlackCloud's grab rings at its official attack moment, and the Acolyte's flask lands at the end of its
+  official flight. The timing follows the battle's speed.
+
+### More enemy attacks play their official sounds
+
+- Death blasts now have their official explosion sound: Infused Originium Slug, Infused Glacial Originium Slug and an
+  ignited Cabbage Seedling. OpFor: Fissure's poison lob at its killer now sounds as it launches.
+- Diver's arrows land with their official water splash, and Corrupted Knight's blows with their splash blade, each beside
+  the impact they already had.
+- Some enemies attack differently in another form, and now play that form's own sound: Degenbrecher's second form
+  strikes with its heavy slash, 'Echoes' in its dark form with that form's own strike, and Sarkaz Wither Vanguard (and Elite) on
+  an infection tile with its Originium sword.
+- Before: these were silent, or played the usual attack sound.
+
+### No frozen battle effects in the shop phase after a background tab
+
+- Fixed: when a round ran while the game was in another tab, coming back showed the shop phase with the last battle's
+  effects frozen on the field: orange and black shards from the enemies' deaths over the lanes, the enemy entrance and
+  the bench (they could look like a broken operator). The shop phase now starts clean. Battles you watch are unchanged.
+
+### Enemy skills play their official sounds
+
+- Enemy skills now play their official sounds when they are cast, such as Defense Crusher's stunning blow, OpFor:
+  Armor's skills and Degenbrecher's blink: 63 enemies whose skills were silent, or played only their effect, now sound
+  like the official game.
+- A skill's impact plays its own official sound where it lands, such as W's C4 explosion and Free's arrow skill
+  (36 skills). These impact sounds follow the skill's impact effect, so they stay silent when battle effects are
+  turned off; the cast sounds always play.
+
+### Enemy attacks play their official sounds
+
+- Ranged enemies now play the official impact sound where their shot lands, such as OpFor: Gun's bullets, Free's arts,
+  W's grenades and Heavy Crossbowman Ambusher's bolts: 56 enemies that landed their shots in silence now have an impact
+  sound, and 16 more play their shot's own impact instead of another attack's.
+- Enemies whose official attack has two sounds, a wind-up and a shot or strike, now play both: OpFor: Gun's charge is
+  followed by its shot, and so for 20 enemies.
+- Enemies with a ranged and a melee attack play each attack's own sounds (22 enemies): Army Veteran Shieldguard's
+  shield bash no longer ends in a ranged impact, and Heavy Crossbowman Ambusher's bolts no longer land with a sword
+  sound.
+
+### Vendela's skill no longer taunts a summon
+
+- Vendela's skill gives the taunt to the operator with the highest max HP in her attack range, as in the official
+  game. Before: a summon with more max HP in her range took the taunt instead.
+- Vendela taunting herself is official: when no operator in her range has more max HP than she does, she is the one
+  the skill picks (client skill data: the selector does not leave her out). That is unchanged.
+- Her talent's healing bonus follows the same rule: it goes to the operator with the highest max HP, never a summon.
+
+### One for All: Duck Lord counts every holder
+
+- In One for All every player holds the winning strategy, and each strategy now applies once per player who holds it.
+  For Duck Lord's 'Mystery Customer', each living holder now swaps 0–2 enemies of its own. With 8 players that is up
+  to 16 swapped enemies a round, all different units. Every player still faces the same swapped units. Before, Duck
+  Lord swapped 0–2 enemies however many players held it.
+- This also applies when two squads of a Free pick Grand Alliance both hold Duck Lord: two draws instead of one.
+- Every other strategy already applied once per holder (checked one by one). Touch's Field Medic stays one per field.
+
+### No stage setup reroll in public matches
+
+- Rerolling the stage setup is meant for friends playing privately, or for solo play. It is now off in public Grand
+  Alliances and in any team or Grand Alliance that used Find Teammates or took players from Solo Matchmaking, even if
+  the room was made private again before the start. In those matches the button is greyed out, with "No reroll in
+  public matches" beside it.
+- Hosts see this before they open a room up: a hint under Public when creating a Grand Alliance, and the same note in
+  the tooltips of the room's Public switch and of Find Teammates.
+- Before: anyone in any room could start a reroll vote.
+
+### A reroll vote no longer stops the countdown
+
+- The briefing countdown keeps running while players vote on a stage setup reroll. If it reaches zero before everyone
+  agrees, the vote fails and the match goes on with the setup on screen. Nobody can hold up the start by opening
+  votes over and over, or by leaving one unanswered.
+- A reroll everyone agrees to still gives a fresh countdown to read the new setup.
+- Before: a vote paused the countdown until everyone had answered, with no time limit.
+
+### OpFor: Quagmire's parasite and Degenbrecher's SP-clear mark show on operators
+
+- With official effects on, the operator an OpFor: Quagmire latches onto now shows the official parasite for as long as
+  it clings, as in the official game.
+- In Degenbrecher's second form, each operator its SP clear disarms now shows the official mark for as long as the disarm
+  lasts.
+- Before: neither showed an official effect on the operator.
+
+### Armor of the Empire's barrage gives a warning
+
+- Armor of the Empire's entrance barrage now works as in the official game. It first marks the unit with the highest
+  HP for 5.8 s. 0.8 s later its range shows on the 3×3 tiles around that spot, and 8 shells fall there one by one,
+  0.53 s apart. Each shell hits the unit with the most HP in that area at that moment. You can move a unit out of the
+  marked area before the shells land, and the shells keep falling even if Armor of the Empire is defeated meanwhile.
+- Before: all 8 hits landed at once, 0.5 s after it appeared, with no warning.
+
+### Leader and boss effects on the units they reach
+
+- With official effects on, these now show the game's own effect on the units they reach, for as long as it lasts:
+  - Zaaro, Signore dei Lupi: the fear cage on the operators it catches, and the hit when it ends. Its own glow shows
+    while they wait for the cure, and its fear aura shows on the operators around it.
+  - Sarkaz Boneguard Torturer's mark, on every unit around it. Its own heal shows when one of them falls.
+  - Yan's Protection's flame channel, as the game's range effect on the enemy it locks onto.
+- 'Gunshatter' now shows the game's own hit effect on each operator it runs over while it chases its gun.
+- Alistair, Final Flame of the Empire: each piece of equipment he animates now breaks with the game's own effect, in place
+  of the usual death puff.
+- Before: the units showed nothing.
+
+### Dockworkers' stunning hit shows its official stun mark
+
+- With official effects on, the operator a Dockworker or Dockworker Leader stuns with its heavy hit now shows the
+  official stun mark for as long as the stun lasts, as in the official game.
+- Before: the stun showed no official mark.
+
+### Defense Crushers, Dockworkers and the Armorless Union Cleanup Squad show their official glow before a special attack
+
+- With official effects on, the Defense Crusher, the Defense Crusher Leader, the Dockworker, the Dockworker Leader and
+  the Armorless Union Cleanup Squad now glow, as in the official game, while their next attack is their stunning or
+  heavy one. The glow goes away with that attack.
+- Before: there was no warning before these attacks.
+
+### Corrupted Knight, Withered Knight and 'Armor of the Empire' show their missing official effects
+
+- With official effects on, the Corrupted Knight's charged hammer now shows its official hit and cross on the operator
+  it strikes, the knight left standing shows its official rage glow once its partner falls, and 'Armor of the
+  Empire''s multi-hit shows its official hit, as in the official game.
+- Before: these effects did not show.
+
+### OpFor: Armor's rolling bombs show their official effects
+
+- OpFor: Armor: each Armor Piercer it launches now rolls with the official rolling effect while it travels, and bursts
+  with the official explosion when it reaches its tile or is shot down. Before: the bomb travelled with no effect of
+  its own.
+
+### 'OpFor: Gun' charge hits with the official effect
+
+- Each unit that 'OpFor: Gun' runs over in its charge now shows the official hit effect, once, as it is struck.
+  Before: the units took the damage with no effect on them.
+
+### Heavy Crossbowman Ambusher and Lost Colossus show their shots
+
+- Heavy Crossbowman Ambusher: its stunning bolt now flies with the official trail and hits with the official effect.
+  Before: nothing showed between its aim and the stun.
+- Lost Colossus: its stunning boulder now flies with the official trail and hits with the official effect. Before:
+  nothing showed until the operator was stunned.
+
+### Enemy shells, bombs and blast arrows show their official effects
+
+- Londinium Precision Mobile Defense Artillery: each shell of its bombardment now lands with the official hit and
+  blast. Before: a plain flash.
+- W: her C4 now shows on the operator it is stuck to, and goes off with the official blast. Before: a plain warning
+  circle and flash.
+- Withered Knight: its blast arrows now fly with the official trail, mark each target until they go off, and explode
+  with the official blast. A Withered Knight enraged by its partner's death now shows the official rage effect.
+  Before: a plain warning cross and flash, and nothing for the rage.
+
+### Jetman and Blackhorn Rhuul show their missing official skill effects
+
+- With official effects on, Jetman now shows its official jets when it takes off, and Blackhorn Rhuul shows its
+  official mark on the operator it charges and its official hit when the push fails, as in the official game.
+- Before: these effects did not show.
+
+### 'Armor Cleaver', 'Armor Crusher' and the Tyrant Captain show their missing official effects
+
+- With official effects on, 'Armor Cleaver' and 'Armor Crusher' now show their official dizzy effect while they are
+  shot down, and Sarkaz Absurdist Tyrant Captain's splashing first attack shows its official hit and its ring on the
+  target, as in the official game.
+- Before: neither effect showed.
+
+### Enemy channel and lasso skills show their official effects
+
+- Sarkaz Royal Court Elite Caster: its Death Eye channel now draws the official line to its target, with the
+  official hit as it lands, and the burst at the end plays the official explosion. Before: a plain purple beam.
+- Festival Jazz Musician: its channel now throws the official lasso rope, with the official hit on every tick.
+  Before: a plain beam per tick.
+- 'Samivilinn,' the Resolution of the Very North: its lasso now puts the official stun effect on each target. Before:
+  a plain beam.
+
+### Dublinn Flamechasers rise with their official effect
+
+- When a Dublinn Flamechaser Soldier or Elite is knocked down, its one-second rebirth into the Ember of Resentment now
+  plays the official revive effect.
+- Before: the rebirth had no effect of its own.
+
+### Rat King marks its targets
+
+- Rat King's Mark now shows the official markers over the unit with the highest Max HP and the unit with the lowest
+  Max HP, the two its sand skills hit. When a marked unit falls, the marker moves to the next one; the markers go when
+  Rat King is defeated. Its Drift Sand also shows its official ground range on the target.
+- Before: Mark did nothing you could see, and Drift Sand had only a plain tile outline.
+
+### Enemy buffs and burns show their official effects on the units that have them
+
+- With official effects on, these now show their official effect for as long as they last, as in the official game:
+  'Pompeii''s burn on the operators it hits, 'Gravestone''s barrier around it, Fallen Snowpriest's buff on the
+  enemies its chain reaches, and Garum Gourmet's barrel zone on the enemies in it.
+- Before: the units showed nothing while they had them.
+
+### Enemy effects: Originium Slug blasts, the Armor Piercer's impact, prop idle effects and more
+
+- Infused Originium Slugs and Infused Glacial Originium Slugs now explode with the game's own blast when they fall,
+  instead of a generic flash.
+- When OpFor: Armor's Armor Piercer lands, its 3×3 impact area now shows the game's own range effect for as long as
+  it lasts.
+- The 14 prop enemies (Wooden Seal through Iron Lampstand) now show their own idle effect for as long as they stand.
+- Operators bled by a Rotchaser or a Rampaging Rotchaser now show the game's bleeding effect while it lasts.
+- 'Sand Voyager' now shows the game's effect for how many passengers it carries (one to four), switching as they
+  board and leave.
+- 'Unicycle Toy' now throws its second harpoon with the game's own second harpoon effect. Before, both harpoons looked
+  the same.
+
+### Enemies show their official glows while their talents are active
+
+- These enemies now show the official effect while their talent's condition holds, as in the official game:
+  Sarkaz Wither Tank and Advanced Sarkaz Wither Tank while their polluted shot is charged; Diver in deep water;
+  Caster Speedboat's wake on deep water; Dublinn Companion Guard, Elite Companion Guard and Elite Companion Shadowblade
+  while a Guard and a Shadowblade stand together; Arc Frontliner while it is unbalanced; Sarkaz Wither Vanguard and
+  Elite Sarkaz Wither Vanguard on originium tiles; Sarkaz Lancer while it charges; Shrine Swordsman from its first
+  enhancement on.
+- Before: these effects never showed.
+
+### Enemies show the official effects their talents trigger
+
+- Scarlet Singer glows as a warning when its song is close, bursts when it sings, and every enemy it speeds up shows the
+  official glow while the speed-up lasts.
+- 'Forsaken One' glows once its attacks have stacked three times, Nucleic Maleficent and Allotropic Maleficent once
+  they have been hit, Lucky Flyfin while it sprints after the first hit, and OpFor: Bonespur while it is hidden, with the
+  official burst each time it hides or shows itself.
+- 'Echoes of Cracked Pipe' / 'Echoes of Broken Strings' burst as they switch form, Decode Basis α as it changes into its
+  new form, and Snowchild when it is knocked into high ground (at most once every 5 seconds, as in the official game).
+- Farseer and Novice Acolyte play their official burst where they fall, OpFor: Fissure too when its target kills it,
+  and a Cabbage Seedling burns with the official fire while it is ignited.
+- Recidivist and Infamous Recidivist play their official burst as their first liberation frees every prisoner.
+- Before: none of these effects showed.
+
+### 'Free' marks its next target and its cross hits as in the official game
+
+- 'Free' now shows its official mark on the unit its Weft and Warp cross will hit next: the nearest unit,
+  and in its second form also the farthest one. The mark moves as soon as another unit becomes the nearer (or
+  farther) one. Before: nothing showed which unit it was aiming at.
+- The cross now lands with the official hit effect on its target. Before: a plain red outline we made up.
+
+### Enemy auras show their official glow on the units they reach
+
+- With official effects on, the units an enemy aura reaches now show that aura's official effect while they are in it,
+  as in the official game: the other enemies near a Defender-4 (its DEF glow), operators near a Frost (its frost),
+  a Dublinn Phalanx Infantry or Commander next to another one, and operators in an activated Profane Chimera's
+  pollution aura.
+- Before: only the enemy's own range ring showed; the units it buffed or slowed showed nothing.
+
+### OpFor: BlackCloud shows its official effects
+
+- When OpFor: BlackCloud grabs flying enemies, each grabbed enemy now shows the official trapped effect until it is
+  devoured. Before: nothing showed on them, and a red flash we made up played instead.
+- Its salvo now fires the official shells, one per stored ammo and 0.3 s apart, each with its own impact. Before: a
+  plain red line per shot.
+- While it holds ammo it can't fire yet, it now glows as in the official game.
+
+### Room chat: the emote button shows its icon again
+
+- Fixed: in the room screen's chat (team and Grand Alliance rooms), the emote button beside Send was a dark square
+  with a tiny "Chat" label and no icon on the live servers. It shows the emote face again and opens the emotes as
+  before. The emote button in a match is unchanged.
+
 ## 2026-11-12
+
+### Transmitter can't go on a Custom Squad Operator (from upstream)
+
+- Transmitter's text says it cannot be equipped by Custom Operators, and now the game agrees: dragging it no longer
+  offers a Custom Squad Operator, and the server refuses it. Before, equipping it there destroyed the Operator and
+  gave nothing back.
+- Bots (also the ones the host's browser runs) no longer aim Transmitter at a Custom Squad Operator.
+- From upstream: sganggs, issue #913.
+
+### AI teammates play again
+
+- Fixed: AI teammates did nothing all match: no strategy, no units bought or placed, funds left unspent. This hit every
+  match with an AI seat since bots started running in the players' browsers: AI teammates in solo and co-op rooms, the
+  AI seats matchmaking adds, and the AI that takes over a seat. A file the browser's bot needs was not served to it,
+  so the bot could never start.
+
+### Civilight Eterna's S3 background stays behind her (from upstream)
+
+- The tall background her S3 raises now draws just behind Civilight Eterna and in front of raised tiles, instead
+  of covering her or hiding under the tiles. From upstream: ForkΨKILLET (@ForkKILLET), PR #919 and #924.
+- On the 3D boss field, scene parts the game client keeps switched off are no longer drawn, and the scene
+  extractor leaves them out (no more white squares on maps that have them). Our current boss fields have no such
+  parts, so nothing needs re-extracting. From upstream: sganggs, issue #918.
+
+### Aegir operators already down at co-op defence revive
+
+- An Aegir operator that is already down when co-op defence starts now gets the bond's revive on the battle-start check
+  and spends one of the bond's revives, as in the official game. Before, it stayed down for the whole defence and the
+  revive was never used. Ported from upstream's fix for
+  [issue #882](https://github.com/sganggs/Stronghold-Protocol/issues/882), thanks to @sganggs; reported by @19p-0 with a
+  recording by @modongfox.
+
+### Swire the Elegant Wit's champagne bomb leaves with her
+
+- Swire the Elegant Wit's S2 champagne bomb now leaves the field when she does (knocked out, retreated or sold), as in
+  the official game. Before, an unexploded bomb stayed behind without her. Only her own bombs leave: other summons and
+  other operators' exits are unchanged. From [PR #872](https://github.com/sganggs/Stronghold-Protocol/pull/872)
+  (issue #871), thanks to @zasx77771, narrowed to the bomb as @sganggs asked in its review after checking it in the
+  official client.
+
+### A quick start keeps your custom squad
+
+- Settings chosen in the lobby (your custom squad and the other room settings that wait for the game data) are sent the moment you enter a room.
+- Before: they went out 50 ms later, so pressing Start right after the room appeared could start the match without your custom squad.
+- Ported from upstream ([`54d24b2b`](https://github.com/sganggs/Stronghold-Protocol/commit/54d24b2b32d4a1ad8a5f43ee79b61eb562b1b5b7), thanks to @sganggs).
+
+### Reconnecting after the match ended shows your result
+
+- A player whose connection dropped during a match and who comes back after it ended now sees the result screen and their own result, once, even when the room has closed in the meantime.
+- Before: if the room was closed before they came back (for example a matchmade room that removed them while waiting for game data), they got no result and sat on the paused board until their session expired. Coming back after the room's own waiting time ran out already worked.
+- Ported from upstream's open [PR #912](https://github.com/sganggs/Stronghold-Protocol/pull/912), thanks to @SatsumaUton.
+
+### The difficulty list no longer twitches
+
+- On Select Simulation Protocol, the difficulty cards stay in one layout. At some window sizes they flipped every few
+  frames between the long cards with a scrollbar and the short cards, moving the list up and down (a player's report).
+- Before: the long cards were kept when they overflowed by under a pixel, which showed a scrollbar. The scrollbar
+  narrowed the list, and the narrower list was measured again and changed the layout back.
+
+### Room chat: a resizable MMO-style chat box, and Send / emote at the chat's text size
+
+- In the room screen's chat (team rooms and Grand Alliance rooms), the Send button's label is now as big as the chat's
+  own text, and the button is as tall as the message box. The emote button's icon grows with it, and the emote icon and
+  the Send label sit in the middle of their buttons. Before: Send used the small button text (about 12 px on a desktop,
+  about 6 px in the phone chat sheet) and the emote icon stayed 16 px. Both follow the Text Size setting.
+- The ⤢ / ⤡ grow button is gone. Drag the chat's top-right corner to make it any width and height; it never gets so
+  small that the message box, Send, emote and fold buttons squeeze into each other, never covers the top bar and never
+  leaves the screen. The size is remembered; a double click on the corner goes back to the default size.
+- Click anywhere outside the chat (or press Esc) and the chat log darkens and fades: the lines stay readable, and clicks
+  go through to any button under it first. Click the faded log anywhere that isn't over a button, or the message box,
+  to bring it back. The resize corner stays live while faded: drag it and the chat comes back at the new size.
+- The new ▾ button folds the chat down to a small message-box bar that covers no room button; new lines show as an
+  unread count on ▴, which opens it again. The phone chat sheet is unchanged.
+
+### The link between the servers survives a broken direct route
+
+- When a server's direct posts to the main server's socket host (`SP_REGION_SOCKETS`) fail 3 times in a row, the
+  link posts through the main server's public site address instead. Every 5 minutes it tries the direct host again and
+  goes back to it once it answers. Each switch is logged once.
+- Before: a broken direct route left the link down until the route came back by itself, and cross-server matchmaking,
+  counts and the room browser stayed local all that time.
+- Only the link between the servers switches. Players' sockets and ping tests keep the direct host; nothing they see
+  changes.
+- While every post fails, the posts slow down from every 2 s to every 30 s, and go back to every 2 s once one gets
+  through. `/healthz` shows `peer.fallback: true` while the link uses the fallback.
+
+### Grand Alliance: One for All
+
+- A Grand Alliance host can switch the room's strategy from Free pick to One for All. Everyone then votes in secret for
+  one strategy, and the whole room plays the winner.
+- Everyone votes at the same time, with one 50 s clock. You see only your own card and how many Doctors have locked in.
+  Confirm locks your vote. When everyone has locked in, the vote ends at once.
+- If you don't confirm, your highlighted strategy counts. With nothing highlighted, you vote for a random strategy (never
+  one switched off this match). A tie is a random draw among the tied strategies.
+- The reveal plays on Protocol Start!: every Doctor's pick lands on their card, the lines grow into the ship, the winner
+  bursts into the centre under a gold ALL!, and the other picks glitch and turn into it.
+- One for All rooms have their own badge and filter in the room browser and are matched only with each other. The
+  stats page keeps One for All as its own mode.
+
+### Thorns the Lodestar's third skill covers the official area
+
+- Thorns the Lodestar's S3 now works like the official game: one sea area spanning the operators it lands on (the
+  shape between them, fixed where it was thrown), burning the enemies inside once per interval. Before, each targeted
+  operator got its own ring reaching 1.5 tiles out, moving with them and burning on its own, so an enemy near two of
+  them burned twice.
+- The area reaches a third of a tile past the line joining the targets on every side; when they stand in one line it
+  is a strip two thirds of a tile wide along it. The official line effect now runs around the area's corners.
+- Its targets follow the official rule: operators in his range only (he can pick himself), the lowest Block first, a
+  tie going to the latest deployed. Alone in range, the area is just his tile: enemies standing on it burn, but huge
+  enemies never do, as in the official game; otherwise a huge enemy counts once its body reaches the area's box.
+- With official effects off, the area shows as one outline through its corners instead of a ring per operator.
 
 ### Lobby update news: Update 0.3.4-2
 
@@ -25,21 +619,6 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Before: a name could hold emoji, symbols or invisible filler characters (blank-looking names).
 - A name made only of removed characters counts as empty, so the title screen asks for another one.
 
-Server cost:
-
-| Measure | Typical | Worst case |
-|---|---|---|
-| Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day): no new messages | 0 / 0 MB/s |
-| Bandwidth out / in, per room | 0 / 0 MB/s | 0 / 0 MB/s |
-| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day) | 0 / 0 MB/s |
-| Server CPU | ≈ 0 % of one core: the chat filter once per login, about 1 µs | ≈ 0 % (a name is at most 12 characters) |
-| Memory | 0 MB | 0 MB |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | 0 ms/round | 0 ms/round |
-
-- Cap: a name is at most 12 characters and is cleaned once per hello.
-- Estimated: CPU from the measured filter time of a chat line.
-
 ### Chat in the alliance room
 
 - The room screen (4 players or a Grand Alliance's 8) has a chat log under the seat cards: time, name (squad A green, squad B blue, yours gold) and the line, plus who joined or left. Scroll up to read back; a "↓ N new messages" button brings you down again, and ⤢ makes the log taller.
@@ -55,21 +634,6 @@ Server cost:
 - Match chat and room chat now take plain text only: letters of every language, digits, punctuation, currency signs and a few maths signs. HTML tags, emoji, symbols, invisible characters and "Zalgo" stacks of accents are removed; fancy-font letters become normal letters.
 - Before: match chat let emoji and any other character through.
 - A match chat line is also at most 100 letters now, whatever your kill wallet holds, and the same spam limits and busy check apply there.
-
-Server cost:
-
-| Measure | Typical | Worst case |
-|---|---|---|
-| Bandwidth out / in, per player | 0.00001 / 0.000002 MB/s (0.001 / 0.0002 GB/day): a line a minute in a 4-player room | 0.004 / 0.0004 MB/s for a 15 s burst; 0.0006 / 0.00007 MB/s sustained (0.055 / 0.006 GB/day) at the 5-minute cap, longest lines, 9 receivers |
-| Bandwidth out / in, per room | 0.00004 / 0.00001 MB/s (4 players); 0.0002 / 0.00003 MB/s (Grand Alliance, 8) | 0.008 MB/s out, the room's fair share (0.7 GB/day); ≤ 0.003 MB/s in |
-| Bandwidth out / in, 300 players | 0.001 / 0.0002 MB/s (0.08 / 0.02 GB/day): a third chatting a line a minute | 0.033 MB/s out, the server-wide budget (2.8 GB/day; without it 0.19 MB/s, 16 GB/day); ≤ 0.02 MB/s in |
-| Server CPU | ≈ 0 % of one core (1.3 µs filter per line) | ≤ 5 % of one core (≤ 260 µs filter, one run per player per 1.5 s), plus under 0.1 % for sending at the budget |
-| Memory | ≈ 0.5 MB | ≈ 1.5 MB at 300 players; ≤ 16 MB at the server's 1,000-room limit (16 KB history per room, under 1 KB of limits per player, about 100 B of budget per room chatting now) |
-| Disk | 0 MB/day | 0 MB/day (nothing logged or saved) |
-| Bot budget | 0 ms/round | 0 ms/round |
-
-- Cap: one server-wide chat budget of 32 KB/s on the wire (room and match chat together, `SP_CHAT_BUDGET_KBPS`); a quarter of it only match chat may use (`SP_CHAT_MATCH_RESERVE`), so room spam never blocks in-game chat; one room or match may use at most a quarter (`SP_CHAT_ROOM_SHARE`), so a spamming room only silences itself. Per player: 100 letters a line, one line per 1.5 s, 6 in any 15 s and 20 in any 5 minutes, then pauses of 30 / 60 / 120 s; per network 20 lines in any 15 s; a chat frame over 600 characters is refused; floods stop at the existing 40 messages a second per connection. Over the budget or a room's share the sender sees "Chat is busy. Try again in a moment."
-- Measured: message sizes (100 B typical, 987 B the longest) and filter times with the real server code; estimated: how often players chat, receivers per line, and 80 B of TLS / TCP overhead per message.
 
 ### Summon and talent effects from the game client (part 1)
 
@@ -89,53 +653,12 @@ Talent and trait effects that depend on what is happening in the battle now show
 - **Effects while something lasts.** Nasti's S2 shield while it holds; Lucilla's S2 talent boost while S2 runs; Heavyrain's S2 aura on the allies inside it; Humus's recycle shield while it holds; Lee's guard while it is up, and its hit when it cancels a stun.
 - **Marks and moments.** Carnelian's S3 mark on enemies, part-charged and full; Swire the Elegant Wit's merchant payment and revive; Humus's trait heal; Aroma's S2 landing; Тоска's heal and SP grant on the ally.
 
-Server cost:
-
-| Measure | Typical | Worst case |
-|---|---|---|
-| Bandwidth out / in, per player | 0.0001 / 0 MB/s (0.01 / 0 GB/day) | 0.001 / 0 MB/s (0.09 / 0 GB/day) |
-| Bandwidth out / in, per room (4 players; 8 in Grand Alliance) | 0.0004 / 0 MB/s (0.0008 with 8) | 0.004 / 0 MB/s (0.008 with 8) |
-| Bandwidth out / in, 300 players | 0.03 / 0 MB/s (2.6 / 0 GB/day) | 0.3 / 0 MB/s (26 / 0 GB/day) |
-| Server CPU | under 0.1 % of one core | under 0.5 % of one core |
-| Memory | under 0.1 MB | under 1 MB |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | 0 ms/round | 0 ms/round |
-
-- Default client-side combat (production; `SP_COMBAT` unset): 0 for all of it. The server sends no `b.snap` for combat
-  there (docs/design/network.md); the table is the legacy server-run mode (`SP_COMBAT=server`).
-- Cap: one `fxs` row per unit and buff, gone with its duration or the unit's deployment; a field sends its rows only
-  when they change (`fxd`), plus the whole set once a second and to a watcher that just started or whose last frame was
-  dropped (shared/fxsDiff.js); the client keeps the sets of at most 16 fields. The probes run only when a snapshot is
-  built (the bots build none).
-- Estimated, not measured: rows of about 40 bytes; typical 3 rows and about 1 change a second, worst case 40 rows (Carnelian's
-  marks on a full wave and Heavyrain's aura on every ally) and about 10 changes a second; about 2.5× smaller after the
-  WebSocket's deflate. Every frame used to repeat every row: 5× more (0.15 / 1.5 MB/s for 300 players). Part 1 went in
-  before the rule (unmeasured); its rows now go on change too.
-
 ### Grand Alliance: join a squad instead of hopping seats
 
 - In a Grand Alliance room you now change squad with Join Squad A / Join Squad B, shown on the other squad's empty seats. You take that squad's first free seat.
 - You can't move inside your own squad any more, and you can change squad at most once every 5 seconds and 4 times a minute. The button counts down while you wait.
 - Changing squad clears your Ready. The host can still swap two players, but only between the squads.
 - Before: every empty seat had a Sit here button for every player, with no limit, so one player could jump around the room and make everyone's screen jump.
-
-Server cost:
-
-| Measure | Typical | Worst case |
-|---|---|---|
-| Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day) | 0.0005 / 0.000003 MB/s (0.05 / 0 GB/day): a member at the 4 moves a minute cap |
-| Bandwidth out / in, per room (8 players) | 0.00002 / 0 MB/s: about 4 moves before a match, 8 KB each | 0.004 / 0.00002 MB/s: all 8 members at the cap (before: 2.6 MB/s, 40 moves a second each) |
-| Bandwidth out / in, 300 players | 0.0007 / 0 MB/s (0.06 / 0 GB/day) | 0.16 / 0.001 MB/s (14 / 0.1 GB/day) (before: 96 MB/s, 8300 GB/day) |
-| Server CPU | 0 % of one core | under 0.1 % of one core: one room update per allowed move |
-| Memory | under 0.001 MB per room | under 0.001 MB per room: at most 16 players × 4 move times |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | 0 ms/round | 0 ms/round |
-
-- Cap: one squad move per member per 5 s and 4 a minute; a refused move costs one 90-byte error and no room update.
-  Before this change a member could move up to 40 times a second (the connection's message limit).
-- Measured with the traffic meter: 6 test players in a Grand Alliance room, each allowed move sent one 0.9 KB room
-  update to every member (the same before and after: about 8 KB a move with 8 members). Counted before WebSocket
-  compression, so the real traffic is lower. Typical moves per match estimated; CPU and memory estimated from the code.
 
 ### Official effects that skills put on the targets they hit
 
@@ -149,27 +672,10 @@ Server cost:
 
 ### AI players in a player's browser can use Ioleta's adaptive AI
 
-- New server setting `SP_HOST_BOT_STRATEGY` picks the AI that bots play when they run in a human's browser (`SP_BOT_EXECUTION=host`, and every Grand Alliance room). The servers are meant to set it to `ioleta-adaptive`. Bots the server plays itself keep the original AI, and a per-seat setting still wins. Unset, nothing changes.
+- New server setting `SP_HOST_BOT_STRATEGY` picks the AI that bots play when they run in a human's browser (`SP_BOT_EXECUTION=host`, and every Grand Alliance room). Bots the server plays itself keep the original AI, and a per-seat setting still wins. Unset, nothing changes.
 - An unknown AI name in the setting stops the server at startup with a clear message.
 - New tool `tools/hostbotbench.mjs` times the real browser bot Worker in a GPU Chrome over whole matches, per AI and room size, against the bot time budget.
 - Measured on a desktop (14 preps, the same boards for both AIs): Ioleta's adaptive AI thinks less than the original. A whole round of bots took 3.8 s at the median and 18 s in the slowest round with 4 players (original AI: 6.4 s and 34 s), and 12.8 s and 79 s with 8 players (original AI: 17.1 s and 134 s). Only the last prep goes over the bot budget (42 s typical, 60 s there); the bots then place the best layout tried so far.
-
-Server cost:
-
-| Measure | Typical | Worst case |
-|---|---|---|
-| Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day): the same bot frames, only the AI in the browser differs | 0 / 0 MB/s |
-| Bandwidth out / in, per room | 0 / 0 MB/s | 0 / 0 MB/s |
-| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day) | 0 / 0 MB/s |
-| Server CPU | 0 % of one core: the setting is read once at startup | 0 % |
-| Memory | 0 MB | 0 MB |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | 3800 ms/round with 4 players, 12800 ms/round with 8 (original AI: 6400 and 17100) | 18000 ms/round with 4 players, 79000 ms/round with 8, cut at the 60 s budget (original AI: 34000 and 134000) |
-
-- Cap: the host browser's bot budget, 40 % of the prep time between 15 and 60 s; a bot that runs out places the best
-  layout it tried. The bots run in the host's browser, never on the server.
-- Measured with tools/hostbotbench.mjs (14 preps, the same boards for both AIs, a desktop GPU Chrome); the server
-  figures are 0 by the code (no new frame, timer or file).
 
 ### A skill with a start animation plays it in full before the skill begins
 
@@ -177,22 +683,6 @@ Server cost:
 - Being stunned, frozen or put to sleep during the animation cancels the cast and keeps the skill points.
 - Before: the skill took effect at once, and the first attack cut its start animation off.
 - Skills without a start animation, such as Mostima S3, are unchanged. This changes battle results a little.
-
-Server cost:
-
-| Measure | Typical | Worst case |
-|---|---|---|
-| Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day): battles run in the players' browsers; the server sends no battle events | 0 / 0 MB/s |
-| Bandwidth out / in, per room | 0 / 0 MB/s | 0 / 0 MB/s |
-| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day) | 0 / 0 MB/s |
-| Server CPU | 0 % of one core: the server only simulates fields with no player connected | no measurable change: a whole 4-bot match took 11.4 s of CPU before and 10.6 s after (medians); the battles differ a little, since attacks now wait for the start animation |
-| Memory | 0 MB (one more field per skill) | 0 MB (one more field per skill) |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | no measurable change (about 800 ms/round of battle for 4 bots, before and after) | no measurable change (about 800 ms/round of battle for 4 bots, before and after) |
-
-- Cap: nothing new is sent, kept or written; a skill waits at most its 0.1 to 1.5 s start animation.
-- Measured: one 4-bot co-op match (NORMAL, seed 1, no rehearsals, so every run does the same work), timed in process CPU
-  before and after this change, alternated 3 times. The same version varies by about 20 % between runs.
 
 ### Skill marks now show on the unit that holds them
 
@@ -223,22 +713,6 @@ Server cost:
 | Raidian, Ling, Stainless, Magallan, Jessica the Liberated | The skill's glow on their summons while it runs |
 | Тоска, Angelina the Mellow Wish (not on EN yet) | S1 glow on the ally; S3 weapon glow and range ring |
 
-Server cost:
-
-| Measure | Typical | Worst case |
-|---|---|---|
-| Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day): battles run in the players' browsers; the server sends no battle events | 0 / 0 MB/s |
-| Bandwidth out / in, per room | 0 / 0 MB/s | 0 / 0 MB/s |
-| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day) | 0 / 0 MB/s |
-| Server CPU | 0 % of one core: the server only simulates fields with no player connected | no measurable change: a whole 4-bot match took 13.2 s of CPU before and 12.1 s after (medians), within the run-to-run spread |
-| Memory | 0 MB (one more reference per mark on a unit) | 0 MB (one more reference per mark on a unit) |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | no measurable change (about 800 ms/round of battle for 4 bots, before and after) | no measurable change (about 800 ms/round of battle for 4 bots, before and after) |
-
-- Cap: nothing new is sent, kept or written; the mark is read only when a browser draws the battle.
-- Measured: one 4-bot co-op match (NORMAL, seed 1, no rehearsals, so every run does the same work), timed in process CPU
-  before and after this change, alternated 3 times. The same version varies by about 20 % between runs.
-
 ### Damage-over-time and heal ticks show their official hit effects
 
 Many skills hit or heal again and again over time: a poison cloud, a heal rain, a pulse every second. The official game plays an effect, and often a sound, on each unit at every tick. The battle never told the screen about those ticks, so 18 such effects never showed. Now each tick sends a display-only signal, and the screen plays the official effect on the right unit, even after the skill has ended (Lumen's S1 heals keep going after the cast). Nothing in combat changes.
@@ -262,22 +736,6 @@ Many skills hit or heal again and again over time: a poison cloud, a heal rain, 
 | Тоска (CN) | S3 | The start effect on the ally that receives the S3 effect |
 
 - 7 new sound files (87 KB) for the server and the preload zip.
-
-Server cost:
-
-| Measure | Typical | Worst case |
-|---|---|---|
-| Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day): battles run in the players' browsers; the server sends no battle events | 0 / 0 MB/s |
-| Bandwidth out / in, per room | 0 / 0 MB/s | 0 / 0 MB/s |
-| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day) | 0 / 0 MB/s |
-| Server CPU | 0 % of one core: the server only simulates fields with no player connected | no measurable change: a whole 4-bot match took 11.1 s of CPU before and 11.4 s after (medians), within the run-to-run spread |
-| Memory | 0 MB | 0 MB |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | no measurable change (about 800 ms/round of battle for 4 bots, before and after) | no measurable change (about 800 ms/round of battle for 4 bots, before and after) |
-
-- Cap: nothing new is sent, kept or written; the tick signal is one more battle event, which only a browser that runs the battle sees.
-- Measured: one 4-bot co-op match (NORMAL, seed 1, no rehearsals, so every run does the same work), timed in process CPU
-  before and after this change, alternated 3 times. The same version varies by about 20 % between runs.
 
 ### Slow attackers swing at their own speed, as in the official game
 
@@ -445,7 +903,7 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 
 ### The lobby's update news can change without a new release
 
-- The servers can now replace the lobby's Update banner at any time: one news file holds every language, and `node scripts/deploy-regions.mjs news --hosts spa,usspa news.json` sends it to both servers (`--show` and `--clear` too; `scripts/news.mjs` on one server). Online players see the new banner within about 10 seconds, without a reload, and it shows again for players who closed an earlier one. A new release is still needed for anything else.
+- The servers can now replace the lobby's Update banner at any time: one news file holds every language, and `node scripts/deploy-regions.mjs news --hosts <servers> news.json` sends it to every server (`--show` and `--clear` too; `scripts/news.mjs` on one server). Online players see the new banner within about 10 seconds, without a reload, and it shows again for players who closed an earlier one. A new release is still needed for anything else.
 - Each player sees the news in their own language, else in the file's English, else the banner built into the release. Lines can use the game's own colour tags (blue, red, orange, mint, grey); there is no HTML and no links.
 - The file is checked before it is sent and again on each server: size, lengths, languages and line breaks. A refused file changes nothing. Notes in `docs/DEPLOY.md` / `DEPLOY.en.md` §1.7.
 - Server side: the notice, maintenance and news boards now share one file-polling base (`server/fileBoard.js`) instead of separate copies.
@@ -465,10 +923,6 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - Her S1 now plays its own cast and impact sounds, and the bolts of her S2 and S3 land with their own impact sounds instead of her normal attack's.
 - Her S3 plays its activation sound when it starts and its closing sound when the last bolt is spent.
 
-### Plugin studio trial tests no longer time out on a busy machine
-
-- Two plugin studio tests ran a real trial against the production 20 s wall limit, though that trial alone takes 8–16 s and over 20 s while the machine is busy, so they failed even when run alone. They now allow the tests' shared load time (60 s) and still check the same results: the three trial presets, and the sandbox refusing code it cannot run. The studio's own 20 s limit for players is unchanged.
-
 ### Reed the Flame Shadow's S3 blast looks and sounds as in the official game
 
 - During Reed the Flame Shadow's S3 (Ember of Life), an enemy that is defeated while carrying Cinder now bursts with the official blast effect on the ground where it fell, with the official explosion sound. Before, the game drew a stand-in orange ring, with no sound.
@@ -478,7 +932,6 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 ### Plugin rooms survive a busy server
 
 - A plugin room's match no longer ends with "the match host stopped" when the server is busy as the match starts. The hang watchdog (10 s without a heartbeat) counted from the moment the match process was created, so a slow start (Node itself, its modules, the room's 13 MB of data) on a loaded machine looked like a hung plugin. The watchdog now counts from the process's first heartbeat, sent as soon as the room's data arrives and before any plugin code runs; a process that sends nothing at all for 60 s still ends as a start failure. While it checks and reads the data, the match process now lets its heartbeats out between files.
-- Sandboxed plugin scripts work in a checkout whose `node_modules` is a link to another folder: the sandbox may now read that folder too, and nothing else. Before, every sandboxed plugin failed there with an access error.
 
 ### Element bursts look as in the official game
 
@@ -573,9 +1026,9 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - The in-battle bond strip shows as many bonds as fit its width (fewer on phones) and no longer scrolls, so the thick grey scrollbar is gone.
 - When you have more, a "+N" button after the last bond opens the rest in a small grid under the strip. Tap a bond there for its details as usual; the button, Esc or a tap elsewhere closes it.
 
-### Grand Alliance rooms from both servers
+### Grand Alliance rooms from every server
 
-- The Grand Alliance room browser now lists the open rooms of both servers, Singapore and US East, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.
+- The Grand Alliance room browser now lists the open rooms of every linked server, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.
 
 ### Room cards show every player's outfit
 
@@ -602,10 +1055,6 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - Reset to Default sits under the name instead of over it; Loadout / Outfits share the Collapse row; stat labels such as Attack Interval wrap instead of being cut; an outfit's Wearing badge no longer covers its name.
 - On touch screens every button in the drawer is at least 32 px. The same applies to the Custom Squad picker's drawer. Desktop is unchanged.
 
-### Asset rebuilds skip voices for the AI teammates' pictures
-
-- Amiya and Dobermann are in the asset list only for the AI teammates' names and icons; they can't be fielded. The asset tool now plans voices only for operators the game can field and their outfits, so a rebuild no longer tries to add those two operators' 112 voice files in four languages. Nothing players hear changes.
-
 ### Exusiai the New Covenant's outfit speaks English, and the EN texts are current
 
 - Exusiai the New Covenant's outfit The Legend Seeker (`char_1041_angel2@iteration#6`) now has its English and Korean voice lines. Before, it spoke Japanese under the English setting. The download mirror is a copy of the Chinese client, which doesn't have those dubs yet, so a new tool (`tools/local-extract/voice.py`, docs/ASSETS.md) reads them from a local EN client: 28 lines, 0.9 MB.
@@ -626,10 +1075,6 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - 26 official projectile shots that were extracted but never shown are now bound to the battle events that stand for them: Clementia's (`char_4231_clemnt`) S2 cabin and vortex, Mechanist's S3 token throws (by direction and facing), Mon3tr's S2 second chain from her rebuilt body, Kal'tsit Esperanta's S2 follow-up splash, Территория's (`char_4246_dminon`) death and withdraw tile hits, and the hits of Mantra S3, Archetto S1, Civilight Eterna's talent motes, Lee S2, Qiubai S1, Ch'en the Dawnstreak S3, Fiammetta S2, Wang S3 and Тоска S2. Six battle events carry one more field the client needs (who fired, or which side was hit); the battle itself is unchanged.
 - Talulah (`char_4247_oxi`): her S2 buff now stays for its official 10 s instead of vanishing with the instant cast, her guard's strike back shows its official hit, and her talent footprints show the official fire field instead of a plain circle. Her S1 strike, S2 cast, S2 strike back and footprints now play their official sounds (5 new sound files).
 
-### Effect extraction follows every template of our units
-
-- The effect extractor (`tools/local-extract/fx.py`) now also exports the effects that only an action template names, for every operator, token and enemy in our data and for the seasons' bonds, bands and items. Before, it followed only the projectiles that templates fire, so effects such as the S2 and S3 buffs of Тоска (`char_4244_tocka`) were never extracted. An add-only run never rewrites a file that is already there. The new art isn't shown in battles yet; that needs separate client work.
-
 ### Operator Loadout voice lines once per visit
 
 - Opening an operator's card on the Operator Loadout, or picking one in the Custom Squad picker, plays a Selecting Operator line only on the first touch; a skill or module change counts as that first touch too. Further clicks on the same operator (its skill, module, a reopen) stay silent until you touch another operator. Each return then takes that operator's other line, never the one it said last. Switching to an outfit with its own voice always speaks, in that voice: a Selecting or Deployment line (or any line it has). Any other outfit change counts as an ordinary click. The newest line cuts the previous one off, and the voice language and volume settings apply. No new downloads.
@@ -640,39 +1085,13 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - In English at Large and Extra Large text on a 640–667 px phone, the top bar had no room for it (the chip already covered part of the Discord button). There, Back shows only its arrow and the online count drops the word "online"; their tooltips still name them. Other languages and text sizes are unchanged.
 - The lobby layout test now also checks that the profile chip stays clear of the top-bar buttons and meets the touch minimum.
 
-### Test a two-server release before players get it
-
-- `scripts/deploy-regions.mjs` now has `prepare` and `activate` as separate commands (`deploy` still does both). `prepare` starts the new version on every server without sending anyone there and prints its id and private test addresses; `activate <id>` switches every server, and refuses without switching any unless the version is ready on all of them with the same build (new `generations.mjs check <id>`). A prepared version now waits 4 hours for its activate instead of 1, so a private test fits.
-
 ### Returning players load the game's code from their own browser
 
-- Behind the zero-downtime generations (the live servers), every script and style of a version was sent as "ask again every time", so a returning player's browser asked the server about each of the game's 250-odd code files on every visit, one chain step after another, which costs a distant player about 0.2 s per step even when Cloudflare holds the file. A version's code can never change under its address (each version is one commit, and every update gets a new address), so these files are now kept for a year by the browser and by Cloudflare. Measured on a local copy of the live setup, a second visit asked the server for 25 files instead of 272, and none of the 252 code files. The page itself, the service worker, the health check and the game data still ask every time, and a server started without versions (`npm start`) keeps asking for everything, so an edited file still shows on reload. The optional Cloudflare cache rule for scripts is no longer needed.
+- Behind the zero-downtime generations (a hosted server), every script and style of a version was sent as "ask again every time", so a returning player's browser asked the server about each of the game's 250-odd code files on every visit, one chain step after another, which costs a distant player about 0.2 s per step even when a CDN holds the file. A version's code can never change under its address (each version is one commit, and every update gets a new address), so these files are now kept for a year by the browser and by a CDN. Measured on a local copy of the live setup, a second visit asked the server for 25 files instead of 272, and none of the 252 code files. The page itself, the service worker, the health check and the game data still ask every time, and a server started without versions (`npm start`) keeps asking for everything, so an edited file still shows on reload. A CDN cache rule for scripts is no longer needed.
 
 ### Ping shows the connection, not the frame rate
 
 - The ping shown in the title screen, lobby, room and battle bar no longer grows when the game draws slowly. The browser handles the server's answer between frames, so on a slow battle render the shown ping included up to a whole frame: on a local server (real round trip about 1 ms) it read 31 ms at 33 fps, 101 ms at 10 fps and 251 ms at 4 fps. It is now worked out from the server's own receive time, which frames don't delay, and reads 1–3 ms at every one of those frame rates. A slower connection still shows. A page that is already slow when its first answer comes back still shows the old measured value until it has one quick answer to compare against.
-
-### Rerun only the browser tests that need it
-
-- The documentation check passes on a fresh checkout again: CONTRIBUTING names the folder these runs write their output to (`test/e2e/out/`), which only exists after a run, and the check now treats it like the other generated folders.
-- After every browser test run there is a failure table and a `failures.json`: for each failed test its file, full name and first error line, when it started counted from the start of its file, how long it ran, how long the whole file took, which tests ran before it in that file, and its screenshots and console log. Any `node --test` run's JUnit file can be read the same way (`node tools/test-repro.mjs --report`). Today's final check, for example, shows playtest2's fallback plate test starting about 15 s into its file, after the engine test, and failing after 5.4 s of a 495 s file.
-- The browser test table now keeps each test's own measured time, so a run prints how long it should take before it starts and how long it took after.
-- `--rerun-failed failures.json` reruns only the failed tests: each one alone, then, if it passes alone, after exactly the tests that ran before it, and says whether it depends on earlier tests.
-- `--changed <git range>` runs only the tests a change can affect. Every test run records which lines of the game's code, its style sheets and the test's own helpers each test actually used, and the change is matched against that: a change to the enemy-pen test's camera wait selects only that test, and a change to the sell / destroy plate styles selects only the tests whose pages showed those plates. A file that has no record yet, or a change to shared test setup, runs the whole file and says why; nothing is skipped silently.
-- `--budget K` gives each test a time limit of K times its usual time (at least 20 s); a test stopped by it is reported as "stopped by budget after N s (expected M s)", not as a failure.
-
-### Enemy pen browser test waits for the camera to settle
-
-- The browser test that checks where the enemy preview pen shows (the prep board, the pen view, back on the board, the Final Assault prep and every battle camera) no longer waits fixed times after opening a page or switching the camera. It waits until the 3D view is on the expected camera with its board drawn, and the camera and the pen's state have stopped changing, before checking. Most of its checks are that the pen is not shown, which a page that has drawn nothing yet would also pass. It passes with Chrome's CPU slowed four times.
-
-### Sell / destroy plate colour test waits for what is on screen
-
-- The browser test that checks the Sell (amber) and Destroy (red) plates no longer waits fixed times. It waits until the mock board's own units are laid out before tapping one, and samples the plate until it shows a steady colour instead of its dark backing. In a fresh browser the plate was sampled before its picture was painted and read grey, and on a busy machine the bench was tapped before it was laid out. Both cases now pass 3 of 3 with Chrome's CPU slowed four times; a white or wrong-coloured plate still fails.
-
-### Reproducing a failing browser test in minutes
-
-- New `node tools/test-repro.mjs <file> --test "<name>"`: runs one browser test alone N times, then N times right after each earlier test of the same file (`--before`, or `--orders` for all), in the file's own process with its own server and browser, and prints a pass / fail table with the first failure's message, console log and screenshot. A whole-file rerun took about 15 minutes; a case of a short test takes 15-30 s a run. It found that playtest2's fallback plate check fails when it runs first in a fresh browser and passes after the engine test, the opposite of what a lone rerun had suggested.
-- `--cpu 4` throttles Chrome's CPU to imitate a loaded machine, and `--own-flags` starts Chrome with the file's own flags instead of adding the GPU ones. It takes the third lane lock (two for a heavy file) when `SP_LANE_DIR` is set.
 
 ### Operator Loadout cards on short phones
 
@@ -683,7 +1102,6 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 ### Bot turns are cheaper to work out
 
 - The bots' layout search no longer copies lists it only looks through: board tile names are read without temporary lists, the "do I already own this operator?" checks stop at the first match instead of listing and sorting every piece, and each move the search tries no longer copies the whole plan. The bots make exactly the same choices (same boards, hands and shops in 40 checked rounds), and a late-round bot turn takes about 20% less time (the busiest bot of the test match: 281 → about 220 ms on the same loaded machine; the whole 10-round match 2.5-3.0 → 2.0-2.2 s).
-- The test that checks a late-round bot turn stays under 300 ms of CPU now runs only in `npm run test:perf`, alone on the machine, like the other speed checks. Next to the browser tests the same code measured 390-530 ms (the machine's load, not the bots), and 110-170 ms on a quiet machine. The 300 ms limit is unchanged.
 
 ### Chat button on small touch screens without the client art
 
@@ -700,21 +1118,9 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 
 - With the optional host rehearsal setting on, the host's browser now starts its rehearsal helper during the briefing, once the screen has loaded, instead of on round 1's first task. Round 1's AI layouts used to miss their short answer window while the helper started, so the server always worked them out itself. Nothing changes with the setting off (the default).
 
-### Facing wheel and install offer browser tests
-
-- The facing wheel test could fail on a busy machine. After a cancel the piece slides back home over about 200 ms, and the test started its next drag before that, pressing the empty tile it was leaving. The test now waits for the piece to stop moving and checks that it went back to where it came from. The game itself was right.
-- The install offer test failed because Chrome now sends its own install offer a few milliseconds after the test's, and the game keeps the newest offer, which is correct. The test now holds Chrome's own offer back so its button press uses the test's offer.
-
 ### Crowded battles use their light-weight models from the start
 
 - The outlines of every model's animations, which size the light-weight copies that keep big fights fast, are now measured once on the server after the art is downloaded or extracted (`npm run clip-bounds`, run by `npm run assets` and `npm run assets:release-local`) and sent with the game as one small file (about 94-98 KB compressed). Browsers no longer spend the first seconds of a crowded battle measuring them while drawing every unit in full. In the 120-unit stress scene no unit waits for its outline any more (before: up to 14 did) and the browser spends no time measuring them (before: 2.4-2.7 s in the first 20 s). The outlines are the browser's own measurement, rounded slightly outward, so no model is cut off; a model the file does not cover (plugins, DIY, art added later) is still measured in the browser as before. The time spent measuring a model the file does not cover no longer counts as a slow device (which used to lower the animation rate) and no longer enlarges its own budget. A server without the file answers with an empty table instead of an error. Server owners: run `npm run clip-bounds` after a local-client extraction (docs/DEPLOY.en.md).
-
-### Faster, steadier browser test suite
-
-- The browser tests' speed limits (frames per second and time per frame) only run in `npm run test:perf`, alone on the machine (with `RENDER_E2E=1`). In the full browser run, other tests share the machine, so the frame rate follows the load: 10 of the final check's 20 failures were such limits (for example 29.2 fps against a floor of 30). Each of those tests still checks everything else, and that frames are drawn.
-- `npm run test:browser` runs every browser test file in one go, slowest first, so a 10-minute file no longer ends the run alone. `--gate` runs a 14-file quick set (about 4 minutes) for checking a fix, and `--slots` tells how much of a shared machine a file needs. Per-file times come from the last full run.
-- Three test files at once instead of two was measured and not adopted: render tests ran 23–26% slower and a script plugin's 5 s check timed out. The suite stays at two.
-- The lobby layout tests wait for the next frames and the fonts instead of fixed 150 ms pauses in most of their checks: lobby-hub's shared tests took 8% less time even on a busier machine.
 
 ### Confirm Match Info and Equipment Supply on short landscape phones
 
@@ -722,21 +1128,12 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - The Equipment Supply header (title, description, turn line and countdown) is a size smaller on the same phones.
 - Larger text sizes (Large, Extra Large) still grow a little, by the same capped steps the draft screen uses. Desktop and taller windows are unchanged.
 
-### Faster real-server browser tests
-
-- The test server used by browser tests (`test/e2e/fastServer.mjs`) can end the current timed phase at once and hold a running battle while a test checks it, then let it go on. Only the test tools can use this: the game server never loads it, and a test proves that. The bond-strip watching tests now run their battles 4–6× faster with a hold around their checks, the co-op flows and the real-match test skip the waits between rounds once nothing is checked there, and the four co-op flows are separate files so they run side by side. The browser suite still counts each of them as a heavy file (two lanes), since it now reads the shared flow file they run.
-
 ### Spectate, filter popover, Final Assault watch, protocol list
 
 - Pressing Spectate right after entering the lobby could fail with "too many requests", because entering the lobby spends the server's budget for heavy messages (loadout, ownership, outfits and more). Spectate now tries again after 1.2 s, at most twice. Proposing a version already did this.
 - In Operator Loadout, answering the floating version vote no longer closes an open Filter popover. The vote gives the focus back to the popover's search field when it closes.
 - An eliminated player watching the Final Assault now gets the ‹ › buttons to switch between the two halves again. The board they followed during prep no longer holds the screen once the battle starts.
 - The Select Protocol list fits itself one frame after its size changes, instead of in the same frame. This stops "ResizeObserver loop" errors at some language and text-size combinations. It looks the same.
-- Browser tests brought up to date: screenshot paths on Windows, the settings gear that now sits after the Battle Stats button, the entry film that covers the title on a first visit, and the card view's Filter popover and layered Esc in the versions test.
-
-### Layout tests check a sample of their language and size combinations
-
-- The layout tests that loop over every language, text size, UI size and window or device now check a fixed sample by default. Every value still shows up, every pair of values is checked together at least once, and the risky corners are always in: the smallest phone at the largest text size, and English at the largest text size. Set `SP_FULL_MATRIX=1` to check every combination; the end-of-cycle browser run does that. Each test prints which combinations it checked, so a failure can be run again exactly. This covers loadout cards, lobby hub, waiting room, version text fit, devices, version pills and the room search strip.
 
 ### Bot helper loads after the band draft's art
 
@@ -746,31 +1143,14 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 
 - In a big fight (many units arriving at once: a battle's start, Joint Defense, a boss) each unit is drawn in full until the game has measured the outline of every animation its model plays; only then can it use the light-weight copy that keeps crowds fast. On a busy battle that measuring took 50 seconds to over two minutes, so the whole fight could run at 10-20 fps. The game now gives the measuring a larger share of a slow frame (a third of it, at most 33 ms; quick frames are unchanged) and measures first the models the most waiting units share. In the 120-unit stress scene the measuring now finishes in 14-20 s instead of 48-57 s. The measured outlines are exactly the same as before (checked on all 721 models and 6,678 animations), so no model is cut off or drawn larger.
 
-### Three browser tests open the mock match page again
-
-- The models, UI-flash and screen-fit browser tests timed out opening the mock match page. With the 3D renderer, Pixi starts its image worker from a blob: URL, and Chrome 156 never marks that worker's script as loaded, so the page never counts as network-idle. They now open the page the way the other mock tests already do: page loaded, game screen shown. The models test also waits until every operator's Spine model has loaded, and turns on 「部署时收起商店」 (off by default in this fork) because its drag checks expect the shop to fold. The game itself is unchanged.
-
 ### Room privacy bar follows the text size
 
 - The Public / Private bar in the room and its password box now grow with the Text Size setting like the rest of the room. On phones they used a fixed size. Desktop sizes are unchanged; on a phone they stay the same at Medium and are 2 px smaller at Small.
-
-### Packaging works from Git Bash on Windows
-
-- Building a release zip on Windows failed when Git Bash's own `tar` came first on the PATH, because that tar cannot write zip files. The packager now falls back to the `tar.exe` built into Windows 10 and later. Windows' tar still can't write non-ASCII file names (it crashes), but no file in the game has one.
-
-### Two outdated browser tests updated
-
-- The teammate-loadout test now expects a teammate's operator card to show ATK with the default Elite 2 Lv.60 bonus (×1.1), as the game has shown it since 0.2.2 and the other loadout tests already expect. The plugins test now accepts that the room loads the asset store together with the battlefield code it prepares for the match. No game change.
 
 ### Match briefing and Equipment Supply headers on small phones
 
 - On phones (screens up to 520 px tall), the Confirm Match Info list now ends above the footer instead of running under it, so no enemy or alliance text shows through behind Reroll, Operator Loadout or Ready, the way the original reroll banner kept it before the reroll moved into the footer. At the Large and Extra Large text sizes, the Reroll button shows only its icon in English, Japanese and Korean (its name stays in the tooltip), so it no longer runs under Operator Loadout. "已就绪" no longer breaks across two lines. Taller windows and desktops are unchanged.
 - In the strategy draft overlay (Equipment Supply and the other draft screens), the description now sits under the title on phones narrower than 768 px at every text size, as it already did at Large and Extra Large. At Medium on a 640 px phone, "Obtain equipment without spending any funds." took one word per line beside the title and ran into "Your turn to decide".
-
-### More browser tests brought up to date
-
-- Tests that read Chinese text now start the page in Chinese (the fork opens in English): settings storage, wake lock, lobby media delete. Tests that open their own browser now skip the intro film, whose tap-to-enter screen blocked the title and lobby: stats, lobby media delete.
-- The emote test expects the Emote / Text tabs that match chat added to the wheel. The loadout battle test picks the skill on the card before opening the drawer, which now lies over the card. The selection-frame test waits until the board has drawn its pieces before clicking one, and until it stops moving before measuring. The lobby media test records its test video as VP8 and records again if a page's first recording comes out empty, and it waits for the picture's deletion to finish before deleting the music. The wake lock test opens Settings with the settings gear rather than the new battle stats button beside it, and moves the mouse off the help link between languages. The lobby test accepts that the TACTICAL TIPS label hides when there is no room for it, and still fails if it is ever cut off part-way.
 
 ### Operator Loadout fits every UI size and text size
 
@@ -779,22 +1159,10 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - The Export / Import dialog highlights a ticked part without the CSS `:has()` selector, so it also works on Firefox ESR 115 and Safari before 15.4. It looks the same.
 - Tests brought up to date with the card view: the bottom switch has three buttons (Compact / Expanded / Outfits), the drawer lies over the deck without moving it, module tiles accept the downloaded type icons when the local game art is missing, and a leftover list-view helper is gone from the loadout rows test.
 
-### Versions-flow browser test
-
-- `test/ui/versions-flow.e2e.test.js`: a page spends the server's whole heavy-message burst (6) on the settings it syncs when it connects. The test's spectator asked for its seat right after entering and was refused (`RATE`). The test server now allows a larger burst, as the lobby suites do. A player's own click comes after the next token, so the game's limit is unchanged.
-- Its version-match test gave the vote 4 seconds, which ran out while the host edited Matterhorn's skill in the new card view. That test now uses the game's own 60-second vote. The vote-rules test keeps 4 seconds, since it waits for a vote to expire.
-
-### Suite fixes
+### Small fixes
 
 - UI plugins can't send the Grand Alliance room browser's `rooms.watch` request any more. The plugin bridge refuses every message the game itself sends to the server, but its list didn't include the new `rooms.*` messages.
-- The bots' prep runner and the bot task queue now name the limit of each of their loops, as every loop in the match code does.
-- `board3d-extract` test: the profile icons are saved as WebP only, by choice, so the test no longer looks for a PNG beside them. It reads that list of folders from the extractor.
-- `issue25-downback` test: Amiya and Dobermann have pictures for the AI teammates but no model, so the test now checks every operator that has a model and names those two as the only exceptions.
 - The battle view now removes its WebGL context-loss listeners when it closes. The afterimage fix of 2026-10-15 added them, but only setup's own cleanup removed them, so every battle view that started successfully left two listeners on its canvas.
-- The effect viewer (`dev/fx-viewer.html`) prepares an effect's shaders and textures before playing it, as a battle does. Since shaders build in the background, an effect it never prepared drew nothing in its first frames: the `vfx` test saw a blank board for an enemy's death and for the light tier.
-- `feedback1-forms` and `feedback5-prisoners` tests: they push the battle into the page at a fixed pace instead of once a frame. Headless Chrome on the graphics card runs at over 100 frames a second, so the view fell about a second behind the battle and missed its form changes. `feedback1-forms` now also checks the death clip only while the model is still on the board.
-- `impostor-bounds` test: it measures the crowd's animations itself while it waits. The page measures them a little each frame, and in this 120-unit scene at about 17 frames a second that took longer than the test's 40 seconds.
-- `held-pose` test: reading the same unchanged picture back from the graphics card twice sometimes gave different pixels, so the test sometimes found a held death pose "different" from a live one. It now reads each picture until two reads in a row agree. The held pose itself was always the same.
 
 ### Update news
 
@@ -819,20 +1187,6 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - This replaces the earlier same-day rule that put operators over every enemy in their row. In the official footage of Viviana's S2, she turns see-through and vanishes into the dash, and the slash effects (which have their own sorting order) cover the enemies; her body is never lifted over them.
 - The `vfx-talents` "group choice (select)" test asked for successive picks with one attack count; it now uses one count per attack, as the attack clip picks have since the clip change earlier today.
 
-### Dev sandbox: floating cards, unit card, modules and starting SP
-
-- The sandbox panel is a floating card over the field: the field always fills the window, and opening or hiding a card never moves the camera. Its top keeps adding an operator, Start combat, speed and the frame step; Core bond, Map and enemies, Edit wave, Bonds & stacks, View options and Help fold into sections. The list of placed units and the add box's skill and outfit selects are gone.
-- Clicking an own unit in prep opens the in-match operator card beside it (header, garrison trait, stats and attack range, skill, module, equipment, talents), with the sandbox's choices slotted in where they belong: the form under the header, the skill icons and starting SP above the skill, the module badges above the module, an Add item button under the equipment, and the outfits at the end (`public/dev/sandbox-loadout.js`). The sandbox now loads the garrison and effect data, so the card shows the garrison trait.
-- Modules can be chosen per unit, with the game's options and rules: None or one of the elite's modules (only the elite form fights with it), and for Custom Squad picks the pick's modules, with a prototype's module locked. The module goes into the battle as in a match and stays in the URL (`|m=` on a unit).
-- Starting SP per unit: a number or Full, kept in the URL (`|sp=` on a unit). It goes in through the sim's own starting-SP input (the joint defence carry), so no game rule, sim default or golden result changes.
-- The piece of the open unit shows the match's Retreat (to the bench) and Destroy (remove it) plates. Retreat closes the card, and so does turning a unit in place (dropping it on its own tile is a new deployment: the direction wheel opens without the card). The card hides while a unit is dragged and comes back at its new tile (it closes when the unit goes back to the bench), so a drop where the card was lands on the field instead of counting as "off the field". A new outfit or form keeps the card's scroll position.
-- The field no longer ignores the first click on a unit after a press whose release went to another window (`render/drag.js`; the match benefits too).
-- The battle speed (1×, 2×, 4×) can be changed while a battle runs (`battleRunner.setSpeed`).
-- The battle controls (one Start combat / Back to prep button, speed, Pause / frame step, Clear board, the bank buttons, battle time) sit in their own Battle bar at the bottom; the clicked operator's skill controls take a line of their own above them. The setup card and the Battle bar can be moved by their grip and resized by their corner; both are remembered in the browser, and a double-click on the grip puts a panel back.
-- Skill hold per operator, for effect testing: the skill On (started at once for free, and again whenever it ends), Off (ended, kept from charging) or Auto, plus Infinite SP, Infinite duration and Infinite HP (refilled every step; the operator does not die). Set in the unit card in prep or live in the Battle bar for the operator clicked in battle, and kept in the link (`|cast=on|off`, `|isp=1`, `|idur=1`, `|ihp=1`). The page applies it after every battle step; the sim and the game rules are not changed.
-- Season picker: "Season, map and enemies" has a button per game version (Season 2 · Part 2, the default; Season 2 · Part 1; Season 1 · Part 2; Season 1 · Part 1). Picking one reloads the sandbox with that version's data, as a room of that version loads it: its operators, Custom Squad pool, bonds, items, maps and waves, and battles run on its data and its own official bounds. It stays in the link (`&season=act1autochess`), so Season 1's Arene can be fielded.
-- A unit in the link that can't be placed is no longer dropped silently: the status line says which one and why (not in this game version's data, not in its Custom Squad pool, or a tile it can't stand on). For example, Season 1's Arene in a Season 2 Custom Squad slot.
-
 ### Grand Alliance: Public and Private
 
 - The lock is now called Private. Beside the alliance key, the host has a Public | Private switch that applies at once: Private gives the room a random 4-letter password, shown next to the switch; the host changes it by typing into it there. Everyone else sees whether the room is Public or Private. The room browser's filters and badges say Public and Private, and joining a Private room asks for its password as before.
@@ -855,7 +1209,7 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 
 ### Update news
 
-- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and the US East server. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
+- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and a second server region. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
 - The lobby's Combat Tips box is always as tall as its longest tip, so a rotating tip no longer moves the update banner above it up and down. Its count and arrows stay on the title's row: the small TACTICAL TIPS label hides itself when it doesn't fit, instead of pushing them onto an empty row of their own.
 
 ### Profile icons
@@ -948,25 +1302,17 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - The AI teammates' avatars in the room now come from the small URL helpers (`ui/assetUrls.js`) instead of `assets.js`, so a vanilla page no longer loads the asset store at start, as `test/ui/plugins-client.test.js` requires. `test/ui/playtest6-unite.test.js` now expects the team panel's leak tag to name a teammate through `shownName()`, which is how AI teammates show their operator's name.
 - `test/ui/text-scale.test.js` now lists the match chat's bubble (`.cbubble`) as in-match HUD text that the Text Size setting leaves alone, like the emote bubble and the chat panel it sits with.
 
-### Browser tests are silent
-
-- Every headless Chrome the tests and tools start is muted (`--mute-audio`): in `gpuArgs()` (`tools/perfbench.mjs`, the software mode included) and in each test file that launches its own browser. Game audio no longer plays on the machine running a browser suite. `test/perfbench.test.js` checks both, and AGENTS.md says sounds are checked through requests or play-call logs, never by listening.
-
 ### Several servers, one game
 
 - The game can now run on more than one server, so players connect to the nearest one with better ping. It's off unless the operator sets `SP_REGIONS`, and a single server behaves as before (`docs/DEPLOY.en.md` §2.7).
 - The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
 - The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
-- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
-- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto, Singapore or US East, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
+- Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto or a server, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
 - The online count's tooltip lists each server's players (hover, focus or tap the count), with yours marked; the count itself stays the total of every linked server.
-- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds. At 300 players that cuts its traffic from about 1.6 GB a day to about 50 MB.
+- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
-
-### Browser tests
-
-- `board3d` and `fieldview` browser tests asked for Metal on every platform, which on Windows dropped them to a software driver: Chrome used about 7.5 cores and most of their checks failed. They now start through `gpuArgs()` in `tools/perfbench.mjs`, which uses the real GPU, keeps WebGL on a machine with no GPU and can be forced to software with `SP_E2E_SOFTWARE_GL=1`. `test/render/gpu-renderer.browser.test.js` logs the renderer in use.
 
 ## 2026-11-07
 
@@ -1028,12 +1374,8 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 
 ### Changes
 
-- Host-browser bots, first three pieces ([design](docs/host-browser-bots.md)), off by default and not live yet: bot seats can draw from their own random streams and a reserved uid block (`seatStreams`); a snapshot restores the match outside the server (`botWorld.js`, `shadowMatch.js`); the real bot code plays on that copy and its actions come back as validated `g.*` moves (`botRunner.js`, `match/botTasks.js`). A same-seed test proves the copy plays the same game as the bot in the match.
 - Host-browser bots, pieces 4 and 8, off by default and not live yet: with `SP_BOT_BATTLES=host`, a field of bots runs in a human's browser instead of on the server, and falls back to the next human, then to a synthetic result. `public/js/battle/botWorker.js` and `botHost.js` run bot work in a Worker, and `/match/` now serves exactly the modules that Worker imports, computed from its imports (`server/http/botModules.js`).
 - Host-browser bots, piece 6, off by default and not live yet: with `SP_BOT_EXECUTION=host`, a bot seat's whole prep runs in a human's browser over live frames. The server only applies its moves. A silent, failed, hidden or lost browser hands the seat to the next human, and with nobody left the seat keeps its board and readies up. Fixed piece 8's check, which treated every normal room as a plugin room because normal rooms carry a content hash too.
-- Host-browser bots, piece 7, off by default and not live yet: bots' band and card picks also run in a human's browser, and in host mode a bot strategy's decision hooks throw on the server. A human taking an AI seat or turning autoplay off cancels that seat's task.
-- Host-browser bots, piece 9, off by default and not live yet: a boss field of bots only runs live in a human's browser and reports like a human's battle, and a load test measures the server's own CPU per bot seat (`test/match/bot-load.test.js`).
-- Host-browser bots, piece 11, off by default and not live yet: plugin and old-version rooms also run their bots in a human's browser, whose Worker loads that room's content and scripts, and the match host's child process now gets the host's id and the bot options. Every room's Worker now gets the whole data set, not only the simulation's files.
 - Host-browser bots, piece 10: removed the fork's host rehearsal additions (`SP_BOT_REHEARSAL_HOST`, `botRehearsalHost`, its default-on). Upstream's delegation stays, off by default, so `server/match/bot.js` is back to upstream's lines but for its CPU meter. Without `SP_BOT_EXECUTION=host`, no browser rehearses layouts for bots any more.
 - Host-browser bots, review fixes: any field with no connected human goes to a browser, a disconnected or departed human's field included, at the start or mid-battle; no player's board runs on the server, and with no browser at all the synthetic result stands. A bot task takes one receipt and one plan batch, so repeated frames cannot stall a prep. A departed co-op seat's strategy pick is never asked of the seat's AI strategy, as before.
 - AI teammates show their operator's name in the page's language, everywhere a name appears (`AI · Warfarin` instead of `AI · 华法琳`). It's decided by the seat being an AI: a human player named after an operator keeps their name exactly as typed.
@@ -1043,7 +1385,6 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - Room screen: the Find Teammates switch shows its text again. The room layout from upstream 0.3.3 painted its background over it, leaving only its track visible. It now sits directly above the big button, which uses the Start Simulation look (amber with dark text while searching), and its description line is gone so the centre stays clear. On phones the switch, Add AI Teammate, the settings popup and the version tag are larger, and a seat's Preparing state can be read over light art.
 - Lobby: the update news panel uses its full width and scrolls inside itself when space is short, so it no longer pushes Achievements, Join with Key and Combat Tips off the screen. The mode buttons sit together as one group of equal cards (the long descriptions used to spread them apart): each description now wraps above its card, who plays first, the rest under it. "Solo Matchmaking" is no longer cut off.
 - Damage meters show one metric at a time. The result screen's Damage Stats and the in-match Combat statistics panel get a Damage / DPS / Healing / HPS selector (kept until the page reloads); rows sort by it, the top value fills its bar, and the row's width goes to the bar, so operators compare at a glance. Removed the panel's title, rank numbers, four-number rows, sort label and explanation box, and the chart's per-row DPS / healing text and All Rounds tag; hover a row for all four numbers.
-- Plugin studio, script checks and match hosts: their child processes no longer open console windows that steal focus on Windows (`windowsHide`).
 - `fetch-assets` names the operators missing from the local FX index. Their per-skill sounds are then planned differently,
   which can make the run refuse to write `data/assets.json`, and retrying the downloads never helps. The refusal now says
   so and gives the extract command that fills the index.
@@ -1079,7 +1420,7 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
+  (its script host in `script-src` and its reporting host in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -1230,9 +1571,6 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 
 ### Changes
 
-- ESLint skips the local `ArknightsGamedata/` and `stronghold-protocol-alliance-database-main/` clones (their own
-  configs broke `npm run lint`); the asset-index test links its folder with a junction, so it runs on Windows without
-  symlink rights.
 - Sakiko Togawa can be picked in the Custom Squad, with her full kit: notes that wander, home in and (piano) pass
   through, using the official note flight data; her continuous attack; S1's eight-note volley, S2's piano → organ
   switch, S3's double-timbre volley; and the Ave Mujica Fever gauge (450 points, 20 s), shared by every Sakiko on a
@@ -1404,7 +1742,7 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.
@@ -1486,7 +1824,6 @@ A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesp
 - English is the default interface language; voices fall back English → Japanese → Chinese.
 - The voice selector shows language names in the current interface language, with a toggle for the native-language dub
   where one exists; the implementation was brought closer to upstream's.
-- The three performance benchmarks moved out of `npm test` into `npm run test:perf`.
 
 ## 2026-10-08
 

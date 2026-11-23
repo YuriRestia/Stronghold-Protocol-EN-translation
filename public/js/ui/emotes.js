@@ -19,7 +19,7 @@
 // Official UI sprites come from the local ui/battle extraction when present; CSS draws look-alikes otherwise.
 // Styles: public/css/emotes.css (injected on first use when the page does not link it).
 
-import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
+import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { EMOTE_THEMES, EMOTE_COOLDOWN_MS, EMOTE_BUBBLE_MS, emoteInfo, emoteArtGroup } from '../../../shared/constants.js';
 import { html } from './components.js';
 import { GIcon } from './gameComponents.js';
@@ -216,11 +216,47 @@ export function EmoteBubble({ id, class: cls, ttl = EMOTE_BUBBLE_MS, at }) {
 export function ChatBubble({ text, at, ttl = EMOTE_BUBBLE_MS, class: cls }) {
   useEffect(() => { ensureEmoteCss(); }, []);
   const [age] = useState(() => bubbleAge(at, Date.now(), ttl));
+  const ref = useRef(null);
+  // (fork) a bubble whose box caps its height (the room's seat card: css/emotes.css .rseat__bubble) ends on a whole line
+  // with an ellipsis instead of a cut line: the lines that fit, measured now and again when the box resizes. Without a
+  // cap (the match's team panel) every line fits and nothing changes. The room's log keeps the whole line.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const fit = () => {
+      el.classList.remove('is-clamped');
+      el.style.removeProperty('--cbubble-lines');
+      const cs = getComputedStyle(el);
+      const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+      const line = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 12) * 1.3;
+      const n = bubbleLines(el.scrollHeight - pad, el.clientHeight - pad, line);
+      if (n == null) return;
+      el.style.setProperty('--cbubble-lines', String(n));
+      el.classList.add('is-clamped');
+    };
+    fit();
+    const box = el.parentElement;
+    const ro = box && typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null;
+    ro?.observe(box);
+    return () => ro?.disconnect();
+  }, [text]);
   const style = [`--ebubble-ttl:${ttl}ms`, age && `--ebubble-age:${Math.round(age)}ms`].filter(Boolean).join(';');
-  return html`<div class=${cx('cbubble', cls)} style=${style} dir="auto">${text}</div>`;
+  return html`<div ref=${ref} class=${cx('cbubble', cls)} style=${style} dir="auto">${text}</div>`;
 }
 
-export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownMs = EMOTE_COOLDOWN_MS, textPane = null, textLeft = null }) {
+/**
+ * (fork) How many lines of a chat bubble to show: null when its text (`needPx` tall, padding aside) fits the `boxPx` its
+ * height cap leaves, else the whole lines of `linePx` that fit (at least one), the last ending in an ellipsis.
+ * @param {number} needPx @param {number} boxPx @param {number} linePx @returns {number|null}
+ */
+export function bubbleLines(needPx, boxPx, linePx) {
+  if (!(needPx > boxPx + 1) || !(linePx > 0)) return null;
+  return Math.max(1, Math.floor((boxPx + 1) / linePx));
+}
+
+// (fork) plain: the button is the emote icon alone, never the client's 交流 plate (the room chat's input row; live bug
+// 2026-11-13: where the server has the client art, the row's own button style wiped the plate and showed no icon)
+export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownMs = EMOTE_COOLDOWN_MS, textPane = null, textLeft = null, plain = false }) {
   useData('local');
   useEffect(() => { ensureEmoteCss(); }, []);
   const [page, setPage] = useState(lastThemeIndex);
@@ -320,7 +356,7 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
   const emotesTab = t('表情'); // en: "Emote"
   const textTab = t('文字'); // en: "Text"
   const theme = EMOTE_THEMES[clampPage(page)];
-  const btnSprite = emoteUiSprite(disabled || cooling ? 'emoji_btn_disable' : 'emoji_btn');
+  const btnSprite = plain ? null : emoteUiSprite(disabled || cooling ? 'emoji_btn_disable' : 'emoji_btn');
   const panelBg = emoteUiSprite('emoji_bkg');
   const cellBg = emoteUiSprite('emoji_cell_bkg');
   const panelStyle = [panelBg && `--ewheel-bg:url("${panelBg}")`, cellBg && `--ewheel-cell:url("${cellBg}")`].filter(Boolean).join(';');

@@ -13,6 +13,8 @@ import * as bossesMod from '../../server/sim/content/bosses.js';
 import { grantHitShield } from '../../server/sim/content/enemies/helpers.js';
 import { spawnYanyou } from '../../server/sim/content/tokens.js';
 import { attackWindup } from '../../server/sim/ai.js';
+import { fxStateView } from '../../server/sim/snapshot.js';
+import { unitStatsEntry } from '../../shared/protocol.js';
 
 const E = JSON.parse(fs.readFileSync(new URL('../../data/enemies.json', import.meta.url), 'utf8'));
 const W = JSON.parse(fs.readFileSync(new URL('../../data/waves.json', import.meta.url), 'utf8'));
@@ -53,6 +55,8 @@ const approx = (a, b, eps = 1e-6, msg = '') => assert.ok(Math.abs(a - b) <= eps 
 const nm = (k) => `${k} ${E[k] ? E[k].name : ''}`;
 const statuses = (h, id, key) => h.hooksOf('statusApplied').filter((c) => c.target.id === id && c.status === key);
 const killed = (h, e, by = null) => h.b.kill(e, by);
+// (fork) a unit's b.snap fxs rows of one buff: [src, look] each
+const fxRows = (u, h, buff) => (fxStateView(u, h.b.time) || []).filter((r) => r[0] === buff).map((r) => r.slice(1));
 const alive = (h, key) => h.enemies().filter((e) => e.defId === key);
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -146,6 +150,10 @@ test(`${nm('enemy_1404_msnip')}: 直击 — 1.4 s after the cast a unit in line 
   approx(statuses(h, w.id, 'stun')[0].duration, s.bb.stun);
   approx(w.stats.taken, e.s.atk * s.bb.atk_scale * (1 - 0 / 100));
   assert.ok(e.findBuff('ab:revealed'), 'still revealed at 2.1 s');
+  // (fork) the bolt's 'shot' names it, its target and the sim's flight (4 tiles at 12/s): the client flies the official bolt
+  const shot = h.eventsOf('fx').find((f) => f[1] === 'shot' && f[4].kind === 'crossBolt');
+  assert.ok(shot && shot[4].from === e.id && shot[4].to === w.id);
+  approx(shot[4].dur, 4 / 12);
   h.run(0.5);                                               // 2.6 s in: the skill is over
   assert.ok(!e.findBuff('ab:revealed') && !e.s.flags.noMove, 'skill over after 2.5 s');
   // stunned during the charge: no bolt
@@ -400,7 +408,17 @@ for (const key of ['enemy_1200_msfjin', 'enemy_1204_msfhu', 'enemy_1288_duskls']
     h.step();
     const e = put(h, key, [10, 7]);
     const g = h.unit('t_mage');
-    if (/duskls/.test(key)) { killed(h, e, g); assert.ok(e.alive, 'ember'); h.run(HUSK_REBIRTH + 0.05); }
+    if (/duskls/.test(key)) {
+      const ev0 = h.events.length;
+      killed(h, e, g);
+      assert.ok(e.alive, 'ember');
+      // (fork, enemy skills 2026-11-13) the 1 s 重生 casts the record's BornAnim (its slot, held HUSK_REBIRTH s: the client's
+      // skill window plays enemy_duskls_revive_2 for it)
+      h.step();
+      const slot = E[key].skills.findIndex((x) => x.prefabKey === 'BornAnim');
+      assert.deepEqual(h.events.slice(ev0).filter((ev) => ev[0] === 'cast' && ev[1] === e.id), [['cast', e.id, slot, HUSK_REBIRTH]], 'the 重生 casts BornAnim');
+      h.run(HUSK_REBIRTH + 0.05);
+    }
     const hits = e.s.maxHp;
     assert.ok(hits > 1 && hits <= 30);
     let n = 0;
@@ -704,6 +722,8 @@ test(`${nm('enemy_1275_dwlock_2')}: apoptosis on hit; DeathEye channels arts dam
   assert.ok(h.b.time >= s.initCooldown - 1e-6);
   h.run(s.bb.hit_duration + 1);
   assert.ok(h.eventsOf('fx').some((f) => f[1] === 'beam' && f[4].kind === 'deathEye'));
+  // (fork) the burst names its caster and target: the client flies the official ChargeAttack shot for it
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'explode' && f[4].kind === 'apoptosis' && f[4].from === e.id && f[4].to != null));
   const w2 = h.unit('t_wall2');
   assert.ok(w2.elem.apoptosis >= e.s.atk * s.bb.ep_damage_ratio - 1e-6 || w2.findBuff('apoptosisBurst'));
 });
@@ -1178,7 +1198,13 @@ test(`${nm('enemy_9009_acfort')}: grabs ≤ 3 normal flyers within 2.5 × range_
   assert.ok(Math.hypot(out.x - e.x, out.y - e.y) > R && Math.hypot(near[3].x - e.x, near[3].y - e.y) <= R);
   h.run(k.initCooldown + 0.1);
   assert.ok(e.findBuff('ab:grabbing')?.flags.bind, '黑云 holds still while grabbing');
-  h.run(0.5 + k.bb.duration + 0.1);
+  // (fork) display: each grabbed flyer carries the client's enemy_acfort[kill_other] (its trapped loop; src 黑云), the
+  // flyer out of the three does not; no ammo yet: no glow (b.snap fxs)
+  h.run(0.6);
+  const fxRows = (id) => (h.b.snapshot().fxs || []).filter((r) => r[0] === id).map((r) => r.slice(1));
+  assert.deepEqual(near.map((y) => fxRows(y.id)), [...Array(3).fill([['enemy_acfort[kill_other]', e.id, null]]), []]);
+  assert.deepEqual(fxRows(e.id), []);
+  h.run(k.bb.duration);
   assert.deepEqual(near.map((y) => y.alive), [false, false, false, true], 'the nearest three are devoured');
   assert.ok(out.alive, 'out of reach');
   const w1 = h.unit('t_wall'), w2 = h.unit('t_wall2');
@@ -1187,6 +1213,12 @@ test(`${nm('enemy_9009_acfort')}: grabs ≤ 3 normal flyers within 2.5 × range_
   h.run(0.1);
   approx(w1.stats.taken + w2.stats.taken, 3 * e.s.atk * f.bb.atk_scale, 1e-6, 'one hit per ammo');
   assert.equal(e.mem.ab.ammo, 0, 'all SP spent');
+  // (fork) display: 黑云 glows while it holds ammo (enemy_acfort_vfx: SP > 0) — here it fires as the ammo comes, so the
+  // snapshot-time probe is read with ammo held by hand (restored: nothing in the battle reads it)
+  assert.deepEqual(fxRows(e.id), [], 'no glow once the ammo is spent');
+  e.mem.ab.ammo = 2;
+  assert.deepEqual(fxRows(e.id), [['enemy_acfort_vfx', null, null]], 'the ammo glow while it holds ammo');
+  e.mem.ab.ammo = 0;
   checkInvariants(h.b);
 });
 
@@ -1565,6 +1597,9 @@ test(`${nm('enemy_1273_stmgun_2')}: Cannon locks the highest-max-HP unit in rang
   assert.equal(h.b.applyStatus(e, 'stun', { duration: 1 }), false, '晕眩免疫 during it');
   h.run(5.5);
   assert.equal(h.eventsOf('fx').filter((f) => f[1] === 'explode' && f[4].kind === 'cannon').length, 10, '10 shots');
+  // (fork) each shell names the gun and the unit hit: the client lands the official shell on it
+  const hit = new Set([h.unit('t_wall').id, h.unit('t_gun').id]);
+  assert.ok(h.eventsOf('fx').filter((f) => f[1] === 'explode' && f[4].kind === 'cannon').every((f) => f[4].from === e.id && hit.has(f[4].to)));
   assert.ok(h.unit('t_wall').stats.taken + h.unit('t_gun').stats.taken > 0);
   assert.ok(!e.findBuff('ab:cannon') && h.b.applyStatus(e, 'stun', { duration: 1 }) !== false, 'over afterwards');
 });
@@ -1616,11 +1651,27 @@ test(`${nm('enemy_10027_vtsk')}: entrance barrage (${skb('enemy_10027_vtsk', 'Ap
   const h = arena({ units: [{ chessId: 't_wall', row: 10, col: 7 }, { chessId: 't_gun', row: 12, col: 3 }], captureNoisy: true, hooks: ['damaged'], chess: { t_wall: WALL('t_wall', { stats: { maxHp: 2e7 } }) } });
   h.step();
   const e = put(h, 'enemy_10027_vtsk', [10, 8]);
-  h.run(0.6);
-  const barrage = h.hooksOf('damaged').filter((c) => c.source === e && !c.dmg.isAttack);
-  assert.equal(barrage.length, skb('enemy_10027_vtsk', 'Appear').bb.times);
-  assert.ok(barrage.every((c) => c.target === h.unit('t_wall')), 'the highest-HP unit');
-  approx(barrage[0].amount, e.s.atk);
+  const wall = h.unit('t_wall'), n = skb('enemy_10027_vtsk', 'Appear').bb.times;
+  const barrage = () => h.hooksOf('damaged').filter((c) => c.source === e && !c.dmg.isAttack);
+  // (fork, enemy skills 2026-11-13) as the client times it: the mark at 0.5 s (enemy_vtsk_skillRange, 5.8 s), the shell
+  // on the spot 0.8 s later, then a hit every 0.5333 s
+  h.run(0.55);
+  assert.equal(barrage().length, 0, 'marked, not hit yet');
+  assert.ok(wall.fxStates?.has('enemy_vtsk_skillRange'), 'the mark on its target');
+  h.run(0.8 + 0.5333 - 0.1);
+  assert.equal(barrage().length, 0, 'no hit before the first period');
+  h.run(0.15);
+  assert.equal(barrage().length, 1, 'the first shell');
+  h.run(0.5333 * (n - 1));
+  assert.equal(barrage().length, n);
+  assert.ok(barrage().every((c) => c.target === wall), 'the highest-HP unit');
+  approx(barrage()[0].amount, e.s.atk);
+  const fx = h.events.filter((ev) => ev[0] === 'fx');
+  assert.equal(fx.filter((ev) => ev[1] === 'explode' && ev[4]?.kind === 'vtskShell' && ev[4].id === e.id).length, n, 'a hit row per shell');
+  const tg = fx.find((ev) => ev[1] === 'telegraph' && ev[4]?.kind === 'barrage');
+  approx(tg[4].dur, 5.85 - 0.8);
+  h.run(5.8 - (0.8 + 0.5333 * n) + 0.1);
+  assert.ok(!wall.fxStates?.get('enemy_vtsk_skillRange') || wall.fxStates.get('enemy_vtsk_skillRange').until <= h.b.time, 'the mark ends after 5.8 s');
   h.runUntil(() => e.stats.attacks >= 1, 10);
   h.run(1);   // (its shot lands: since 0.2.0 the first strike comes at the clip's damage frame, after the barrage window)
   const d = h.hooksOf('damaged').find((c) => c.source === e && c.dmg.isAttack);
@@ -1762,11 +1813,15 @@ test(`${nm('enemy_1364_spnaxe_2')}: heals and stacks ATK when a unit within ${tb
   const e = put(h, 'enemy_1364_spnaxe_2', [10, 7]);
   const o = put(h, 'enemy_1007_slime', [10, 6.5]);
   const far = put(h, 'enemy_1007_slime', [10, 5.8]);                 // 1.2 tiles away: outside Attack.range_radius
+  // (fork) its official mark on every unit within the radius (either side; here enemies spawned after it), not on itself
+  assert.deepEqual([fxRows(o, h, 'enemy_spnaxe_buffs[mark]'), fxRows(far, h, 'enemy_spnaxe_buffs[mark]'), fxRows(e, h, 'enemy_spnaxe_buffs[mark]')], [[[e.id, 'mark']], [], []]);
   h.b.dealDamage(null, e, { amount: 5000, type: 'true' });
   const hp = e.hp;
   killed(h, far, null);
   assert.equal(e.hp, hp);
+  assert.deepEqual(fxRows(e, h, 'enemy_spnaxe_buffs[mark]'), [], 'no heal for a knock-out outside');
   killed(h, o, null);
+  assert.deepEqual(fxRows(e, h, 'enemy_spnaxe_buffs[mark]'), [[null, 'heal']], '(fork) its official heal');
   approx(e.hp - hp, e.s.maxHp * tb('enemy_1364_spnaxe_2', 'Attack.hp_ratio'));
   approx(e.s.atk, E.enemy_1364_spnaxe_2.stats.atk * (1 + tb('enemy_1364_spnaxe_2', 'Attack.atk')));
   const total = h.b.total;
@@ -1887,6 +1942,10 @@ test(`${nm('enemy_1504_cqbw')}: C4 blasts (ATK×${skb('enemy_1504_cqbw', 'C4').b
   e.profile.noAttack = true;
   h.run(skb('enemy_1504_cqbw', 'C4').initCooldown + 1.2);
   approx(h.unit('t_wall').stats.taken, e.s.atk * skb('enemy_1504_cqbw', 'C4').bb.atk_scale);
+  // (fork) the C4 names her and its carrier, the blast her: the client flies the official C4 for the fuse
+  const w = h.unit('t_wall');
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'telegraph' && f[4].kind === 'c4' && f[4].from === e.id && f[4].to === w.id && f[4].dur > 0));
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'explode' && f[4].kind === 'c4' && f[4].from === e.id));
 });
 
 test(`${nm('enemy_1509_mousek')}: opening arts-only barrier (${tb('enemy_1509_mousek', 'shield.dynamic')}) with DEF +${tb('enemy_1509_mousek', 'defup.def')} while it holds; ×${tb('enemy_1509_mousek', 'enrage.damage_scale')} damage below half`, () => {
@@ -1929,6 +1988,34 @@ test(`${nm('enemy_1509_mousek')}: 【唱沙】 ${skb('enemy_1509_mousek', 'Drift
   checkInvariants(h.b);
 });
 
+// (fork, enemy skills 2026-11-13) the client's Mark (enm_pfb_17 Skills/Mark): cast once at its initCooldown, a marker on the
+// highest- and one on the lowest-max-HP unit (b.snap fxs, src 鼠王), moved every tick as that changes, gone with 鼠王
+test(`${nm('enemy_1509_mousek')}: Mark — markers on the highest- and lowest-max-HP units from ${skb('enemy_1509_mousek', 'Mark').initCooldown} s, following them, gone with it`, () => {
+  const big = WALL('t_wall', { stats: { maxHp: 2e7 } });
+  const mid = WALL('t_wall2', { stats: { maxHp: 1e7 } });
+  const small = WALL('t_wall3', { stats: { maxHp: 5e6 } });
+  const h = arena({ units: [{ chessId: 't_wall', row: 10, col: 4 }, { chessId: 't_wall2', row: 10, col: 5 }, { chessId: 't_wall3', row: 12, col: 8 }],
+    chess: { t_wall: big, t_wall2: mid, t_wall3: small } });
+  h.step();
+  const e = put(h, 'enemy_1509_mousek', [9, 9]);
+  e.profile.noAttack = true;
+  const fx = (id) => (fxStateView(h.unit(id), h.b.time) || []).map((r) => `${r[0]}<${r[1] === e.id ? 'rat' : r[1]}`);
+  const mk = skb('enemy_1509_mousek', 'Mark');
+  h.run(mk.initCooldown - 0.2);
+  assert.deepEqual([fx('t_wall'), fx('t_wall3')], [[], []], 'not before its first cast');
+  h.run(0.3);
+  assert.deepEqual(fx('t_wall'), ['mousek_mark[b]<rat'], 'the highest max HP');
+  assert.deepEqual(fx('t_wall3'), ['mousek_mark[a]<rat'], 'the lowest max HP');
+  assert.deepEqual(fx('t_wall2'), []);
+  killed(h, h.unit('t_wall'), null);
+  h.step();
+  assert.deepEqual(fx('t_wall2'), ['mousek_mark[b]<rat'], 'the marker moves to the next highest');
+  killed(h, e, null);
+  h.step();
+  assert.deepEqual([fx('t_wall2'), fx('t_wall3')], [[], []], 'gone with 鼠王');
+  checkInvariants(h.b);
+});
+
 test(`${nm('enemy_1511_mdrock')}: stacking ATK on attacks; barrier raises max HP and ASPD while it holds`, () => {
   const h = arena({ units: [{ chessId: 't_wall', row: 9, col: 5 }] });
   h.step();
@@ -1949,6 +2036,8 @@ test(`${nm('enemy_1513_dekght')} + ${nm('enemy_1513_dekght_2')}: plus-shaped hit
   assert.ok(h.unit('t_wall2').stats.taken > 0);
   killed(h, b, null);
   approx(a.s.atk, E.enemy_1513_dekght.stats.atk * (1 + tb('enemy_1513_dekght', 'triggerrage.atk')));
+  // (fork) the rage shows: the client's TriggerRage row (b.snap fxs)
+  assert.ok((h.b.snapshot().fxs || []).some((r) => r[0] === a.id && r[1] === 'dekght[trigger_rage]'));
 });
 
 test(`${nm('enemy_1539_reid')}: ATK up below half; first KO ⇒ ${tb('enemy_1539_reid', 'Reborn.duration')} s rebirth (invulnerable, inert), back at ${tb('enemy_1539_reid', 'Reborn.hp_ratio') * 100} %; 【冲锋】 speeds up near a unit`, () => {
@@ -1991,10 +2080,12 @@ test(`${nm('enemy_1539_reid')}: ATK up below half; first KO ⇒ ${tb('enemy_1539
 test(`${nm('enemy_2003_rockman')}: boulder stuns a non-stunned unit for ${skb('enemy_2003_rockman', 'StunAttack').bb.stun} s`, () => {
   const h = arena({ units: [{ chessId: 't_wall', row: 10, col: 6 }], hooks: ['statusApplied'] });
   h.step();
-  put(h, 'enemy_2003_rockman', [10, 8]);
+  const e = put(h, 'enemy_2003_rockman', [10, 8]);
   h.run(skb('enemy_2003_rockman', 'StunAttack').initCooldown + 1);
   const s = statuses(h, h.unit('t_wall').id, 'stun');
   assert.equal(s.length, 1);
+  // (fork) the boulder's 'shot' names it and its target: the client flies the official boulder
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'shot' && f[4].kind === 'boulder' && f[4].from === e.id && f[4].to === h.unit('t_wall').id && f[4].dur > 0));
   approx(s[0].duration, skb('enemy_2003_rockman', 'StunAttack').bb.stun);
 });
 
@@ -2188,7 +2279,15 @@ test(`${nm('enemy_1513_dekght_2')}: 爆炸箭 — 3 targets, ${skb('enemy_1513_d
   h.run(s.initCooldown + 0.1);
   assert.equal(h.eventsOf('fx').filter((f) => f[1] === 'telegraph' && f[4].kind === 'blastArrow').length, 3);
   assert.equal(h.unit('t_wall').stats.taken, 0, 'delayed');
+  // (fork) each arrow names its target; the targets carry the official mark until the blast (b.snap fxs)
+  const tel = h.eventsOf('fx').filter((f) => f[1] === 'telegraph' && f[4].kind === 'blastArrow');
+  assert.ok(tel.every((f) => f[4].id === e.id && f[4].to != null));
+  const marked = (h.b.snapshot().fxs || []).filter((r) => r[1] === 'dekght_2[aoe]');
+  assert.deepEqual(marked.map((r) => r[0]).sort(), tel.map((f) => f[4].to).sort());
+  assert.ok(marked.every((r) => r[2] === e.id));
   h.run(s.bb['dekght_2[aoe].interval']);
+  assert.ok(!(h.b.snapshot().fxs || []).some((r) => r[1] === 'dekght_2[aoe]'), 'the mark ends with the blast');
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'explode' && f[4].kind === 'blastArrow' && f[4].from === e.id));
   approx(h.unit('t_wall').stats.taken, e.s.atk * s.bb['dekght_2[aoe].atk_scale']);
   assert.equal(h.unit('t_wall4').stats.taken, 0, 'out of range');
 });
@@ -2556,6 +2655,9 @@ test(`${nm('enemy_1535_wlfmster')}: −${tb('enemy_1535_wlfmster', 'Passive.dama
   const caged = h.allies().filter((u) => u.findBuff('ab:fearCage'));
   assert.equal(caged.length, fc.bb.max_target);
   assert.equal(caged[0].s.aspd, 100 + fc.bb.attack_speed);
+  // (fork) the official fear cage on each caught unit, and Zaaro's HP record while they wait
+  for (const u of caged) assert.deepEqual(fxRows(u, h, 'enemy_wlfmster_fearcage'), [[e.id, null]]);
+  assert.deepEqual(fxRows(e, h, 'enemy_wlfmster_damage_record'), [[null, null]]);
   const hp0 = caged[0].hp, mh = caged[0].s.maxHp;
   h.run(10);
   // 1 tick per second at maxHp × hp_ratio × t / duration_bleed: 10 ticks ≈ 30 % × (0+1+…+10)/40 of max HP
@@ -2570,6 +2672,7 @@ test(`${nm('enemy_1535_wlfmster')}: −${tb('enemy_1535_wlfmster', 'Passive.dama
   h.b.loseHp(e, e.s.maxHp * 0.03);
   h.run(0.3);
   assert.equal(h.allies().filter((u) => u.findBuff('ab:fearCage')).length, 0, 'cured at 20 %');
+  assert.deepEqual([...caged.map((u) => fxRows(u, h, 'enemy_wlfmster_fearcage')), fxRows(e, h, 'enemy_wlfmster_damage_record')], [[], [], [], []]);
   h.run(fc.bb.duration_wait - 0.7);
   assert.equal(h.allies().filter((u) => u.findBuff('ab:fearCage')).length, 0, '"场上技能效果全部结束时狼之主获得7s静默"');
   h.run(0.6);
@@ -2580,6 +2683,8 @@ test(`${nm('enemy_1535_wlfmster')}: −${tb('enemy_1535_wlfmster', 'Passive.dama
   h.run(tb('enemy_1535_wlfmster', 'Reborn.duration') / 2);
   approx(e.hpRatio, 0.5, 0.05, 'HP refills during 远古威慑');
   assert.equal(h.unit('t_wall').s.aspd, 100 - 50, 'aura slows the units within 1.5');
+  assert.deepEqual(fxRows(h.unit('t_wall'), h, 'enemy_wlfmster_fear'), [[e.id, null]], '(fork) the official FearAura effect on it');
+  assert.deepEqual(fxRows(h.unit('t_wall3'), h, 'enemy_wlfmster_fear'), []);
   assert.equal(h.unit('t_wall4').s.aspd, 100 - 50, '√2 away: inside');
   assert.equal(h.unit('t_wall3').s.aspd, 100, '√5 away: outside');
   h.run(tb('enemy_1535_wlfmster', 'Reborn.duration') / 2 + 0.1);
@@ -2979,11 +3084,48 @@ test('假想敌：铳: unblockable, targets the highest DEF in range, ASPD ramps
   const e = put(h, 'enemy_9017_achunt', [3, 10], { tag: 'boss' });
   assert.ok(e.s.flags.unblockable);
   assert.equal(e.s.aspd, 20, 'data ASPD 0 → floor 20');
-  h.runUntil(() => e.stats.attacks >= 3, 120);
+  // the official base is that 20 (Attributes.Reset clamps the raw attribute): the card compares against 22.5 s, not 4.5 s
+  assert.equal(e.base.aspd, 20);
+  approx(unitStatsEntry(e, e.s).base.interval, 22.5);
+  approx(unitStatsEntry(e, e.s).interval, 22.5);
+  const step = tb('enemy_9017_achunt', '2.attack_speed'), maxN = tb('enemy_9017_achunt', '2.max_stack_cnt');
+  // BrownbTalent_1.Apply: every hit on the same target adds a stack, the first one included; 20 + 80·n
+  for (let n = 1; n <= maxN + 1; n++) {
+    h.runUntil(() => e.stats.attacks >= n, 120);
+    assert.equal(e.s.aspd, 20 + step * Math.min(n, maxN), `after hit ${n}`);
+  }
   assert.equal(h.unit('t_wall').stats.taken, 0);
   assert.ok(h.unit('t_wall2').stats.taken > 0);
-  assert.equal(e.s.aspd, 2 * tb('enemy_9017_achunt', '2.attack_speed'));
   assert.ok(h.unit('t_wall2').elem[EROSION] > 0);
+});
+
+test('假想敌：铳: a new target clears the stacks, then its first hit adds one', () => {
+  const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 9 }, { chessId: 't_wall2', row: 10, col: 11 }], chess: { t_wall: WALL('t_wall', { def: 100 }), t_wall2: WALL('t_wall2', { def: 500 }) } });
+  h.step();
+  const e = put(h, 'enemy_9017_achunt', [3, 10], { tag: 'boss' });
+  const step = tb('enemy_9017_achunt', '2.attack_speed');
+  h.runUntil(() => e.stats.attacks >= 3, 120);
+  assert.equal(e.s.aspd, 20 + 3 * step);
+  h.b.retreat(h.unit('t_wall2'), { permanent: true });            // the highest-DEF target leaves: t_wall is next
+  const n = e.stats.attacks;
+  h.runUntil(() => e.stats.attacks >= n + 1, 120);
+  assert.equal(e.s.aspd, 20 + step, 'cleared, then one stack');
+  assert.ok(h.runUntil(() => h.unit('t_wall').stats.taken > 0, 3), 'that shot was at t_wall');
+  // the interval follows: 4.5 s × 100 / 100 = 4.5 s, the card's base stays 22.5 s (a green −18.00)
+  approx(e.s.interval, 4.5);
+  approx(unitStatsEntry(e, e.s).base.interval, 22.5);
+});
+
+test('假想敌：管 / 弦: data ASPD 0 → the official base 20 (15 s / 25 s), so the card shows no slow', () => {
+  for (const [key, bat] of [['enemy_9021_acduml', 3], ['enemy_9022_acdumm', 5]]) {
+    const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 9 }], chess: { t_wall: WALL('t_wall') } });
+    h.step();
+    const e = put(h, key, [3, 10], { tag: 'boss' });
+    assert.equal(E[key].stats.aspd, 0, key);
+    assert.equal(e.s.aspd, 20, key);
+    approx(e.s.interval, bat * 5, 1e-9, key);
+    approx(unitStatsEntry(e, e.s).base.interval, bat * 5, 1e-9, key);
+  }
 });
 
 test('假想敌：铳 最终之罚: charges at the highest-DEF ground unit, trampling units on the way (ATK×1.2)', () => {
@@ -3006,20 +3148,45 @@ test('假想敌：铳 (h07_02 override) never uses 最终之罚 in the regular b
   assert.ok(!h.eventsOf('fx').some((f) => f[1] === 'charge'));
 });
 
-test('隐秘核心 铳: another gun alone grants 80% reduction from the very first hit; no stale reduction after it leaves', () => {
+// Official: achunt_passive marks, once and 0.03 s after the gun appears, every other achunt_mark unit then on the field;
+// achunt_take_damage scales the gun's damage taken while one of them lives (bosses.js kitGun, §37.109).
+test('隐秘核心 铳: a gun marks the guns and springs present 0.03 s after it appears; ×0.2 while one of them lives, none for later arrivals', () => {
   const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 7 }] });
   h.step();
-  const g = put(h, 'enemy_9017_achunt_2', [3, 10], { tag: 'boss' });
   const other = put(h, 'enemy_9017_achunt_2', [3, 4], { tag: 'boss' });
-  const full = 1000 * (1 - g.s.res / 100);
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full * 0.2);
+  other.profile.noAttack = true;
+  const g = put(h, 'enemy_9017_achunt_2', [3, 10], { tag: 'boss' });
+  g.profile.noAttack = true;
+  const full = 1000 * (1 - g.s.res / 100), scale = tb('enemy_9017_achunt_2', '4.damage_scale');
+  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full, 1e-9, 'nothing marked before 0.03 s');
+  h.step(2);
+  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full * scale, 1e-9, 'the gun present at the mark');
+  const spring = put(h, 'enemy_9020_actrpc', [3, 6], { tag: 'part' });
+  spring.profile.noAttack = true;
+  h.step(2);
   // Leaving the field without killing the shared boss pool isolates the companion condition.
   other.alive = false; other.deployed = false;
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full);
-  const spring = put(h, 'enemy_9020_actrpc', [3, 6], { tag: 'part' });
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full * 0.2);
-  spring.alive = false; spring.deployed = false;
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full);
+  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full, 1e-9, 'a spring that came later was never marked');
+  checkInvariants(h.b); assert.deepEqual(h.b.errors, []);
+});
+
+test('隐秘核心 铳 pair: once the springs are gone the 0.1 s gun takes full damage, the leader keeps ×0.2 while that gun lives', () => {
+  const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 7 }] });
+  h.step();
+  const springs = ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc'].map((k, i) => put(h, k, [1 + i * 2, 4], { tag: 'part' }));
+  const first = put(h, 'enemy_9017_achunt_2', [3, 14], { tag: 'boss' });
+  h.step(2);
+  const leader = put(h, 'enemy_9017_achunt_2', [3, 8], { tag: 'boss' });
+  h.step(2);
+  for (const o of [first, leader, ...springs]) o.profile.noAttack = true;
+  const full = 1000 * (1 - first.s.res / 100), scale = tb('enemy_9017_achunt_2', '4.damage_scale');
+  approx(h.b.dealDamage(null, first, { amount: 1000, type: 'arts' }), full * scale);
+  approx(h.b.dealDamage(null, leader, { amount: 1000, type: 'arts' }), full * scale);
+  for (const s of springs) { s.alive = false; s.deployed = false; }
+  approx(h.b.dealDamage(null, first, { amount: 1000, type: 'arts' }), full, 1e-9, 'the first gun marked the springs only');
+  approx(h.b.dealDamage(null, leader, { amount: 1000, type: 'arts' }), full * scale, 1e-9, 'the leader also marked the first gun');
+  first.alive = false; first.deployed = false;
+  approx(h.b.dealDamage(null, leader, { amount: 1000, type: 'arts' }), full);
   checkInvariants(h.b); assert.deepEqual(h.b.errors, []);
 });
 
@@ -3041,6 +3208,23 @@ test('假想敌：铳 (隐秘核心): damage ×0.2 while springs live; 盲信之
   h.run(s2.initCooldown - h.b.time + 0.2);
   assert.ok(sp.s.flags.invulnerable && sp.mem.ab.dash);
   assert.ok(sp.s.flags.disarm, '追逐模式: 不进行普通攻击');
+});
+
+test("(fork) “碎铳之簧” 追逐模式: each trample hit shows the variant's official hit (a: actrpa_s_1[damage], c: actrpc_s_1[damage], b: none)", () => {
+  for (const [key, buff] of [['enemy_9018_actrpa', 'actrpa_s_1[damage]'], ['enemy_9020_actrpc', 'actrpc_s_1[damage]'], ['enemy_9019_actrpb', null]]) {
+    const h = bossArena({ units: [{ chessId: 't_wall', row: 3, col: 4 }] });
+    h.step();
+    put(h, 'enemy_9017_achunt_2', [3, 18], { tag: 'boss' }).profile.noAttack = true;
+    const sp = put(h, key, [3, 4], { tag: 'part' });
+    sp.profile.noAttack = true;
+    sp.mem.ab.dash = { until: h.b.time + 1, hit: new Set(), mul: 1, gun: null };
+    h.step();
+    const w = h.unit('t_wall');
+    const rows = (fxStateView(w, h.b.time) || []).filter((r) => /_s_1\[damage\]$/.test(r[0]));
+    assert.deepEqual(rows, buff ? [[buff, sp.id, null]] : [], key);
+    h.run(0.5);
+    assert.deepEqual((fxStateView(w, h.b.time) || []).filter((r) => /_s_1\[damage\]$/.test(r[0])), [], `${key}: one-shot, gone`);
+  }
 });
 
 test('“碎铳之簧” 法术护盾 (9018): barrier absorbs arts, physical ×0.1 with a counter; damage passes to 铳', () => {
@@ -3205,6 +3389,28 @@ test('spring transfer selects the highest-hatred gun across the field rather tha
   assert.deepEqual(b.errors, []);
 });
 
+// Official: the spring passives' BossSelector keeps 1 unit carrying achunt_mark with the key enemy_9017_achunt — a gun,
+// never another spring (buff_template_holder actrpa_passive / actrpb_passive; bosses.js kitSpring transfer, §37.109).
+for (const key of ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc']) {
+  test(`${key}: the HP loss goes to the gun only, the other springs keep their HP`, () => {
+    const { h, b, source, gun, spring } = springShareArena(key, { spendCount: true });
+    const others = ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc'].map((k, i) => {
+      const o = put(h, k, [2 + i, 6], { tag: 'part' });
+      o.profile.noAttack = true;
+      return o;
+    });
+    const hp = others.map((o) => o.hp), gunHp = gun.hp;
+    const losses = [];
+    b.on('hpChanged', c => { if (c.kind === 'hpLoss') losses.push(c.target); });
+    assert.equal(b.dealDamage({ source: null, credit: source, target: spring, amount: 100, type: 'true' }), 100);
+    assert.deepEqual(losses, [gun], 'one HP loss, on the gun');
+    assert.equal(gun.stats.taken, 100);
+    assert.deepEqual(others.map((o) => o.hp), hp, 'no share to the other springs');
+    assert.ok(gun.hp <= gunHp);
+    assert.deepEqual(b.errors, []);
+  });
+}
+
 for (const attackType of ['NONE', 'NORMAL', 'SPLASH', 'BUFF', 'ADDITION']) test(`spring arts defence filters physical ${attackType} and uses a source-less counter`, () => {
   const h = bossArena({ units: [{ chessId: 't_wall', row: 12, col: 3 }] });
   h.step();
@@ -3326,8 +3532,9 @@ for (const priority of [1000, -1000]) test(`spring elemental defence follows a b
   assert.equal(b.errors.length, 0);
 });
 
-test('“碎铳之簧”: damage taken costs 假想敌：铳 as much (等量, 无来源) and, split, the other springs (never passed on twice)', () => {
-  // PRTS 碎铳之簧 "受到伤害时令全场范围内仇恨值最高的1名假想敌：铳受到等量的无来源生命流失" (DESIGN §20.10; v2.5: half)
+test('“碎铳之簧”: damage taken costs 假想敌：铳 as much (等量, 无来源), never the other springs', () => {
+  // PRTS 碎铳之簧 "受到伤害时令全场范围内仇恨值最高的1名假想敌：铳受到等量的无来源生命流失" (DESIGN §20.10; v2.5: half);
+  // official actrpa_passive / actrpb_passive select 1 achunt_mark unit of key enemy_9017_achunt (§37.109: no split)
   assert.equal(PART_TRANSFER, 1);
   const h = bossArena({ units: [{ chessId: 't_gun', row: 12, col: 3 }], kits: { t_gun: NOATK } });
   h.step();
@@ -3342,8 +3549,8 @@ test('“碎铳之簧”: damage taken costs 假想敌：铳 as much (等量, �
   const dealt = h.b.dealDamage(h.unit('t_gun'), a, { amount: 1e5, type: 'true' });
   assert.ok(dealt > 0);
   approx(pool0 - h.b.sharedBoss.hp, dealt);
-  approx(b0 - b.hp, dealt / 2);
-  approx(c0 - c.hp, dealt / 2);
+  assert.equal(b.hp, b0, 'the other springs keep their HP');
+  assert.equal(c.hp, c0);
   assert.ok(seen.length === 1 && seen[0].source === null && seen[0].credit === h.unit('t_gun'), '无来源, credited to the attacker');
   assert.ok(h.result().perPlayer.p1.bossDamage >= dealt - 1e-6, 'the per-player pool tally');
 });

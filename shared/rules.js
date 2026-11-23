@@ -33,6 +33,8 @@ export const RULE_CATEGORIES = Object.freeze(['neutral', 'cheat', 'seeded', 'ris
 
 export const RULE_EXTRA_DEPLOY = 2;
 export const RULE_EXTRA_FUNDS = 2;
+/** The per-bond layer cap with the cheat 「叠层上限 9999」 on (the official one is BOND_LAYER_CAP, 999; shared/constants.js layerCapOf). */
+export const RULE_BIG_STACK_CAP = 9999;
 /** The most ban picks a rules object keeps (the difficulties draw at most 3 core + 4 add-on). */
 export const RULE_BANS_MAX = 12;
 
@@ -45,6 +47,8 @@ export const RULES = Object.freeze([
   // cheats
   { key: 'extraDeploy', type: 'bool', category: 'cheat' },      // +RULE_EXTRA_DEPLOY deployment limit for every player
   { key: 'extraFunds', type: 'bool', category: 'cheat' },       // +RULE_EXTRA_FUNDS Funds at every round start
+  { key: 'bigStacks', type: 'bool', category: 'cheat' },        // the per-bond layer cap is RULE_BIG_STACK_CAP
+  { key: 'noHitLimit', type: 'bool', category: 'cheat' },       // the boss-hit limit (限伤, BOSS_HIT_LIMIT) is off: a hit of 300000+ on a leader lands
   { key: 'untimed', type: 'bool', category: 'cheat' },          // no countdown on the screens players act on (battles keep theirs)
   { key: 'doubleLp', type: 'bool', category: 'cheat' },         // every player starts with twice its strategy's LP
   { key: 'tierStart', type: 'bool', category: 'cheat' },        // every player starts with one random operator of each tier
@@ -59,6 +63,9 @@ export const RULES = Object.freeze([
   // rebalanced alliances
   { key: 'virtuosaBonds', type: 'bool', category: 'neutral' },  // 塑心 also in 迅捷 and 助力
   { key: 'blaze', type: 'bool', category: 'neutral' },          // 煌 replaces 凯瑟琳 in her shop slot
+  // (fork, GitHub #125) at the end, a Risk tag the room didn't take is added when the match shows it changed nothing
+  // (shared/autoAward.js); not a cheat
+  { key: 'autoAward', type: 'bool', category: 'neutral' },
   // less luck
   { key: 'stage', type: 'stage', category: 'seeded' },
   { key: 'bans', type: 'bans', category: 'seeded' },
@@ -167,16 +174,18 @@ export const anyRule = (rules) => rulesInForce(rules).length > 0;
 
 /**
  * How a result with these rules is labelled: `cheats` (the "WITH CHEATS" watermark), `seeded`, and `risk` (the sum of
- * the risk tags, cheats or not).
+ * the risk tags, cheats or not, plus the ones `awarded` at the end by the autoAward rule).
  * @returns {{ cheats: boolean, seeded: boolean, risk: number }}
  */
-export function ruleLabels(rules) {
+export function ruleLabels(rules, awarded = null) {
   const on = rulesInForce(rules).map((k) => BY_KEY.get(k));
   const cheats = on.some((r) => r.category === 'cheat');
   const seeded = on.some((r) => r.category === 'seeded');
   // with cheats too: the "WITH CHEATS" watermark says so, the end screen still shows the Risk (Fish 2026-10-16)
-  const risk = on.reduce((n, r) => n + (r.category === 'risk' ? ruleRisk(r.key, rules[r.key]) : 0), 0);
-  return { cheats, seeded, risk };
+  const taken = on.reduce((n, r) => n + (r.category === 'risk' ? ruleRisk(r.key, rules[r.key]) : 0), 0);
+  // (GitHub #125) plus the tags the autoAward rule added at the end ({ key: level }), counted the same
+  const auto = awarded && typeof awarded === 'object' ? Object.entries(awarded).reduce((n, [k, v]) => n + ruleRisk(k, v), 0) : 0;
+  return { cheats, seeded, risk: taken + auto };
 }
 
 /** The Risk of a rule at `value` (0 for anything but a Risk tag). */

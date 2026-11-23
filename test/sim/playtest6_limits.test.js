@@ -70,6 +70,17 @@ test('Battle.addLayers: clamps the live copy at 999; the event and layerGains ca
   assert.equal(h.result().perPlayer.P.layerGains.yanShip, 9, 'the result reports what was added');
 });
 
+test('Battle.addLayers with the cheat 「叠层上限 9999」 (flags.rules.bigStacks): the live copy clamps at 9999 (GitHub #174)', () => {
+  const h = layerBattle({ yanShip: { count: 3, active: true, tier: 1, layers: 990 } }, { flags: { rules: { bigStacks: true } } });
+  h.step();
+  const b = h.b;
+  assert.equal(b.addLayers('P', 'yanShip', 4000, 'garrison'), 4000);
+  assert.equal(b.getPlayer('P').bonds.yanShip.layers, 4990);
+  assert.equal(b.addLayers('P', 'yanShip', 20000, 'garrison'), 5009, 'only the room left (9999 − 4990)');
+  assert.equal(b.getPlayer('P').bonds.yanShip.layers, 9999);
+  assert.equal(b.addLayers('P', 'yanShip', 3, 'garrison'), 0, 'a gain at the cap adds 0');
+});
+
 test('Battle.addLayers: a layerGain hook that raises n (魔王 +1) is clamped after the hook', () => {
   const h = layerBattle({ yanShip: { count: 3, active: true, tier: 1, layers: 997 } }, {
     setup: (b) => b.on('layerGain', (c) => { c.n += 5; }),

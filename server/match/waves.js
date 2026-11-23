@@ -138,18 +138,29 @@ function entryList(gd) {
 }
 
 /**
- * The round pick of a type (client `_GenerateRandomEnemyData`): weighted entry of that type and half whose SPECIAL key
- * is allowed in the mode, plus a random attached normal / elite key (never filtered by the mode).
- * @returns {null | { round: number, type: string, key: string, normal: string|null, elite: string|null, fly: boolean, firstHalf: boolean }}
+ * The special entries a round of `type` draws from (client `_GenerateRandomEnemyData`): that type and half, the SPECIAL
+ * key allowed in the mode, sorted by key. (fork) Also the dev sandbox's variant picker (public/dev/sandbox-variants.js).
  */
-export function pickRoundEntry(gd, rng, type, round) {
+export function roundEntryCandidates(gd, type, round) {
   const half = round <= firstHalfMax(gd);
   const ok = (e) => e.type === type && !!e.firstHalf === half && e.key !== ACLOON && !!gd.enemy(e.key) && !gd.inactiveEnemies.has(e.key);
-  let cands = entryList(gd).filter(ok);
+  return entryList(gd).filter(ok);
+}
+
+/**
+ * The round pick of a type (client `_GenerateRandomEnemyData`): weighted entry of that type and half whose SPECIAL key
+ * is allowed in the mode, plus a random attached normal / elite key (never filtered by the mode).
+ * (fork) `entryKey`: the dev sandbox's chosen entry among the candidates, in place of the weighted draw (a key that is
+ * not a candidate draws as usual); a match never passes it.
+ * @returns {null | { round: number, type: string, key: string, normal: string|null, elite: string|null, fly: boolean, firstHalf: boolean }}
+ */
+export function pickRoundEntry(gd, rng, type, round, { entryKey = null } = {}) {
+  const half = round <= firstHalfMax(gd);
+  const cands = roundEntryCandidates(gd, type, round);
   if (!cands.length && type !== 'SPECIAL') return pickRoundEntry(gd, rng, 'SPECIAL', round);
   if (!cands.length) return null;
-  const idx = weightedPick(rng, cands.map((e, i) => [i, e.weight ?? 1]));
-  const e = cands[Number(idx) || 0];
+  const chosen = entryKey ? cands.find((x) => x.key === entryKey) : null;
+  const e = chosen || cands[Number(weightedPick(rng, cands.map((x, i) => [i, x.weight ?? 1]))) || 0];
   const pickKey = (list) => {
     const keys = (Array.isArray(list) ? list : []).map((x) => (typeof x === 'string' ? x : x && x.key)).filter((k) => typeof k === 'string' && gd.enemy(k) && k !== ACLOON);
     return keys.length ? keys[Math.floor(rng() * keys.length)] : null;

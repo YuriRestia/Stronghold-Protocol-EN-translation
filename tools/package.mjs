@@ -1198,8 +1198,8 @@ export function formatUpdate(r, version) {
 
 const USAGE = 'usage: node tools/package.mjs [--lite | --update --from <base zip or folder>[,<…>] | --assets] [--dry-run [--list]] [--out <dir>] [--force] [--keep-stage] [--no-install] [--allow-dirty] [--allow-dev] [--root <dir>]';
 
-/** Whether `version` is a development (pre-release) version, e.g. 0.2.0-dev. */
-export const isDevVersion = (version) => /-/.test(String(version || ''));
+/** Whether `version` is a development (pre-release) version, e.g. 0.2.0-dev. A numbered update (0.3.4-3) is a release. */
+export const isDevVersion = (version) => /-(?!\d+$)/.test(String(version || ''));
 
 export function parseArgs(argv) {
   const o = { lite: false, update: false, assets: false, from: [], dryRun: false, list: false, out: '', force: false, keepStage: false, install: true, allowDirty: false, allowDev: false, root: REPO, help: false };

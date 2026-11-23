@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { hasGeneratedData } from '../../server/sim/simdata.js';
 import { spawnYanyou, TOKEN_IDS } from '../../server/sim/content/tokens.js';
+import { fxStateView } from '../../server/sim/snapshot.js';
 
 const REAL = { skip: !hasGeneratedData() };
 const dummy = (o = {}) => enemyRec({ key: o.key ?? 'enemy_dummy', hp: 1e7, speed: 0, ...o });
@@ -100,6 +101,10 @@ test('#12 祛恶之焰 [模式乙]: locks the normal attack target, no normal at
   assert.ok(h.runUntil(() => y.skill.active, 25), '祛恶之焰');
   const t = y.mem.flame.target;
   assert.ok(t && t.alive, 'locked target');
+  // (fork) the official channel buff's range effect on the locked target only (b.snap fxs), given by 炎佑
+  const flameRows = (u) => (fxStateView(u, h.b.time) || []).filter((r) => r[0] === 'acloon_s_2');
+  assert.deepEqual(h.enemies().map((e) => flameRows(e).length), h.enemies().map((e) => (e === t ? 1 : 0)));
+  assert.deepEqual(flameRows(t), [['acloon_s_2', y.id, null]]);
   const attacks = y.stats.attacks;
   for (const e of h.enemies()) e.elem.burn = 0;               // the normal attacks' burn so far: keep the gauges unburst
   const burnBefore = burn.length;
@@ -133,9 +138,11 @@ test('#12 祛恶之焰 lasts at most hit_duration on a surviving target, and sil
   const len = h.b.time - t0;
   assert.ok(Math.abs(len - flameRec(h).bb.hit_duration) < 0.1, `20 s channel (${len.toFixed(2)})`);
   assert.ok(h.runUntil(() => y.skill.active, 20), 'next flame');
+  const t = y.mem.flame.target;
   h.b.applyStatus(y, 'silence', { duration: 3, source: null });
   h.step();
   assert.equal(y.skill.active, false, 'silenced: the channel ends');
+  assert.deepEqual((fxStateView(t, h.b.time) || []).filter((r) => r[0] === 'acloon_s_2'), [], '(fork) its official range effect ends with it');
 });
 
 test('#12 炎佑: 元素脆弱 aura within 1.5 of itself, immune to element damage, burn = 20 % ATK on normal hits', REAL, () => {

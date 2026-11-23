@@ -138,8 +138,9 @@ export function SearchBar({ room, facts, findMates, setFindMates }) {
   const on = !!room.searching;
   const armed = on || findMates;
   // en: "Stop searching to turn this off" / "Off: you can start the simulation right away"
-  const why = on ? t('停止搜寻后才能关闭') : !findMates ? t('关闭后可直接开始模拟')
-    : facts.othersReady ? null : t('所有博士准备就绪后才能搜寻队友');
+  const why = on ? t('停止搜寻后才能关闭') : !findMates ? `${t('关闭后可直接开始模拟')}
+${t('房间公开或搜寻队友后，不能再重刷本局。' /* en: "Once a room is public or uses Find Teammates, it has no stage setup reroll." */)}`
+    : facts.othersReady ? t('房间公开或搜寻队友后，不能再重刷本局。') : t('所有博士准备就绪后才能搜寻队友');
   return html`<button type="button" class=${`searchbar__switch${armed ? ' is-on' : ''}`} role="switch" aria-checked=${armed ? 'true' : 'false'}
       aria-label=${t('搜寻队友')} disabled=${on} title=${why} onClick=${() => setFindMates(!findMates)}>
     <span class="searchbar__track" aria-hidden="true"><i></i></span>
@@ -155,7 +156,8 @@ export function SearchButton({ room, facts, busy, online, run, Go }) {
     await net.request('room.search', { on: !on });
     if (on) toast(t('取消搜寻成功'), 'info');
   });
-  return html`<${Tooltip} text=${on || facts.othersReady ? null : t('仍有博士未准备就绪')}>
+  // (fork) before the search starts: rerolls stay off for this room from then on (server/lobby.js rerollLock)
+  return html`<${Tooltip} text=${on ? null : facts.othersReady ? t('房间公开或搜寻队友后，不能再重刷本局。' /* en: "Once a room is public or uses Find Teammates, it has no stage setup reroll." */) : t('仍有博士未准备就绪')}>
     <${Go} label=${on ? t('停止搜寻') : t('搜寻队友')} icon=${on ? 'close' : 'search'} tone=${on ? 'stop' : null} loading=${busy === 'search'}
       disabled=${!online || (!on && !facts.othersReady)} onClick=${toggle} />
   <//>`;

@@ -6,13 +6,14 @@
 // Installed on PlayerState.prototype by server/match/PlayerState.js (a method container: never instantiated; `this` is
 // the player state).
 
-import { RULE_EXTRA_FUNDS } from '../../../shared/constants.js';
+import { RULE_EXTRA_FUNDS, layerCapOf } from '../../../shared/constants.js';
 import { tagLevel } from '../../../shared/rules.js';
 import { CC, BOOSTER, ITEM_BOOSTER } from '../../../shared/ruleData.js';
 import { createRng, deriveSeed } from '../../sim/rng.js';
 import { boardOrder, pieceDir } from '../board.js';
 import { equippedItemProgress } from '../itemProgress.js';
 import { computeBonds, bondSnapshot, activatedLayers, bondsWithGains } from '../bondsMeta.js';
+import { noteBonds, noteHand } from '../autoAward.js';
 
 export class PlayerRound {
   /** The tierStart cheat's operators: per tier, a random base id the shared pool still has a copy of. */
@@ -109,14 +110,17 @@ export class PlayerRound {
   }
 
   recompute() {
+    noteHand(this.m, this); // (GitHub #125) a placement or unequip that filled the hand: Junk 1 can't be awarded
     this.deployMap(); // a change of the deploy field (a boss round's prep) marks the legality stale
     if (this._legalityStale) this._evictIllegal();
     this._liftOutOfRange();
     // a free regular hand slot pulls a temp piece in (PRTS 卫戍协议/帮助 §手牌区 "常规手牌区出现空位时自动移入")
     this._fillHandFromTemp();
+    noteHand(this.m, this);
     // the states the last recompute stored: the change since then is reported once (_reportActiveBonds)
     const before = this.bonds;
     this.bonds = computeBonds(this.gd, this);
+    noteBonds(this.m, this); // (GitHub #125) 投资人 active: Investor can't be awarded
     this.dirty();
     this._reportActiveBonds(before, this.bonds);
   }
@@ -151,7 +155,7 @@ export class PlayerRound {
    * in-battle gains of this round's finished normal battle (bondsMeta.bondsWithGains). The 联防 field fights with them too
    * (battleInput `reached`); no other rule reads them.
    */
-  bondsView() { return bondsWithGains(this.bonds, this.pendingLayerGains); }
+  bondsView() { return bondsWithGains(this.bonds, this.pendingLayerGains, layerCapOf(this.m.lobbyRules)); }
 
   /**
    * `reached`: the bonds carry the layers this round's own combat reached (bondsView: the pending in-battle gains, capped

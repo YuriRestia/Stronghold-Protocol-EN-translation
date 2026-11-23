@@ -1,0 +1,607 @@
+{
+  "version": 1,
+  "about": "Code areas -> the doc sections to read before editing them (AGENTS.md \"Read first\"; the crew doc-gate hook enforces it). Paths are globs from the repo root (** = any depth, * = within one folder). headings are exact heading lines. test/doc-map.test.js checks every doc, heading and path. A doc that is wrong or missing: fix it in the same branch and update this map.",
+  "entries": [
+    {
+      "id": "server-cost",
+      "paths": [
+        "server/**",
+        "shared/protocol*.js",
+        "public/js/net.js",
+        "public/js/battle/**",
+        "public/js/p2p.js",
+        "scripts/**",
+        "changes/**"
+      ],
+      "why": "what runs where (battles run in the browsers), what the server sends, and how a fragment states server cost",
+      "read": [
+        {
+          "doc": "docs/ARCHITECTURE.md",
+          "headings": [
+            "## 1. What runs where"
+          ]
+        },
+        {
+          "doc": "docs/design/network.md",
+          "headings": [
+            "## 14. Client-side combat (v2 architecture — supersedes the combat-streaming parts of §4, §8.2, §9)"
+          ]
+        },
+        {
+          "doc": "changes/README.md",
+          "headings": [
+            "## Server cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sim-engine",
+      "paths": [
+        "server/sim/*.js",
+        "server/sim/battle/**",
+        "server/sim/attack/**"
+      ],
+      "why": "the battle engine contract and determinism",
+      "read": [
+        {
+          "doc": "docs/SIM.md",
+          "headings": [
+            "## 1. Driving a battle (match owner)",
+            "## 5. Hook bus",
+            "## 6. Engine helpers (content must use these)"
+          ]
+        },
+        {
+          "doc": "docs/design/engine.md",
+          "headings": [
+            "### 5.1 Battle API (implemented by the sim-core owner; consumed by match & content)"
+          ]
+        },
+        {
+          "doc": "docs/design/geometry-time.md",
+          "headings": [
+            "## 4. Time model"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sim-kits",
+      "paths": [
+        "server/sim/content/kits/**",
+        "server/sim/content/generic.js",
+        "server/sim/content/tokens.js"
+      ],
+      "why": "operator kits: helpers, skills, official trigger rules",
+      "read": [
+        {
+          "doc": "docs/SIM.md",
+          "headings": [
+            "## 6. Engine helpers (content must use these)",
+            "## 7. Skills"
+          ]
+        },
+        {
+          "doc": "docs/design/engine.md",
+          "headings": [
+            "### 5.6 Skills (skills.js + kits)"
+          ]
+        },
+        {
+          "doc": "docs/research/03-operators.md",
+          "headings": [
+            "### 1.4 Skill auto-trigger rules (autoChessData.skillTriggerDataList + skillRangeDict)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sim-enemies",
+      "paths": [
+        "server/sim/content/enemies/**",
+        "server/sim/content/enemies.js",
+        "server/sim/content/bosses.js",
+        "server/sim/content/devices.js"
+      ],
+      "why": "enemy kits and bosses",
+      "read": [
+        {
+          "doc": "docs/SIM.md",
+          "headings": [
+            "## 6. Engine helpers (content must use these)",
+            "## 9. Wire format (snapshot.js, DESIGN §8.2)"
+          ]
+        },
+        {
+          "doc": "docs/design/engine.md",
+          "headings": [
+            "### Enemy passengers (§32.14.4, #564)"
+          ]
+        },
+        {
+          "doc": "docs/DATA.md",
+          "headings": [
+            "## 9. `enemies.json` — `{ [enemyKey]: Enemy }` (249 keys that can appear)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sim-content-meta",
+      "paths": [
+        "server/sim/content/bonds/**",
+        "server/sim/content/garrisons/**",
+        "server/sim/content/items/**",
+        "server/sim/content/support/**",
+        "server/sim/content/bands/**",
+        "server/sim/content/choices.js",
+        "server/sim/content/index.js"
+      ],
+      "why": "bonds, traits, items and strategies: battle side and prep side",
+      "read": [
+        {
+          "doc": "docs/META.md",
+          "headings": [
+            "## 2. Effect registry (content API)",
+            "## 3. Rules implemented (summary; details in each module header)"
+          ]
+        },
+        {
+          "doc": "docs/design/engine.md",
+          "headings": [
+            "## 7. Content modules (server/sim/content + match/effectsMeta handlers)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sim-dsl",
+      "paths": [
+        "server/sim/content/dsl/**",
+        "server/sim/content/extensions.js",
+        "server/match/dslMeta.js",
+        "shared/plugins/**",
+        "server/plugins/**"
+      ],
+      "why": "the plugin system, DSL and limits",
+      "read": [
+        {
+          "doc": "docs/PLUGINS.md",
+          "headings": [
+            "## 1. Principles (the maintainer's decisions of 2026-10-12)",
+            "## 12. DSL",
+            "## 18. Remaining limits"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "match",
+      "paths": [
+        "server/match/*.js",
+        "server/match/match/**",
+        "server/match/player/**"
+      ],
+      "why": "the match phase machine, player state and economy",
+      "read": [
+        {
+          "doc": "docs/design/match.md",
+          "headings": [
+            "### 6.1 State machine (Match.js)",
+            "### 6.2 Player state (PlayerState.js) — authoritative per player"
+          ]
+        },
+        {
+          "doc": "docs/META.md",
+          "headings": [
+            "## 1. Match flow"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bots",
+      "paths": [
+        "server/match/bot*.js",
+        "server/match/match/bot*.js",
+        "server/match/shadowMatch.js",
+        "public/js/battle/bot*.js",
+        "server/http/botModules.js"
+      ],
+      "why": "bots: where their work runs and its budget",
+      "read": [
+        {
+          "doc": "docs/design/match.md",
+          "headings": [
+            "### 6.6 AI players (bot.js)"
+          ]
+        },
+        {
+          "doc": "docs/host-browser-bots.md",
+          "headings": [
+            "## Summary",
+            "## Part B: the design"
+          ]
+        },
+        {
+          "doc": "docs/BOT_STRATEGIES.md",
+          "headings": [
+            "# Adding an AI strategy"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lobby-net",
+      "paths": [
+        "server/lobby.js",
+        "server/net.js",
+        "server/matchmaker.js",
+        "server/crossMatch.js",
+        "server/regions.js",
+        "server/peerLink.js",
+        "shared/regions.js",
+        "shared/largeRoom.js"
+      ],
+      "why": "sessions, rooms, matchmaking and the protocol",
+      "read": [
+        {
+          "doc": "docs/design/network.md",
+          "headings": [
+            "### 8.1 Session & lobby",
+            "### 8.2 Match"
+          ]
+        },
+        {
+          "doc": "docs/design/matchmaking.md",
+          "headings": [
+            "## 90. Matchmaking by room merge (搜寻队友) — `server/matchmaker.js`, `server/lobby.js`, `ui/matchSearch.js`"
+          ]
+        },
+        {
+          "doc": "docs/design/large-rooms.md",
+          "headings": [
+            "## 91. Grand Alliance (大同盟, 8 seats) — `shared/largeRoom.js`, `server/lobby.js`, `server/match/match/largeRoom.js`, `ui/largeRooms.js`"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "http",
+      "paths": [
+        "server/http/**",
+        "server/index.js",
+        "server/update.js",
+        "server/versions.js"
+      ],
+      "why": "the server process, static files and deploy",
+      "read": [
+        {
+          "doc": "docs/ARCHITECTURE.md",
+          "headings": [
+            "## 1. What runs where",
+            "### Server and shared code"
+          ]
+        },
+        {
+          "doc": "docs/DEPLOY.en.md",
+          "headings": [
+            "## 0. Resource requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "shared-protocol",
+      "paths": [
+        "shared/protocol*.js",
+        "shared/constants.js"
+      ],
+      "why": "the normative wire protocol",
+      "read": [
+        {
+          "doc": "docs/design/network.md",
+          "headings": [
+            "## 8. Network protocol (shared/protocol.js is normative)",
+            "### 8.3 Exact view shapes (normative for match ⇄ UI)"
+          ]
+        },
+        {
+          "doc": "docs/SIM.md",
+          "headings": [
+            "## 9. Wire format (snapshot.js, DESIGN §8.2)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "render",
+      "paths": [
+        "public/js/render/*.js",
+        "public/js/render/app/**",
+        "public/js/render/fx/**"
+      ],
+      "why": "the field view contract",
+      "read": [
+        {
+          "doc": "docs/design/client.md",
+          "headings": [
+            "## 9. Client rendering contract (public/js/render)"
+          ]
+        },
+        {
+          "doc": "docs/ARCHITECTURE.md",
+          "headings": [
+            "### Client (`public/`)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "render-vfx",
+      "paths": [
+        "public/js/render/vfx/**"
+      ],
+      "why": "official battle effects: runtime wiring and format",
+      "read": [
+        {
+          "doc": "docs/design/client.md",
+          "headings": [
+            "### Official battle effects (官方特效; render/vfx, 0.3.0)"
+          ]
+        },
+        {
+          "doc": "docs/design/vfx-format.md",
+          "headings": [
+            "### 33.16 The runtime's skill wiring (0.3.0 Phase 3b, 3c, 3d)",
+            "### 33.17 Phase 1d: talents, common and general abilities, the abilities' projectiles, buff lives (index.json version 3)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "render-outfits",
+      "paths": [
+        "public/js/ui/outfits.js",
+        "public/js/cosmetics.js",
+        "data/outfits.json"
+      ],
+      "why": "outfits and skins",
+      "read": [
+        {
+          "doc": "docs/OUTFITS.md",
+          "headings": [
+            "## Rules",
+            "## Rendering"
+          ]
+        },
+        {
+          "doc": "docs/SKINS.md",
+          "headings": [
+            "## Invariants"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ui",
+      "paths": [
+        "public/js/ui/**",
+        "public/js/screens/**",
+        "public/js/main.js",
+        "public/js/store.js"
+      ],
+      "why": "client UI: screens and components",
+      "read": [
+        {
+          "doc": "docs/design/client.md",
+          "headings": [
+            "## 10. Client UI (screens & components)"
+          ]
+        },
+        {
+          "doc": "docs/ARCHITECTURE.md",
+          "headings": [
+            "### Client (`public/`)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio",
+      "paths": [
+        "public/js/audio.js",
+        "public/js/audioMixer.js",
+        "public/js/voicePrefs.js"
+      ],
+      "why": "sounds, voices and the mixer",
+      "read": [
+        {
+          "doc": "docs/design/client.md",
+          "headings": [
+            "### Skill-mode sound and delayed models (§28.17, §28.22)"
+          ]
+        },
+        {
+          "doc": "docs/ASSETS.md",
+          "headings": [
+            "## What is downloaded"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "assets-client",
+      "paths": [
+        "public/js/assets*.js",
+        "public/js/assetCache.js",
+        "public/js/assetDownload.js",
+        "public/js/assetPack.js",
+        "public/js/dataUrls.js",
+        "public/js/loadLater.js",
+        "public/sw.js"
+      ],
+      "why": "asset manifests, preload and caching",
+      "read": [
+        {
+          "doc": "docs/ASSETS.md",
+          "headings": [
+            "## Manifest schema (`data/assets.json`)",
+            "## Preload"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "i18n",
+      "paths": [
+        "public/i18n/**",
+        "shared/i18n*.js",
+        "tools/i18n.mjs",
+        "tools/build-i18n.mjs",
+        "data/i18n/**"
+      ],
+      "why": "UI strings and game texts",
+      "read": [
+        {
+          "doc": "docs/I18N.md",
+          "headings": [
+            "## 1. UI strings: `t()`",
+            "## 2. Game texts: `data/i18n/<code>.json`"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "data",
+      "paths": [
+        "data/*.json",
+        "tools/build-data.mjs",
+        "server/data.js",
+        "public/js/data.js"
+      ],
+      "why": "generated game data: never edited by hand",
+      "read": [
+        {
+          "doc": "docs/DATA.md",
+          "headings": [
+            "## 0. Conventions used by every file",
+            "## 17. Integrity guarantees (checked by the builder and `test/data.test.js`)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools-assets",
+      "paths": [
+        "tools/assets/**",
+        "tools/fetch-assets.mjs"
+      ],
+      "why": "asset extraction and manifests",
+      "read": [
+        {
+          "doc": "docs/ASSETS.md",
+          "headings": [
+            "## Running",
+            "## What is downloaded",
+            "## Post-processing"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools-changelog",
+      "paths": [
+        "tools/changelog.mjs",
+        "tools/claims.mjs",
+        "tools/doc-map.mjs",
+        "docs/doc-map.json",
+        "tools/server-cost-check.mjs",
+        "tools/traffic-report.mjs"
+      ],
+      "why": "changelog fragments, the server-cost rule, sourced claims and this map",
+      "read": [
+        {
+          "doc": "changes/README.md",
+          "headings": [
+            "## Format",
+            "## Server cost",
+            "## News lines (player fragments)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "studio",
+      "paths": [
+        "server/studio/**",
+        "public/studio/**",
+        "shared/studio/**"
+      ],
+      "why": "the plugin studio",
+      "read": [
+        {
+          "doc": "docs/PLUGINS.md",
+          "headings": [
+            "## 15. The studio and the tools"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ci",
+      "paths": [
+        ".github/workflows/**"
+      ],
+      "why": "CI sharding",
+      "read": [
+        {
+          "doc": "docs/CI.md",
+          "headings": [
+            "## 分片契约"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sandbox",
+      "paths": [
+        "public/dev/**"
+      ],
+      "why": "the dev sandbox page (its header documents it); the client contract it drives",
+      "read": [
+        {
+          "doc": "docs/design/client.md",
+          "headings": [
+            "## 9. Client rendering contract (public/js/render)"
+          ]
+        }
+      ]
+    }
+  ],
+  "facts": {
+    "server-cost": [
+      {
+        "fact": "Battles run in the players' browsers by default (clientCombat on): each browser simulates its own field and reports the result; the server checks results and simulates only the fields no connected human owns (bots, dropped players, missed deadlines).",
+        "src": "docs/design/network.md §14 \"Authority per field\"; docs/ARCHITECTURE.md §1"
+      },
+      {
+        "fact": "In client combat the server does not stream battle snapshots or events (b.snap / b.ev) for combat, so a change to battle events or effects costs the server no bandwidth unless SP_COMBAT=server.",
+        "src": "docs/design/network.md §14 \"Why\""
+      },
+      {
+        "fact": "Measured: a 4-player match sends about 0.25 MB per round from the server.",
+        "src": "docs/DEPLOY.en.md §0 Resource requirements (Network row)"
+      },
+      {
+        "fact": "Measure, do not guess: SP_TRAFFIC_METER=1 on a dev server, npm run traffic-report -- --reset before a test match and npm run traffic-report after it (per message type and room; MB/s and GB/day; --players 300).",
+        "src": "changes/README.md \"Server cost\" (the dev traffic meter); tools/traffic-report.mjs header"
+      },
+      {
+        "fact": "A fragment states server cost as MB/s at peak and GB/day per player, per room and for 300 players, typical and worst case, with a Cap line; Server cost: none only when no server, network or bot code changes.",
+        "src": "changes/README.md \"Server cost\"; AGENTS.md Hard rules (Server cost)"
+      }
+    ]
+  }
+}

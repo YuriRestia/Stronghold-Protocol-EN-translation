@@ -214,6 +214,8 @@
 .brief-reroll { margin-right: auto; display: flex; align-items: center; gap: .12rem; min-width: 0; }
 .brief-reroll__count { font-size: calc(.17 * var(--t)); font-weight: 700; color: var(--mint-400); white-space: nowrap; cursor: help; }
 .brief-reroll__actions { display: flex; flex-wrap: wrap; gap: .08rem; }
+/* (fork) no reroll in a public match (ui/setupReroll.js rerollOff): the reason beside the disabled button */
+.brief-reroll__off { font-size: calc(.15 * var(--t)); color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: help; }
 @media (max-width: 900px) {
   .brief-reroll__actions .btn { padding-inline: .12rem; }
 }

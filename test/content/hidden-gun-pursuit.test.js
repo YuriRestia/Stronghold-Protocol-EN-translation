@@ -1,8 +1,9 @@
 // 隐秘核心铳's 【末日布道】 (PR #347 by @CXUtk): every 碎铳之簧 chases the casting gun for the gain's whole 5 s — PRTS 末日布道
 // "令全场的“碎铳之簧”获得5秒增益：移动速度+800%，无敌，增益期间切换为追逐模式", “碎铳之簧” 追逐模式 "持续追踪令其进入该形态的场上的
 // 假想敌：铳移动" (no arrival clause). Until 0.2.1 reaching the gun (or 1 tile from it) ended the chase. Each gun casts on its
-// own data timer (initCooldown 20, cooldown 45 — no stagger between the two guns of a pair field, no lock while a chase
-// runs: the data has neither, and the handbook's 「向自身」 means the later call takes the springs).
+// own data timer (initCooldown 20, cooldown 45 — no lock while a chase runs: the data has none, and the handbook's
+// 「向自身」 means the later call takes the springs). The pair's stagger is the spawn times: the branch gun at 0.1 s,
+// the leader at 10 s (official level_act1autochess_h08_02.json; §37.109 — until then both came at 10 s).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -52,22 +53,34 @@ function recordCalls(h) {
   return calls;
 }
 
-test('隐秘核心铳 pair: each gun calls on its own data timer (20 s after it spawns, then every 45 s); the later call takes the springs', () => {
+test('隐秘核心铳 pair: the branch gun starts with the battle, the leader after its preDelay; their calls alternate, so the springs chase to both halves', () => {
   const h = arena();
   const spawned = new Map();
-  h.b.on('enemySpawn', (c) => { if (c.enemy.defId === GUN) spawned.set(c.enemy, h.b.time); });
+  h.b.on('enemySpawn', (c) => { if (c.enemy.defId === GUN) spawned.set(c.enemy, { t: h.b.time }); });
   const calls = recordCalls(h);
   h.run(150);
   assert.equal(spawned.size, 2, 'the pair field has two guns (the mirrored one)');
-  const skill = W.act1autochess_h08_02.overrides[GUN].skills.find((s) => s.prefabKey === '2');
-  for (const [gun, t0] of spawned) {
+  const tpl = W.act1autochess_h08_02;
+  const leadAt = tpl.spawns.find((s) => s.tag === 'boss' && (s.key ?? s.enemyKey) === GUN).time;
+  const branchAt = tpl.branches.boss_battle_multi_player[0].find((s) => (s.key ?? s.enemyKey) === GUN).time;
+  assert.ok(branchAt < leadAt, 'official h08_02: the branch gun is timed before the leader');
+  // official: MainGameInBossBattle._OnBossBattleStart moves to the branch when the battle starts (bosses.js branchAtStart)
+  for (const [gun, { t }] of spawned) {
+    const mirror = !!gun.mem.mirror; // set once spawnEnemy returns, after the enemySpawn event
+    assert.ok(Math.abs(t - (mirror ? branchAt : leadAt)) < h.TICK * 2, `${mirror ? 'branch' : 'leader'} gun at ${mirror ? branchAt : leadAt} s, got ${t}`);
+  }
+  const skill = tpl.overrides[GUN].skills.find((s) => s.prefabKey === '2');
+  for (const [gun, { t: t0 }] of spawned) {
     const own = calls.filter((c) => c.gun === gun).map((c) => c.time);
     assert.equal(own.length, 3, 'three calls each in 150 s');
     assert.ok(Math.abs(own[0] - t0 - skill.initCooldown) < h.TICK * 2, `first call ${skill.initCooldown} s after its spawn`);
     for (let i = 1; i < own.length; i++) assert.ok(Math.abs(own[i] - own[i - 1] - skill.cooldown) < h.TICK * 2, `then every ${skill.cooldown} s`);
   }
-  // the two mirrored guns call within a tick or two of each other (no half-cooldown stagger), the later one wins
-  for (let i = 1; i < calls.length; i += 2) assert.ok(calls[i].time - calls[i - 1].time < h.TICK * 3, 'the two calls come together');
+  // the calls alternate between the two guns, the leader's one (preDelay − branch time) after the branch gun's: the
+  // springs go to each gun in turn, not always to the one that calls a tick later
+  assert.equal(calls.length, 6);
+  for (let i = 1; i < calls.length; i++) assert.notEqual(calls[i].gun, calls[i - 1].gun, 'the guns take turns');
+  for (let i = 1; i < calls.length; i += 2) assert.ok(Math.abs(calls[i].time - calls[i - 1].time - (leadAt - branchAt)) < h.TICK * 3, 'staggered by the preDelay');
   assert.equal(h.b.errorCount, 0);
   checkInvariants(h.b);
 });

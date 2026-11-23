@@ -826,6 +826,22 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
   line-height: 1; color: var(--tc); border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .35); }
 .lo-tmark__cnt { position: absolute; left: 0; right: 0; bottom: max(.08rem, calc(4px * var(--sp-ui, 1))); text-align: center; font-size: max(calc(.15 * var(--t)), 10px); color: var(--text-lo); }
 .lo-tgrid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, minmax(0, 1fr)); grid-auto-columns: max-content; gap: .16rem .14rem; min-height: 0; }
+/* (fork) the 自选编队 slots' 「自选」 group before tier 1 (screens/loadout.js deckGroups): the CSS marker's frame in mint (no
+   official sprite for it), the person glyph and 「自选」 down it; a mint separator after the group, the deck's gap on both
+   sides of it (the user's call of 2026-11-15) */
+.lo-tmark--custom { --tc: var(--mint-500); }
+.lo-tmark--custom .lo-tmark__css { gap: .08rem; }
+.lo-tmark__icon { flex: none; width: 76%; height: auto; aspect-ratio: 1; padding: 12%; color: var(--tc); border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .35); }
+.lo-tmark__label { min-height: 0; overflow: hidden; writing-mode: vertical-rl; font-size: max(calc(.15 * var(--t)), 11px); font-weight: 800; letter-spacing: .08em; line-height: 1; color: var(--tc); white-space: nowrap; }
+.lo-tgroup--custom { padding-right: .34rem; border-right: 1px solid rgba(78, 216, 175, .45); }
+/* each tier's pair inside it: a slim strip (the tier's chip, 「N阶」 down it, a fading line in the tier's colour) before
+   its cards, and a small dashed divider between the pairs (the user's call of 2026-11-15) */
+.lo-csub { flex: none; display: flex; align-items: stretch; gap: .1rem; min-height: 0; }
+.lo-csub + .lo-csub { margin-left: .06rem; padding-left: .16rem; border-left: 1px dashed rgba(255, 255, 255, .22); }
+.lo-csub__mark { flex: none; display: flex; flex-direction: column; align-items: center; gap: .06rem; width: max(.34rem, 22px); min-height: 0; overflow: hidden; }
+.lo-csub__mark::after { content: ""; flex: 1 1 auto; width: 2px; min-height: 0; background: linear-gradient(180deg, var(--tc), transparent); opacity: .55; }
+.lo-csub__chip { flex: none; }
+.lo-csub__label { flex: none; writing-mode: vertical-rl; font-size: max(calc(.13 * var(--t)), 10px); font-weight: 700; letter-spacing: .06em; line-height: 1; color: var(--tc); white-space: nowrap; }
 
 /* ---- an operator card ---- */
 .lo-op { --tc: var(--tier-1); position: relative; display: flex; min-height: 0; }
@@ -1096,6 +1112,8 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 .lo-bbar__diy { position: absolute; left: 50%; top: max(-.2rem, calc(-14px * var(--sp-ui, 1))); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 1px; padding: 0 4px;
   font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-md); background: rgba(255, 255, 255, .1); border-radius: 999px; }
 .lo-bbar__diy .icon { width: max(.13rem, 9px); height: max(.13rem, 9px); }
+/* (fork) 「自选」's glyph in the numeral's box: the box narrow screens keep when the words go */
+.lo-bbar__glyph .icon { width: max(.15rem, 10px); height: max(.15rem, 10px); }
 /* the match's loadout is locked: said in the bar, which every width and 快速配置 keep on screen */
 .lo-bbar__lock { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: .06rem; padding: 0 max(.12rem, calc(6px * var(--sp-ui, 1))); height: max(.4rem, 26px);
   font-size: max(calc(.14 * var(--t)), 10px); font-weight: 700; color: var(--amber); background: rgba(246, 163, 41, .12); border: 1px solid rgba(246, 163, 41, .4); white-space: nowrap; }

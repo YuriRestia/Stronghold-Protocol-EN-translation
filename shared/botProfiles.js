@@ -11,8 +11,8 @@ export const ROOM_BOTS = Object.freeze([
   { id: 'legacy', label: N_('基础 AI'), desc: N_('原版 AI，未选择时的默认') },
   { id: 'fish-level', label: N_('升级曲线'), desc: N_('按模式长度换算的升级曲线，其余同基础 AI') },
   { id: 'fish-tier6', label: N_('六星优先'), desc: N_('优先购买六星干员，升级到 6 级，其余同基础 AI') },
-  { id: 'evobot', label: N_('进化 AI'), desc: N_('进化搜索调出的基础 AI：后期卖掉低星单张干员，并购买叠层与资金道具') },
-  { id: 'ioleta', label: N_('伊奥莱塔开局'), desc: N_('开局优先选择伊奥莱塔盟约') },
+  { id: 'evobot', label: N_('进化 AI'), desc: N_('自动调参后的基础 AI：后期卖掉凑不成对的低星干员，并购买叠层与资金道具') },
+  { id: 'ioleta', label: N_('伊奥莱塔开局'), desc: N_('开局有伊奥莱塔策略时优先选择它') },
   { id: 'adaptive', label: N_('自适应布阵'), desc: N_('按地图搜索部署位置') },
   { id: 'ioleta-adaptive', label: N_('伊奥莱塔开局 + 自适应布阵'), desc: N_('伊奥莱塔开局，并按地图搜索部署位置') },
 ].map((b) => Object.freeze(b)));
@@ -27,10 +27,41 @@ export const DEFAULT_ROOM_BOT = ROOM_BOTS[0].id;
  */
 // `strength` (GitHub #124, level 1): the win rate in Ultimate solo × 100 — botbench solo:ABYSS, seeds 1–80, 2026-11-14
 // (the numbers: PR #151). `team` (level 2): the win rate of 4 such bots in Ultimate, coop4:ABYSS seeds 1–40. The
-// SPA-CC level: not yet (the issue's grinder).
+// SPA-CC level: not yet (the issue's grinder). A bot measured on more matches says so in its own `n`: legacy and evobot
+// pool those seeds with 300 more of each mode (shark on PR #168, 2026-11-18, commit 7f91ff66), which moved evobot's team
+// number from 78 to 71.
+/** The matches each number is measured on by default (botbench seeds 1–80 solo, 1–40 for the team of 4). */
+export const STRENGTH_MATCHES = Object.freeze({ solo: 80, team: 40 });
+
+/**
+ * The matches behind one bot's two numbers: its own `n`, else the default.
+ * @param {{ n?: { solo: number, team: number } } | null | undefined} info
+ */
+export const strengthMatches = (info) => info?.n ?? STRENGTH_MATCHES;
+
+/**
+ * (fork, Fish on GitHub #151, 2026-11-16) One strength score: the solo and team-of-4 Ultimate win rates (%) added up,
+ * 0–200, with ± 1 standard deviation (the two binomial errors combined). Null when a number is missing.
+ * @param {{ strength?: number, team?: number, n?: { solo: number, team: number } } | null | undefined} info
+ * @returns {{ score: number, sd: number } | null}
+ */
+export function botScore(info) {
+  const s = info?.strength, tm = info?.team;
+  if (!Number.isFinite(s) || !Number.isFinite(tm)) return null;
+  const v = (p, n) => (p / 100) * (1 - p / 100) / n;
+  const n = strengthMatches(info);
+  return { score: s + tm, sd: Math.round(100 * Math.sqrt(v(s, n.solo) + v(tm, n.team))) };
+}
+
+/** " (113)": the bot's strength score for a drop-down option or a seat label, "" for a bot without measured numbers (GitHub #172). */
+export function botScoreSuffix(id) {
+  const sc = botScore(BOT_INFO[id]);
+  return sc ? ` (${sc.score})` : '';
+}
+
 export const BOT_INFO = Object.freeze({
   legacy: {
-    strength: 38, team: 65,
+    strength: 36, team: 63, n: { solo: 380, team: 340 },
     about: [
       N_('选择一个主盟约，围绕它购买、合成并升级干员，按回合推进调度中心等级'),
       N_('避免购买队友正在收集的盟约干员（高星干员更是如此），不与队友争抢'),
@@ -39,8 +70,10 @@ export const BOT_INFO = Object.freeze({
     ],
   },
   'fish-level': {
-    strength: 38, team: 65,
-    about: [N_('按升级曲线提升调度中心等级，曲线按模式长度换算（较短的模式升级更早）'), N_('其余同基础 AI')],
+    // plays legacy's exact games on Ultimate (its curve is legacy's there: ai-players/05), so legacy's pooled numbers
+    strength: 36, team: 63, n: { solo: 380, team: 340 },
+    about: [N_('按升级曲线提升调度中心等级，曲线按模式长度换算（较短的模式升级更早）'), N_('其余同基础 AI'),
+      N_('终极难度下它的升级曲线与基础 AI 的升级相同，所以对局完全一样，强度数字也相同；区别只在较短的模式中')],
     tactics: [{ id: 'level-curve', text: N_('升级曲线：每回合把调度中心升到曲线的等级，然后由基础 AI 继续升级') }],
   },
   'fish-tier6': {
@@ -66,9 +99,9 @@ export const BOT_INFO = Object.freeze({
     ],
   },
   evobot: {
-    strength: 44, team: 78,
+    strength: 42, team: 71, n: { solo: 380, team: 340 },
     about: [
-      N_('由进化搜索在基础 AI 之上调出（2026 年 11 月的周末测试），在 2000 局配对测试中胜过基础 AI'),
+      N_('在基础 AI 之上自动调参得到，在 2000 局对比测试中胜过基础 AI'),
       N_('从第 9 回合起，卖掉手牌中凑不成对的一、二星干员'),
       N_('从第 5 回合到最终攻势前，购买增加层数的道具和资金道具，并留下约 9 点资金'),
       N_('其余同基础 AI'),

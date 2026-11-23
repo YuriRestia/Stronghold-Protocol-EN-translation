@@ -10,7 +10,9 @@ import { modZOf } from '../../../shared/modZ.js';
 import { up, skillBusy, isMainHit, holdProtect, PROTECT_TICK_HOLD, enemyInRange } from './kits/shared/tier1.js';
 import { installLordArtsAddition } from './kits/shared/lord.js';
 import { memberOf } from './items/battle.js';
-import { ASPD_MAX } from '../constants.js';
+import { ASPD_MAX, COLS } from '../constants.js';
+import { hypot, powi } from '../detmath.js';
+import { gainLayers, unitBonds, bondActive as bondOn } from './support/index.js';
 
 const KEY = 'fishModZ';
 const isBursting = (e) => e.buffs.some((b) => typeof b.key === 'string' && b.key.endsWith('Burst'));
@@ -68,6 +70,20 @@ function fasterRedeploy(battle, unit, rate, cond = () => up(unit)) {
   }, { owner: unit });
 }
 
+/** "The first time the skill ends in a battle, immediately gain max SP" (Typhon Z, Thorns Z; once per battle). */
+function maxSpAtFirstSkillEnd(battle, u) {
+  let done = false;
+  battle.on('skillEnd', (c) => {
+    const sk = u.skill;
+    if (c.unit !== u || done || !sk || sk.noSkill || sk.kind === 'passive') return;
+    done = true;
+    sk.gainSp(Math.max(0, sk.spCost - sk.sp), 'module', false, { ignoreLock: true });
+  }, { owner: u });
+}
+
+/** +`n` stacks to each of `u`'s own Alliances that is active, at most `times` triggers per battle (counted by the caller). */
+const stackOwn = (battle, u, n) => gainLayers(battle, { playerId: u.ownerId, bonds: unitBonds(u), n, requireActive: true, source: u, reason: 'module' });
+
 /** The skill index (0-based) the loadout picked. */
 const skillIndex = (u) => {
   const i = u.def?.raw?.skill?.index ?? u.def?.loadout?.skillIndex;
@@ -84,6 +100,7 @@ const INSTALL = {
     liveBuff(battle, u, `${KEY}:typhonZ`, () => battle.time - since >= 10, () => ({ aspd: 100 }));
     u.fishStatPost = typhonBalance;
     u.markDirty();
+    maxSpAtFirstSkillEnd(battle, u);
   },
 
   // attacks inflict Cold; on a Frozen target, shatter every enemy within 1 tile: Freeze removed, Stun 4 s, physical
@@ -98,6 +115,20 @@ const INSTALL = {
         battle.applyStatus(e, 'stun', { duration: 4, source: u });
         battle.addBuff(e, { key: `${KEY}:shatter`, duration: 4, mods: { physTakenMul: 1.4 }, source: u, tags: ['module'] });
       }
+    }, { owner: u });
+    // v2: in a normal battle (no boss rounds, no unite phase) the first 30 enemies that die while she is on the field are added
+    // to the wave again on their own route: +100 % max HP, -70 % ATK, no LP when they leak, not passed on to the unite phase,
+    // no bounty. A revived enemy does not come back a second time. [DRAFT: only while she is on the field]
+    let revived = 0;
+    battle.on('death', (c) => {
+      const e = c.unit;
+      if (!e || e.side !== 'enemy' || revived >= 30 || !up(u) || battle.kind !== 'normal' || e.isBoss || e.tag || e.fishRevived || e.uniteRuntime) return;
+      const n = battle.spawnEnemy(e.defId, { routeIndex: e.routeIndex ?? 0, mods: { hpMul: 2, atkMul: 0.3 }, countInTotal: false, ownerPlayerId: e.ownerId, sourcePlayerId: e.sourcePlayerId ?? undefined });
+      if (!n) return;
+      revived++;
+      n.fishRevived = true;
+      n.uniteRuntime = true;
+      n.lpr = 0;
     }, { owner: u });
   },
 
@@ -133,15 +164,27 @@ const INSTALL = {
       for (const e of lured) if (e.alive) battle.removeStatus(e, 'attract');
       lured = [];
     }, { owner: u });
+    // an enemy that dies in her range: +3 stacks to all her active Alliances (20 times per battle at most)
+    let kills = 0;
+    battle.on('death', (c) => {
+      const e = c.unit;
+      if (!e || e.side !== 'enemy' || kills >= 20 || !up(u)) return;
+      const keys = u.rangeKeySet || new Set(u.rangeKeys);
+      if (!keys.has(Math.round(e.y) * COLS + Math.round(e.x))) return;
+      kills++;
+      stackOwn(battle, u, 3);
+    }, { owner: u });
     liveBuff(battle, u, `${KEY}:zumama`, () => true, () => ({ defFlat: Math.min(5000, Math.max(0, Math.round(u.s.atk - u.base.atk))) }));
   },
 
-  // every skill an ammo skill (18 / 3 / 100 attacks: S1 her normal attacks, S2 / S3 one shell per ammo); during it,
-  // ASPD +50 and max HP +100 %
+  // every skill an ammo skill (24 / 4 / 200 attacks: S1 her normal attacks, S2 / S3 one shell per ammo); during it,
+  // ASPD +100 and max HP +100 %; when a [Laterano] Operator on one of the 4 tiles around her finishes a skill while hers is
+  // active, she reloads to max ammo; every [Laterano] Operator gets x2 (x3 at 500+ stacks) of the Laterano ATK effect
+  // (bonds/core.js installLaterano reads `fishLateranoMul`)
   uniequip_fishz_phenxi(battle, u) {
     const sk = u.skill;
     const i = skillIndex(u);
-    const ammo = [18, 3, 100][i ?? -1];
+    const ammo = [24, 4, 200][i ?? -1];
     if (sk && !sk.noSkill && ammo && sk.kind !== 'passive') {
       const was = sk.kind;
       sk.kind = 'ammo';
@@ -179,21 +222,39 @@ const INSTALL = {
         } };
       }
     }
-    liveBuff(battle, u, `${KEY}:phenxi`, () => !!(u.skill && u.skill.active), () => ({ aspd: 50, hpMul: 2 }));
+    liveBuff(battle, u, `${KEY}:phenxi`, () => !!(u.skill && u.skill.active), () => ({ aspd: 100, hpMul: 2 }));
+    u.fishLateranoMul = true;
+    battle.on('skillEnd', (c) => {
+      const o = c.unit;
+      if (!o || o === u || o.side !== u.side || !up(u) || !sk || !sk.active || sk.kind !== 'ammo') return;
+      if (Math.abs(o.tileR - u.tileR) + Math.abs(o.tileC - u.tileC) !== 1 || !memberOf(battle, o, 'lateranoShip')) return;
+      sk.ammoLeft = sk.ammo;
+    }, { owner: u });
   },
 
   // per attack: max HP +50 and 庇护 +1 % (80 stacks, kept through retreats); per deployment: one Waxing stack (10 at
-  // most): healing received +20 %, ASPD +20, and Corrosion of 1 % ATK on each hit, per stack
+  // most): healing received +20 %, ASPD +20 Tenacity (坚忍, as his talent: in full at 70 % HP lost, linear before; Tenacity doesn't stack, the
+  // highest counts, so this only adds what exceeds his talent's), and
+  // Corrosion of 1 % ATK on each hit, per stack
   uniequip_fishz_helage(battle, u) {
     const p = (u.persist[KEY] ??= { stacks: 0, wax: 0 });
     const apply = () => {
       battle.addBuff(u, {
         key: `${KEY}:helage`, persist: true, allowDead: true, tags: ['module'],
-        mods: { hpFlat: 50 * p.stacks, healingTakenMul: 1 + 0.2 * p.wax, aspd: 20 * p.wax },
+        mods: { hpFlat: 50 * p.stacks, healingTakenMul: 1 + 0.2 * p.wax },
       });
     };
     battle.on('attack', (c) => { if (c.attacker === u && p.stacks < 80) { p.stacks++; apply(); } }, { owner: u });
     battle.on('deploy', (c) => { if (c.unit === u && !c.move) { p.wax = Math.min(10, p.wax + 1); apply(); } }, { owner: u });
+    const tenKey = `${KEY}:helage:tenacity`;
+    battle.on('tick', () => {
+      const cur = u.findBuff(tenKey);
+      const talent = u.findBuff('talent:helage:berserk')?.data?.v ?? 0;
+      const v = up(u) ? Math.max(0, 20 * p.wax * Math.max(0, Math.min(1, (1 - u.hpRatio) / 0.7)) - talent) : 0;
+      if (cur && Math.abs((cur.data?.v ?? 0) - v) < 0.05) return;
+      if (v < 0.05) { if (cur) battle.removeBuff(u, tenKey); return; }
+      battle.addBuff(u, { key: tenKey, mods: { aspd: v }, data: { v }, tags: ['module'] });
+    }, { owner: u });
     battle.on('tick', () => { if (up(u) && p.stacks > 0) holdProtect(battle, u, p.stacks * 0.01, PROTECT_TICK_HOLD, u); }, { owner: u });
     battle.on('hit', (c) => {
       if (c.source !== u || c.target?.side !== 'enemy' || c.dmg.type === 'element' || !(p.wax > 0)) return;
@@ -202,8 +263,11 @@ const INSTALL = {
   },
 
   // Raid treats his skill as ready (bonds/addon/battle.js reads `fishRaidReady`)
+  // and, each time he is deployed or redeployed, +3 stacks to all his active Alliances (10 times per battle at most)
   uniequip_fishz_phatom(battle, u) {
     u.fishRaidReady = true;
+    let n = 0;
+    battle.on('deploy', (c) => { if (c.unit === u && !c.move && n < 10) { n++; stackOwn(battle, u, 3); } }, { owner: u });
   },
 
   // block 0, always Invisible; DP she earns ×2; while she is on the field, her player's redeploy timers run +50 %
@@ -214,19 +278,31 @@ const INSTALL = {
     fasterRedeploy(battle, u, () => (skillBusy(u) ? 3 : 0.5));
   },
 
-  // healing an ally grants Immortal for 8 s (HP can't drop below 1; no stacking); the grant's cooldown starts at 0 s
-  // and grows by 5 s each time an Immortal actually saves someone
+  // Immortality has two states (Fish): READY (granted: no expiry) → ACTIVE when its holder would die: HP can't go below 1 for 8 s.
+  // Only ready → active grows her grant cooldown (+5 s, starts at 0); the grant itself doesn't. At the start of the battle every
+  // Operator of her player is granted READY; her heals grant it when the cooldown is over (a full-HP ally is a heal target too,
+  // those without Immortality first: `fishHealPriority`, battle/queries.js). No stacking: nobody holds two.
   uniequip_fishz_shining(battle, u) {
-    const key = `${KEY}:immortal`;
+    const READY = `${KEY}:immortalReady`, ACTIVE = `${KEY}:immortal`;
     let cd = 0, readyAt = 0;
+    const has = (a) => !!(a.findBuff(READY) || a.findBuff(ACTIVE));
+    const grantable = () => battle.time >= readyAt;
+    const grant = (a) => { if (!a || a.side === 'enemy' || !a.alive || has(a)) return false; battle.addBuff(a, { key: READY, source: u, visible: true, tags: ['module'] }); return true; };
+    u.fishHealFull = (a) => grantable() && !has(a);
+    u.fishHealPriority = (a) => (grantable() && !has(a) ? 0 : 1);
+    battle.on('battleStart', () => { for (const a of battle.allies(u.ownerId)) if (a.kind === 'op') grant(a); }, { owner: u });
     battle.on('heal', (c) => {
-      if (c.source !== u || !c.target || c.target.side === 'enemy' || battle.time < readyAt || c.target.findBuff(key)) return;
-      battle.addBuff(c.target, { key, duration: 8, source: u, visible: true, tags: ['module'] });
-      readyAt = battle.time + cd;
+      if (c.source !== u || !c.target || !grantable()) return;
+      if (grant(c.target)) readyAt = battle.time + cd;
     }, { owner: u });
     battle.on('fatal', (c) => {
-      const b = c.unit?.findBuff?.(key);
-      if (c.prevented || !b || b.source !== u) return;
+      const a = c.unit;
+      if (c.prevented || !a?.findBuff) return;
+      if (a.findBuff(ACTIVE)) { c.prevented = true; return; }
+      const r = a.findBuff(READY);
+      if (!r || r.source !== u) return;
+      battle.removeBuff(a, READY);
+      battle.addBuff(a, { key: ACTIVE, duration: 8, source: u, visible: true, tags: ['module'] });
       c.prevented = true;
       cd += 5;
     }, { owner: u, priority: -10 });
@@ -236,13 +312,44 @@ const INSTALL = {
   // every 0.5 s; "持续消耗" names no rate]
   uniequip_fishz_siege(battle, u) {
     u.fishDpMul = 2;
+    // GitHub #176: while she is up, her player's DP cap is 999, so a gain between two drains is never wasted at the usual
+    // 99 (Fish's suggestion: "Siege Mod Z also raises DP cap to 999")
     battle.every(0.5, () => {
-      if (!up(u)) return;
       const ps = battle.getPlayer(u.ownerId);
+      if (ps) ps.fishDpMax = up(u) ? 999 : 0;
+      if (!up(u)) return;
       const extra = Math.floor((ps?.dp ?? 0) - 90);
       if (!(extra > 0)) return;
       battle.addDp(u.ownerId, -extra);
       for (const a of battle.allies(u.ownerId)) if (a.skill && !a.skill.noSkill && !skillBusy(a)) a.skill.gainSp(extra, 'module');
+    }, { owner: u });
+  },
+
+  // Siege W: as Z (DP limit 999 on the field, DP ×2) but DP above 90 is drained into [Marvel] stacks, 1 stack per 3 DP, at
+  // most 50 stacks a round [DRAFT: the cap is on what she converts: once it is reached she stops draining]
+  uniequip_fishw_siege(battle, u) {
+    u.fishDpMul = 2;
+    let made = 0;
+    battle.every(0.5, () => {
+      const ps = battle.getPlayer(u.ownerId);
+      if (ps) ps.fishDpMax = up(u) ? 999 : 0;
+      if (!up(u) || !ps) return;
+      const n = Math.min(Math.floor((ps.dp - 90) / 3), 50 - made);
+      if (!(n > 0)) return;
+      battle.addDp(u.ownerId, -3 * n);
+      made += gainLayers(battle, { playerId: u.ownerId, bonds: 'miraShip', n, requireActive: false, source: u, reason: 'module' });
+    }, { owner: u });
+  },
+
+  // Saileach W: after each skill cast, if [Aid] is active every active Alliance gains +2 stacks, +4 with 3 or more different
+  // [Aid] Operators on the field (the official Aid effect, per cast instead of per round)
+  uniequip_fishw_sleach(battle, u) {
+    battle.on('skillStart', (c) => {
+      if (c.unit !== u || !bondOn(battle, u.ownerId, 'deputShip')) return;
+      const aid = new Set();
+      for (const a of battle.allies(u.ownerId)) if (a.kind === 'op' && a.deployed && unitBonds(a).includes('deputShip')) aid.add(a.defId);
+      const bonds = Object.keys(battle.getPlayer(u.ownerId)?.bonds ?? {});
+      gainLayers(battle, { playerId: u.ownerId, bonds, n: aid.size >= 3 ? 4 : 2, requireActive: true, source: u, reason: 'module' });
     }, { owner: u });
   },
 
@@ -252,6 +359,7 @@ const INSTALL = {
     battle.addBuff(u, { key: `${KEY}:thorns`, persist: true, allowDead: true, mods: { rangeExtend: 1 }, tags: ['module'] });
     liveBuff(battle, u, `${KEY}:thornsSkill`, () => skillBusy(u), () => ({ rangeExtend: 1, maxTargets: 1 }), { flags: { stealth: true } });
     u.fishPoisonTickMul = 3;
+    maxSpAtFirstSkillEnd(battle, u);
     installLordArtsAddition(battle, u, (c) => (isMainHit(c.dmg) ? 0.2 : 0), ['module', 'addition']);
     battle.on('damageCalculate', (c) => {
       if (c.source !== u || !c.target?.alive || c.target.side !== 'enemy' || !isMainHit(c.dmg)) return;
@@ -277,6 +385,37 @@ const INSTALL = {
     u.fishCannonRedeployMul = 1;
     battle.on('tick', () => { if (up(u)) u.fishCannonRedeployMul = 1 - 0.01 * steps(); }, { owner: u });
   },
+  // Weedy W: skill SP requirement -30 % (added to similar effects, e.g. 绝技's); every skill activation gives every enemy on the
+  // field one Slippery stack (5 at most, for good): weight -1 per stack, and every 0.5 s an enemy touching a red box (an enemy
+  // route's start tile) takes 1000 / 2000 / 4000 / 8000 / 16000 true damage; and her Water Cannon's cooldown is set to 1 s
+  // when more than 1 s is left. [Slippery goes only on the enemies already on the field when the skill is activated]
+  uniequip_fishw_weedy(battle, u) {
+    const SLIP = `${KEY}:slippery`;
+    battle.on('battleStart', () => {
+      const sk = u.skill;
+      if (sk && !sk.noSkill && sk.kind !== 'passive') sk.spCostMul = Math.max(0, sk.spCostMul - 0.3);
+    }, { owner: u });
+    battle.on('skillStart', (c) => {
+      if (c.unit !== u) return;
+      for (const e of battle.aliveEnemies()) {
+        const k = Math.min(5, (e.findBuff(SLIP)?.data?.k ?? 0) + 1);
+        battle.addBuff(e, { key: SLIP, mods: { massFlat: -k }, data: { k }, source: u, tags: ['module'] });
+      }
+      for (const t of battle.allyUnits) {
+        const w = t.kind === 'token' && t.defId === 'token_10009_weedy_cannon' && t.ownerUnit === u ? t.fishCannonWait : null;
+        if (w && !t.alive && w.at - battle.time > 1) w.at = battle.time + 1;
+      }
+    }, { owner: u });
+    battle.every(0.5, () => {
+      for (const e of battle.aliveEnemies()) {
+        const k = e.findBuff(SLIP)?.data?.k;
+        if (!k || !battle.routes.some((r) => r.start && hypot(e.x - r.start[1], e.y - r.start[0]) <= 0.75)) continue;
+        battle.dealDamage({ source: u, target: e, amount: 1000 * powi(2, k - 1), type: 'true', attackType: 'ADDITION', applyWay: 'NONE',
+          calculation: 'precomputed', tags: ['module', 'fishSlippery'] });
+      }
+    }, { owner: u });
+  },
+
   // Glimmering Touch (cooldown 12 s, ready at once): an enemy in the range of any of her player's 卡西米尔 operators
   // (leaders first) is marked; 7 s later its tile explodes (5×5 diamond): 300 % ATK Burn and 300 % ATK Arts — the Arts
   // 600 % ATK × the living 卡西米尔 operators on an enemy already in a Burn burst. Any enemy's Burn burst: RES −2,
@@ -298,7 +437,10 @@ const INSTALL = {
       if (!pick) return;
       readyAt = battle.time + 12;
       const tx = Math.round(pick.x), ty = Math.round(pick.y);
-      battle.fx('zone', { x: tx, y: ty, radius: 2, dur: 7, id: u.id, skill: 'fishVvana' });
+      // the warning is the 13 tiles of the diamond it will hit (a round 'zone' ring showed no diamond: GitHub #175)
+      const diamond = [];
+      for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) if (Math.abs(dr) + Math.abs(dc) <= 2) diamond.push([ty + dr, tx + dc]);
+      battle.fx('telegraph', { x: tx, y: ty, r: 2.5, dur: 7, tiles: diamond, id: u.id, skill: 'fishVvana' });
       battle.after(7, () => {
         if (!u.alive) return;   // [DRAFT: the explosion needs her alive; her ATK at detonation]
         const n = kaz().length;
@@ -327,7 +469,6 @@ const INSTALL = {
       if (c.source !== u || c.target?.side !== 'enemy' || !c.dmg || c.dmg.cancel || c.dmg.type === 'element'
         || c.dmg.tags?.includes('fishZuole')) return;
       const t = c.target;
-      if (t.s.def > 0) { battle.dealElementDamage({ source: u, target: t, element: 'erosion', amount: u.s.atk * 0.05, tags: ['module', 'fishZuole'] }); return; }
       battle.dealElementDamage({ source: u, target: t, element: 'burn', amount: u.s.atk * 0.05, tags: ['module', 'fishZuole'] });
       if (t.alive) battle.dealDamage({ source: u, target: t, amount: u.s.atk * 0.1, type: 'arts', attackType: 'ADDITION',
         applyWay: 'NONE', calculation: 'precomputed', origin: c.dmg, tags: ['module', 'fishZuole'] });
@@ -346,7 +487,7 @@ function installVvanaRes(battle) {
     if (c.element !== 'burn' || !e || e.side !== 'enemy' || !e.alive) return;
     const k = Math.min(10, (n.get(e) ?? 0) + 1);
     n.set(e, k);
-    battle.addBuff(e, { key: `${KEY}:vvanaRes`, mods: { resFlat: -2 * k }, tags: ['module'] });
+    battle.addBuff(e, { key: `${KEY}:vvanaRes`, mods: { resFlat: -2 * k, defFlat: -200 * k }, tags: ['module'] });
   });
 }
 

@@ -81,7 +81,7 @@ export class BattleLifecycle {
       this._phase('scheduled', () => this._runScheduled());
       this._phase('spawns', () => this._processSpawns());
       this._phase('dp', () => {
-        for (const ps of this.players) ps.dp = Math.min(this.flags.dpMax, ps.dp + this.flags.dpPerSec * dt);
+        for (const ps of this.players) ps.dp = Math.min(this.dpCapOf(ps), ps.dp + this.flags.dpPerSec * dt);
       });
       this._phase('buffs', () => this._tickBuffs(dt));
       // Allies whose attack comes off cooldown this tick keep the target they have now, before enemies move.

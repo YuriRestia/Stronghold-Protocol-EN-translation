@@ -1,6 +1,6 @@
 // (fork) One for All (DESIGN §91.9, server/match/match/oneForAll.js): a Grand Alliance whose strategy is one room-wide
 // secret vote. The vote, its secrecy, the close (early, time-out, dropped, leaver), the tally and tie draw, the winner
-// for every seat, the 7.5 s BATTLE_CHECK, the result's mode and 鸭爵 applying once with every seat holding it.
+// for every seat, the 7.5 s BATTLE_CHECK, the result's mode and 鸭爵 applying once per holder with every seat holding it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getData } from '../server/data.js';
@@ -171,9 +171,10 @@ test('One for All: a single human votes untimed and the vote ends on Confirm', (
   assert.equal(P(0).bandId, bands[4]);
 });
 
-// 鸭爵 is a global effect (server/sim/content/bands/meta.js duckGlobal): it finds the first holder, so eight holders
-// swap exactly what one holder does (the design's "applies once" check).
-test('One for All: 鸭爵 held by every seat swaps the same units as one holder (applies once)', () => {
+// 鸭爵 is a global effect (server/sim/content/bands/meta.js duckGlobal): every living holder makes its own 0–2 draw on
+// separate units (the user, 2026-11-13: "if there's 8 players duck lord, that gets applied 8 times"); the first draw is
+// the one a single holder makes, every player gets the same units.
+test('One for All: 鸭爵 held by every seat draws once per holder, on separate units, the same for every player', () => {
   const REG = createRegistry({ log: quiet });
   const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 1, bots: 3, seed: 91, registry: REG, fake: true }).start();
   h.toPrep(6);
@@ -181,18 +182,26 @@ test('One for All: 鸭爵 held by every seat swaps the same units as one holder 
   const ps = m.alivePlayers();
   const duck = (spawns) => spawns.filter((s) => s.tag === 'duck').map((s) => `${s.actionIndex}:${s.routeIndex}:${s.enemyKey}`).sort();
   const seed0 = m.seed;
-  let seen = 0;
+  let seen = 0, more = 0;
   for (let k = 0; k < 12; k++) {
     m.seed = seed0 + k;
     for (const p of ps) p.bandId = m.gd.bandDraft.timeoutBandId;
     ps[0].bandId = 'band_ducklord';
     const one = ps.map((p) => duck(m._normalOpts(p).spawns));
     for (const p of ps) p.bandId = 'band_ducklord';
-    const all = ps.map((p) => duck(m._normalOpts(p).spawns));
-    assert.deepEqual(all, one, `draw ${k}`);
+    const lists = ps.map((p) => m._normalOpts(p).spawns.filter((s) => s.tag === 'duck'));
+    const all = lists.map(duck);
+    for (let i = 0; i < ps.length; i++) for (const u of one[i]) assert.ok(all[i].includes(u), `draw ${k}: the single holder's swap ${u} stays`);
+    const units = lists.map((l) => l.map((s) => `${s.actionIndex}:${s.routeIndex}:${s.time}`));
+    for (const u of units) assert.equal(new Set(u).size, u.length, `draw ${k}: no unit swapped twice`);
+    const unitsOf = (l) => l.map((s) => `${s.actionIndex}:${s.routeIndex}`).sort();
+    for (let i = 1; i < ps.length; i++) assert.deepEqual(unitsOf(lists[i]), unitsOf(lists[0]), `draw ${k}: player ${i} has the same units`);
+    assert.ok(all[0].length <= 2 * ps.length);
     seen += one[0].length;
+    more += all[0].length - one[0].length;
   }
   assert.ok(seen > 0, 'some draw swapped a unit');
+  assert.ok(more > seen, `four holders swap more than one (${seen + more} vs ${seen})`);
   assert.ok(DATA.bands.band_ducklord);
   m.dispose();
 });

@@ -5,7 +5,6 @@
 
 export const SKILL_BEGIN_ANIMS = Object.freeze({
   "skchr_absin_2": Object.freeze({ begin: "Skill_Begin", down: null }),
-  "skchr_aglna2_2": Object.freeze({ begin: "Skill_2_Begin", down: null }),
   "skchr_agoat2_1": Object.freeze({ begin: "Skill_1_Begin", down: null }),
   "skchr_agoat2_3": Object.freeze({ begin: "Skill_3_Begin", down: null }),
   "skchr_alanna_2": Object.freeze({ begin: "Skill_2_Begin", down: null }),

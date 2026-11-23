@@ -125,6 +125,9 @@ const POOL_DECODE_MAX_MS = 2500; // [ASSUMED] Older undecoded attacks are obsole
  * (The SFX limiter still applies on top.)
  */
 const LEAK_SFX_GAP_MS = 1500;
+/** (fork) One battle tick in game seconds: the sim's fixed step (server/sim/constants.js TICK, DESIGN §4). _battleDelay
+ *  reads the playback rate once per tick. */
+const BATTLE_TICK_S = 1 / 30;
 const BUFFER_CACHE = 180;
 /** Decoded-PCM budget of the buffer cache beside its entry count: a voice line decodes to 0.4–1.3 MB (see _buffer). */
 const BUFFER_BYTES = 64 * 1024 * 1024;
@@ -783,6 +786,10 @@ export class AudioManager {
     this.onLobbyTrackFailed = null; // called when that file would not decode (the official track plays instead)
     this.units = new Map();   // battle unit id → defId
     this.pendingSkill = new Map(); // unit id → the 'skill' tuple that arrived before the unit was known (see _track)
+    this.castKeys = null;         // (fork) { sfx, map }: effect key → enemy skill impact part (fxKey)
+    this.fxHitAt = new Map();     // (fork) '<unit>><to>|<tag>' → when that fx last came (_enemyFxHit's `gap`)
+    this.turnHit = new Map();     // (fork) enemy id → its attack-turn skill's impact (fxHits['turn|<pk>'], _enemyCast)
+    this.battleView = null;       // (fork) { pos(id) → {x, y} tiles | null, rate() → battle s per real s } (setBattleView)
     this.lastAttacker = new Map(); // target id → { def, at, skillIndex, skillActive } of the hostile attack aimed at it (its impact sound,
                                    // including the running skill's own `hits` — 赤刃明霄陈 S3's slash)
     this.consumed = new Set();     // summons used up by their own effect (香槟炸弹 exploded): no death sound
@@ -1368,13 +1375,44 @@ export class AudioManager {
     if (kind === 'burst') { this._burstSound(ex); return; }
     // (fork) the unit the fx names (`id`), else its shooter (`src`: 蕾缪安's locks and shots name the enemy); a key with
     // '#<skill index>' is that equipped skill's own (her S2 aim and S3 lock are both 'lock')
-    for (const id of [ex.id, ex.src]) {
+    // (fork, enemy sound audit job 3) an enemy's moments: its table (plan.mjs ENEMY_MOMENT_SOUND_BANKS) keyed by the fx's
+    // `kind` / `form` instead, and a beam's / link's shooter (`from`) counts too
+    for (const id of [ex.id, ex.src, ex.from]) {
       const u = id != null ? this.units.get(id) : null;
+      if (u && id === ex.from && id !== ex.id && id !== ex.src && u.side !== 'enemy') continue;
       const table = u ? unitSfx(this.getManifest()?.audio?.sfx, u.def, u.outfit)?.fxSounds : null;
       if (!table) continue;
       const tag = `${kind}|${ex.skill ?? ''}`;
-      const e = (Number.isInteger(u.skillIndex) ? table[`${tag}#${u.skillIndex}`] : null) ?? table[tag];
+      let e = (Number.isInteger(u.skillIndex) ? table[`${tag}#${u.skillIndex}`] : null) ?? table[tag];
+      if (!e && u.side === 'enemy') e = table[`${kind}|${ex.kind ?? ex.form ?? ''}`];
+      // an enemy's moment, or a held loop (炎佑, an ally built from an enemy record)
+      if (e && (u.side === 'enemy' || e.loop || e.endLoop)) { this._enemyMoment(id, e); return; }
       if (typeof e?.url === 'string') { this._playParts(e, NOTE_GAIN); return; }
+    }
+  }
+
+  /**
+   * (fork, enemy sound audit job 3) One enemy moment (sfx.units[id].fxSounds entry): its sounds on their pools, then its
+   * held loop — started (`loop`, until the unit's skill ends, it dies or the field changes) or ended (`endLoop`).
+   * Only the bank's own limits apply (audio_data maxSoundAllowed / popOldest, in `_playBank`). A part's `after` is its
+   * spine event's time in the official clip (seconds of game time, plan.mjs ENEMY_MOMENT_SOUND_BANKS cites each): divided by
+   * the battle's playback rate (_battleRate, setBattleView), dropped when the field changed meanwhile.
+   */
+  _enemyMoment(id, e) {
+    const speed = this._battleRate();
+    for (const p of [e, ...(Array.isArray(e.also) ? e.also : [])]) {
+      if (typeof p?.url !== 'string') continue;
+      if (!(p.after > 0)) { this._playBank(p.url, p.pool, UNIT_BASE_GAIN); continue; }
+      const token = this.poolFieldToken;
+      setTimeout(() => { if (token === this.poolFieldToken) this._playBank(p.url, p.pool, UNIT_BASE_GAIN); }, p.after * 1000 / speed);
+    }
+    if (e.endLoop) { this._stopStingLoop(id); return; }
+    if (typeof e.loop !== 'string') return;
+    const cur = this.stingLoops.get(id);
+    if (!cur || cur.url !== e.loop) {
+      this._stingLoop(id, e.loop, this._unitUrlGroup?.(this.units.get(id)?.def, 'skill', e.loop, null) ?? null);
+      const now = this.stingLoops.get(id);
+      if (now) now.url = e.loop;
     }
   }
 
@@ -1383,6 +1421,168 @@ export class AudioManager {
    * FX_SOUND_BANKS / attackAlso), each on its bank's pool; one with `after` waits that many seconds [ASSUMED: real time,
    * not the battle speed] and is dropped when the field changed meanwhile.
    */
+  /**
+   * (fork, enemy sound audit chunk 2) An enemy skill cast (b.ev ['cast', id, slot]): manifest sfx.units[enemyId].casts[slot]
+   * .start, its official ON_ABILITY_START / ON banks (and a projectile's BORN), at once. The skill's impact rings later,
+   * when its own impact effect spawns (fxKey).
+   */
+  _enemyCast(id, slot) {
+    const u = this.units.get(id);
+    if (!u || u.side !== 'enemy') return;
+    const ue = unitSfx(this.getManifest()?.audio?.sfx, u.def, null);
+    const c = ue?.casts?.[String(slot)];
+    for (const p of Array.isArray(c?.start) ? c.start : []) this._castPart(p);
+    // (fork, enemy sound audit job 3) a moment that rings with this cast (fxSounds 'cast|<skill pk>', a spine event)
+    const m = typeof c?.pk === 'string' ? ue?.fxSounds?.[`cast|${c.pk.toLowerCase()}`] : null;
+    if (m) this._enemyMoment(id, m);
+    // (fork, enemy sound leftovers job 2) an attack-turn skill (castSlot, then the attack): its impact is that attack's
+    const turn = c?.pk != null ? ue?.fxHits?.[`turn|${c.pk}`] : null;
+    if (turn) {
+      if (this.turnHit.size >= PENDING_SKILL_MAX) this.turnHit.delete(this.turnHit.keys().next().value);
+      this.turnHit.set(id, turn);
+    }
+  }
+
+  /**
+   * (fork, enemy sound leftovers job 2) A kit fx (b.ev ['fx', kind, x, y, extra]) that times an enemy skill's impact:
+   * manifest sfx.units[def].fxHits['<kind>|<extra.kind>'] of the unit the fx names (`id`, `from`, `src`), else of an enemy
+   * dying in this batch (`died`: 新手祭司学徒's flask names nobody). Battle effects on or off alike. `gap`: the same fx of
+   * the same pair again within that many battle seconds stays silent (one chain while the sim re-sends it every second).
+   * @param {string} kind
+   * @param {any} ex
+   * @param {Map<any, string>} [died] enemy id → def of the 'die' events in this batch
+   * @param {number} [x] the fx's point (tiles): where the shot starts or lands when a unit's position is unknown
+   * @param {number} [y]
+   */
+  _enemyFxHit(kind, ex, died, x, y) {
+    const sfx = this.getManifest()?.audio?.sfx;
+    if (!sfx || !ex || typeof ex !== 'object') return;
+    const tag = `${kind}|${typeof ex.kind === 'string' ? ex.kind : ''}`;
+    const named = [ex.id, ex.from, ex.src].filter((x) => x != null);
+    const cands = named.length ? named.map((id) => [id, this.units.get(id)?.def]) : [...(died || [])];
+    for (const [id, def] of cands) {
+      const e = def ? unitSfx(sfx, def, null)?.fxHits?.[tag] : null;
+      if (typeof e?.url !== 'string') continue;
+      if (e.gap > 0) {
+        const at = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        const k = `${id}>${ex.to ?? ''}|${tag}`;
+        const last = this.fxHitAt.get(k);
+        if (this.fxHitAt.size > 256) this.fxHitAt.clear();
+        this.fxHitAt.set(k, at);
+        if (last != null && at - last < (e.gap * 1000) / this._battleRate()) return;
+      }
+      this._castParts(e, this._flightAfter(e, id, ex, x, y));
+      return;
+    }
+  }
+
+  /**
+   * (fork) An fxHits entry and its `also` parts on their pools (_castPart): each `after` its own battle seconds (plus
+   * `flight`: the lead part's shot in the air, _flightAfter), in real time at the battle's playback rate.
+   */
+  _castParts(e, flight = 0) {
+    const rate = this._battleRate();
+    for (const p of [e, ...(Array.isArray(e?.also) ? e.also : [])]) {
+      if (typeof p?.url !== 'string') continue;
+      const s = (p.after > 0 ? p.after : 0) + (p === e && flight > 0 ? flight : 0);
+      if (!(s > 0)) { this._castPart(p); continue; }
+      const token = this.poolFieldToken;
+      setTimeout(() => { if (token === this.poolFieldToken) this._castPart(p); }, (s * 1000) / rate);
+    }
+  }
+
+  /**
+   * (fork) Battle seconds an fxHits entry's shot flies (`speed`: its official projectile speed, tiles per s): from the
+   * shooter `id` to the fx's `to`, each where the latest snapshot has it (setBattleView), else at the fx's point. 0 with
+   * no speed, or when neither end is known.
+   */
+  _flightAfter(e, id, ex, x, y) {
+    if (!(e?.speed > 0)) return 0;
+    const at = Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+    const pos = (u) => { try { const p = u != null ? this.battleView?.pos?.(u) : null; return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? p : null; } catch { return null; } };
+    const a = pos(id) || at, b = pos(ex?.to) || at;
+    return a && b ? Math.hypot(b.x - a.x, b.y - a.y) / e.speed : 0;
+  }
+
+  /** (fork) Battle seconds per real second now (the view's playback rate; 1 without a view). */
+  _battleRate() {
+    let r = 1;
+    try { r = Number(this.battleView?.rate?.()); } catch { r = 1; }
+    return r > 0 ? r : 1;
+  }
+
+  /** (fork) _battleRate, but 0 while the view reports the battle paused (rate 0): _battleDelay holds then. */
+  _battleRateNow() {
+    let r = 1;
+    try { r = this.battleView?.rate ? Number(this.battleView.rate()) : 1; } catch { r = 1; }
+    return r === 0 ? 0 : r > 0 ? r : 1;
+  }
+
+  /**
+   * (fork) Where the units of the watched battle are and how fast it plays (screens/game.js): skill impact sounds timed in
+   * battle seconds (sfx.units[id].fxHits) wait the real time that makes, and a shot's flight its real distance.
+   * @param {{ pos?: (id: any) => ({ x: number, y: number } | null), rate?: () => number } | null} v
+   */
+  setBattleView(v) {
+    this.battleView = v && typeof v === 'object' ? v : null;
+  }
+
+  /**
+   * (fork, enemy sound audit chunk 2) An official effect started (render/vfx/system.js OfficialFx.onSpawn): when it is an
+   * enemy skill's impact effect (sfx.units[id].casts[slot].keys), that skill's impact sound (its ON_ABILITY_HIT or
+   * projectile HIT / REACH bank). Effects off (no spawns): no skill impact sounds.
+   */
+  fxKey(key) {
+    const sfx = this.getManifest()?.audio?.sfx;
+    if (!sfx || typeof key !== 'string') return;
+    if (this.castKeys?.sfx !== sfx) {
+      const map = new Map();
+      for (const u of Object.values(sfx.units || {})) {
+        for (const c of Object.values(u?.casts || {})) {
+          if (typeof c?.hit?.url !== 'string') continue;
+          for (const k of Array.isArray(c.keys) ? c.keys : []) if (!map.has(k)) map.set(k, c.hit);
+        }
+        // (fork, enemy sound audit job 3) an effect's own official sound (plan.mjs ENEMY_KEY_SOUND_BANKS)
+        for (const [k, p] of Object.entries(u?.keySounds || {})) if (typeof p?.url === 'string' && !map.has(k.toLowerCase())) map.set(k.toLowerCase(), p);
+      }
+      this.castKeys = { sfx, map };
+    }
+    const part = this.castKeys.map.get(key.toLowerCase());
+    if (part) this._castPart(part);
+  }
+
+  /**
+   * (fork, enemy sound leftovers job 1) A unit's sim form from a form fx: its `form` (shared/protocol.js fxForm — setForm,
+   * a 重生's 'revive'), else a 'phase' fx's kind (“余音”'s setEchoForm: 'echo_gold' / 'echo_dark').
+   */
+  _noteForm(kind, ex) {
+    const form = typeof ex.form === 'string' ? ex.form : kind === 'phase' && typeof ex.kind === 'string' ? ex.kind : undefined;
+    const u = form !== undefined ? this.units.get(ex.id) : null;
+    if (u) u.form = form;
+  }
+
+  /**
+   * (fork, enemy sound leftovers job 1) The attack variant of an impact (unit()): its attacker's form when it has a variant
+   * for it, else `dmg:<type>` when it has one for the damage type dealt (萨卡兹枯朽前锋's Originium mode: arts on an
+   * infection tile), else none.
+   */
+  _hitVariant(by, type) {
+    const vs = unitSfx(this.getManifest()?.audio?.sfx, by.def, by.outfit)?.variants;
+    if (!vs) return null;
+    if (by.form != null && vs[by.form]) return by.form;
+    return vs[`dmg:${type}`] ? `dmg:${type}` : null;
+  }
+
+  /**
+   * One enemy skill-cast part on its pool, every time it comes: a crowd casting together is held to the bank's own cap
+   * alone (`maxSoundAllowed`, the oldest giving way with `popOldest`), as the official client's SoundFXBank holds only
+   * its playing atoms (`Bank.m_activeAtoms`) and no time between plays (Il2Cpp dump.cs SoundFXBank / Bank fields;
+   * audio_data soundFXBanks have no interval field).
+   */
+  _castPart(p) {
+    if (typeof p?.url === 'string') this._playBank(p.url, p.pool, UNIT_BASE_GAIN);
+  }
+
   _playParts(e, gain) {
     for (const p of [e, ...(Array.isArray(e?.also) ? e.also : [])]) {
       if (typeof p?.url !== 'string') continue;
@@ -1473,7 +1673,8 @@ export class AudioManager {
    * (fork) One sound of 丰川祥子's (a sting, a note's born / hit) on its official bank alone, outside the battle limiter
    * (8 voices, unit / URL gaps: remake guards the official client does not have): only the bank's own cap holds (max
    * `maxSoundAllowed` at once, 0 = unlimited; `popOldest` = the oldest gives way, else the new one is dropped) and the
-   * played file's pitch is drawn in its minPitch–maxPitch. A field change drops a decode still in flight (stingField).
+   * played file's pitch is drawn in its minPitch–maxPitch; it starts after its official `delay`. A field change drops a
+   * decode or a delay still in flight (stingField). Enemy cast parts, moments and timed impacts play here too.
    */
   _playBank(url, poolId, volume) {
     const ctx = this.ctx;
@@ -1482,46 +1683,85 @@ export class AudioManager {
     const field = this.stingField;
     this._buffer(url).then((buf) => {
       if (!buf || ctx !== this.ctx || field !== this.stingField || this.volumes.muted) return;
-      const key = poolId || url;
-      const voices = this.stingVoices.get(key) || [];
-      const limit = params?.maxSoundAllowed > 0 ? params.maxSoundAllowed : Infinity;
-      if (voices.length >= limit) {
-        if (!params?.popOldest) return;
-        voices[0].pop();
-      }
-      let src, gain, done = false;
-      const voice = {
-        stop: () => { try { src?.stop(); } catch { /* already ended */ } end(); },
-        pop: () => {   // (fork) as a pool voice's pop: out of the bank now, silent over POP_FADE_S
-          const i = voices.indexOf(voice);
-          if (i >= 0) voices.splice(i, 1);
-          if (!voices.length) this.stingVoices.delete(key);
-          if (!fadeOut(ctx, src, gain)) voice.stop();
-        },
-      };
-      const end = () => {
-        if (done) return;
-        done = true;
+      const sound = params?.sounds?.[unhashedUrl(url).replace(/^\/assets\/audio\/sfx\//, '')];
+      // (fork) the file's official `delay` (audio_data soundFXBanks[].sounds[].delay, pools[id].sounds[path].delay): it is
+      // admitted to its bank that many battle seconds later (_battleDelay)
+      const delay = Math.max(0, Number(sound?.delay) || 0);
+      if (!(delay > 0)) { this._admitBank(ctx, buf, url, poolId, params, sound, volume); return; }
+      this._battleDelay(ctx, delay, sound?.ignoreTimeScale === true,
+        () => ctx === this.ctx && field === this.stingField && !this.volumes.muted,
+        () => this._admitBank(ctx, buf, url, poolId, params, sound, volume));
+    }, () => {});
+  }
+
+  /**
+   * (fork) Wait `seconds` of battle time, then `done()`, while `alive()` holds. The official SoundFX keeps its `delay` on
+   * game time: it carries `ignoreTimeScale`, false on every official sound (Il2Cpp dump.cs SoundFXBank.SoundFX fields;
+   * audio_data soundFXBanks[].sounds[].ignoreTimeScale). So the delay runs at the battle's playback rate now (the view's
+   * rate, setBattleView: 2× halves it, a speed change mid-wait takes effect from then on, 0 = paused holds it) and on the
+   * audio clock (a suspended context holds it too). `real` (ignoreTimeScale true) keeps real seconds. `onTimer` gets each
+   * pending timer, so an owner can cancel the wait (the attack pools' _dropPoolRequest clears `req.timer`).
+   */
+  _battleDelay(ctx, seconds, real, alive, done, onTimer = null) {
+    let left = seconds;
+    let last = ctx.currentTime;
+    let rate = null;   // the rate read at the start of the interval now running
+    const step = () => {
+      if (!alive()) return;
+      const now = ctx.currentTime;
+      if (rate != null) left -= Math.max(0, now - last) * rate;
+      last = now;
+      if (left <= 1e-6) { done(); return; }
+      // the rate is read again each battle tick (as the sim counts its own timers) and holds for that tick, so a speed
+      // change or a pause takes hold within one tick and a paused tick consumes nothing; paused, it looks again one tick
+      // of real time later
+      rate = real ? 1 : this._battleRateNow();
+      const t = setTimeout(step, (Math.min(BATTLE_TICK_S, left) / (rate > 0 ? rate : 1)) * 1000);
+      onTimer?.(t);
+    };
+    step();
+  }
+
+  /** (fork) _playBank's admission: the bank's own cap (`maxSoundAllowed`, 0 = unlimited; `popOldest`), then playback. */
+  _admitBank(ctx, buf, url, poolId, params, sound, volume) {
+    const key = poolId || url;
+    const voices = this.stingVoices.get(key) || [];
+    const limit = params?.maxSoundAllowed > 0 ? params.maxSoundAllowed : Infinity;
+    if (voices.length >= limit) {
+      if (!params?.popOldest) return;
+      voices[0].pop();
+    }
+    let src, gain, done = false;
+    const voice = {
+      stop: () => { try { src?.stop(); } catch { /* already ended */ } end(); },
+      pop: () => {   // (fork) as a pool voice's pop: out of the bank now, silent over POP_FADE_S
         const i = voices.indexOf(voice);
         if (i >= 0) voices.splice(i, 1);
         if (!voices.length) this.stingVoices.delete(key);
-        try { src?.disconnect(); gain?.disconnect(); } catch { /* ignore */ }
-      };
-      const sound = params?.sounds?.[unhashedUrl(url).replace(/^\/assets\/audio\/sfx\//, '')];
-      const lo = sound?.minPitch > 0 ? sound.minPitch : 1;
-      const hi = sound?.maxPitch >= lo ? sound.maxPitch : lo;
-      const rate = lo + (hi - lo) * Math.max(0, Math.min(1, this.random()));
-      try {
-        src = ctx.createBufferSource(); gain = ctx.createGain();
-        src.buffer = buf; src.playbackRate.value = rate;
-        gain.gain.value = volume * spatialGain(params?.spatial, buf.numberOfChannels);
-        src.connect(gain); gain.connect(this._out(params?.group));
-        src.onended = end;
-        voices.push(voice); this.stingVoices.set(key, voices);
-        src.start();
-        setTimeout(end, buf.duration / rate * 1000 + 250); // safety if onended never fires
-      } catch { end(); }
-    }, () => {});
+        if (!fadeOut(ctx, src, gain)) voice.stop();
+      },
+    };
+    const end = () => {
+      if (done) return;
+      done = true;
+      const i = voices.indexOf(voice);
+      if (i >= 0) voices.splice(i, 1);
+      if (!voices.length) this.stingVoices.delete(key);
+      try { src?.disconnect(); gain?.disconnect(); } catch { /* ignore */ }
+    };
+    const lo = sound?.minPitch > 0 ? sound.minPitch : 1;
+    const hi = sound?.maxPitch >= lo ? sound.maxPitch : lo;
+    const rate = lo + (hi - lo) * Math.max(0, Math.min(1, this.random()));
+    try {
+      src = ctx.createBufferSource(); gain = ctx.createGain();
+      src.buffer = buf; src.playbackRate.value = rate;
+      gain.gain.value = volume * spatialGain(params?.spatial, buf.numberOfChannels);
+      src.connect(gain); gain.connect(this._out(params?.group));
+      src.onended = end;
+      voices.push(voice); this.stingVoices.set(key, voices);
+      src.start();
+      setTimeout(end, buf.duration / rate * 1000 + 250); // safety if onended never fires
+    } catch { end(); }
   }
 
   /** The skill's held loop of unit `id` (one per unit: a new one replaces it), on its bank's mixer `group`. */
@@ -1750,19 +1990,13 @@ export class AudioManager {
       const path = unhashedUrl(url).replace(/^\/assets\/audio\/sfx\//, '');
       const sound = req.pool.sounds?.[path];
       const delay = Math.max(0, sound?.delay || 0);
-      const due = req.ctx.currentTime + delay;
-      const ready = () => {
-        if (!this._poolRequestCurrent(req)) { this._dropPoolRequest(req); return; }
-        // Wall timers also run while AudioContext is suspended. Keep the file's delay on the audio clock.
-        const remaining = due - req.ctx.currentTime;
-        if (remaining > 1e-6) {
-          req.timer = setTimeout(ready, Math.max(10, remaining * 1000));
-          return;
-        }
-        this._dropPoolRequest(req);
-        this._startPool(req, buf, sound);
-      };
-      ready();
+      // (fork) the file's official delay in battle seconds (_battleDelay: the official SoundFX keeps it on game time,
+      // ignoreTimeScale false on every official sound), on the audio clock; a request dropped meanwhile (field change,
+      // mute, a newer request of its bank and unit) clears its pending timer as before
+      this._battleDelay(req.ctx, delay, sound?.ignoreTimeScale === true,
+        () => { if (this._poolRequestCurrent(req)) return true; this._dropPoolRequest(req); return false; },
+        () => { this._dropPoolRequest(req); this._startPool(req, buf, sound); },
+        (t) => { req.timer = t; });
     }
     load.clear();
   }
@@ -1961,12 +2195,21 @@ export class AudioManager {
    * @param {number|string} unitId battle unit id (cooldown key)
    * @param {number} [skillIndex] the unit's equipped skill slot (0-based)
    * @param {boolean} [skillActive] whether that skill runs right now (`attacks` / `hits` need it, see header)
+   * @param {string|null} [outfit]
+   * @param {boolean} [melee] (fork) an enemy's melee attack (the sim's 'atk' kind 'none'): its `melee` set, when it has
+   *   one, stands for its attack / hit / pools / mix / attackNext (tools/assets/audio.mjs pickEnemySfx)
+   * @param {string|null} [variant] (fork, enemy sound leftovers job 1) an enemy's attack in another official mode: its
+   *   `variants[variant]` set (tools/assets/audio.mjs ENEMY_ATTACK_VARIANTS) stands for them instead, when it has one
    * @returns {boolean} whether a unit-specific sound exists
    */
-  unit(defId, kind, unitId, skillIndex, skillActive = false, outfit = null) {
+  unit(defId, kind, unitId, skillIndex, skillActive = false, outfit = null, melee = false, variant = null) {
     try {
       const pick = () => {
-        const u = unitSfx(this.getManifest()?.audio?.sfx, defId, outfit);
+        const all = unitSfx(this.getManifest()?.audio?.sfx, defId, outfit);
+        const strike = kind === 'attack' || kind === 'hit';
+        const v = strike && variant != null ? all?.variants?.[variant] : null;
+        const m = v || (melee && strike ? all?.melee : null);
+        const u = m ? { ...all, attack: m.attack, hit: m.hit, pools: m.pools, mix: m.mix, attackNext: m.attackNext, hitNext: m.hitNext } : all;
         // DESIGN §16: the equipped skill's own ON_SKILL_START sound (`skills[index]`). (fork) A unit with `skills` plays by
         // index only: an index without a sound is a skill the official bank table leaves silent, never `skill` (the
         // primary skill's sound, which rang on 54 operators' other skills)
@@ -2000,9 +2243,14 @@ export class AudioManager {
       const song = kind === 'skill' && typeof own === 'string' && SONG_SKILLS[defId]?.includes(skillIndex);
       this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix), limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
       // (fork) the running skill's attack may sound again after its swing (attackAlso: 圣约送葬人's Sanrio S2 shot)
-      // — once per swing: an attack on several targets is one 'atk' per target, so it keeps the unit cooldown the swing has
-      const also = kind === 'attack' && typeof mode === 'string' ? u?.attackAlso?.[skillIndex] : null;
-      const alsoKey = `${unitId}:attackAlso`, at = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      // — once per swing: an attack on several targets is one 'atk' per target, so it keeps the unit cooldown the swing has.
+      // (fork) An enemy's normal attack: the fire / release banks of the same attack (`attackNext`: 假想敌：铳's shot
+      // after its charge), with the swing [ASSUMED: at once — the sim's 'atk' is already the release]
+      // (fork, enemy sound leftovers job 1) …and an enemy's impact the other banks of it (`hitNext`: 潜水员's splash with
+      // its arrow, 腐败骑士's splash blade with its axe)
+      const also = kind === 'hit' ? (typeof mode === 'string' ? null : u?.hitNext)
+        : kind !== 'attack' ? null : typeof mode === 'string' ? u?.attackAlso?.[skillIndex] : u?.attackNext;
+      const alsoKey = `${unitId}:${kind === 'hit' ? 'hitAlso' : 'attackAlso'}`, at = typeof performance !== 'undefined' ? performance.now() : Date.now();
       if (Array.isArray(also) && !this.limiter.cooling(at, alsoKey)) {
         this.limiter.lastByUnit.set(alsoKey, at);
         this._playParts({ also }, unitGain(UNIT_BASE_GAIN, mix));
@@ -2179,6 +2427,7 @@ export class AudioManager {
     // unit ids belong to one battle: a cast still held for a unit of the field left must not sound for a unit of the new
     // one that happens to share its id
     this.pendingSkill.clear();
+    this.turnHit.clear(); // (fork) a held attack-turn impact goes with the field
     this.lastAttacker.clear();
     this.consumed.clear();
     // the Fever song belongs to the field it started on
@@ -2199,6 +2448,16 @@ export class AudioManager {
       skillIndex: Number.isInteger(u.skillIndex) ? u.skillIndex : null, skillActive: !!u.skillActive });
     // (fork) its skill stings and note sounds decode now, so its first cast / note is not late (or dropped)
     if (u.side !== 'enemy') this._warmStings(u.spine || u.defId, this.units.get(u.id)?.outfit);
+    else {
+      // (fork) an enemy's skill-cast sounds decode now, so its first cast is not late
+      const ue = unitSfx(this.getManifest()?.audio?.sfx, u.spine || u.defId, null);
+      for (const c of Object.values(ue?.casts || {})) for (const p of [...(Array.isArray(c?.start) ? c.start : []), c?.hit]) if (typeof p?.url === 'string') this._buffer(p.url);
+      // …and its moments (fxSounds, keySounds), held loops included
+      for (const m of Object.values(ue?.fxSounds || {})) {
+        for (const x of [m?.url, m?.loop, ...(Array.isArray(m?.also) ? m.also.map((p) => p?.url) : [])]) if (typeof x === 'string') this._buffer(x);
+      }
+      for (const p of Object.values(ue?.keySounds || {})) if (typeof p?.url === 'string') this._buffer(p.url);
+    }
     // a cast that arrived before this unit was known (handleBattleEvents): it sounds now, once
     const held = this.pendingSkill.get(u.id);
     if (held) {
@@ -2345,6 +2604,13 @@ export class AudioManager {
     if (!this.ctx || !Array.isArray(ev)) return;
     try {
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      // (fork) the enemies dying in this batch (an fx that names nobody, _enemyFxHit), before 'die' forgets them
+      let died = null;
+      for (const e of ev) {
+        if (!Array.isArray(e) || e[0] !== 'die') continue;
+        const u = this.units.get(e[1]);
+        if (u?.side === 'enemy') (died ??= new Map()).set(e[1], u.def);
+      }
       for (const e of ev) {
         if (!Array.isArray(e)) continue;
         const kind = e[0];
@@ -2365,13 +2631,22 @@ export class AudioManager {
           const held = Number.isInteger(src.heldAttack) && !src.skillActive;
           const sIdx = held ? src.heldAttack : src.skillIndex ?? null;
           const sOn = held || !!src.skillActive;
-          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: sIdx, skillActive: sOn });
-          if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn, src.outfit) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
+          // (fork) an enemy's melee strike (server/sim/ai.js: kind 'none' — blocked, or no range) plays its melee set
+          const melee = src.side === 'enemy' && e[3] === 'none';
+          // (fork) an enemy's attack-turn skill (_enemyCast): this attack's impact is the skill's
+          const turnHit = src.side === 'enemy' ? this.turnHit.get(e[1]) ?? null : null;
+          if (turnHit) this.turnHit.delete(e[1]);
+          // (fork, enemy sound leftovers job 1) an enemy's form picks its attack variant (ENEMY_ATTACK_VARIANTS)
+          const form = src.side === 'enemy' ? src.form ?? null : null;
+          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: sIdx, skillActive: sOn, melee, form, turnHit });
+          if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn, src.outfit, melee, form) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
         } else if (kind === 'dmg') {
           const by = this.lastAttacker.get(e[1]);
           if (!by || !IMPACT_TYPES.has(e[3])) continue;
           this.lastAttacker.delete(e[1]); // one impact per attack
-          if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive, by.outfit);
+          if (!(now - by.at <= IMPACT_WINDOW_MS)) continue;
+          if (by.turnHit) this._castParts(by.turnHit);
+          else this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive, by.outfit, !!by.melee, this._hitVariant(by, e[3]));
         } else if (kind === 'heal') {
           this.battle('heal', { unitKey: `heal:${e[1]}`, volume: 0.8 }); // (fork) the bank's own volume 0.8, on the mixer
         } else if (kind === 'skill' && e[2]) {
@@ -2383,6 +2658,10 @@ export class AudioManager {
             // (fork) a cast cue (the sim's skill `cue`, 丰川祥子): the skill's sting, and its held loop
             if (e[3] && typeof e[3] === 'object') this._sting(e[1], u, e[3]);
             this._skillEdge(e[1], u, true);
+            // (fork, enemy sound audit job 3) a loop held while the skill runs (fxSounds 'skill|on': 炎佑's flame, the
+            // official ON_ABILITY_ON bank; the end below stops it)
+            const on = unitSfx(this.getManifest()?.audio?.sfx, u.def, u.outfit)?.fxSounds?.['skill|on'];
+            if (on) this._enemyMoment(e[1], on);
             // 作战中N: the equipped skill's own slot (0-based; 作战中4 is the fallback of a 4th slot)
             if (unitSoundClass(u) === 'char') {
               const n = Number.isInteger(u.skillIndex) ? Math.min(4, u.skillIndex + 1) : 1;
@@ -2405,6 +2684,9 @@ export class AudioManager {
           this.pendingSkill.delete(e[1]);
           this._stopStingLoop(e[1]);
           if (was) this._skillEdge(e[1], u, false);
+        } else if (kind === 'cast') {
+          // (fork, enemy sound audit) an enemy's skill cast ['cast', id, slot, dur?, clip?]: that skill's own start sounds
+          this._enemyCast(e[1], e[2] | 0);
         } else if (kind === 'engage') {
           // 行动开始: the first attack a unit makes on an enemy (the sim's ENGAGE, official ENCOUNTER_ENEMY, 3 s apart)
           const u = this.units.get(e[1]);
@@ -2462,17 +2744,30 @@ export class AudioManager {
           const u = ex && typeof ex === 'object' ? this.units.get(ex.id) : null;
           const idx = u ? HELD_ATTACK_LAYERS[u.def]?.[ex.skill] : undefined;
           if (u && Number.isInteger(idx)) u.heldAttack = Number(ex.n) > 0 ? idx : null;
+        } else if (kind === 'fx' && e[1] === 'mode') {
+          // (fork, enemy sound audit job 3) an enemy's attack mode (泥岩巨像's tiers): its next attacks play that mode's
+          // own swing / impact (sfx.units[id].attacks[n]) when it has them, else the plain ones
+          const ex = e[4];
+          const u = ex && typeof ex === 'object' ? this.units.get(ex.id) : null;
+          if (u?.side === 'enemy') {
+            const n = Number(ex.n);
+            u.heldAttack = Number.isInteger(n) && unitSfx(this.getManifest()?.audio?.sfx, u.def, null)?.attacks?.[String(n)] ? n : null;
+          }
         } else if (kind === 'fx') {
           // an enemy's animation-event sound (manifest sfx.units[def].events, planned for the fork's enemies): 爱国者
           // kneels into his revive, rises from it, and his spear lands (FX_EVENT_SFX)
           const ex = e[4];
+          // (fork, enemy sound leftovers job 2) an enemy skill impact this fx times (sfx.units[def].fxHits)
+          this._enemyFxHit(e[1], ex, died, e[2], e[3]);
+          // (fork, enemy sound leftovers job 1) an enemy's form from now on (its attack variant: unit())
+          if (ex && typeof ex === 'object' && ex.id != null) this._noteForm(e[1], ex);
           const evName = ex && typeof ex === 'object' ? FX_EVENT_SFX[`${e[1]}:${ex.form ?? ''}`] ?? FX_EVENT_SFX[e[1]] : null;
           if (evName) {
             const uid = ex.id ?? ex.from;
             const u = uid != null ? this.units.get(ex.from ?? uid) : null;
             const url = u ? this.getManifest?.()?.audio?.sfx?.units?.[u.def]?.events?.[evName] : null;
-            if (url) this._playUnitUrl(url, `${ex.from ?? uid}:${evName}`, 0.8);
-            continue;
+            // only a planned event sound replaces the rest (Yuri's moments still play for an enemy without one)
+            if (url) { this._playUnitUrl(url, `${ex.from ?? uid}:${evName}`, 0.8); continue; }
           }
           if (ex && typeof ex === 'object' && ex.id != null) this._fxSound(e[1], ex);
           // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound

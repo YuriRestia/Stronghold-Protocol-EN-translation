@@ -120,10 +120,16 @@ test('no other enemy slot the sim casts plays another clip than its official abi
   assert.deepEqual(off, []);
 });
 
+// (fork, enemy skills 2026-11-13) the lookups of a NEVER_CAST slot that signal its official effects alone: the 逐火 embers'
+// 重生 is their BornAnim (archetypes.js husk `rebornSkill`) — a castSlot ['cast', id, slot, 1] for skillfx's window, with
+// no skill window (`skillAnimUntil` untouched, so no SKILL anim and no skill clip): the husk form's own clips stay
+const EFFECTS_ONLY = [/rebornSkill: ab\.sk\.BornAnim\b/g];
+
 test('the NEVER_CAST slots are cast nowhere in the sim', () => {
   const dir = new URL('../server/sim/', import.meta.url);
   const files = readdirSync(dir, { recursive: true }).filter((f) => String(f).endsWith('.js'));
-  const text = files.map((f) => readFileSync(new URL(String(f), dir), 'utf8')).join('\n');
+  let text = files.map((f) => readFileSync(new URL(String(f), dir), 'utf8')).join('\n');
+  for (const re of EFFECTS_ONLY) text = text.replace(re, '');
   for (const keys of Object.values(NEVER_CAST)) {
     for (const k of keys) assert.ok(!new RegExp(`sk\\.${k}\\b|sk\\[['"]${k}['"]\\]`).test(text), `${k}: no ab.sk lookup in server/sim`);
   }

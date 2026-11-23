@@ -82,6 +82,8 @@ export class MatchViews {
       modeId: this.modeId,
       difficulty: this.difficulty,
       rules: { ...this.lobbyRules },
+      ...(this.awarded ? { awarded: { ...this.awarded } } : {}),
+      ...(this.awardNotes ? { awardNotes: structuredClone(this.awardNotes) } : {}),
       stageId: this.stageId,
       // a non-default official version's match (DESIGN §35.23): its registry id, so a page that never saw the room (a
       // reload after it closed: the lobby's result replay) reads the frames with that version's data; absent for the
@@ -94,6 +96,8 @@ export class MatchViews {
         voters: this.setupVote.voters.slice(),
         agreed: [...this.setupVote.agreed],
       } : null,
+      // (fork) no setup reroll here (Lobby.rerollLock): the briefing's button is disabled with the reason; absent otherwise
+      ...(this.rerollLock ? { rerollOff: this.rerollLock } : {}),
       factions: this.factions.slice(),
       disabledBonds: [...new Set([...this.disabledBonds, ...this.staticInactiveBonds])].sort(),
       drawnDisabledBonds: this.disabledBonds.slice(),

@@ -25,6 +25,7 @@
 
 import { layerGainRoom } from '../../shared/constants.js';
 import { grantedBondsByMorph, ruleOption } from '../../shared/plugins/rules.js';
+import { modZOf } from '../../shared/modZ.js';
 
 export const HARMONY_BOND = 'maniShip';
 export const DEPUTY_BOND = 'deputShip';
@@ -41,7 +42,8 @@ export function pieceBonds(gd, piece, rules = null) {
   const out = c && Array.isArray(c.bonds) ? c.bonds.slice() : [];
   const items = Array.isArray(piece.items) ? piece.items : [];
   const mode = ruleOption(rules, 'morphPairing');
-  for (const b of grantedBondsByMorph(items, (id) => gd.item(id), { mode, bondOk: (id) => !!gd.bond(id) })) {
+  const free = !!(c && c.module && c.module.active && modZOf(c.module.id)?.isoFree);   // Mod Z Phantom: no Damazti Isomorph needed
+  for (const b of grantedBondsByMorph(items, (id) => gd.item(id), { mode, bondOk: (id) => !!gd.bond(id), free })) {
     if (!out.includes(b)) out.push(b);
   }
   return out;
@@ -229,13 +231,13 @@ export function bondList(gd, bonds, { full = false, off = null } = {}) {
  * @param {ReturnType<typeof computeBonds>} bonds
  * @param {Record<string, number>|null|undefined} gains
  */
-export function bondsWithGains(bonds, gains) {
+export function bondsWithGains(bonds, gains, cap) {
   if (!gains || typeof gains !== 'object') return bonds;
   let out = null;
   for (const [id, n] of Object.entries(gains)) {
     const b = bonds && bonds[id];
     if (!b) continue;
-    const add = layerGainRoom(b.layers, Math.floor(Number(n) || 0));
+    const add = layerGainRoom(b.layers, Math.floor(Number(n) || 0), cap);
     if (!(add > 0)) continue;
     if (!out) out = { ...bonds };
     out[id] = { ...b, layers: (b.layers || 0) + add };

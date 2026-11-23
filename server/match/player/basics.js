@@ -27,9 +27,10 @@ export class PlayerBasics {
   /** The engine acts for this seat (AI teammate or "AI 托管"; a departed human is eliminated, so nothing is left to do). */
   get botControlled() { return this.isBot || this.left || this.autoplay; }
 
+  /** The deployment limit the lobby rule 「+2 部署上限」 adds (shared/constants.js), 0 when it is off. */
+  get deployRuleBonus() { return this.m.lobbyRules?.extraDeploy ? RULE_EXTRA_DEPLOY : 0; }
   get deployCap() {
-    const rule = this.m.lobbyRules?.extraDeploy ? RULE_EXTRA_DEPLOY : 0; // lobby rule (shared/constants.js)
-    return Math.max(1, this.gd.deployCap + rule + this.deployCapBonus, this.deployCapMin);
+    return Math.max(1, this.gd.deployCap + this.deployRuleBonus + this.deployCapBonus, this.deployCapMin);
   }
   get deployCount() { let n = 0; for (const p of this.board.values()) if (p.kind === 'chess') n++; return n; }
   get tempEmpty() { return this.temp.every((x) => x == null); }

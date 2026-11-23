@@ -56,6 +56,9 @@ enough. Those jobs are posted as issues with the label `compute`, and anyone can
 
    Leave out `--seed`: the tool picks a random starting seed, so two contributors almost never repeat each other's
    seeds (`ai-players/README.md` "Seeds"). `--jobs N` sets the threads (default: all cores but one).
+   `--rules R` plays every match with those lobby rules, e.g. one SPA-CC grinder set
+   (`--rules ccSwift=1,ccForesight=1,ccDeepInfiltration=1,ccLowEfficiency=1,ccStrategyLate=1`); the block records them and
+   merge keeps different rules apart.
 2. Paste the block it prints (5 lines, about 50 characters per 200 seeds) as a reply on the issue. Nothing else is
    needed: no files, no zips.
 3. Whoever posted the job collects the thread with `node tools/bench-share.mjs merge thread.txt` (any text containing the

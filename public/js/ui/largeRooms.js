@@ -71,7 +71,9 @@ export function PrivacyFields({ priv, pw, onPriv, onPw, onEnter = null, focus = 
         <input class="num" data-testid="privacy-password" value=${pw} maxLength=${4} placeholder="ABCD" autoComplete="off" spellCheck=${false}
           ref=${(el) => { if (focus && el && !el.dataset.f) { el.dataset.f = '1'; setTimeout(() => el.focus(), 40); } }}
           onInput=${(e) => onPw(clean(e.currentTarget.value))} onKeyDown=${(e) => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter(); } }} /></label>
-      <small class="privacy__hint">${t('4 个字母。设为私密后，加入房间（包括邀请链接）需要输入密码。')}</small>` : null}
+      <small class="privacy__hint">${t('4 个字母。设为私密后，加入房间（包括邀请链接）需要输入密码。')}</small>`
+      // (fork) rerolls stay off once a room is public (server/lobby.js rerollLock; user, 2026-11-13)
+      : html`<small class="privacy__hint" data-testid="privacy-reroll-hint">${t('房间公开或搜寻队友后，不能再重刷本局。' /* en: "Once a room is public or uses Find Teammates, it has no stage setup reroll." */)}</small>`}
   </div>`;
 }
 

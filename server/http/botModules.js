@@ -20,23 +20,35 @@ const IMPORT_RE = /^(?:import\b|export\s*(?:\*|\{))[^;'"]*?from\s+['"]([^'"]+)['
 /**
  * The server/match files the Worker reaches.
  * @param {string} [root] the module to start from (tests)
+ * @param {{ serverDir?: string }} [opts] the server folder (tests: a fixture tree)
  * @returns {Map<string, string>} URL path below /match/ ('bot.js', 'match/infra.js') → the file
- * @throws when a reached module imports anything but relative paths
+ * @throws when a reached module imports anything but relative paths, or a server file outside server/match that has no mount
+ *   of its own: (fork, live bug 2026-11-12) such a file used to be skipped here and then answered 404 in the browser, which
+ *   failed the Worker's whole module graph, so no AI seat played at all (PlayerState.js → ../chatLimit.js)
  */
-export function botModuleFiles(root = ROOT_MODULE) {
+export function botModuleFiles(root = ROOT_MODULE, { serverDir = SERVER_DIR } = {}) {
+  const matchDir = path.join(serverDir, 'match');
+  // what the browser gets from elsewhere (static.js): server/sim and shared have mounts, server/data.js a stand-in at /data.js
+  const mounted = (file) => file === path.join(serverDir, 'data.js') || [path.join(serverDir, 'sim'), path.resolve(serverDir, '..', 'shared')]
+    .some((dir) => file.startsWith(dir + path.sep));
   const seen = new Set();
   const out = new Map();
-  const walk = (file) => {
+  const walk = (file, from) => {
     if (seen.has(file)) return;
     seen.add(file);
-    if (!file.startsWith(MATCH_DIR + path.sep)) return;
-    out.set(path.relative(MATCH_DIR, file).split(path.sep).join('/'), file);
+    if (!file.startsWith(matchDir + path.sep)) {
+      if (from && !mounted(file)) {
+        throw new Error(`${path.relative(serverDir, from)} imports ${path.relative(serverDir, file)}: the browser Worker cannot load it (only server/match, server/sim, shared and server/data.js are served)`);
+      }
+      return;
+    }
+    out.set(path.relative(matchDir, file).split(path.sep).join('/'), file);
     for (const m of fs.readFileSync(file, 'utf8').matchAll(IMPORT_RE)) {
       const spec = m[1] || m[2];
-      if (!spec.startsWith('.')) throw new Error(`${path.relative(SERVER_DIR, file)} imports ${spec}: it cannot run in a browser Worker`);
-      walk(path.resolve(path.dirname(file), spec));
+      if (!spec.startsWith('.')) throw new Error(`${path.relative(serverDir, file)} imports ${spec}: it cannot run in a browser Worker`);
+      walk(path.resolve(path.dirname(file), spec), file);
     }
   };
-  walk(root);
+  walk(root, null);
   return out;
 }

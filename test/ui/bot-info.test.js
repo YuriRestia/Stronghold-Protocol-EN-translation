@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ROOM_BOTS, BOT_INFO } from '../../shared/botProfiles.js';
+import { ROOM_BOTS, BOT_INFO, botScore, botScoreSuffix, strengthMatches, STRENGTH_MATCHES } from '../../shared/botProfiles.js';
 import { TACTICS } from '../../server/match/botStrategies.js';
 import { makeMatch } from '../match/harness.js';
 
@@ -45,4 +45,28 @@ test('every room bot has a strength (GitHub #124: Ultimate solo win rate × 100)
     const team = BOT_INFO[b.id]?.team;
     assert.ok(Number.isInteger(team) && team >= 0 && team <= 100, `${b.id} team: ${team}`);
   }
+});
+
+test('the strength score (Fish on #151): solo + team of 4, 0–200, ± 1 standard deviation of the two win rates', () => {
+  assert.deepEqual(botScore({ strength: 44, team: 78 }), { score: 122, sd: 9 });
+  assert.deepEqual(botScore({ strength: 38, team: 65 }), { score: 103, sd: 9 });
+  assert.deepEqual(botScore({ strength: 0, team: 23 }), { score: 23, sd: 7 });
+  assert.equal(botScore({ strength: 44 }), null, 'no team number: no score');
+  assert.deepEqual(botScore({ strength: 42, team: 71, n: { solo: 380, team: 340 } }), { score: 113, sd: 4 }, 'a bot\'s own match counts narrow its ±');
+  assert.equal(strengthMatches({}), STRENGTH_MATCHES);
+  for (const b of ROOM_BOTS) {
+    const sc = botScore(BOT_INFO[b.id]);
+    assert.ok(sc && sc.score >= 0 && sc.score <= 200 && sc.sd >= 0, b.id);
+  }
+});
+
+test('the room\'s bot selector shows each bot\'s strength score next to its name (GitHub #172)', () => {
+  for (const b of ROOM_BOTS) {
+    const sc = botScore(BOT_INFO[b.id]);
+    assert.equal(botScoreSuffix(b.id), sc ? ` (${sc.score})` : '', b.id);
+  }
+  assert.equal(botScoreSuffix('legacy'), ` (${botScore(BOT_INFO.legacy).score})`);
+  assert.equal(botScoreSuffix('no-such-bot'), '');
+  const room = readFileSync(new URL('../../public/js/screens/room.js', import.meta.url), 'utf8');
+  assert.match(room, /\$\{t\(b\.label\)\}\$\{botScoreSuffix\(b\.id\)\}/, 'the option carries the suffix');
 });

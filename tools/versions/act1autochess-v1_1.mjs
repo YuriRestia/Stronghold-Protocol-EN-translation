@@ -32,6 +32,8 @@ export default Object.freeze({
   research: 'docs/research/versions/act1autochess-v1_1/',
   tables: Object.freeze({ stock: null, shopDraft: null, tacticDraft: null, bountyDrafts: null }),
   pools: Object.freeze({ pool_chess_glady: Object.freeze(['char_263_skadi', 'char_143_ghost', 'char_218_cuttle']) }),
+  // (fork) 丰川祥子 (mujica) stays out of this version's 自选 pool: the owner's decision of 2026-11-15 (today's season keeps her)
+  diyExcludedTeams: Object.freeze(['mujica']),
   config: Object.freeze({
     hiddenCore: Object.freeze({ single: 300, multi: 1000 }),
     // Round53 authorizes full-bench swaps in every version; first-period client fidelity is unmeasured [ASSUMED], §36.2.

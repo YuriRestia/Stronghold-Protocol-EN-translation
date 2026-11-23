@@ -5,6 +5,7 @@
 // the player state).
 
 import { ERR, GEO } from '../../../shared/constants.js';
+import { chessIsDiy, itemForbidsDiy } from '../../../shared/itemRules.js';
 import { morphSlotPolicy, ruleOption } from '../../../shared/plugins/rules.js';
 import { tileKey, inField, parseDir, freeSlot } from '../board.js';
 import { offsetTile } from '../../sim/dir.js';
@@ -29,7 +30,9 @@ export class PlayerItems {
    */
   releaseItemStock(piece) {
     if (!piece || piece.kind !== 'item' || !this.m?.itemPool) return 0;
-    return this.m.itemPool.repay(piece.id, this.m.itemPool.need(piece.id));
+    // (fork) One for All: copies outside the stock (pool.js offStock) repay nothing
+    const copies = this.m.itemPool.stockCopies(piece);
+    return copies > 0 ? this.m.itemPool.repay(piece.id, copies) : 0;
   }
 
   /**
@@ -52,6 +55,8 @@ export class PlayerItems {
     const target = tloc.piece;
     // the boosterPack / itemBoosterPack cheats: a pack is not attached, it opens its offer
     if (rec.booster === true) return rec.boosts === 'items' ? this.openItemBooster() : this.openBooster(target);
+    // Before anything moves: 信标's text (and any other item whose official sentence says so) cannot go on a 自选 piece.
+    if (itemForbidsDiy(rec) && chessIsDiy(this.gd.chess(target.id))) return fail(ERR.BAD_TARGET, 'diy');
     if (replaceUid != null && !(Number.isInteger(replaceUid) && (target.items || []).some((x) => x.uid === replaceUid))) return fail(ERR.BAD_TARGET, 'replace: not equipped on the target');
     const policy = this._slotPolicy();
     // [ASSUMED] a second 变形同构体 is refused before anything moves. Official accepts() is always true.

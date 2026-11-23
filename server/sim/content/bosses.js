@@ -14,7 +14,8 @@
 // unless the match passes the round's placeholder replacements as `opts.slotKeys` ({ NF: key, N: key, … }).
 //   · patrol: a leader / part walking `patrol` steps loops them (never reaches the goal: 卢西恩 lpr 30, 铳, 碎铳之簧).
 //   · 'boss_battle_multi_player' (铳, 卢西恩): with ≥2 players on the field the mirrored copy is spawned from the branch
-//     (skipped if the match already spawned a second copy, or opts.bossMirror === false).
+//     (skipped if the match already spawned a second copy, or opts.bossMirror === false); a copy timed before the
+//     leader comes at its own time from the battle's start (branchAtStart: the h08_02 铳 at 0.1 s, §37.109).
 //
 // Leaders (see each kit for details):
 //   boss_1/8 假想敌：胄      random arts beam (range 8); 灭顶之灾 one 刺胄之弹 at the highest-ATK operator in range (8-hit
@@ -36,7 +37,8 @@
 //                            element shield (phys+arts ×0.1, broken by its own element burst; every (spCost+1)-th attack a
 //                            bouncing erosion shot) / 5-hit count shield (every (spCost+1)-th attack a ten-hit combo); always
 //                            unblockable (PRTS 能力修正: also without the shield); shield back 25 s after breaking. It passes
-//                            on as 无来源 HP loss to the highest-hatred 铳 (PART_TRANSFER) and, split, the other springs: the
+//                            on as 无来源 HP loss to the highest-hatred 铳 only (PART_TRANSFER; never the other springs,
+//                            §37.109): the
 //                            arts variant every applied modifier — damage, heals, element (actrpa_passive ON_APPLIED_MODIFIER)
 //                            —, the others the damage they take at their injury stage (§35.34).
 //   boss_3/10 假想敌：管     summons 余音 (dark) every 40 s (20 s < 50 %); normal attacks strike dark 余音 (their pulse hurts
@@ -70,7 +72,7 @@
 // fx kinds: 'beam' 'shell' 'explode' 'telegraph' 'charge' 'link' 'dash' 'column' 'tide' 'rockfall' 'tentacle' 'equip'
 //   'sword' 'vest' 'blink' 'summon' 'grow' 'phase' 'lpLoss' (x, y + extra {id, r, tiles, kind, tx, ty …}).
 
-import { MOVE_SCALE, MAX_ALIVE_ENEMIES } from '../constants.js';
+import { MOVE_SCALE, MAX_ALIVE_ENEMIES, ASPD_MIN } from '../constants.js';
 import { aggroCmp, areaSelectable } from '../targeting.js';
 import { compileRoute } from '../ai.js';
 import { normalizeRoute } from '../simdata.js';
@@ -109,6 +111,13 @@ const BLADE_ATK_SCALE = Object.freeze({ enemy_9015_acstmb: 1.5 });
  */
 const BLADE_HAND = Object.freeze({ enemy_9014_acstma: 'left_hand', enemy_9015_acstmb: 'right_hand' });
 /**
+ * (fork) The official buff key of each blade's dizzy loop while it is shot down (b.snap fxs; render/vfx/skills.js
+ * STATE_BUFFS): its skill 1's BuffToOwner template, whose ON_APPLIED_MODIFIER makes the [special_stun] buff that loops
+ * enemy_acstma_dizzy_loop for special_stun_duration — the sim's 'boss:downed'.
+ */
+const ACSTMA_FX = 'acstma_s_1', ACSTMB_FX = 'acstmb_s_1';
+const BLADE_DIZZY_FX = Object.freeze({ enemy_9014_acstma: ACSTMA_FX, enemy_9015_acstmb: ACSTMB_FX });
+/**
  * 死亡集群: a drone that dies (PRTS 能力修正 "该无人机单位死亡时", whoever kills it) costs 胄 `hp_ratio` (2 %) of "最大生命值"
  * (PRTS 假想敌：胄 "该妖怪死亡时令假想敌：胄受到最大生命值2%的真实伤害"). WHICH max HP is not documented [ASSUMED reading]:
  *   'pool' (default, = v2.5): the leader's max HP as the battle shows it — the shared pool (the engine syncs the unit's
@@ -133,18 +142,26 @@ const ECHO_PULSE_RADIUS = 1.6;
 const ECHO_ENSEMBLE_RADIUS = Object.freeze({ gold: 0.8, dark: 1.6 });
 /** "只能被阻挡数大于等于2的单位阻挡". */
 const ECHO_BLOCK_WEIGHT = 2;
+/** (fork) How long the b.snap fxs row of its switch burst stays (s): the client plays the one-shot once as it appears. */
+const ECHO_SWITCH_FX = 1;
 /** 裂管之奏 strike spacing (s). */
 const PIPE_STRIKE_GAP = 0.4;
 /** 断裂生殖 tentacle: stun duration and reach around its device tile [ASSUMED]. */
 const TENTACLE_STUN = 5, TENTACLE_RADIUS = 1;
 /** 崩坍 delay (PRTS 1 s), targets per growth stage (PRTS 2/4/8) and 物种爆发 delay (PRTS 4 s). */
 const ROCKFALL_DELAY = 1, ROCKFALL_TARGETS = [2, 4, 8], DOOM_DELAY = 4;
-/** 铳: minimum attack speed (PRTS "最低20") and charge hit radius (PRTS 0.35 — also “碎铳之簧”'s 追逐模式 trample). */
-const ASPD_FLOOR = 20, CHARGE_RADIUS = 0.35;
+/** 铳: charge hit radius (PRTS 0.35 — also “碎铳之簧”'s 追逐模式 trample). */
+const CHARGE_RADIUS = 0.35;
+// (fork) “碎铳之簧”'s 追逐模式 trample hit: the official buff of each variant's MoveToHunter aura (render/vfx/skills.js
+// STATE_BUFFS; the element variant actrpb has none) and how long its one-shot row stays in b.snap fxs
+const ACTRPA_TRAMPLE_FX = 'actrpa_s_1[damage]';
+const ACTRPC_TRAMPLE_FX = 'actrpc_s_1[damage]';
+const SPRING_TRAMPLE_FX = Object.freeze({ enemy_9018_actrpa: ACTRPA_TRAMPLE_FX, enemy_9020_actrpc: ACTRPC_TRAMPLE_FX });
+const SPRING_TRAMPLE_ROW = 0.3;
 /** 盲信之誓 link half-width (PRTS 0.5). */
 const LINK_WIDTH = 0.5;
 /** 碎铳之簧 bullet bounce falloff / reach [ASSUMED], combo = 十连击; tag of the damage share passed between springs. */
-const SPRING_BOUNCE_FALLOFF = 0.85, SPRING_BOUNCE_RANGE = 2, SPRING_COMBO_HITS = 10, SPRING_SHARE_TAG = 'springShare';
+const SPRING_BOUNCE_FALLOFF = 0.85, SPRING_BOUNCE_RANGE = 2, SPRING_COMBO_HITS = 10;
 /**
  * Leaders that are 自缚 and cannot be blocked — the 天赋 line of every 巨型单位 page (PRTS 假想敌：胄 (both copies) "自缚、
  * 不可阻挡", 假想敌：管 (+ 隐秘核心) / 盐风主教昆图斯 / 阿利斯泰尔，帝国余晖 / “萨米的意志” "自缚 … 无法被阻挡"). 自缚 (PRTS
@@ -305,6 +322,8 @@ function summonMods(b, hpRatio = null) {
 export function install(battle) {
   ensureInstalled(battle);
   battle.on('enemySpawn', ({ enemy }) => onSpawn(battle, enemy), { priority: 90 });
+  // Next tick, so opts.setup (run after install) has set the template and opts.bossMirror.
+  battle.after(0, () => branchAtStart(battle));
   // "最终攻势中，敌方领袖不会受到侵蚀损伤" (PRTS 卫戍协议：盟约/PRTS盟约记录 规则; research 06 §10.1): leaders ignore erosion gauge damage
   battle.on('elementHit', (c) => { if (c.target && c.target.isBoss && c.dmg.element === 'erosion') c.dmg.cancel = true; }, { priority: 100 });
 }
@@ -336,6 +355,39 @@ function patrolLoop() {
   };
 }
 
+function mirrorOff(b) {
+  return b.data.raw?.config?.version?.rules?.bossMirrorShare === false || (b.opts && b.opts.bossMirror === false) || b.players.length < 2;
+}
+
+// The official client moves to the boss_battle_multi_player branch when the boss battle starts, not when the leader
+// appears (Torappu.Battle.GameMode.GameModeFactory.AutoChessGameMode.MainGameInBossBattle._OnBossBattleStart, RVA
+// 0xc7cb20: Scheduler.TryMoveNextBranch at 0xc7cd22 after a player count > 1 check; the literal at 0x8BE7DF8 —
+// official GameAssembly.dll + Il2CppDumper dump.cs / stringliteral.json). So a branch copy timed before the leader's own
+// spawn comes at its own time: h08_02's second 铳 at 0.1 s on extraRoutes[2] while the leader waits its 10 s preDelay
+// (official level_act1autochess_h08_02.json). Entries at or after the leader's time stay with mirror() below (h07_02,
+// act2autochess_h07_05: both at 0). Until §37.109 the h08_02 copy came with the leader at 10 s, so both guns ran
+// the same 【末日布道】 timers and the right one always called last: the springs only ever chased to the right half.
+function branchAtStart(b) {
+  if (mirrorOff(b)) return;
+  const tpl = templateOf(b);
+  const br = tpl && tpl.branches && tpl.branches.boss_battle_multi_player;
+  if (!Array.isArray(br) || !Array.isArray(br[0])) return;
+  const st = stOf(b);
+  for (const s of br[0]) {
+    const key = s.key ?? s.enemyKey;
+    if (!key || st.mirrored.has(key)) continue;
+    const leads = b._pending.filter((p) => p.enemyKey === key && p.tag === 'boss');
+    if (leads.length !== 1 || !((s.time ?? 0) < leads[0].time)) continue; // the match spawns both, or mirror() does it
+    st.mirrored.add(key);
+    const mods = leads[0].mods;
+    b.after(Math.max(0, (s.time ?? 0) - b.time), () => {
+      const route = tpl.extraRoutes && tpl.extraRoutes[s.routeIndex];
+      const u = b.spawnEnemy(key, { route: route || undefined, tag: 'boss', mods });
+      if (u) u.mem.mirror = true;
+    });
+  }
+}
+
 function mirror(b, e, tpl) {
   if (b.data.raw?.config?.version?.rules?.bossMirrorShare === false) return;
   const st = stOf(b);
@@ -364,11 +416,21 @@ const nearestOf = (b, e, pred) => {
   for (const o of b.enemies) { if (!o.alive || o === e || !pred(o)) continue; const d = hypot(o.x - e.x, o.y - e.y); if (d < bd) { bd = d; best = o; } }
   return best;
 };
-/** Apply a floor to an enemy whose data attack speed is 0 (skill-driven leaders: 铳/管/弦). */
-function aspdFloor(b, e, extra = 0) {
+/**
+ * The official base ASPD of an enemy whose data attack speed is 0 (铳 / 管 / 弦; data/enemies.json stats.aspd 0, official
+ * enemy_database attributes.attackSpeed m_defined true, m_value 0). The client clamps the raw attribute when it loads it:
+ * `Attributes.Reset` stores `TSMath.Clamp(raw, range)` in `m_rawData` [src: GameAssembly.dll Torappu.Battle.Attributes
+ * Reset RVA 0x679070, the Clamp at 0x6792cb stored at 0x6792fa], the range of attackSpeed being
+ * `[AttributeMeta(ATTACK_SPEED, 20)]` [src: dump.cs AttributesData.attackSpeed], so the unit starts at ASPD 20 and every
+ * modifier adds onto that 20 (`_CalculateAttributeValue` reads the clamped raw back). Our normaliser turns a 0 into 100
+ * (simdata.js normalizeEnemy `|| 100`), so the base is set here: the detail card then compares the live interval with the
+ * official one (22.5 s for the gun) instead of a 100-ASPD interval it never had.
+ */
+function officialBaseAspd(e) {
   const rawAspd = e.def.raw && e.def.raw.stats ? Number(e.def.raw.stats.aspd) : NaN;
-  if (!(rawAspd === 0)) return;
-  b.addBuff(e, { key: 'boss:aspd', persist: true, mods: { aspd: Math.max(ASPD_FLOOR, rawAspd + extra) - e.base.aspd } });
+  if (!(rawAspd === 0) || e.base.aspd === ASPD_MIN) return;
+  e.base.aspd = Math.max(ASPD_MIN, rawAspd);
+  e.markDirty();
 }
 /**
  * Engine target priority (blocker → taunt → latest deployed), made fair for two players on one boss field: within the top
@@ -555,7 +617,7 @@ function kitBlade(ab, e, b, tpl) {
     e2.motion = 'WALK';                                              // 变为地面单位（不改变寻路方式）
     const stun = bb.stun ?? 0;
     b2.applyStatus(e2, 'stun', { duration: stun, source: null, force: true });
-    b2.addBuff(e2, { key: 'boss:downed', duration: Math.min(bb.special_stun_duration ?? stun, stun), visible: true,
+    b2.addBuff(e2, { key: 'boss:downed', duration: Math.min(bb.special_stun_duration ?? stun, stun), visible: true, fx: BLADE_DIZZY_FX[e2.defId] ?? null,
       mods: { dmgTakenMul: bb.damage_scale ?? 1 }, onExpire: () => { if (e2.alive && P.state === 'down') replace(b2, e2); } });
     b2.fx('phase', { x: e2.x, y: e2.y, id: e2.id, kind: 'shotDown' });
   };
@@ -614,23 +676,38 @@ function kitBlade(ab, e, b, tpl) {
 
 const isGun = (o) => /enemy_9017_achunt/.test(o.defId);
 const isSpring = (o) => /enemy_90(18|19|20)_actrp/.test(o.defId);
+// (fork) the charge's hit on each unit (talent 3's achunt_s_1[damage]); HIT_ROW_S: how long its b.snap row stays, our
+// own time (the client's buff is IMMEDIATELY; the row only has to reach a snapshot) [ASSUMED]
+const HIT_ROW_S = 1;
 
 function kitGun(ab, e, b) {
   const hidden = /_2$/.test(e.defId);
+  // Talent 2 (对同一个目标进行攻击时，攻击速度逐渐提升): the prefab's Talents/2 is a BrownbTalent_1 whose `_stackBuff`
+  // achunt_t_2 (overrideType STACK, life INFINITY) adds ATTACK_SPEED (ADDITION, from the blackboard: attack_speed) per
+  // stack [src: CN client battle/enm_pfb_28.ab enemy_9017_achunt Talents/2]. Its Apply(target) [src: GameAssembly.dll
+  // BrownbTalent_1.Apply RVA 0xfdc1b0] runs as the attack lands on a target: a target other than the last one clears
+  // the stack group (OverrideGroup.Clear) and becomes the last one; then one stack is added — so the first hit on a
+  // target already counts. The group holds `max_stack_cnt` stacks and `max_valid_stack_cnt` of them count
+  // [src: OverrideGroup.ResetWithBuff RVA 0x6e0760, Blackboard.GetIntOrDefault "max_stack_cnt" / "max_valid_stack_cnt"].
+  // No timer clears them (life INFINITY). [unverified] whether the gun's skill casts also reach Apply (the talent registers
+  // for every ability family, `_targetFamilyMask` 31): only the normal attack is counted here, as before. The ASPD adds
+  // onto the clamped base 20 (officialBaseAspd).
   const step = T(ab, '2.attack_speed') ?? 0, maxN = T(ab, '2.max_stack_cnt') ?? 0;
+  const maxValid = T(ab, '2.max_valid_stack_cnt') ?? -1;
   const P = { last: null, n: 0, charge: null };
   const range = () => e.base.rangeRadius || 2;
-  const setAspd = (b2) => aspdFloor(b2, e, step * P.n);
+  const setAspd = (b2) => b2.addBuff(e, { key: 'boss:aspd', persist: true, mods: { aspd: step * (maxValid >= 0 ? Math.min(P.n, maxValid) : P.n) } });
   const s1 = ab.sk['1'], s2 = ab.sk['2'], s3 = ab.sk['3'];
   const groundTargets = (b2) => allTargets(b2, e).filter((u) => u.ground);
   const list = [
     {
-      spawn(b2, e2) { b2.addBuff(e2, { key: 'boss:unblockable', persist: true, flags: { unblockable: true } }); setAspd(b2); },
+      spawn(b2, e2) { b2.addBuff(e2, { key: 'boss:unblockable', persist: true, flags: { unblockable: true } }); officialBaseAspd(e2); },
       before(c, b2, e2) { const l = targetsNear(b2, e2, range()); if (l.length) c.targets = [l.sort((p, q) => q.s.def - p.s.def || aggroCmp(p, q))[0]]; }, // 优先攻击防御力最高的单位
       attack(c, b2) {
         const t = c.targets[0];
-        if (t === P.last) P.n = Math.min(maxN, P.n + 1); else { P.last = t; P.n = 0; }
-        setAspd(b2);
+        if (t !== P.last) { P.last = t; P.n = 0; }                         // a new target clears the stacks…
+        P.n = Math.min(maxN, P.n + 1);                                     // …then this hit adds one (BrownbTalent_1.Apply)
+        setAspd(b2);                                                       // before ai.js sets atkCd: the next shot is faster
       },
       dealt(c, b2, e2) { elem(b2, e2, c.target, 'erosion', e2.s.atk * (T(ab, '1.ep_damage_ratio') ?? 0)); }, // 攻击时附带侵蚀损伤
       tick(b2, e2, a, dt) {
@@ -642,7 +719,13 @@ function kitGun(ab, e, b) {
         const arrived = stepToward(e2, t.x, t.y, sp);
         if (!b2.grid.groundPassable(Math.round(e2.y), Math.round(e2.x))) { e2.x = nx; e2.y = ny; }
         // "对进入自身0.35半径范围内的我方单位（包括飞行单位）造成一次…": an area selection (areaAllies)
-        for (const u of areaAllies(b2, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!ch.hit.has(u)) { ch.hit.add(u); hurt(b2, e2, u, e2.s.atk * (T(ab, '3.atk_scale') ?? 1), 'phys'); }
+        // (fork) the client's AuraAbility gives each unit it hits achunt_s_1[damage] (ON_BUFF_START: enemy_achunt_skill_1_hit,
+        // life IMMEDIATELY): display only (b.snap fxs, src the gun), held HIT_ROW_S so the client sees the row and plays it once
+        for (const u of areaAllies(b2, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!ch.hit.has(u)) {
+          ch.hit.add(u);
+          b2.fxState(u, 'achunt_s_1[damage]', true, { src: e2, dur: HIT_ROW_S });
+          hurt(b2, e2, u, e2.s.atk * (T(ab, '3.atk_scale') ?? 1), 'phys');
+        }
         if (arrived || b2.time >= ch.until || (e2.x === nx && e2.y === ny)) {
           P.charge = null;
           b2.removeBuff(e2, 'boss:charge');
@@ -663,10 +746,23 @@ function kitGun(ab, e, b) {
     },
   ];
   if (hidden) {
-    // PRTS 未尽的告解: another gun OR spring keeps the reduction. Refresh on hit as well so the first hit and
-    // a hit immediately after the last companion dies see the current condition, not a stale polling result.
+    // 未尽的告解: the reduction holds while a unit THIS gun marked lives. Official: Ability0's achunt_passive fires once,
+    // 0.03 s after the gun appears (triggerLifeType 1, triggerCnt 1, triggerInterval 0.03, waitFirstTriggerInterval 1)
+    // [src: CN client battle/enm_pfb_28.ab enemy_9017_achunt/CommonAbilities/Ability0]; it gives achunt_mark_by_boss to
+    // its BossSelector's units — every enemy-side unit holding achunt_mark (the guns and the three springs), itself
+    // excluded (_excludeTarget BUFF_OWNER) [src: same file, CommonAbilities/BossSelector/Selector; config/
+    // buff_template_holder.ab achunt_passive ON_BUFF_TRIGGER]. Each mark puts a derived achunt_summonee on the gun, and
+    // achunt_take_damage (Talents/4) scales the damage it takes by 4.damage_scale while it holds one [src:
+    // buff_template_holder.ab achunt_mark_by_boss, achunt_take_damage]. So a unit that comes later is never marked: on the
+    // pair field the 0.1 s gun marks the springs only, the 10 s leader the springs and that gun (§37.109). Until §37.109
+    // any other gun or spring on the field counted, whenever it came. Refresh on hit as well so a hit right after the
+    // last marked unit dies sees the current condition, not a stale polling result.
+    let marked = null;
+    b.after(0.03, (b2) => {
+      if (e.alive) marked = b2.enemies.filter((o) => o !== e && o.alive && (isGun(o) || isSpring(o)));
+    }, { owner: e });
     const confession = (b2, e2) => {
-      const other = b2.enemies.some((o) => o !== e2 && o.alive && (isGun(o) || isSpring(o)));
+      const other = !!marked && marked.some((o) => o.alive);
       if (other) {
         const m = T(ab, '4.damage_scale') ?? 1;
         b2.addBuff(e2, { key: 'boss:confession', duration: 0.35, refresh: 'replace', mods: { physTakenMul: m, artsTakenMul: m } });
@@ -727,7 +823,13 @@ function kitSpring(ab, e) {
         }
         // actrpa_t_1: NORMAL physical filter, even after prior cancellation; child is source-less ADDITION.
         const source = c.source;
-        if (kind !== 'arts' || c.type !== 'phys' || damageAttackType(c.dmg) !== 'NORMAL' || !source?.alive) return;
+        if (kind !== 'arts' || c.type !== 'phys' || damageAttackType(c.dmg) !== 'NORMAL') return;
+        // (fork, enemy sound audit job 3) the same filter's PlayAudio actrpa_t_1.shield_hit on the hitter (CN client buff
+        // template actrpa_t_1, ON_TAKE_DAMAGE → IfElse FilterDamageModifer NORMAL / PHYSICAL → PlayAudio _target
+        // MODIFIER_SOURCE): every such hit, its only limit the bank's own (audio_data maxSoundAllowed 2, popOldest) on the
+        // client. Display only (fx 'sound'; the table entry is Gunshatter's, `id`)
+        b.fx('sound', { x: source ? source.x : e.x, y: source ? source.y : e.y, id: e.id, kind: 'shieldHit' });
+        if (!source?.alive) return;
         b.dealDamage({ source: null, credit: e, target: source, amount: e.s.atk * (T(ab, '1.atk_scale') ?? 0),
           type: 'phys', attackType: 'ADDITION', applyWay: 'NONE', calculation: 'precomputed',
           ignoreSelect: true, origin: c.dmg, tags: ['springCounter'], onApplied() {
@@ -739,18 +841,18 @@ function kitSpring(ab, e) {
   };
   const drop = (b) => { P.up = false; P.downAt = b.time; b.removeBuff(e, 'boss:springShield'); b.fx('shieldBreak', { x: e.x, y: e.y, id: e.id }); };
   const transfer = (b, c) => {
-    if (!(c.amount > 0) || c.cancelled || isHpLoss(c.dmg) || c.dmg?.tags?.includes(SPRING_SHARE_TAG)) return;
+    if (!(c.amount > 0) || c.cancelled || isHpLoss(c.dmg)) return;
     const credited = c.source || c.credit;
     const credit = credited?.side === 'ally' ? credited : null;
     // 仇恨值最高 (PRTS): the official BossSelector's logic is not in our data, so the hatred order is the engine's targeting
     // one (targeting.js aggroCmp: taunt, then the latest arrival) applied to the guns — [ASSUMED] for enemy guns and ties.
     const g = b.enemies.filter(o => o.alive && isGun(o)).sort(aggroCmp)[0];
-    const amount = c.amount * PART_TRANSFER;
-    if (g) b.dealHPLose({ source: null, credit, target: g, amount, origin: c.dmg });
-    // [ASSUMED] Preserve the project's equal split to other springs; PRTS explicitly specifies only the gun.
-    const others = b.enemies.filter(o => o.alive && o !== e && isSpring(o));
-    for (const target of others) b.dealHPLose({ source: null, credit, target, amount: amount / others.length,
-      origin: c.dmg, tags: [SPRING_SHARE_TAG] });
+    // One gun only, never the other springs: actrpa_passive / actrpb_passive hand actrpa_hp_trans (FixedValueDamage,
+    // PURE hp_lose, no source) to the targets of the spring's BossSelector, which keeps 1 unit (_limitTargetNum 1,
+    // _maxNum 1) holding the buff achunt_mark with the key enemy_9017_achunt (EnemyKeyExcludeMode 0 = include) —
+    // the guns alone carry achunt_mark (official .cache/ab-cn/config/buff_template_holder.ab, enm_pfb_28.ab). Until
+    // §37.109 the other springs took an equal split as well.
+    if (g) b.dealHPLose({ source: null, credit, target: g, amount: c.amount * PART_TRANSFER, origin: c.dmg });
   };
   const sk = ab.sk['1'];
   return [
@@ -782,7 +884,14 @@ function kitSpring(ab, e) {
         const g = d.gun && d.gun.alive ? d.gun : gun(b);
         if (g) stepToward(e2, g.x, g.y, e2.s.moveSpeed * d.mul * MOVE_SCALE * dt);
         // 追逐模式 "对进入自身0.35半径范围内的我方单位（包括飞行单位）造成一次攻击力100%的物理普通伤害" (until 0.1.3: radius 0.5)
-        for (const u of areaAllies(b, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!d.hit.has(u)) { d.hit.add(u); hurt(b, e2, u, e2.s.atk, 'phys'); }
+        for (const u of areaAllies(b, e2, e2.x, e2.y, CHARGE_RADIUS)) {
+          if (d.hit.has(u)) continue;
+          d.hit.add(u);
+          hurt(b, e2, u, e2.s.atk, 'phys');
+          // (fork) the official trample hit on the unit (its MoveToHunter aura buff; a short one-shot row, display only)
+          const fx = SPRING_TRAMPLE_FX[e2.defId];
+          if (fx) b.fxState?.(u, fx, true, { src: e2, dur: SPRING_TRAMPLE_ROW });
+        }
         if (b.time >= d.until) { e2.mem.ab.dash = null; b.removeBuff(e2, 'boss:dash'); if (e2.route) e2.route.pts = null; }
       },
     },
@@ -847,14 +956,19 @@ export function echoHit(b, echo) {
   try {
     for (let i = 0; i < ab.pulses.length; i++) {
       const atk = ab.pulses[i];
-      b.fx('explode', { x: echo.x, y: echo.y, r: ECHO_PULSE_RADIUS, kind: 'echoPulse' });
+      b.fx('explode', { x: echo.x, y: echo.y, r: ECHO_PULSE_RADIUS, kind: 'echoPulse', id: echo.id });
       for (const u of areaAllies(b, echo, echo.x, echo.y, ECHO_PULSE_RADIUS)) {
         hurt(b, echo, u, atk * (T(ab, '3.atk_scale') ?? 0), 'arts');
         elem(b, echo, u, 'apoptosis', atk * (T(ab, '3.ep_damage_ratio') ?? 0));
       }
       const need = ab.form === 'gold' ? T(ab, '1.hit_times_to_switch') : T(ab, '2.hit_times_to_switch');
       ab.strikes = (ab.strikes ?? 0) + 1;
-      if (echo.alive && need > 0 && ab.strikes >= need) setEchoForm(b, echo, ab.form === 'gold' ? 'dark' : 'gold');
+      if (echo.alive && need > 0 && ab.strikes >= need) {
+        setEchoForm(b, echo, ab.form === 'gold' ? 'dark' : 'gold');
+        // (fork) fx: the client's acdums_t_1 plays enemy_acdums_switch on it at this switch (its hit_times run out:
+        // SwitchMode, then CreateEffect); display only (snapshot fxs)
+        b.fxState(echo, 'acdums_t_1', true, { dur: ECHO_SWITCH_FX });
+      }
     }
   } finally { ab.pulses.length = 0; ab.pulsing = false; }
 }
@@ -872,7 +986,7 @@ function kitEcho(ab, e) {
         const gold = e2.mem.ab.form === 'gold';
         const r = gold ? ECHO_ENSEMBLE_RADIUS.gold : ECHO_ENSEMBLE_RADIUS.dark;
         const ratio = gold ? T(ab, '4.ep_damage_ratio_passion') ?? 0 : T(ab, '4.ep_damage_ratio_depassion') ?? 0;
-        b.fx('explode', { x: e2.x, y: e2.y, r, kind: gold ? 'ensembleGold' : 'ensembleDark' });
+        b.fx('explode', { x: e2.x, y: e2.y, r, kind: gold ? 'ensembleGold' : 'ensembleDark', id: e2.id });
         for (const u of areaAllies(b, e2, e2.x, e2.y, r)) { hurt(b, e2, u, e2.s.atk, 'arts'); elem(b, e2, u, 'apoptosis', e2.s.atk * ratio); }
       },
     },
@@ -890,7 +1004,7 @@ function pipeCore(ab, e, b, tpl, { form, prefix }) {
     b2.fx('summon', { x: e2.x, y: e2.y, id: e2.id, key, n: got.length });
   };
   return {
-    spawn(b2, e2) { e2.profile.noAttack = true; aspdFloor(b2, e2); },
+    spawn(b2, e2) { e2.profile.noAttack = true; officialBaseAspd(e2); },
     tick(b2, e2, a, dt) {
       P.acc += dt;
       if (P.acc >= (e2.hpRatio < thr ? lo : hi)) { P.acc = 0; summon(b2, e2); }

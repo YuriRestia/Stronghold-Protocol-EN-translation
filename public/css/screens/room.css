@@ -407,6 +407,7 @@
 .botinfo__strength { margin-left: .06rem; font-size: calc(.13 * var(--t)); font-weight: 600; color: #e8c872; }
 .botinfo__about, .botinfo__tactics { margin: 0; padding-left: 1.2em; line-height: 1.45; font-size: calc(.14 * var(--t)); }
 .botinfo__sub { margin: .06rem 0 .02rem; font-size: calc(.13 * var(--t)); color: #9fa6a3; }
+.botinfo__scores { margin: 0 0 .04rem; font-size: calc(.12 * var(--t)); color: #9fa6a3; }
 .botinfo__tactics code { font-size: calc(.12 * var(--t)); color: #9fa6a3; }
 .rseat__me { position: absolute; left: -.1rem; top: -.1rem; display: grid; place-items: center; width: max(.26rem, 16px); height: max(.26rem, 16px); color: #08221b; background: #4fe8c0; border-radius: 3px; }
 .rseat__me .icon { width: 80%; height: 80%; }
@@ -850,6 +851,55 @@
 /* SPA-CC Risk tags (ui/lobbyRules.js RiskGrid): a column per tag, its levels top to bottom */
 .rules-badge--risk { background: rgba(231, 90, 26, .9); color: #fff; }
 .rules-chip--risk { border-color: rgba(231, 90, 26, .7); color: #ffb48a; }
+/* (GitHub #125, spacc/cards-overhaul.md) an awarded tag: still orange (a Risk tag), but framed by corner brackets
+   instead of an outline, over a faint triangular lattice, with an AUTO label: in a screenshot it reads as "counted, not
+   committed to beforehand". The brackets are the site's panel idiom (the briefing, the dialogs). */
+.rules-chip--auto {
+  --bk: rgba(255, 140, 70, .85);
+  border-color: transparent;
+  background:
+    linear-gradient(var(--bk), var(--bk)) top left / 5px 1px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) top left / 1px 5px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) top right / 5px 1px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) top right / 1px 5px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) bottom left / 5px 1px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) bottom left / 1px 5px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) bottom right / 5px 1px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) bottom right / 1px 5px no-repeat,
+    repeating-linear-gradient(60deg, rgba(255, 140, 70, .08) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(-60deg, rgba(255, 140, 70, .08) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(0deg, rgba(255, 140, 70, .06) 0 1px, transparent 1px 6px),
+    rgba(0, 0, 0, .3);
+  position: relative;
+  overflow: hidden;
+}
+.rules-chip__auto {
+  margin-right: .05rem;
+  padding: 0 .03rem;
+  background: rgba(255, 140, 70, .2);
+  color: #ffd2b8;
+  font-size: calc(.1 * var(--t));
+  font-weight: 800;
+  letter-spacing: .04em;
+  vertical-align: .01rem;
+}
+/* the motion half: a scan line creeps up the card every few seconds (the site's ps-scan idiom); off with reduced motion */
+.rules-chip--auto::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 1px; bottom: -2px;
+  background: rgba(255, 180, 130, .55);
+  animation: chip-auto-scan 4.5s linear infinite;
+  pointer-events: none;
+}
+@keyframes chip-auto-scan { 0%, 60% { transform: translateY(0); opacity: 0; } 62% { opacity: 1; } 100% { transform: translateY(-2.4em); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .rules-chip--auto::after { animation: none; display: none; } }
+/* the Risk grid while the rule is on: the versions it can award, bracket corners and no fill (not taken) */
+.risk__tile.is-awardable {
+  border-style: dashed;
+  border-color: rgba(231, 90, 26, .35);
+}
+.rules-auto__list { margin: .02rem 0 .04rem; padding-left: .2rem; color: var(--text-lo); font-size: calc(.13 * var(--t)); line-height: 1.45; }
+.rules-auto__list b { color: #ffb48a; font-weight: 600; }
+.rules-auto__warn { margin: 0 0 .06rem; color: var(--amber); font-size: calc(.13 * var(--t)); }
 .risk { display: flex; flex-direction: column; gap: .08rem; }
 .risk__total { display: flex; align-items: baseline; gap: .12rem; font-size: calc(.18 * var(--t)); }
 .risk__total b { color: #ffb48a; }
@@ -1201,8 +1251,11 @@
 .rseat__face { grid-row: 1 / 3; grid-column: 1; position: relative; display: block; line-height: 0; }
 
 /* ---- (fork) room chat (ui/chatLog.js; docs/design/network.md "Room chat") ------------------------------------------
-   Docked in the footer's left column, under the seat cards; ⤢ grows it upward over the left cards. A narrow or short
-   screen (the column is gone there): a Chat button with the unread count, the log a sheet over the left half.
+   Docked in the footer's left column, under the seat cards, like an MMO chat box (user, 2026-11-12): the top-right grip
+   drags it to any size over the cards (.is-sized; never under the min-width / min-height that keep the input row
+   whole), it fades while not in use (.is-idle: presses go through to the cards), ▾ folds it to the input row
+   (.is-folded). A narrow or short screen (the column is gone there): a Chat button with the unread count, the log a
+   sheet over the left half.
    Text follows 文字大小 (--t, theme.css): docked .18 × --t (12 px at 720p, 18 px at 1080p on 小); the phone sheet and
    button keep their 12–13 px at 小 (1rem is 40 px there) and grow a pixel a step above it (--t-step caps). */
 .rs-foot__left { position: relative; align-self: stretch; }
@@ -1214,7 +1267,34 @@
 }
 /* three lines at 小; the box keeps that height at every 文字大小 (layout never follows --t), bigger text scrolls */
 .clog__list { height: calc(3 * 1.35 * .18rem + .1rem); }
-.clog.is-expanded .clog__list { height: min(48vh, 5rem); }
+/* the docked box: never so small that the input row's box, Send, emote and ▾ squeeze into each other (em: these follow
+   文字大小 with the text), never past the top bar or the screen's edge */
+.clog:not(.is-sheet) {
+  min-width: 21em; min-height: 6.6em; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px);
+  transition: background-color .3s var(--ease-out), border-color .3s var(--ease-out), box-shadow .3s var(--ease-out);
+}
+.clog.is-sized .clog__list { height: auto; }
+.clog.is-folded { min-height: 0; right: auto; width: 21em; }
+.clog.is-folded .clog__list, .clog.is-folded .clog__new { display: none; }
+.clog.is-folded .clog__in { border-top: 0; }
+/* not in use: the log darkens and fades but stays readable, and presses go through it to the seat cards; the input row
+   stays a target (a press there brings the chat back) */
+.clog.is-idle { background: rgba(8, 11, 10, .3); border-color: transparent; box-shadow: none; pointer-events: none; }
+.clog.is-idle .clog__list { opacity: .62; scrollbar-color: transparent transparent; }
+.clog.is-idle .clog__line { text-shadow: 0 1px 2px #000, 0 0 4px #000; }
+.clog.is-idle .clog__in { pointer-events: auto; background: rgb(8, 11, 10); border-top-color: transparent; } /* solid: nothing under it shows through */
+.clog.is-idle .clog__in > * { opacity: .8; }
+.clog.is-idle .clog__grip { pointer-events: auto; opacity: .6; } /* faded, the corner still resizes (and brings the chat back) */
+.clog__list { transition: opacity .3s var(--ease-out); }
+/* the resize grip: an L in the top-right corner, nesw cursor */
+.clog__grip {
+  position: absolute; top: -1px; right: -1px; z-index: 2; width: 18px; height: 18px; cursor: nesw-resize; touch-action: none;
+}
+.clog__grip::after {
+  content: ''; position: absolute; top: 0; right: 0; width: 11px; height: 11px;
+  border-top: 2px solid var(--mint-600); border-right: 2px solid var(--mint-600);
+}
+.clog__grip:hover::after { border-color: var(--mint-400); width: 13px; height: 13px; }
 .rs-chat-open .rs-foot { z-index: 4; }
 .clog.is-sheet {
   position: fixed; left: calc(6px + env(safe-area-inset-left, 0px)); top: max(48px, 11vh); bottom: 6px; right: auto;
@@ -1228,12 +1308,22 @@
 }
 .clog__head b { color: var(--text-hi); font-weight: 600; text-transform: uppercase; }
 .clog__sp { flex: 1; }
-/* the emote wheel's button, small in the input row (its panel still opens upward over the cards) */
-.clog__in .ewheel__btn, .clog__in .ewheel__btn.has-sprite {
-  --ewb-w: 28px; width: 28px; height: 24px; min-width: 0; padding: 0; display: grid; place-items: center;
+/* the emote wheel's button in the input row, as tall as the box; its icon follows the chat's text (its panel still
+   opens upward over the cards) */
+.clog__in .ewheel { display: flex; align-self: stretch; }
+.clog__in .ewheel__btn {
+  --ewb-w: max(28px, 2.3em); width: max(28px, 2.3em); height: auto; min-height: 24px; min-width: 0;
+  padding: 0; display: grid; place-items: center; place-content: center;
   background: rgba(0, 0, 0, .4); border: 1px solid var(--line-2); border-radius: 0;
 }
-.clog__in .ewheel__btn .icon { width: 16px; height: 16px; }
+.clog__in .ewheel__btn .icon { width: max(16px, 1.6em); height: max(16px, 1.6em); }
+/* Send: as tall as the box */
+.clog__in .clog__send { align-self: stretch; height: auto; min-height: 24px; padding: 0 .7em; }
+/* the label's trailing letter-spacing would sit it a hair left of the middle */
+.clog__in .clog__send .btn__label { margin-right: -.06em; }
+/* both at the chat's own text size (.clog's and .clog.is-sheet's), not their components' smaller ones */
+.clog__in .clog__send, .clog__in .ewheel__btn { font-size: calc(.18 * var(--t)); }
+.clog.is-sheet .clog__in .clog__send, .clog.is-sheet .clog__in .ewheel__btn { font-size: min(calc(.3 * var(--t)), calc(14px + var(--t-step))); }
 .clog__in .ewheel__label { display: none; }
 .clog__in .ewheel__panel { left: auto; right: 0; }
 .clog__mini {
@@ -1242,6 +1332,13 @@
 }
 .clog__mini:hover { color: var(--mint-400); border-color: var(--mint-700); }
 .clog__mini .icon { width: 14px; height: 14px; }
+/* ▾ / ▴ (docked only) in the input row: as tall and wide as the emote button; folded, it carries the unread count */
+.clog__in .clog__mini { position: relative; align-self: stretch; height: auto; min-height: 24px; width: max(28px, 2.3em); padding: 0; font-size: calc(.18 * var(--t)); }
+.clog__in .clog__mini .icon { width: max(16px, 1.4em); height: max(16px, 1.4em); }
+.clog__badge {
+  position: absolute; top: -.6em; right: -.6em; min-width: 1.5em; padding: 0 .3em; border-radius: .8em;
+  background: var(--red); color: #fff; font-size: calc(.14 * var(--t)); line-height: 1.5; text-align: center;
+}
 .clog__list {
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .04rem .12rem;
   display: flex; flex-direction: column; gap: .02rem; line-height: 1.35;
@@ -1286,7 +1383,29 @@
   color: var(--text-hi); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
 }
 @media (max-width: 900px) { .rs-foot__left { display: contents; } }
-/* the seat bubbles (match chat's ChatBubble / EmoteBubble) over the card's lower half, and the plate's mute */
-.rseat__bubble { position: absolute; left: 50%; bottom: 30%; transform: translateX(-50%); z-index: 4; pointer-events: none; }
+/* the seat bubbles (match chat's ChatBubble / EmoteBubble) over the card's lower half, and the plate's mute. The bubble
+   always fits the portrait, which clips (overflow: hidden): the layer is the portrait less 3 px; a bubble sits with its
+   foot 30 % up as before, a taller one slides down to the bottom (the spacer under it gives way), and it is never taller
+   or wider than the layer — a line still longer ends on a whole line with an ellipsis (emotes.js ChatBubble
+   bubbleLines; the log keeps the whole line). A 100-letter line (CHAT_LINE_LETTERS) fits whole on a desktop card. */
+.rseat__bubble { position: absolute; inset: 3px; z-index: 4; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+.rseat__bubble::after { content: ''; flex: 0 1 30%; }
+.rseat__bubble > .cbubble { flex: none; max-width: 100%; max-height: 100%; overflow: hidden; }
+.rseat__bubble > .cbubble.is-clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--cbubble-lines); line-clamp: var(--cbubble-lines); }
+.rseat__bubble > .ebubble { flex: none; }
 .rseat__plate { position: relative; }
 .rseat__mute { position: absolute; right: .06rem; top: 50%; transform: translateY(-50%); z-index: 2; }
+
+/* (GitHub #125) the end screen's "why weren't other tags awarded" button and its panel (closed by default) */
+.rules-why__open {
+  display: inline-flex; align-items: center; gap: .05rem; margin-top: .06rem; padding: .02rem .08rem;
+  font: inherit; font-size: calc(.12 * var(--t)); color: #9fa6a3; background: transparent;
+  border: 1px solid rgba(255, 255, 255, .16); cursor: pointer;
+}
+.rules-why__open:hover, .rules-why__open:focus-visible { color: #5df0c6; border-color: #5df0c6; outline: none; }
+.rules-why__open .icon { width: 1.1em; height: 1.1em; }
+.rules-why__intro { margin: 0 0 .1rem; font-size: calc(.14 * var(--t)); color: #b9bfbc; }
+.rules-why__list { margin: 0; padding: 0; list-style: none; }
+.rules-why__tag { padding: .08rem .12rem; margin-top: .06rem; border-left: 2px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .03); }
+.rules-why__tag ul { margin: .03rem 0 0; padding-left: 1.1em; font-size: calc(.13 * var(--t)); color: #c9cecb; }
+.rules-why__at { color: #9fa6a3; }

@@ -12,11 +12,12 @@ import { useEffect, useState } from '../../vendor/hooks.module.js';
 import { html, Button, Modal, Icon, MicroLabel, Tooltip, Tabs } from './components.js';
 import { BondGlyph } from './gameComponents.js';
 import { data, useData } from '../data.js';
-import { DEFAULT_RULES, RULE_EXTRA_DEPLOY, RULE_EXTRA_FUNDS, modeIdFor } from '../../../shared/constants.js';
+import { DEFAULT_RULES, RULE_EXTRA_DEPLOY, RULE_EXTRA_FUNDS, RULE_BIG_STACK_CAP, BOSS_HIT_LIMIT, modeIdFor } from '../../../shared/constants.js';
 import { rulesInForce, ruleLabels, ruleOf, RULES, ruleRisk, tagParent, normalizeRules, sameRuleValue } from '../../../shared/rules.js';
 import { loadPref, savePref } from '../store.js';
 import { VIRTUOSA, BLAZE, CC, ISO_PLUS, LATERANO_B_TEXT, LATERANO_B_LIST, VICTORIA_C_TEXT, TOXIC_WASTE_NAME } from '../../../shared/ruleData.js';
 import { t } from '../../../shared/i18n.js';
+import { AWARDABLE, AWARD_CONDITIONS, AWARD_EVENTS, isAwardable } from '../../../shared/autoAward.js';
 import { MODZ } from '../../../shared/modZ.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -35,7 +36,7 @@ const isoPairs = (pairs) => Object.entries(pairs).map(([base, b]) => `${data.loo
 function IsoPlusChoice({ rules, editable, onSet }) {
   const v = rules.isoPlus;
   const labels = { off: t('关'), plus: `${isoName()}+`, plusplus: `${isoName()}++` };
-  const desc = v === 'off' ? t('{name}还能与更多听起来属于某个盟约的装备搭配', { name: isoName() })
+  const desc = v === 'off' ? t('选择+或++查看列表：与{name}一同装备时，更多名字像某个盟约的装备（如天师的鼎→炎）也会让携带者成为该盟约的成员；++比+多一件', { name: isoName() })
     : t('与{name}一同装备时，以下装备也使携带者视为对应盟约成员：{list}', { name: isoName(), list: isoPairs({ ...ISO_PLUS.plus, ...(v === 'plusplus' ? ISO_PLUS.plusplus : {}) }) });
   return html`<div class="rules-row">
     <div class="rules-mod">
@@ -56,6 +57,8 @@ export function ruleLabel(key, rules) {
   switch (key) {
     case 'extraDeploy': return t('部署上限 +{n}', { n: RULE_EXTRA_DEPLOY });
     case 'extraFunds': return t('每回合资金 +{n}', { n: RULE_EXTRA_FUNDS });
+    case 'bigStacks': return t('盟约层数上限 {n}', { n: RULE_BIG_STACK_CAP });
+    case 'noHitLimit': return t('取消领袖单次伤害上限');
     case 'untimed': return t('行动阶段不限时');
     case 'doubleLp': return t('初始目标生命翻倍');
     case 'tierStart': return t('开局获得各阶干员');
@@ -67,6 +70,7 @@ export function ruleLabel(key, rules) {
     case 'lateranoMod': return t('{bond}模组 {m}', { bond: bondName('lateranoShip'), m: v });
     case 'victoriaMod': return t('{bond}模组 {m}', { bond: bondName('victoriaShip'), m: v });
     case 'virtuosaBonds': return t('{name}加入{a}与{b}', { name: chessName(VIRTUOSA.ids[0], VIRTUOSA.ids[0]), a: bondName('swiftShip'), b: bondName('deputShip') });
+    case 'autoAward': return t('自动授予无影响的风险标签');
     case 'blaze': return t('{name}代替{old}', { name: data.get('backups')?.units?.[BLAZE.charId]?.name || BLAZE.charId, old: (data.lookupBase('chess', BLAZE.slot.a)?.name || BLAZE.slot.a) });
     case 'stage': return t('指定战场：{name}', { name: data.lookup('stages', v)?.name || v });
     case 'bans': return t('指定禁用盟约：{list}', { list: (v || []).map(bondName).join(t('、')) });
@@ -79,17 +83,67 @@ export function ruleLabel(key, rules) {
  * tag's chip carries its effects (every level in force) as its tooltip.
  * @param {{ rules: any }} props
  */
-export function RulesChips({ rules }) {
+export function RulesChips({ rules, awarded = null }) {
+  const auto = awarded && typeof awarded === 'object' ? Object.entries(awarded).filter(([k, v]) => ruleOf(k) && v > 0) : [];
   return html`<ul class="rules-chips">${rulesInForce(rules).map((k) => {
     const r = ruleOf(k);
     const tip = r.type === 'level' ? levelsInForce(r, rules[k]).map((l) => riskText(k, l).full).join('\n') : undefined;
     return html`<li key=${k} class=${`rules-chip rules-chip--${r.category}`} title=${tip}>${ruleLabel(k, rules)}</li>`;
-  })}</ul>`;
+  })}${auto.map(([k, v]) => html`<li key=${`auto:${k}`} class="rules-chip rules-chip--risk rules-chip--auto"
+      title=${`${t('自动授予：本局中此标签不会产生任何影响')}\n${riskText(k, v).full}`}><span class="rules-chip__auto" aria-label=${t('自动授予')}>AUTO</span>${riskText(k, v).short}</li>`)}</ul>`;
 }
 
-/** The result-title suffix and watermark of `rules`: `{ seeded, cheats, risk }` (null / 0 when not labelled). */
-export function ruleBadges(rules) {
-  const l = ruleLabels(rules);
+/** The Alliance each event names. */
+const EVENT_BOND = { investor: 'investShip', swift: 'swiftShip', foresight: 'visiShip' };
+/** One broken condition's line in the "why not" panel: what happened (its round first), as AWARD_EVENTS says it. */
+function awardNoteLine(b) {
+  const name = b.id ? (b.id.startsWith('band_') ? bandName(b.id) : chessName(b.id, b.id)) : '';
+  const when = Number.isInteger(b.r) && b.r > 0 ? t('第{r}回合：', { r: b.r }) : '';
+  const text = AWARD_EVENTS[b.c]
+    ? t(AWARD_EVENTS[b.c], { name, bond: EVENT_BOND[b.c] ? bondName(EVENT_BOND[b.c]) : '', item: t(TOXIC_WASTE_NAME) })
+    : AWARD_CONDITIONS[b.c] ? t(AWARD_CONDITIONS[b.c]) : b.c;
+  // no round in front: the sentence starts the line (English and Korean lines start in lowercase after "Round N: ")
+  const line = when ? text : text.charAt(0).toUpperCase() + text.slice(1);
+  return html`<li key=${b.c}>${when ? html`<span class="rules-why__at">${when}</span>` : null}${line}</li>`;
+}
+
+/**
+ * (GitHub #125) Why the autoAward rule didn't award the other tags: a button that opens a panel, closed by default (the
+ * end screen; Fish 2026-11-19). `notes`: shared/autoAward.js awardNotes. Nothing when there are none.
+ * @param {{ notes: Array<{ key: string, level: number, ai: boolean, broken: Array<{ c: string, r: number|null, id?: string }> }> | null }} props
+ */
+/**
+ * The panel's rows: levels of one tag with the same reasons share a row ("Barge 1 · Barge 2"), so two identical lines
+ * don't read as two different reasons (the 2026-11-19 blind read asked what told them apart).
+ * @param {Array<{ key: string, level: number, ai?: boolean, broken: Array<{ c: string }> }>} notes
+ */
+export function groupNotes(notes) {
+  const out = [];
+  for (const n of notes) {
+    const prev = out.at(-1);
+    if (prev && prev.key === n.key && !!prev.ai === !!n.ai && JSON.stringify(prev.broken) === JSON.stringify(n.broken)) prev.levels.push(n.level);
+    else out.push({ ...n, levels: [n.level] });
+  }
+  return out;
+}
+
+export function AwardNotesButton({ notes }) {
+  const [open, setOpen] = useState(false);
+  if (!Array.isArray(notes) || !notes.length) return null;
+  return html`<button type="button" class="rules-why__open" data-testid="award-notes-open" aria-haspopup="dialog" onClick=${() => setOpen(true)}>
+      <${Icon} name="info" />${t('为什么没有自动授予其他标签？')}</button>
+    ${open ? html`<${Modal} open=${true} class="rules-why" micro="AUTO-AWARD" title=${t('未自动授予的标签')} width="min(34rem, 96vw)" onClose=${() => setOpen(false)}>
+      <p class="rules-why__intro">${t('风险标签只有在不可能改变本局时才会自动授予。下面这些标签本可以改变本局，所以只有房间选了它们才计入风险。')}</p>
+      <ul class="rules-why__list">${groupNotes(notes).map((n) => html`<li key=${`${n.key}:${n.level}`} class="rules-why__tag">
+        <b>${n.levels.map((l) => `${riskText(n.key, l).short} (${t('风险 {n}', { n: ruleRisk(n.key, l) })})`).join(' · ')}</b>
+        <ul>${n.broken.map(awardNoteLine)}${n.ai ? html`<li key="ai">${t('房间里有AI队友或托管：这个标签只在没有AI的房间里自动授予')}</li>` : null}</ul>
+      </li>`)}</ul>
+    <//>` : null}`;
+}
+
+/** The result-title suffix and watermark of `rules` (and the tags `awarded` by #125): `{ seeded, cheats, risk }`. */
+export function ruleBadges(rules, awarded = null) {
+  const l = ruleLabels(rules, awarded);
   return { seeded: l.seeded ? 'seeded' : null, cheats: l.cheats ? 'WITH CHEATS' : null, risk: l.risk };
 }
 
@@ -133,7 +187,7 @@ function riskTextOf(key, level) {
     case 'ccInvestorBench': return level >= 2
       ? { short: t('目标：投资人 {n}', { n: level }), full: t('{list}的获得时效果改为售出时触发（因此不再受【{bond}】加倍）', { list: CC.investorSold.ops.map((id) => chessName(id, id)).join(t('、')), bond: bondName('investShip') }) }
       : { short: t('目标：投资人 {n}', { n: level }), full: t('整备区的干员不再计入【{bond}】', { bond: bondName('investShip') }) };
-    case 'ccSwift': return { short: t('目标：迅捷'), full: t('【{bond}】回复技力的概率改为20% + 0.25%×层数（原为0.35%×层数）', { bond: bondName('swiftShip') }) };
+    case 'ccSwift': return { short: t('目标：迅捷'), full: t('【{bond}】回复技力的概率中，每层增加的部分从0.35%降为0.25%（基础20%不变）', { bond: bondName('swiftShip') }) };
     case 'ccForesight': return { short: t('目标：远见'), full: t('【{bond}】干员攻击速度-{n}（无论盟约是否激活）', { bond: bondName('visiShip'), n: -CC.foresightAspd }) };
     case 'ccStrategyLate': return level >= 2
       ? { short: t('目标：策略 {n}', { n: level }), full: t('【{ioleta}】的攻击力与生命值加成最多+{cap}%；【{duyaoy}】每回合只有第{r}次主动刷新为特殊刷新；【{amiya}】每档需要多{n}种激活盟约', { ioleta: bandName('band_ioleta'), cap: pct(CC.strategy2.ioletaCap), duyaoy: bandName('band_duyaoy'), r: CC.strategy2.duyaoyRefreshes, amiya: bandName('band_amiya'), n: CC.strategy2.amiyaExtra }) }
@@ -264,7 +318,7 @@ function RiskGrid({ rules, editable, onSet }) {
       ${cells.map(({ r, level, row, col: c, span, inForce }) => {
         const active = rules[r.key] === level;
         return html`<${Tooltip} key=${`${r.key}:${level}`} text=${riskText(r.key, level).full} style=${`grid-row:${row};grid-column:${c} / span ${span}`}>
-          <button type="button" class=${cx('risk__tile', active && 'is-active', !active && inForce && 'is-included')} aria-pressed=${active ? 'true' : 'false'}
+          <button type="button" class=${cx('risk__tile', active && 'is-active', !active && inForce && 'is-included', rules.autoAward === true && !(rules[r.key] > 0) && isAwardable(r.key, level) && 'is-awardable')} aria-pressed=${active ? 'true' : 'false'}
             data-risk=${r.key} data-level=${level} disabled=${!editable} onClick=${() => onSet({ [r.key]: active ? 0 : level })}>
             <span class="risk__lv num">${ruleRisk(r.key, level)}</span><span>${riskText(r.key, level).short}</span>
           </button>
@@ -408,7 +462,7 @@ function Seeded({ room, rules, editable, onSet }) {
     };
     return html`<div class="rules-bans">
       <div class="rules-bans__head"><b>${isCore ? t('禁用核心盟约') : t('禁用附加盟约')}</b>
-        <span class="t-dim">${t('已选 {n}/{max}，其余随机', { n, max })}</span></div>
+        <span class="t-dim">${t('已指定 {n}/{max} 个禁用，其余随机', { n, max })}</span></div>
       <div class="rules-bans__grid">
         ${list.map((b) => html`<${Tooltip} key=${b.bondId} text=${b.name}>
           <button type="button" class=${cx('rules-ban', picks.has(b.bondId) && 'is-active')} aria-pressed=${picks.has(b.bondId) ? 'true' : 'false'}
@@ -436,7 +490,7 @@ function Seeded({ room, rules, editable, onSet }) {
       </div>
       <${StagePreview} stageId=${rules.stage} />
     </div>
-    <p class="rules-row__desc">${t('选择要禁用的盟约；未选满的名额仍随机抽取')}</p>
+    <p class="rules-row__desc">${t('每局会随机禁用一些盟约。在这里指定要禁用哪些；没指定的名额仍随机禁用')}</p>
     ${counts.core > 0 ? group(true, counts.core) : null}
     ${counts.addon > 0 ? group(false, counts.addon) : null}`;
 }
@@ -512,9 +566,9 @@ function ModZPicker({ rules, editable, onSet }) {
     set(next);
   };
   const ops = new Set(MODZ.map((m) => m.charId)).size;
-  return html`<p class="rules-row__desc">${t('开启后，所有博士的该自选干员都装备这个模组（Fish Edition的自制模组，草案，未经平衡）；每名干员最多开启一个')}</p>
+  return html`<p class="rules-row__desc">${t('为一名干员开启一个模组后，所有博士自选的这名干员都会装备它（本服务器的自制模组：草案，未经平衡）。每名干员最多开启一个模组')}</p>
     <div class="rules-bans">
-      <div class="rules-bans__head"><b>${t('装备的模组')}</b><span class="t-dim">${t('已开启 {n}/{max}名干员', { n: on.size, max: ops })}</span>
+      <div class="rules-bans__head"><b>${t('装备的模组')}</b><span class="t-dim">${t('{max}名干员中{n}名已开启模组', { n: on.size, max: ops })}</span>
         <${Button} size="sm" variant="ghost" disabled=${!editable || on.size === ops} onClick=${() => set(new Set(MODZ.filter((m, i) => MODZ.findIndex((x) => x.charId === m.charId) === i).map((m) => m.id)))}>${t('全部Z型')}<//>
         <${Button} size="sm" variant="ghost" disabled=${!editable || on.size === 0} onClick=${() => set(new Set())}>${t('清空')}<//>
       </div>
@@ -529,9 +583,24 @@ function ModZPicker({ rules, editable, onSet }) {
     </div>`;
 }
 
+/**
+ * (GitHub #125) The autoAward rule: the toggle, and while it's on, every tag version it can award with its conditions,
+ * and the warning that a tag taken by hand is the safe way (Fish, 2026-11-18).
+ */
+function AutoAwardToggle({ rules, editable, onSet }) {
+  const on = rules.autoAward === true;
+  return html`<div class="rules-auto">
+    <${Toggle} k="autoAward" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('autoAward', rules)}
+      desc=${t('结算时，房间未选择、且本局证明不会产生任何影响的风险标签会自动加入风险（标记为AUTO），不算作弊')} />
+    ${on ? html`<ul class="rules-auto__list">${AWARDABLE.map((a) => html`<li key=${`${a.key}:${a.level}`}>
+        <b>${riskText(a.key, a.level).short}</b>：${a.needs.map((c) => t(AWARD_CONDITIONS[c])).join(t('；'))}${a.aiOk ? '' : t('；且没有AI队友或托管')}</li>`)}</ul>
+      <p class="rules-auto__warn">${t('这些条件只覆盖部分情况：即使本局没有满足条件，选上这个标签也可能照样获胜。想确保拿到风险，仍建议手动选择这些标签。')}</p>` : null}
+  </div>`;
+}
+
 /** The dialog's tabs and the rule keys each one holds (its badge counts the ones in force). */
 const RULE_TABS = Object.freeze([
-  { id: 'cheat', keys: ['extraDeploy', 'extraFunds', 'doubleLp', 'tierStart', 'boosterPack', 'itemBoosterPack', 'untimed'] },
+  { id: 'cheat', keys: ['extraDeploy', 'extraFunds', 'bigStacks', 'noHitLimit', 'doubleLp', 'tierStart', 'boosterPack', 'itemBoosterPack', 'untimed'] },
   { id: 'modZ', keys: ['modZ'] },
   { id: 'bonds', keys: ['lateranoMod', 'victoriaMod', 'virtuosaBonds', 'blaze'] },
   { id: 'seeded', keys: ['stage', 'bans'] },
@@ -543,7 +612,7 @@ export function RulesDialog({ open, onClose, room, rules, editable, onSet }) {
   const [tab, setTab] = useState('cheat');
   const inForce = new Set(rulesInForce(rules));
   const badge = (tb) => {
-    const keys = tb.keys ?? RULES.filter((r) => r.category === 'risk').map((r) => r.key);
+    const keys = tb.keys ?? [...RULES.filter((r) => r.category === 'risk').map((r) => r.key), 'autoAward'];
     const n = tb.id === 'modZ' ? (rules.modZ || []).length : keys.filter((k) => inForce.has(k)).length;
     return n > 0 ? n : null;
   };
@@ -569,11 +638,13 @@ export function RulesDialog({ open, onClose, room, rules, editable, onSet }) {
     ${tab === 'cheat' ? html`<${Section} title=${t('作弊')} note=${t('结算画面将显示「{mark}」', { mark: 'WITH CHEATS' })}>
       <${Toggle} k="extraDeploy" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('extraDeploy', rules)} desc=${t('所有博士的部署上限 +{n}', { n: RULE_EXTRA_DEPLOY })} />
       <${Toggle} k="extraFunds" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('extraFunds', rules)} desc=${t('每回合开始时额外获得 {n} 资金', { n: RULE_EXTRA_FUNDS })} />
+      <${Toggle} k="bigStacks" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('bigStacks', rules)} desc=${t('每个盟约的层数上限从 999 提高到 {n}', { n: RULE_BIG_STACK_CAP })} />
+      <${Toggle} k="noHitLimit" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('noHitLimit', rules)} desc=${t('通常对领袖的单次伤害达到 {limit} 以上时，该次攻击会被取消、不造成伤害；开启后取消这个限制（适合与提高盟约层数上限的作弊搭配）', { limit: BOSS_HIT_LIMIT })} />
       <${Toggle} k="doubleLp" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('doubleLp', rules)} desc=${t('所有博士的初始目标生命翻倍')} />
       <${Toggle} k="tierStart" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('tierStart', rules)} desc=${t('开局时所有博士各获得每个阶级的随机干员1名（1~6阶）')} />
-      <${Toggle} k="boosterPack" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('boosterPack', rules)} desc=${t('开局时所有博士各获得1个补充包：装备到干员上即可免费选择同阶干员，每次6名，按固定顺序轮换；补充包留在手牌（AI不会使用）')} />
-      <${Toggle} k="itemBoosterPack" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('itemBoosterPack', rules)} desc=${t('开局时所有博士各获得1个装备补充包：装备到任意干员上即可免费选择一件装备，每次6件，按固定顺序轮换全部装备；装备补充包留在手牌（AI不会使用）')} />
-      <${Toggle} k="transmitterPlus" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('transmitterPlus', rules)} desc=${t('信标更好用：独自一人时，第一次装备给六星干员必出缪尔赛思，其他时候必出一名你层数最多的盟约的干员；有队友但没人需要原干员时，改为给2名随机队友各送1名其主盟约的同阶干员；5人及以上的房间多送1人')} />
+      <${Toggle} k="boosterPack" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('boosterPack', rules)} desc=${t('开局时所有博士各获得1个补充包：装备到干员上，从6名与它同阶的干员中免费选择1名（每次换下一批6名）。补充包不会消耗，可以反复使用（AI不会使用）')} />
+      <${Toggle} k="itemBoosterPack" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('itemBoosterPack', rules)} desc=${t('开局时所有博士各获得1个装备补充包：装备到任意干员上，从6件装备中免费选择1件（每次换下一批6件）。装备补充包不会消耗，可以反复使用（AI不会使用）')} />
+      <${Toggle} k="transmitterPlus" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('transmitterPlus', rules)} desc=${t('信标更好用。独自一人时：第一次给六星干员使用信标，候选中必定有缪尔赛思；其他时候，候选中必定有一名你层数最多的盟约的干员。有队友时：原版信标会把被换掉的干员送给收集它的盟约的队友；没有这样的队友时，改为给2名随机队友（5人及以上的房间为3名）各送1名同阶、属于其层数最多盟约的干员')} />
       <${IsoPlusChoice} rules=${rules} editable=${editable} onSet=${onSet} />
       ${room.mode === 'solo' ? null : html`<${Toggle} k="untimed" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('untimed', rules)} desc=${t('选择策略、机变阶段与休整期不限时（作战仍有时间限制）')} />`}
     <//>` : null}
@@ -594,6 +665,7 @@ export function RulesDialog({ open, onClose, room, rules, editable, onSet }) {
       <${Seeded} room=${room} rules=${rules} editable=${editable} onSet=${onSet} />
     <//>` : null}
     ${tab === 'risk' ? html`<${Section} title=${t('风险')} note=${t('结算标题将带有「+风险」')}>
+      <${AutoAwardToggle} rules=${rules} editable=${editable} onSet=${onSet} />
       <${RiskGrid} rules=${rules} editable=${editable} onSet=${onSet} />
     <//>` : null}
   <//>`;

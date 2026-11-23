@@ -68,7 +68,8 @@
 //   view.holdPiece(uid, {row,col} | null)       keep a dropped prep piece standing on a tile while its direction is
 //                                               chosen / the move is in flight (null releases; setPrep then settles it)
 //   view.setPieceDir(uid, dir)                  show a prep piece facing UP|RIGHT|DOWN|LEFT (wheel preview / stored dir)
-//   view.setSettings({ damageNumbers, officialDamageNumbers, ammoEnergyCount, officialFx, quality: 'high'|'medium'|'low' }) ; view.resize() ; view.destroy()
+//   view.setSettings({ damageNumbers, officialDamageNumbers, ammoEnergyCount, officialFx, spriteAnim, quality: 'high'|'medium'|'low' }) ; view.resize() ; view.destroy()
+//                                               ((fork) spriteAnim: 设置「简化单位动画」 'auto'|'quality'|'unlimited', render/crowd.js)
 //                                               (ammoEnergyCount: 设置「显示弹药与能量数量」, the count under an ammo skill's
 //                                                bar and a 秘术师's stored/cap — PR #552 / PR #636, one switch since 0.3.1;
 //                                                officialFx: 设置「官方特效」 'auto'|'off'|'lite'|'full', the official battle
@@ -159,7 +160,7 @@ import { OfficialFx } from './vfx/system.js';
 import { FxWiring } from './vfx/wiring.js';
 import { PluginFxPlayer } from './vfx/pluginPlayer.js';
 import { resolveOfficialFx, touchDevice } from './vfx/tier.js';
-import { impostorInterval, IMPOSTOR_BASE } from './crowd.js';
+import { crowdIntervals, IMPOSTOR_BASE, SPRITE_ANIM_MODES, createLoadMeter, startBattleLoad, stepLoad } from './crowd.js';
 import { NoteLayer } from './fx/notes.js';
 import { createDragController, pieceTile, dragStandTile } from './drag.js';
 import { backdropTextures, shadowTexture, refreshTierChips, refreshDownLabels, silhouetteTexture } from './textures.js';
@@ -225,6 +226,8 @@ export async function createFieldView(host, options = {}) {
   // 设置「显示其他玩家的皮肤」 (docs/SKINS.md), on unless the caller said off: kept out of the literal above so the shape
   // the other settings the units read every frame are pinned by stays one line (test/ui/ammo-count.test.js)
   settings.otherSkins = settings.otherSkins !== false;
+  // (fork) 设置「简化单位动画」 (render/crowd.js SPRITE_ANIM_MODES), 'auto' unless the caller named another mode
+  settings.spriteAnim = SPRITE_ANIM_MODES.includes(settings.spriteAnim) ? settings.spriteAnim : 'auto';
   // the 3D board (three.js + the official art) loads in parallel with everything else
   const boardPref = boardPreference(opts.board);
   const want3d = boardPref !== '2d' && webgl2Available(boardPref === '3d');
@@ -399,6 +402,8 @@ export async function createFieldView(host, options = {}) {
     myPlayerId: typeof opts.myPlayerId === 'string' ? opts.myPlayerId : null,
     cam: () => cam, heightAt,
     animRate: () => (mode === 'battle' ? interp.rate : 1),
+    // (fork) the official effects' clock (fxClock, frameBody), so a graphic follow keeps to the effect it rides on
+    battleTime: () => (mode === 'battle' ? fxClock : null),
     timeScale: () => (opts.playbackTime ? 1 : mode === 'battle' ? interp.rate : 1),
     // (a chess fighting as its 补位 stand-in — `standInFor` — reads the stand-in's record: its attack interval)
     lookupDef: (info) => {
@@ -411,11 +416,14 @@ export async function createFieldView(host, options = {}) {
     outfitOf: typeof opts.outfitOf === 'function' ? opts.outfitOf : null,
     renderer: app.renderer,
     frameNo: () => frameNo,
-    impostorInterval: () => impInterval,
+    // (fork) a unit's interval by its side (enemies first, render/crowd.js crowdIntervals)
+    impostorInterval: (enemy = true) => (enemy ? impInterval : impAllyInterval),
     impostorSlot: () => impSlot++,
     clipAllowed: () => clipAllowed,
     viewport: () => vp,
     loadLevel: () => loadLevel,
+    // (fork) 设置「简化单位动画」 (render/crowd.js SPRITE_ANIM_MODES)
+    spriteAnim: () => settings.spriteAnim,
     surfaceLayer: (row) => tiles.surfaceLayer(row),
     // dev (public/dev/sandbox): impostor boxes from the first rendered pose, as before the per-clip extents
     legacyImpostorBox: () => !!settings.legacyImpostorBox,
@@ -479,6 +487,8 @@ export async function createFieldView(host, options = {}) {
     view: (id) => views.get(id) || null,
   });
   ctx.ofx = ofx;
+  // (fork, enemy sound audit) an enemy skill's impact effect starting: that skill's official impact sound
+  ofx.onSpawn = (k) => ctx.audio?.fxKey?.(k);
   // (fork) a unit's official skin (index.json skins) for its sort depth (units.js skinPlaneDepth); undefined until the index is in
   ctx.skinOfView = (v) => (wiring.idx ? wiring.skinOf(wiring.unitOf(v)) : undefined);
   // Read the index only after the existing effects path loads it; role selection never calls ready()/index().
@@ -487,6 +497,7 @@ export async function createFieldView(host, options = {}) {
     record: info => info ? ctx.lookupDef(info) : null, speed: projSpeed, ofx });
   setupCleanup.push(() => pluginFx.destroy());
   let ofxPrevT = null;        // renderT of the last effects step (the battle clock)
+  let fxClock = 0;            // (fork) the effects' own clock: the sum of their steps (gdt), never going back
   /** The tier the effects run at now: the setting (auto: 精简 on touch devices) while the 3D board draws. */
   function syncOfficialFx() {
     ofx.setTier(board3d ? resolveOfficialFx(settings.officialFx, ofx.available) : 'off');
@@ -1608,6 +1619,8 @@ export async function createFieldView(host, options = {}) {
     consumedIds.clear();
     clearHl();
     renderT0Battle = null;
+    // (fork) every battle starts at load level 0, its loading frames in a grace period (render/crowd.js startBattleLoad)
+    startBattleLoad(load); loadLevel = 0;
     mode = 'battle';
     const rect = meta.rect ? normRect(meta.rect) : (meta.kind === 'boss' || meta.kind === 'hidden' ? { ...GEO.BOSS_RECT } : meta.kind === 'unite' ? { ...GEO.UNITE_RECT } : { ...GEO.NORMAL_RECT });
     // prep: true = a read-only scouting board (a teammate's lineup during prep): prep-style pieces, no bars
@@ -1917,6 +1930,12 @@ export async function createFieldView(host, options = {}) {
             ...(Number(d.dur) > 0 ? { dur: Number(d.dur) } : {}), keepFacing: d.keepFacing === true,
           });
         }
+        // (fork) a kit's landing start / take-off for the body's 起飞 height (UnitView.liftLand: 予愿安洁莉娜's 'aglna2Landing'
+        // `land: true`, her 'takeoff' `land: false`)
+        if (e[4] && typeof e[4] === 'object' && typeof e[4].land === 'boolean') views.get(e[4].id)?.liftLand?.(e[4].land);
+        // (fork) a graphic follow — the body drawn riding a sim projectile, then back (UnitView.followGraphic: 予愿安洁莉娜
+        // S2's glide 'dash' `follow`, its end the chant's `rise` / the landing's `follow: null`)
+        if (e[4] && typeof e[4] === 'object' && 'follow' in e[4]) views.get(e[4].id)?.followGraphic?.(e[4].follow, LATE.get(e) || 0);
         // an enemy's mode change — the `form` of a sim setForm fx (shared/protocol.js fxForm: 掠海漂移体 → 爬行模式, user
         // playtest #5 item 1; 转译基底's forms, a 逐火 ember and its revival, the leaders' 重生, 守墓石像 — user report after
         // 0.1.0) — switches the view's clip set (UnitView.setForm; a kind without a clip set of that skeleton changes
@@ -2066,19 +2085,19 @@ export async function createFieldView(host, options = {}) {
   let culledCount = 0;
   // Adaptive load level 0–3: a device that cannot hold the frame rate with the current work switches crowds to
   // impostors earlier and animates small / far units at a lower rate (units.js); it steps back after a calm spell.
-  let loadLevel = 0, slowFor = 0, fastFor = 0;
+  // (fork) The rule and its timings are render/crowd.js stepLoad: each battle starts again at 0 with a grace period for
+  // its loading frames (enterBattle → startBattleLoad), 3 s of slow frames step up, 2 s of calm frames step down.
+  const load = createLoadMeter();
+  let loadLevel = 0;
   function adaptLoad(dtRaw) {
     if (!(dtRaw > 0) || dtRaw > 0.25 || globalThis.document?.hidden) return;
     const busy = views.size + penViews.size > 8;
-    if (workMs > 19.5 && busy) { slowFor += dtRaw; fastFor = 0; }
-    else if (workMs < 17.6) { fastFor += dtRaw; slowFor = 0; }
-    if (slowFor > 1 && loadLevel < 3) {
-      loadLevel++; slowFor = 0; fastFor = 0;
-      // (fork) frames fell behind with a crowd past the usual High base: back to that base until the crowd thins out
-      if (crowdUnits > IMPOSTOR_BASE.high) roomy = false;
-      impInterval = pickImpostorInterval();
-    }
-    else if (loadLevel > 0 && (fastFor > 6 * loadLevel || !busy && fastFor > 2)) { loadLevel--; fastFor = 0; impInterval = pickImpostorInterval(); }
+    const step = stepLoad(load, dtRaw, workMs, busy);
+    if (!step) return;
+    loadLevel = load.level;
+    // (fork) frames fell behind with a crowd past the usual High base: back to that base until the crowd thins out
+    if (step > 0 && crowdUnits > IMPOSTOR_BASE.high) roomy = false;
+    impInterval = pickImpostorInterval();
   }
   // Crowded fields render skeletons through staggered RenderTexture impostors (units.js): the interval grows with
   // the number of Spine units so the per-frame vertex work stays roughly constant (hysteresis: re-evaluated
@@ -2095,13 +2114,17 @@ export async function createFieldView(host, options = {}) {
   // (fork) the rule itself is render/crowd.js: a desktop at High draws up to ROOMY_HIGH units directly while its frames
   // keep up (`roomy`); the official effects get the same count for their crowd budget (render/vfx/system.js setCrowd)
   let crowdUnits = 0, roomy = true;
+  // (fork) enemies first (render/crowd.js crowdIntervals): the interval of the units not on the enemy side, often 0
+  let impAllyInterval = 0;
   function pickImpostorInterval() {
-    let n = 0;
-    for (const v of views.values()) if (v.actor && v.spineReady) n++;
+    let n = 0, allies = 0;
+    for (const v of views.values()) if (v.actor && v.spineReady) { n++; if (!v.isEnemy) allies++; }
     crowdUnits = n;
     if (n <= IMPOSTOR_BASE.high) roomy = true;
     ofx.setCrowd(n);
-    return impostorInterval(n, { force: !!settings.forceImpostors, quality: settings.quality, loadLevel, roomy: roomy && desktop });
+    const iv = crowdIntervals(n, allies, { force: !!settings.forceImpostors, quality: settings.quality, loadLevel, roomy: roomy && desktop, mode: settings.spriteAnim });
+    impAllyInterval = iv.ally;
+    return iv.enemy;
   }
   function frame() {
     if (destroyed) return;
@@ -2157,6 +2180,7 @@ export async function createFieldView(host, options = {}) {
           // skill effects' per-frame part reads the views' fresh sample (render/vfx/skillfx.js sync)
           const gdt = presentation.ended ? dt : ofxPrevT == null ? 0 : Math.min(opts.playbackTime ? Infinity : 0.25, Math.max(0, renderT - ofxPrevT));
           ofxPrevT = renderT;
+          fxClock += gdt;
           if (justEnded) { wiring.clear(); ofx.finish(); pluginFx.finish(); }
           if (frozen) udt = gdt / Math.max(0.25, interp.rate || 1);
           pluginFx.update(gdt);
@@ -2421,6 +2445,7 @@ export async function createFieldView(host, options = {}) {
         refreshSkins();
       }
       if (s.quality === 'high' || s.quality === 'medium' || s.quality === 'low') settings.quality = s.quality;
+      if (SPRITE_ANIM_MODES.includes(s.spriteAnim) && s.spriteAnim !== settings.spriteAnim) { settings.spriteAnim = s.spriteAnim; impInterval = pickImpostorInterval(); }
       if (typeof s.officialFx === 'string' && s.officialFx !== settings.officialFx) { settings.officialFx = s.officialFx; syncOfficialFx(); }
       if (s.noteFx === 'ours' || s.noteFx === 'official') noteLayer.setMode(s.noteFx);   // (fork) sandbox comparison
       if (q !== settings.quality) { board3d?.setQuality?.(settings.quality); resize(); }
@@ -2471,7 +2496,10 @@ export async function createFieldView(host, options = {}) {
     },
     stats() {
       return {
-        fps: Math.round(fps * 10) / 10, frameMs: Math.round(frameMs * 100) / 100, cpuMs: Math.round(cpuMs * 100) / 100, renderMs: Math.round(renderMs * 100) / 100, mode, units: views.size, impostor: impInterval, impostorAtlas: { ...impostors.stats }, boardArt: !!tiles.atlas.art,
+        fps: Math.round(fps * 10) / 10, frameMs: Math.round(frameMs * 100) / 100, cpuMs: Math.round(cpuMs * 100) / 100, renderMs: Math.round(renderMs * 100) / 100, mode, units: views.size, impostor: impInterval,
+        // (fork) the units drawn through the impostor atlas right now, by side, and 设置「简化单位动画」 (dev/battle-perf)
+        impostorUnits: (() => { let enemy = 0, ally = 0; for (const v of views.values()) if (v.imp) { if (v.isEnemy) enemy++; else ally++; } return { enemy, ally }; })(),
+        spriteAnim: settings.spriteAnim, impostorAtlas: { ...impostors.stats }, boardArt: !!tiles.atlas.art,
         board3d: board3d ? { on: true, ...board3d.stats(), losses: recover.count } : { on: false, error: board3dError, recovering: !!recover.timer, losses: recover.count },
         pen: penViews.size, penHidden, prepField: prepXf.kind === 'bossPrep' ? prepXf.side : null, lod: loadLevel, culled: culledCount,
         ...fx.counts, officialFx: ofx.stats(), notes: noteLayer.stats(), spine: assets.spine?.stats ? assets.spine.stats() : null, renderT: interp.renderT, rate: interp.rate,
@@ -2479,6 +2507,9 @@ export async function createFieldView(host, options = {}) {
       };
     },
     get mode() { return mode; },
+    /** (fork) Battle seconds per real second now (the playback rate; 1 outside a battle; 0 while held by setFrozen, the
+     *  dev sandbox's pause): audio.js setBattleView. */
+    timeScale() { return frozen ? 0 : ctx.timeScale(); },
     /** Dev hooks (demo / tests). */
     debug: {
       app, get cam() { return cam; }, get board3d() { return board3d; }, tiles, views, penViews, get leader() { return leader; }, interp, fx, ofx, wiring, ctx, drag, get camKind() { return viewKind(camKind, camOpts); },

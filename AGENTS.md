@@ -21,6 +21,9 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
 4. Before editing battle simulation code, read [server/sim/AGENTS.md](server/sim/AGENTS.md) for a short settlement API usage guide.
 5. [docs/CI.md](docs/CI.md) — the CI jobs, the test-sharding contract (`ci-shards.json`), how to re-weigh it, the
    timeout policy, and the ways a CI measurement lies.
+6. [docs/doc-map.json](docs/doc-map.json) — which doc sections to read before editing each code area
+   (`node tools/doc-map.mjs <path>`); state numbers and official behaviour with a source, `[src: …]` or `[unverified]`
+   (changes/README.md "Sourced claims").
 
 ## Hard rules
 
@@ -28,6 +31,10 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
 - **Official first.** Rules come from the official data tables (`.cache/gamedata/excel/` after setup) and
   [PRTS](https://prts.wiki/). A detail no source settles is implemented the simplest way and marked `[ASSUMED]` in the
   code and the PR. Deliberate deviations from the official mode are the maintainer's decision only.
+- **(fork) No guessed values.** On this fork the `[ASSUMED]` route above needs the maintainer's OK first. Timings,
+  rates, ranges and counts cite their official source in a comment (file + field). With no source, ship no number:
+  leave it out and say so, or ask. A new `[ASSUMED] …` line needs `user OK YYYY-MM-DD` on the same line
+  (`npm run changelog -- --check` checks it, as does the crew's covering-test tool).
 - **Determinism.** `server/sim/` is plain ESM that runs in Node and in browsers: no Node APIs, no `Math.random`, no
   clocks, and no engine-approximated Math functions (use `server/sim/detmath.js`; ESLint and
   `test/sim/detmath.test.js` enforce it).
@@ -40,7 +47,11 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
   `npm run merge:generated` ([docs/ASSETS.md](docs/ASSETS.md) "Merging branches").
 - **(fork) Changelog fragments.** A branch never edits `FORK-CHANGELOG.md`: it adds one file
   `changes/<what-it-changes>.md` ([changes/README.md](changes/README.md)); the lead folds them in on `dev-0.2` with
-  `npm run changelog -- --write`.
+  `npm run changelog -- --write`. FORK-CHANGELOG.md is public and for players: each fragment says `Kind: player`
+  (folded) or `Kind: internal` (tooling, scripts, CI, tests, deploy: deleted unfolded; when unsure, internal), and our
+  own hosts, regions, domain, commands and traffic numbers never go in its sections (`Operator notes:`). A player
+  change that is news adds a `News:` block: its update news line(s) in en, zh, ja, ko and zh-TW, names only through
+  `{name:<game-data id>}` / `{term:<Chinese UI text>}` (changes/README.md "News lines"); `npm run changelog` checks it.
 - **(Fish Edition) Changelog fragments.** A pull request never edits the "### Fish Edition" section of `CHANGELOG.md` /
   `CHANGELOG.en.md`: it adds `changes-fish/<PR>-<what>.md` and `.en.md` ([changes-fish/README.md](changes-fish/README.md),
   GitHub #158). The server shows them in the release notes at once; `npm run changelog:fish -- --write` folds them in
@@ -60,7 +71,8 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
 - **Commits and PRs**: one topic per PR; a one-line message of what changed (Chinese or English) with the issue number;
   no attribution trailers (`Co-Authored-By:`, `Generated with …`). The PR description states what, why, the sources,
   the `[ASSUMED]` points, the tests you ran (paste the summary lines) and the golden moves. No ads, payments or other
-  monetisation — the project stays non-commercial.
+  monetisation — the project stays non-commercial. (fork) The line is at most ~70 characters; the details go in the
+  changelog fragment. Merge commits are exempt.
 
 ## Verify
 

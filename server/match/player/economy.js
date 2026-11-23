@@ -4,9 +4,10 @@
 // Installed on PlayerState.prototype by server/match/PlayerState.js (a method container: never instantiated; `this` is
 // the player state).
 
-import { ERR, PHASE, layerGainRoom } from '../../../shared/constants.js';
+import { ERR, PHASE, layerGainRoom, layerCapOf } from '../../../shared/constants.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
 import { freeSlot } from '../board.js';
+import { noteBuy, noteLevel } from '../autoAward.js';
 import { computeBonds } from '../bondsMeta.js';
 import { OK, fail } from './common.js';
 import { CC } from '../../../shared/ruleData.js';
@@ -46,7 +47,7 @@ export class PlayerEconomy {
     if (!this.gd.bond(bondId) || !Number.isFinite(n) || n <= 0) return 0;
     if (requireActive && !(this.bonds[bondId] && this.bonds[bondId].active)) return 0;
     const before = this.layers[bondId] || 0;
-    const add = layerGainRoom(before, Math.floor(n));
+    const add = layerGainRoom(before, Math.floor(n), layerCapOf(this.m.lobbyRules));
     if (add <= 0) return 0;
     this.layers[bondId] = before + add;
     this.recompute();
@@ -212,6 +213,7 @@ export class PlayerEconomy {
       this.spend(price);
       slot.sold = true;
       piece = this.acquireChess(slot.id, { source: 'buy' });
+      noteBuy(this.m, this, slot.id); // (GitHub #125) Intern
       if (this.gd.tierOf(slot.id) === 1) this.round.tier1Bought = true; // SPA-CC ccTier1Price: once per round
     } else {
       if (!this.gd.item(slot.id)) return fail(ERR.BAD_TARGET);
@@ -265,6 +267,7 @@ export class PlayerEconomy {
     if (this.funds < price) return fail(ERR.NO_FUNDS);
     this.spend(price);
     this.shop.level++;
+    noteLevel(this.m, this); // (GitHub #125) Barge
     this.shop.upgradePrice = this.upgradeBaseOf(this.shop.level);
     this._openLevelSlots();
     this.m.tickerFor('SHOP_LEVEL', [this.name, String(this.shop.level)], { bot: this.isBot, playerId: this.playerId, param: String(this.shop.level) });

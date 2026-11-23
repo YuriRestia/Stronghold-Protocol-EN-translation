@@ -225,14 +225,15 @@ export function morphBondOf(rec) {
  * official: fewer than two items grants nothing; a canGiveBond item must be present; every other item's
  * giveBondId grants (when bondOk says the bond exists — the client passes a bondOk that always accepts).
  * plus: one item is enough, a canGiveBond item must still be present, and only the leftmost giveBondId grants.
+ * free (Fish Edition: Mod Z Phantom): no canGiveBond item and no second item needed; every item's giveBondId grants.
  * @param {Array<string|{id?: string}>|null|undefined} items
  * @param {(id: string) => any} getItem
- * @param {{ mode?: string, bondOk?: (id: string) => boolean }} [opts]
+ * @param {{ mode?: string, bondOk?: (id: string) => boolean, free?: boolean }} [opts]
  * @returns {string[]}
  */
-export function grantedBondsByMorph(items, getItem, { mode = 'official', bondOk = () => true } = {}) {
+export function grantedBondsByMorph(items, getItem, { mode = 'official', bondOk = () => true, free = false } = {}) {
   const list = Array.isArray(items) ? items : [];
-  if (mode !== 'plus' && list.length < 2) return [];
+  if (!free && mode !== 'plus' && list.length < 2) return [];
   const recs = [];
   for (const it of list) {
     const id = typeof it === 'string' ? it : it && it.id;
@@ -240,7 +241,7 @@ export function grantedBondsByMorph(items, getItem, { mode = 'official', bondOk 
     const rec = getItem(id);
     if (rec && typeof rec === 'object') recs.push(rec);
   }
-  if (!recs.some((r) => r.canGiveBond)) return [];
+  if (!free && !recs.some((r) => r.canGiveBond)) return [];
   const out = [];
   for (const r of recs) {
     if (r.canGiveBond) continue;

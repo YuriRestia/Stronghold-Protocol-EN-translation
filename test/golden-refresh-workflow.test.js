@@ -36,6 +36,9 @@ test('golden-moved: versions and families inputs are checked', () => {
   assert.deepEqual(resolveVersions(''), VERSIONS.map((v) => v.id));
   assert.equal(resolveVersions('all')[0], DEFAULT_VERSION);
   assert.deepEqual(resolveVersions(' act1autochess , act1autochess '), ['act1autochess']);
+  // the summary step gets the resolved list back space- or line-separated
+  assert.deepEqual(resolveVersions('act1autochess act1autochess@V1_1'), ['act1autochess', 'act1autochess@V1_1']);
+  assert.deepEqual(resolveVersions('act1autochess\nact1autochess@V1_1\n'), ['act1autochess', 'act1autochess@V1_1']);
   assert.throws(() => resolveVersions('act9autochess'), /unknown version/);
   assert.throws(() => resolveVersions('act1autochess; rm -rf /'), /unknown version/);
   assert.equal(resolveFamilies('all'), null);

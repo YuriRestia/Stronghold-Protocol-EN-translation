@@ -9,7 +9,7 @@ export function releaseSections(markdown, version) {
   let fenced = false;
   for (const line of markdown.split(/\r?\n/)) {
     if (/^```/.test(line)) fenced = !fenced;
-    const heading = !fenced && line.match(/^## (\d+\.\d+\.\d+)(?:-dev)? — (.+)$/);
+    const heading = !fenced && line.match(/^## (\d+\.\d+\.\d+(?:-\d+)?)(?:-dev)? — (.+)$/);
     if (heading) {
       current = { version: heading[1], title: line.slice(3), body: '' };
       sections.push(current);
@@ -28,7 +28,7 @@ const DEV_ONLY = /^### (?:开发中|In development)/;
 /** (fork) releaseSections, plus any unreleased sections newer than the running version, first. */
 export function forkReleaseSections(markdown, version) {
   const shipped = releaseSections(markdown, version);
-  const newest = markdown.match(/^## (\d+\.\d+\.\d+)(?:-dev)? — /m)?.[1];
+  const newest = markdown.match(/^## (\d+\.\d+\.\d+(?:-\d+)?)(?:-dev)? — /m)?.[1];
   if (!shipped.length || !newest) return shipped;
   const all = releaseSections(markdown, newest);
   const ahead = all.slice(0, all.length - shipped.length).filter((s) => UNRELEASED.test(s.title));

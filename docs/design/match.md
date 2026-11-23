@@ -365,8 +365,10 @@ These hooks consume no gameplay RNG and schedule no game actions.
 
 [ASSUMED] During INFO_CHECK any seated human participant may request an opening reroll; all connected human
 participants must explicitly agree, including autoplay humans. Bots and spectators do not vote; one human refreshes
-immediately. A vote pauses the confirmation timer and blocks Ready. Rejection, cancellation by any seated participant,
-disconnect or leaving cancels it and restores the remaining time / prior Ready state. Success preserves the room,
+immediately. A vote blocks Ready but never pauses the confirmation timer (fork, user 2026-11-13: a reroll must never
+hold the start): when the timer runs out during a vote, the vote fails and the match goes on with the opening on
+screen; once everyone is ready and the briefing is ending, a new vote is refused. Rejection, cancellation by any seated
+participant, disconnect or leaving cancels it and restores the prior Ready state. Success preserves the room,
 seats, settings and connections, redraws the complete opening, resets Ready, and starts the full original timer
 (single-human matches remain untimed). Fixed stage/bans remain fixed and random results can repeat. A separate
 seed-derived stream leaves shop/draft RNG untouched; each seat may start one vote per 30 s (a completed reroll opens a

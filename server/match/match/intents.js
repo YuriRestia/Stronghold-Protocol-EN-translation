@@ -11,6 +11,7 @@ import { OK, fail } from './common.js';
 import { setBondCall } from '../bondCall.js';
 import { onHumanEmote } from '../botEmotes.js';
 import { sendChat } from '../chatWallet.js';
+import { noteAiSeat } from '../autoAward.js';
 
 /**
  * (fork) The intents that show a player is at the keyboard and reset a large room's idle count (match/largeRoom.js): the
@@ -99,6 +100,7 @@ export class MatchIntents {
   setAutoplay(ps, on) {
     if (ps.autoplay === on) return OK;
     ps.autoplay = on;
+    if (on) noteAiSeat(this); // (GitHub #125) 托管 counts as an AI seat
     this.markPublic();
     if (on) this.kickBot(ps);
     else this.cancelBotTasks(ps.playerId); // (fork) the human took the seat back: a bot task for it must not hold the queue

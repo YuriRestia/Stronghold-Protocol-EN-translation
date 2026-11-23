@@ -560,7 +560,14 @@ board than the anchor (`pos` z > 0; 50 prefabs of the used set — auras, the `*
 facing up) puts the effect farther from the camera than the unit's tilted body, which lies at its feet's depth, so
 Unity draws it first (0.3.1: 瑕光 S3's horses, wings and halo, z +0.23 and 0.5–1.1 tiles behind her feet, covered her);
 a `static_offset` pulled forward (z < 0) or at 0 keeps the flat rule [ASSUMED: the units' renderers sort at their
-feet's depth; an effect whose depth comes from its children's positions alone is not judged].
+feet's depth; an effect whose depth comes from its children's positions alone is not generally judged].
+The verified exception is 魔王 S3's `cetsyr_skill_03_buff_01` / `beijing_01`: its +0.104 depth belongs to a nested
+`scale` helper while `static_offset` is zero. This standing background must not use the global ground pass: raised
+2D tile rows share the unit layer and would cover it. Only this mesh uses an owner-local `unitBack` draw node at
+the start of `UnitView.root`, sorting after that owner's platform and before its body. Each owner's items are sorted
+and batched independently; finished effects and destroyed owners release the node. Its authored order 0 and its
+siblings' original pass remain unchanged [ASSUMED: a scoped painter-order mapping, not full Unity distance sorting;
+history 0.3.4 §37.106].
 
 ### 33.7 Materials (`descriptor.materials[]`)
 
@@ -1456,7 +1463,9 @@ index.json — version 1 and the version 2 fields (§33.12, §33.15; Phase 3c) �
   where a kit's fx stands for that projectile (克莱门莎 S3's `projectile_chr_clemnt_s3`). A binding may name its own
   `keys` instead, played once `at: 'target'` on the unit the fx names (round 46: 泡泡 S2's 'counter' →
   `bubble_skill_02_hit` on the attacker, the client's `bubble_s_2` CreateEffect on MODIFIER_SOURCE at ON_TAKE_DAMAGE;
-  the kit's fx carries `target`; another field with the binding's `target`: 0.3.1, audit R20 — 归溟幽灵鲨 S1's
+  the kit's fx carries `target`; (fork, 2026-11-15) 刺玫 S2's 'counter' → `vendla_skill_02_hit_01` on the attacker, the
+  protégé's `vendla_s_2` creating `vendla_s_2[extra_damage]` on MODIFIER_SOURCE, whose CreateEffect targets BUFF_OWNER —
+  `targetBound` also drops such a key from the owner's `trigger` rows, where index v3 put it; another field with the binding's `target`: 0.3.1, audit R20 — 归溟幽灵鲨 S1's
   'hpShare' names the ally in `to`, and her ExchangeHp ability (AnimatedActionToTargetAbility, [uc]skills.ab) creates
   `ghost2_skill_01_start` on SOURCE and `ghost2_skill_01_hit` on TARGET). A key bound so is no row on the owner
   (`skills.js targetBound`, unmapped `bound`): index v3 writes an ability's `_actions` CreateEffect uses without their
@@ -1479,6 +1488,11 @@ index.json — version 1 and the version 2 fields (§33.12, §33.15; Phase 3c) �
   buff they put on the target (`fx` / `fxSrc`) or call `fxState` with `dur`; skills whose ActiveBuffAbility buff sits on
   the operator herself use a `running` probe, and summons wear their owner's skill buffs through
   `content/fxStates.js TOKEN_FX_STATES` (a probe on the token, `src` its `ownerUnit`). 41 of 43 marks on 27 operators.
+  (fork, 2026-11-15) A buff a template's CreateBuffUseAbilitySelector makes at its start counts as `on: 'targets'` too:
+  it sits on the unit that ability picks, which index v3 writes `on: 'owner'`. 刺玫 S2: `vendla_s_2[self]`'s
+  MaxHpSelector gives the ally with the most max HP in her range (herself when none has more) `vendla_s_2`, whose
+  overrideEffectKey `vendla_skill_02_buff_01` loops there for the skill (LIMITED `duration`, finished with its parent);
+  the kit tags the protégé's taunt buff (`fx`, src her). Before, the loop played on 刺玫 whoever she taunted.
 * **State buffs** (fork, effect gaps audit 2 item 4; `skills.js STATE_BUFFS`, `stateEntries`, plan `state`;
   `skillfx.js _states`): a buff template action at a moment the client never sees (unmapped 'conditional': a condition
   checked every tick, a would-die, a kill, a fired trigger effect) whose buff the sim signals in b.snap `fxs`
@@ -1540,8 +1554,8 @@ index.json — version 1 and the version 2 fields (§33.12, §33.15; Phase 3c) �
     drifting area, 新约能天使's air
     strikes (`angel2_skill_N_loop_*` on projectiles not flown), 蕾缪安 S3's falling shells, 扎罗's fear-cage beams (the
     client's `enemy_wlfmster_a_skill_end_buff` on the caged operators is not placed), 缇缇 S3's wake (the fx names no
-    owner) and the talents' cues (刺玫's and 雪猎's strikes / counters, 风丸's 替身 burst); 泡泡 S2's counter is its
-    binding above (audit R17). Areas kept so in 0.3.1 (history §34.5): 圣聆初雪's snow layers (`sbell2_ground_0N` per
+    owner) and the talents' cues (雪猎's strikes, 风丸's 替身 burst); 泡泡 S2's and (fork, 2026-11-15) 刺玫 S2's
+    counters are their bindings above (audit R17). Areas kept so in 0.3.1 (history §34.5): 圣聆初雪's snow layers (`sbell2_ground_0N` per
     tile — no event carries the tiles' layers), the 自选 picks' 珊比 S2 glue (`thumpy_skill_02_trap_01` per glued tile —
     the fx gives their centre), 黍's farm tiles (`shu_talent_buff_01` per sown tile), 克莱门莎 S2's vortex (no prefab
     of its own found), 霍尔海雅 S3's and 斩业星熊 S2's moving areas (projectiles that fly or orbit), 集团军重型火炮's

@@ -499,6 +499,13 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
   // The roll helpers only read pools/data; shadow their RNG receiver without replacing the live match stream.
   const rolls = preview ? Object.assign(Object.create(m), { rngMeta: rng }) : m;
   const view = (p) => (p ? ps.pieceView(p) : null);
+  // (fork) One for All (match/oneForAll.js), the user's decision of 2026-11-13 ("One for all: C"): every seat holds the
+  // same strategy, so a strategy's item grants, and those of an operator's garrison effect (驻守), are kept apart from
+  // the shop / reward stock: never refused, they take no copy, their draws ignore the stock, and selling or destroying
+  // them repays nothing (pool.js offStock). Every other match keeps the official rule: equipment from any source
+  // occupies the stock, fixed gifts are never refused (路标月报#2, bilibili BV1eLXXBqEgF 1:30 / 2:30;
+  // docs/history/0.2.5.md §30.1).
+  const offStockGrant = m.oneForAll === true && (source?.kind === 'band' || source?.kind === 'garrison');
   // the piece whose per-round counters a handler reads: an owned one, or the handler's own source copy that a merge
   // consumed during this refresh dispatch — it still witnessed the refresh (EffectDispatcher._garrisons, GitHub #627)
   const counted = (uid) => {
@@ -631,6 +638,7 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
         toTemp: !!opts.toTemp,
         deferMerge: ps._deferItemMerge > 0,
         requirePool: opts.requirePool !== false,
+        offStock: offStockGrant,
       });
       return p ? view(p) : null;
     },
@@ -647,12 +655,13 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
       const extra = typeof ps.diyStockEntries === 'function' ? ps.diyStockEntries() : null;
       return m.pool.roll(rng, { maxTier: Number.isInteger(opts.maxTier) ? opts.maxTier : 6, tier: Number.isInteger(opts.tier) ? opts.tier : null, filter: f, extra, ignoreCounts: opts.ignoreCounts === true });
     },
-    rollItem: (opts = {}) => rolls.rollItemId(opts),
+    rollItem: (opts = {}) => rolls.rollItemId({ ignoreStock: offStockGrant, ...opts }),
     /**
      * Roll a choices.json pool: equip pools → { kind: 'item', id }; chess pools (items / weighted / shopEligible with
      * tier, minTier, bond, golden) → { kind: 'chess', id, golden } (a pool chess needs a free copy). null when empty.
      */
     rollPool: (poolId, opts = {}) => rolls.rollPool(poolId, {
+      ignoreStock: offStockGrant,
       shopLevel: ps.shop.level,
       // a shared-pool draw also takes the player's 自选 stock, its bonds read through the player's view (rollChess)
       extra: typeof ps.diyStockEntries === 'function' ? ps.diyStockEntries() : null, chessOf: (id) => gd.chess(id),
@@ -709,7 +718,7 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
     /** Queue a free pick-one offer of chess (shop.rewardOffer; `label` defaults to offerLabel(source), the bar's header). */
     offerChess: (ids, opts = {}) => !!ps.pushRewardOffer(opts.source || source.key || 'effect', { ids, tier: opts.tier ?? null, label: opts.label ?? offerLabel(gd, source) }),
     /** Queue a free pick-one offer of items (shop.rewardOffer with slots of kind 'item'). */
-    offerItems: (ids, opts = {}) => !!ps.pushItemOffer(ids, { source: opts.source || source.key || 'effect', tier: opts.tier ?? null, label: opts.label ?? offerLabel(gd, source) }),
+    offerItems: (ids, opts = {}) => !!ps.pushItemOffer(ids, { source: opts.source || source.key || 'effect', tier: opts.tier ?? null, label: opts.label ?? offerLabel(gd, source), offStock: offStockGrant }),
     setShopSlot: (i, slot) => {
       if (!Number.isInteger(i) || i < 0 || i >= ps.shop.slots.length) return false;
       if (slot == null) { ps.shop.slots[i] = null; ps.dirty(); return true; }
@@ -721,7 +730,9 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
       return true;
     },
     addDeployCap: (n) => { const v = finiteInt(n); ps.deployCapBonus += v; ps.dirty(); return ps.deployCap; },
-    setDeployCapAtLeast: (n) => { const v = finiteInt(n); if (v > ps.deployCapMin) { ps.deployCapMin = Math.min(v, 12); ps.dirty(); } return ps.deployCap; },
+    // `opts.withRule`: the floor sits above the lobby rule's bonus too (人事部文档 "becomes 9" is +1 over the normal 8, so
+    // it is still +1 over a +2 limit: GitHub #183)
+    setDeployCapAtLeast: (n, opts) => { const v = finiteInt(n) + (opts?.withRule ? ps.deployRuleBonus : 0); if (v > ps.deployCapMin) { ps.deployCapMin = Math.min(v, 12); ps.dirty(); } return ps.deployCap; },
     setBondCountBonus: (bondId, n) => { if (gd.bond(bondId) && Number.isInteger(n)) { ps.bondCountBonus[bondId] = n; ps.recompute(); } },
     setDeviceActive: (alias, on) => { if (typeof alias === 'string') { ps.deviceOverrides[alias] = !!on; ps.invalidateDeployMap(); ps.dirty(); } },
     setTileOverride: (r, c, cls) => { if (Number.isInteger(r) && Number.isInteger(c) && ['melee', 'ranged', 'none'].includes(cls)) { ps.tileOverrides[`${r},${c}`] = cls; ps.invalidateDeployMap(); ps.dirty(); } },

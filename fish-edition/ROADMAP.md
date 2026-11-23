@@ -27,13 +27,16 @@ When choosing what to do next, priority factors in:
   - keyword popup on click (#8);
   - difficulty details (#7);
   - status icons with a ring for the time left and their value, e.g. 35 % vs 40 % Fragile (#12).
-- **Reboot for updates:** `npm run maintenance` (`--status`, `--close`, `--in` / `--at`, `--stop-when-idle`, `--wait`, `--back-in`), the one-line update command in both READMEs, and DEPLOY's per-setup restart notes (TODO.md "Server maintenance").
+- **Reboot for updates:** `npm run maintenance` (`--status`, `--close`, `--in` / `--at`, `--stop-when-idle`, `--wait`, `--back-in`), the one-line update command in both READMEs, and DEPLOY's per-setup restart notes (docs/DEPLOY.en.md).
 - **Custom Lobby Modifications** (shared/rules.js), grouped by the categories under SPA-CC:
   - +2 Deployment Limit, +2 Funds, no time limit on action screens (cheats);
   - choosing the map and the Alliance bans (RNG reducers);
   - Alliance Modules Laterano Mod B and Victoria Mod C (neutral);
-  - Virtuosa in Swift and Aid, Blaze replacing Catherine (neutral);
-  - later cheats: double LP, one operator of each tier, Booster Pack, Equipment Booster Pack.
+  - Virtuosa in Swift and Aid, Blaze replacing Catherine (neutral). Blaze (agreed 2026-10-14) takes Catherine's slot
+    (tier 4, price 3) and the skill / module chosen for her; selling her takes Blaze the Igniting Spark from the shared
+    pool, so none once its copies are gone;
+  - later cheats: double LP, one operator of each tier, Booster Pack, Equipment Booster Pack;
+  - a room with any rule set can't search for teammates: strangers play the original game.
 - **SPA-CC:** the Risk grid and the tags. The live spec is spacc/working-spec.md.
 
 # Open ideas
@@ -68,7 +71,7 @@ Built (`lateranoMod: 'B'`). Kept here as the design the code points to.
 
 Analysis: Mod B is less bullets until 100 stacks, at which point it jumps to effectively more bullets than Mod A, and Mod A wins again at 272 stacks. Mod B solves one of Laterano lategame's biggest problem, which is that Lemuen skill 3 only shoots all at once after expending all bullets, and it takes too long for her to shoot. Limiting the amount of bullets means she doesn't take ages to shoot, while the 200% damage modifier compensates. Local pro player pointed out the real reason Mod B will likely be preferred, is purely for the midgame Executor the Ex Foedere farming of Foresight (one of the 3 economy Alliances) Alliance stacks, which will now be accumulated twice as fast.
 
-Readings agreed 2026-10-14 (TODO.md): the bullet-spending Attributes count bullets as usual and trigger twice each time. The Attribute's owner decides, so Mostima's doubles on a non-Laterano neighbour's bullets too. Both triggers count toward the per-battle limit. The 6-member ATK per bullet does not double.
+Readings agreed 2026-10-14: the bullet-spending Attributes count bullets as usual and trigger twice each time. The Attribute's owner decides, so Mostima's doubles on a non-Laterano neighbour's bullets too. Both triggers count toward the per-battle limit. The 6-member ATK per bullet does not double.
 
 ### Laterano Mod C (open)
 
@@ -84,7 +87,7 @@ Victoria operators gain +8 SP after skill activation per Victorian Hammer equipp
 
 At 6 Victoria operators, Victoria operatiors with Victorian Hammers equipped gain stacks to all of their non-Victoria active alliances equal to double their tier. At the start of combat, Victoria operators gain (200 + 1.2x stacks)% ATK, 200% HP as Barrier, and Status Resistance.
 
-Readings agreed 2026-10-15 (TODO.md):
+Readings agreed 2026-10-15:
 - The SP comes when the operator's skill ends, 8 per hammer it carries, like Swift.
 - The free upgraded hammers apply only while Victoria is active.
 - The 6-member part is one tier.
@@ -97,7 +100,7 @@ Readings agreed 2026-10-15 (TODO.md):
 
 ## Custom Operator Modules (Mod Z)
 
-In the original game, releasing new Modules are the preferred way to buff old Operators that don't really hold up to modern standards anymore, rather than buffing the Operator directly. Enabling them is a cheat for SPA-CC scoring. Without the rule, an operator with a Mod Z selected falls back to its first other module, or to none. The design is in operator-mod-z/ (about.md, rosa.md, typhon.md).
+In the original game, releasing new Modules are the preferred way to buff old Operators that don't really hold up to modern standards anymore, rather than buffing the Operator directly. Enabling them is a cheat for SPA-CC scoring. Without the rule, an operator with a Mod Z selected falls back to its first other module, or to none. The designs are in operator-mod-z/ (about.md and one file per operator).
 
 ## Rebalanced Alliance Effects (open items)
 
@@ -137,6 +140,10 @@ Tags belonging to a sequence are mutually exclusive with each other. (ex. Operat
 Final boss modifiers affect both the regular final boss and the hidden core boss.
 
 For the tags that involve certain enemies, we can adjust their stats just for SPA-CC, just as SPA already adjusted boss enemies compared to their normal versions.
+
+Plugins (#52, Fish, 2026-10-27): SPA-CC stays in Fish Edition, since Lockout and others can't be plugins. The
+compatible subset is ported as plugins in `evenifyouforget/spa-fish-edition-plugins`. The feasibility study is in
+FINDINGS.md §6.
 
 Rejected or scrapped tags:
 - **Buffs to non-leader enemies** (+30/100% max HP; +15/40% MSPD and ASPD), rejected after pro player review. Buffing mobs hurts certain team compositions much more than others: "they become free if you have a kjerag player and they become almost untakeable if you don't".

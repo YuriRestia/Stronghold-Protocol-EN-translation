@@ -3,5 +3,5 @@
 import { createStore, loadPref } from '../store.js';
 import { sanitizeSettings } from './gameLogic/settings.js';
 
-/** Settings store: { bgm, sfx, voice, voiceLang, voiceNative, voiceOverrides, muted, matchAlert, damageNumbers, officialDamageNumbers, ammoEnergyCount, fullscreenWakeLock, bondTimers, prepDeployFold, quality, officialFx, otherSkins, textSize, keys }. */
+/** Settings store: { bgm, sfx, voice, voiceLang, voiceNative, voiceOverrides, muted, matchAlert, damageNumbers, officialDamageNumbers, ammoEnergyCount, fullscreenWakeLock, bondTimers, prepDeployFold, quality, officialFx, spriteAnim, otherSkins, textSize, keys }. */
 export const settingsStore = createStore(sanitizeSettings(loadPref('settings', null)));

@@ -263,6 +263,18 @@ function applyGapVariants() {
     const at = S.priv.board[1];
     if (mani && at) S.priv.board[1] = { ...chessPiece(mani), row: at.row, col: at.col };
   }
+  // (fork) `beacon` (GitHub #913): a 信标 (Transmitter) in the hand and a 自选 (Custom Squad) Siege in place of the
+  // second board operator, so dragging the Transmitter shows that tile refused
+  if (VARIANTS.has('beacon')) {
+    const slot = data.lookup('chess', 'chess_char_5_diy1_a');
+    const beacon = data.lookup('items', 'chess_item_5_04_e_a');
+    const at = S.priv.board[1];
+    if (slot && beacon && at) {
+      S.priv.diy = { [slot.chessId]: { charId: 'char_112_siege', skillIndex: 2, uniEquipId: 'uniequip_002_siege' } };
+      S.priv.board[1] = { ...chessPiece(slot), row: at.row, col: at.col, items: [] };
+      S.priv.hand[5] = itemPiece(beacon);
+    }
+  }
 }
 
 /**
@@ -327,6 +339,9 @@ function setPhase(phase, variant) {
       pub.round = 0; pub.deadline = Date.now() + 21000;
       pub.players.forEach((p, i) => { p.ready = i === 1 || i === 2; p.status = p.ready ? 'ready' : 'deciding'; p.bandId = null; p.lp = 0; });
       S.priv.bandId = null;
+      // (fork) no setup reroll in a room strangers could join (server/lobby.js rerollLock): variant=rerollpublic | rerollmatchmade
+      if (VARIANTS.has('rerollpublic')) pub.rerollOff = 'public';
+      else if (VARIANTS.has('rerollmatchmade')) pub.rerollOff = 'matchmade';
       break;
     case PHASE.BAND_DRAFT:
       pub.round = 0; pub.deadline = Date.now() + 9000;

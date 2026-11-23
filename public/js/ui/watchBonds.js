@@ -21,7 +21,7 @@
 // whoever the strip follows), and a bond popup carries the player it was opened for (toggleBond / popupView): the
 // strip's owner, or the chip's — its entry, member list and "👁 name" label always belong to that one player.
 
-import { BOND_LAYER_CAP } from '../../../shared/constants.js';
+import { BOND_LAYER_CAP, layerCapOf } from '../../../shared/constants.js';
 import { sidesOf, nameOf, cameraLayers } from '../battle/observe.js';
 
 const isObj = (v) => !!v && typeof v === 'object';
@@ -124,10 +124,11 @@ export function ownerBonds({ pub, priv = null, myId, ownerId }) {
  * list (no members, not active). Returns the list itself when there is nothing to lay over.
  * @param {any[]} bonds @param {Record<string, number>|null|undefined} live
  */
-export function withLiveLayers(bonds, live) {
+export function withLiveLayers(bonds, live, rules = null) {
   const list = Array.isArray(bonds) ? bonds : [];
   if (!isObj(live)) return list;
-  const cap = BOND_LAYER_CAP > 0 ? BOND_LAYER_CAP : Infinity;
+  const cap0 = layerCapOf(rules);
+  const cap = cap0 > 0 ? cap0 : Infinity;
   const ids = Object.keys(live).filter((id) => Number.isFinite(live[id]) && live[id] > 0);
   if (!ids.length) return list;
   let changed = false;
@@ -187,7 +188,7 @@ export function ownerBoard(field, ownerId, extra = null) {
 export function stripView({ pub, priv = null, myId, fieldId = null, field = null, layer = 'ALL', halves = false, watched = null, live = null }) {
   const ownerId = bondOwnerId({ pub, myId, fieldId, field, layer, halves, watched });
   const self = ownerId === myId;
-  const bonds = withLiveLayers(ownerBonds({ pub, priv, myId, ownerId }), isObj(live) ? live[ownerId] : null);
+  const bonds = withLiveLayers(ownerBonds({ pub, priv, myId, ownerId }), isObj(live) ? live[ownerId] : null, pub && pub.rules);
   return { ownerId, self, name: self ? null : nameOf(pub, ownerId), bonds };
 }
 
@@ -215,7 +216,7 @@ export function screenStrip({ pub, priv = null, myId, combat = false, settle = f
  * @param {{ pub: any, priv?: any, myId: string, ownerId: string, live?: Record<string, Record<string, number>>|null }} o
  */
 export function playerBonds({ pub, priv = null, myId, ownerId, live = null }) {
-  return withLiveLayers(ownerBonds({ pub, priv, myId, ownerId }), isObj(live) ? live[ownerId] : null);
+  return withLiveLayers(ownerBonds({ pub, priv, myId, ownerId }), isObj(live) ? live[ownerId] : null, pub && pub.rules);
 }
 
 /**

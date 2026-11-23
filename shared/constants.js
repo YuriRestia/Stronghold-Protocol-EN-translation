@@ -5,7 +5,7 @@ import { N_ } from './i18n.js';
 export const PROTOCOL_VERSION = 1;
 /** Release version shown to players (title screen, server banner, /healthz). Kept equal to package.json "version"
  * (test/version.test.js); PROTOCOL_VERSION above is the separate wire-format number. */
-export const APP_VERSION = '0.3.3';
+export const APP_VERSION = '0.3.4-3';
 /** A development build (the public `dev` branch): the title screen, the boot banner and the README say so, and
  * tools/package.mjs refuses to build a release zip from it without --allow-dev. */
 export const DEV_BUILD = /-dev$/.test(APP_VERSION);
@@ -54,7 +54,8 @@ export const DIFFICULTY_NAMES = { FUNNY: N_('标准模拟'), NORMAL: N_('险境�
 export const DIFFICULTY_COLORS = { FUNNY: '#f6a329', NORMAL: '#e85a1a', HARD: '#e73118', ABYSS: '#ff0024' };
 
 // Lobby rules (Fish Edition): shared/rules.js (the registry, categories and labels); re-exported for older imports.
-export { RULE_KEYS, DEFAULT_RULES, RULE_EXTRA_DEPLOY, RULE_EXTRA_FUNDS, normalizeRules } from './rules.js';
+import { RULE_BIG_STACK_CAP } from './rules.js';
+export { RULE_KEYS, DEFAULT_RULES, RULE_EXTRA_DEPLOY, RULE_EXTRA_FUNDS, RULE_BIG_STACK_CAP, normalizeRules } from './rules.js';
 
 // modeId in data/config.json = `mode_${type}_${difficulty.toLowerCase()}` with type single|multi
 export const modeIdFor = (roomMode, difficulty) =>
@@ -148,14 +149,17 @@ export function gateOf(start, leader) {
   return target >= PEN_UPPER_ROW ? 'upper' : 'lower';
 }
 
+/** The per-bond layer cap of a match: RULE_BIG_STACK_CAP under the cheat 「叠层上限 9999」 (lobby rule `bigStacks`), else BOND_LAYER_CAP. */
+export const layerCapOf = (rules) => (rules && rules.bigStacks ? RULE_BIG_STACK_CAP : BOND_LAYER_CAP);
+
 /**
- * The layers a gain of `n` actually adds to a bond holding `before` under BOND_LAYER_CAP: min(n, cap − before), never
+ * The layers a gain of `n` actually adds to a bond holding `before` under BOND_LAYER_CAP (or the `capOverride` of `layerCapOf`): min(n, cap − before), never
  * negative (a count already at or over the cap gains 0 and is never lowered); 0 for a non-positive / non-finite `n`
  * except +Infinity (= "the room left").
  */
-export function layerGainRoom(before, n) {
+export function layerGainRoom(before, n, capOverride = BOND_LAYER_CAP) {
   if (!(n > 0)) return 0;
-  const cap = BOND_LAYER_CAP > 0 ? BOND_LAYER_CAP : Infinity;
+  const cap = capOverride > 0 ? capOverride : Infinity;
   const b = Number.isFinite(before) && before > 0 ? before : 0;
   return Math.max(0, Math.min(n, cap - b));
 }
@@ -375,7 +379,7 @@ export const CHAT_MAX_LETTERS = 200;   // [ASSUMED] a safety ceiling for plugin 
 // Worst case ≈ 1 KB a frame; docs/design/network.md "Chat lines".
 export const CHAT_LINE_LETTERS = 100;
 export const CHAT_LINE_CODEPOINTS = 300;
-// (fork) the server's spam limits for a sender (server/chatLimit.js; the page is not trusted): a gap between lines, a burst
+// (fork) the server's spam limits for a sender (server/match/chatLimit.js; the page is not trusted): a gap between lines, a burst
 // window, pauses that grow on repeat offences and are forgiven one step at a time, and a cap for every session of one
 // network together, so new tabs or tokens do not multiply it. Room chat's gap; match chat keeps CHAT_COOLDOWN_MS.
 export const ROOM_CHAT_GAP_MS = 1500;

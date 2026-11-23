@@ -9,9 +9,30 @@ import { net } from '../net.js';
 import { createStore, useStore, shallowEqual, serverNow } from '../store.js';
 import { t, getLang } from '../../../shared/i18n.js';
 import { searchClock } from './matchSearch.js';
+import { DIFFICULTIES, DIFFICULTY_NAMES } from '../../../shared/constants.js';
+import { versionLabel } from '../versions.js';
 
 /** { queued, difficulty, since, aiAt } as queue.state last said (server time). */
 export const soloQueue = createStore({ queued: false, difficulty: null, since: null, aiAt: null });
+
+/**
+ * (fork, the user's decision of 2026-11-15) queue.state `at`: the ticked versions that lack the difficulty picked and
+ * wait at their own fallback (server/lobby.js queueJoin, the room.create rule: 终极 → 绝境). Shown once per join as a
+ * warn toast, one line per difficulty used; the dialog itself is unchanged. Junk keys and values are dropped.
+ * @param {unknown} at @param {string | null} wanted
+ */
+export function fallbackLines(at, wanted) {
+  if (!at || typeof at !== 'object' || !DIFFICULTIES.includes(/** @type {any} */ (wanted))) return [];
+  /** @type {Map<string, string[]>} */
+  const byUsed = new Map();
+  for (const [v, d] of Object.entries(at)) {
+    if (typeof d !== 'string' || !DIFFICULTIES.includes(/** @type {any} */ (d)) || d === wanted) continue;
+    byUsed.set(d, [...(byUsed.get(d) ?? []), v]);
+  }
+  // en: "No {wanted} in {versions}: matched at {used} instead"
+  return [...byUsed].map(([used, vs]) => t('{versions}没有{wanted}，将以{used}匹配', {
+    versions: vs.map((v) => versionLabel(v)), wanted: t(DIFFICULTY_NAMES[wanted]), used: t(DIFFICULTY_NAMES[used]) }));
+}
 
 export function installSoloQueue() {
   net.on('queue.state', (msg) => {
@@ -21,6 +42,7 @@ export function installSoloQueue() {
         queued: true, difficulty: typeof msg.difficulty === 'string' ? msg.difficulty : null,
         since: Number.isFinite(msg.since) ? msg.since : serverNow(), aiAt: Number.isFinite(msg.aiAt) ? msg.aiAt : null,
       });
+      if (!was) for (const line of fallbackLines(msg.at, soloQueue.get().difficulty)) toast(line, 'warn');
       return;
     }
     soloQueue.set({ queued: false, difficulty: null, since: null, aiAt: null });

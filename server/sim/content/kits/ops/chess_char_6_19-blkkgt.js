@@ -47,6 +47,10 @@ function blkkgt(bb, chess, def) {
     // (3 when blocked) of dot_scale × ATK; the talent procs at 100 % meanwhile (skill active + bb.prob)
     skchr_blkkgt_2: {
       kind: instantKind(def),
+      // Official row ALWAYS, but the cast needs a target (CastSkill `_checkHasTargetBeforeDoCast` 1, `_allowNoTarget` 0;
+      // its SkillTrigger takes GROUND enemies only on the 1-4 — battle/prefabs/[uc]skills.ab skchr_blkkgt_2): ACTIVE_RANGE
+      // on that grid checks a selectable enemy by her own ground-only profile (or one she blocks) every tick.
+      ...(skillGrid ? { trigger: { rule: 'ACTIVE_RANGE', grid: skillGrid } } : {}),
       onStart({ battle, unit }) {
         const grid = skillGrid || [[0, 0], [0, 1]];
         const c = battle.unitsInGrid(unit, grid, { side: 'enemy' }).filter((e) => !e.isFlying && canTargetEnemy(unit, e, unit.profile));
@@ -90,6 +94,10 @@ function blkkgt(bb, chess, def) {
       kind: 'duration',
       duration: slashes * iv,
       ...(skillGrid ? { targeting: { rangeGrid: skillGrid } } : {}),
+      // Official row ALWAYS, but the cast needs a target (CastSkill `_checkHasTargetBeforeDoCast` 1, `_allowNoTarget` 0;
+      // its SkillTrigger takes ground and air enemies on the x-1, not extended — battle/prefabs/[uc]skills.ab
+      // skchr_blkkgt_3): she waits with full SP for a selectable enemy on the x-1.
+      ...(skillGrid ? { trigger: { rule: 'CUSTOM_RANGE', grid: skillGrid } } : {}),
       attack: { noAttack: true },
       // PRTS 备注 "※多段斩击期间，自身获得无敌，晕眩免疫，冻结免疫": invulnerable while the slashes run (removed in onEnd,
       // before the finisher); stun / freeze refused by her `beforeStatus` hook (install) while `mem.dgb` is set

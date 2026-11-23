@@ -10,6 +10,7 @@ import { boardTileOf, fieldTile } from './camera.js';
 import { deployedRecord, fieldsStandIn, standInOf } from './standIn.js';
 import { t } from '../../../../shared/i18n.js';
 import { morphSlotPolicy } from '../../../../shared/plugins/rules.js';
+import { chessIsDiy, itemForbidsDiy } from '../../../../shared/itemRules.js';
 
 
 // ---- placement (canPlace mirror) ------------------------------------------------------------------------
@@ -400,6 +401,10 @@ function equipCheck(ctx, itemPiece, targetPiece) {
   const item = ctx.getItem(itemPiece.id);
   if (item?.itemType === 'MAGIC') return { ok: false, code: 'BAD_TARGET', reason: t('该道具需要放置在战场上使用') };
   if (!isObj(targetPiece) || targetPiece.kind !== 'chess') return { ok: false, code: 'BAD_TARGET', reason: t('装备只能配发给干员') };
+  // 信标 (Transmitter, and any item the official text forbids): a 自选 (Custom Squad) slot is not a legal drop, so the
+  // drag highlight omits it.
+  // en: "Cannot be equipped on a Custom Squad Operator"
+  if (itemForbidsDiy(item) && chessIsDiy(ctx.getChess(targetPiece.id))) return { ok: false, code: 'BAD_TARGET', reason: t('无法装备给自选干员') };
   return { ok: true, action: 'equip' };
 }
 

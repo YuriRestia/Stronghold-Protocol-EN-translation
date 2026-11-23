@@ -59,7 +59,7 @@ test('real four-player sockets: any seat proposes, unanimous sync, reconnect and
   await err(spectator, { t: 'room.rerollSetup', setupRevision: 0 }, ERR.SPECTATOR);
   const voting = await host.waitFor('m.public', (p) => !!p.rerollVote);
   await err(host, { t: 'room.rerollSetup', setupRevision: 0 }, ERR.WRONG_PHASE);
-  assert.equal(voting.deadline, 0);
+  assert.equal(voting.deadline, initial.deadline, 'the countdown runs on through the vote');
   assert.equal(voting.rerollVote.voters.length, 4);
   assert.deepEqual(voting.rerollVote.agreed, [guests[0].id]);
   const voteId = voting.rerollVote.id;

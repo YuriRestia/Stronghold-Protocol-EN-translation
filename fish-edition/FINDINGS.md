@@ -1,6 +1,6 @@
 # Phase 1 findings
 
-Answers to the items in [TODO.md](TODO.md), investigated 2026-10-09 on branch `bookkeeping-tasks`.
+Answers to the questions Fish listed in TODO.md (2026-10-09; the list is in git history), investigated 2026-10-09 on branch `bookkeeping-tasks`.
 
 ## Update (2026-10-11)
 

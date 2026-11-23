@@ -36,6 +36,8 @@ export default Object.freeze({
   adapters: Object.freeze(['launchModes', 'launchMilestones']),
   research: 'docs/research/versions/act2autochess-v2_1/',
   tables: 'default',
+  // (fork) 丰川祥子 (mujica) stays out of this version's 自选 pool: the owner's decision of 2026-11-15 (today's season keeps her)
+  diyExcludedTeams: Object.freeze(['mujica']),
   config: Object.freeze({
     hiddenCore: Object.freeze({ single: 350, multi: 1200 }),
     rules: Object.freeze({}),

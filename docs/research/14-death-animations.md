@@ -70,7 +70,8 @@ fires when the finish state ends — so the cap only ever made the remake's deat
 
 The client's fly offset is one constant (`Vector3(0, 0.35f, 0)` in `Torappu.Battle.CharacterAnimator`, applied by
 `_SetFlyMountPointOffset` / `_SetFlyHitOffset` while a unit flies and negated when it lands; the remake draws 0.35 in
-character space ≈ **1.3 tiles** as `FLY_HOVER` — the flying-visuals write-up has the full derivation). Its only direct
+character space ≈ **1.3 tiles** as `FLY_HOVER` — the flying-visuals write-up has the full derivation; since 2026-11-14 a
+flyer hovers its own `Enemy._height` instead and that 0.35 is read as a hit-point offset, research 12 §7). Its only direct
 caller is `OnFinish` (#62924, call site
 0x1805feb87), disassembled as `xor edx, edx; mov rcx, rbx; call _SetFlyMountPointOffset` — **arg 0**, the negation
 branch — followed by clearing `[this+0x128]` and a tail call to another cleanup. `OnFinish` has no direct `call` site of

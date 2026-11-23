@@ -19,6 +19,7 @@ import { mitigate } from './calculation.js';
  */
 export function leaderHitCancelled(battle, target, amount, source = null) {
   if (!(BOSS_HIT_LIMIT > 0) || !target || !target.isBoss || (battle.kind !== 'boss' && battle.kind !== 'hidden')) return false;
+  if (battle.flags && battle.flags.rules && battle.flags.rules.noHitLimit) return false; // the cheat 「取消领袖单次伤害上限」 (GitHub #174: apart from 「叠层上限 9999」)
   if (promotedSource(source)) return false;
   if (!(Math.ceil(amount) >= BOSS_HIT_LIMIT)) return false;
   battle.fx('hitCap', { x: target.x, y: target.y, id: target.id, n: Math.ceil(amount) });

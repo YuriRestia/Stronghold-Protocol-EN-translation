@@ -394,7 +394,9 @@ export function performAttack(b, u, prof, targets, opts = null) {
     u.mem.engaged = true;
     b._ev(['engage', u.id]);
   }
-  const ranged = !prof._fortressMelee && prof.attack === 'ranged' && prof.projectile && prof.projectile !== 'none' && prof.projectile !== 'beam';
+  // (fork) `meleeShot`: a melee profile whose official attack still flies a projectile and deals its damage on reach
+  // (予愿安洁莉娜: projectile_chr_aglna2*, kits/ops/op-aglna2.js); `projectileSpeed` its own speed in tiles/s
+  const ranged = !prof._fortressMelee && (prof.attack === 'ranged' || !!prof.meleeShot) && prof.projectile && prof.projectile !== 'none' && prof.projectile !== 'beam';
   const vis = prof._fortressMelee ? 'none' : (prof.projectile || 'none');
   // 秘术师: the stored energies leave with this attack, at its main target (professions.js installMystic)
   const energy = !isHeal && prof.releaseEnergy ? prof.releaseEnergy(b, u) : 0;
@@ -418,7 +420,7 @@ export function performAttack(b, u, prof, targets, opts = null) {
     if (ranged && foe && prof.projectile === 'boomerang') {
       throwBoomerang(b, u, prof, t, info);
     } else if (ranged && foe) {
-      const speed = PROJECTILE_SPEEDS[prof.projectile] ?? PROJECTILE_SPEED;
+      const speed = prof.projectileSpeed > 0 ? prof.projectileSpeed : PROJECTILE_SPEEDS[prof.projectile] ?? PROJECTILE_SPEED;
       // projectiles land even if the shooter died meanwhile (damage is credited to it)
       b.addProjectile({ from: u, target: t, speed, visual: prof.projectile, source: u, hitDead: prof.splashRadius > 0,
         onHit: (c) => resolveHit(b, u, prof, c.target, info, c.x, c.y) });

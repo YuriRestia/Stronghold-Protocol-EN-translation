@@ -1,0 +1,103 @@
+// (fork) Enemy VFX audit, S rows: a b.snap fxs row whose src is an enemy finds that enemy's skill plans' state rows
+// (SkillFx._states: U.enemy, its skills by slot) — 'Gravestone''s shield, Fallen Snowpriest's chain buff, Garum
+// Gourmet's barrel zone — besides its operator-skill plan and its talents.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { SkillFx } from '../../public/js/render/vfx/skillfx.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { skillPlan, enemyBindingKeys, ENEMY_FX_BINDINGS } from '../../public/js/render/vfx/skills.js';
+
+function rig(records) {
+  const played = [];
+  const views = new Map();
+  const w = {
+    ofx: { time: 0, tier: 1, lib: new Set() },
+    view: (id) => views.get(id) || null,
+    playOn: (k, v, o) => { const h = { k, id: v.id, o, alive: true, stop() { this.alive = false; h.stopped = true; } }; played.push(h); return h; },
+    _dirIndex: () => 1,
+  };
+  const s = new SkillFx(w);
+  s.of = (v) => records.get(v.id) || null;
+  return { s, played, views };
+}
+
+test("an enemy skill's buff on another enemy plays from the src enemy's skill plan; the row gone stops it", () => {
+  const records = new Map([[5, { plan: null, enemy: [
+    { slot: 0, prefabKey: 'attack', plan: { state: [] } },
+    { slot: 1, prefabKey: 'chainbuff', plan: { state: [{ key: 'enemy_smsha_buff', buff: 'enemy_smsha_buffs', role: 'loop', loop: true }] } },
+  ] }]]);
+  const { s, played, views } = rig(records);
+  const sha = { id: 5, alive: true }, foe = { id: 8, alive: true, fxs: [['enemy_smsha_buffs', 5, null]] };
+  views.set(5, sha); views.set(8, foe);
+  s._states([sha, foe]);
+  assert.deepEqual(played.map((h) => [h.k, h.id, h.o.loop]), [['enemy_smsha_buff', 8, true]]);
+  foe.fxs = null;
+  s._states([sha, foe]);
+  assert.ok(played[0].stopped);
+});
+
+test("an enemy's own skill buff (no src) plays from its own skill plan; a buff no plan names plays nothing", () => {
+  const records = new Map([[6, { plan: null, enemy: [{ slot: 0, prefabKey: 'refreshshield', plan: { state: [{ key: 'enemy_mdrock_skill_buff_01', buff: 'flking_shiled', role: 'loop', loop: true }] } }] }]]);
+  const { s, played, views } = rig(records);
+  const g = { id: 6, alive: true, fxs: [['flking_shiled', null, null], ['unknown[x]', null, null]] };
+  views.set(6, g);
+  s._states([g]);
+  assert.deepEqual(played.map((h) => [h.k, h.id]), [['enemy_mdrock_skill_buff_01', 6]]);
+});
+
+test("an enemy's 'ready:<prefabKey>' row plays that skill's ready rows once per flip on (prefabKey without case)", () => {
+  const records = new Map([[4, { plan: null, enemy: [
+    { slot: 0, prefabKey: 'stuncombat', plan: { state: [], ready: [{ key: 'hammer_skill_01_buff', role: 'ready', loop: true }] } },
+  ] }]]);
+  const { s, played, views } = rig(records);
+  const ham = { id: 4, alive: true, fxs: [['ready:StunCombat', null, null]] };
+  views.set(4, ham);
+  s._states([ham]);
+  s._states([ham]);
+  assert.deepEqual(played.map((h) => [h.k, h.id, h.o.loop]), [['hammer_skill_01_buff', 4, true]], 'once while it holds');
+  ham.fxs = null;
+  s._states([ham]);
+  assert.ok(played[0].stopped, 'gone with the row');
+  ham.fxs = [['ready:stuncombat', null, null]];
+  s._states([ham]);
+  assert.equal(played.length, 2, 'again on the next flip on');
+  ham.fxs = [['ready:other', null, null]];
+  s._states([ham]);
+  assert.equal(played.length, 2, 'a skill it does not have plays nothing');
+});
+
+test("a 'stun' row plays only the Dockworker's own stun entry (STATE_BUFFS.stun.keys); another src's stun plays nothing", () => {
+  const records = new Map([
+    [5, { plan: null, enemy: [{ slot: 0, prefabKey: 'stuncombat', plan: { state: [], targets: [{ key: 'enemy_hvyslr_2_buff', buff: 'stun', role: 'loop', loop: true }] } }] }],
+    [6, { plan: null, enemy: [{ slot: 0, prefabKey: 'stuncombat', plan: { state: [], targets: [{ key: 'some_other_stun_fx', buff: 'stun', role: 'loop', loop: true }] } }] }],
+  ]);
+  const { s, played, views } = rig(records);
+  const dock = { id: 5, alive: true }, other = { id: 6, alive: true };
+  const op = { id: 8, alive: true, fxs: [['stun', 6, null]] };
+  views.set(5, dock); views.set(6, other); views.set(8, op);
+  s._states([dock, other, op]);
+  assert.deepEqual(played, [], "another src's stun: nothing");
+  op.fxs = [['stun', 5, null]];
+  s._states([dock, other, op]);
+  assert.deepEqual(played.map((h) => [h.k, h.id]), [['enemy_hvyslr_2_buff', 8]]);
+});
+
+// (fork, enemy skills 2026-11-13) 'Armor of the Empire''s Appear barrage (sim special.js): the mark enemy_vtsk_skillRange
+// on its target plays the marker alone (the range is the tile effect of the 'telegraph'), and the bindings play the
+// range on the spot and each shell's hit (local fx index, when extracted)
+const FX_INDEX = new URL('../../public/assets/local/fx/index.json', import.meta.url);
+test("'Armor of the Empire': the barrage mark plays its marker on the target; the range and the shells are bindings", { skip: !existsSync(FX_INDEX) && 'no public/assets/local/fx/index.json' }, () => {
+  const idx = JSON.parse(readFileSync(FX_INDEX, 'utf8'));
+  const appear = skillPlan(idx, 'enemy_10027_vtsk', 'appear');
+  const records = new Map([[5, { plan: null, enemy: [{ slot: 0, prefabKey: 'Appear', plan: appear }] }]]);
+  const { s, played, views } = rig(records);
+  const vtsk = { id: 5, alive: true }, op = { id: 8, alive: true, fxs: [['enemy_vtsk_skillRange', 5, null]] };
+  views.set(5, vtsk); views.set(8, op);
+  s._states([vtsk, op]);
+  assert.deepEqual(played.map((h) => [h.k, h.id]), [['enemy_vtsk_skill_01_marker_01', 8]]);
+  op.fxs = null;
+  s._states([vtsk, op]);
+  assert.ok(played[0].stopped, 'the mark gone stops it');
+  assert.deepEqual(enemyBindingKeys(idx, 'enemy_10027_vtsk'), ['enemy_vtsk_skill_01_range_01', 'enemy_vtsk_skill_01_hit_01']);
+  assert.deepEqual([ENEMY_FX_BINDINGS.enemy_10027_vtsk.telegraph.xkind, ENEMY_FX_BINDINGS.enemy_10027_vtsk.explode.xkind], ['barrage', 'vtskShell']);
+});

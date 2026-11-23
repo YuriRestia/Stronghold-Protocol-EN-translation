@@ -189,10 +189,11 @@ function cannonKit(t, owner) {
         if (ctx.unit !== unit || battle.finished) return;
         unit.removed = false;
         // (Fish Edition) Mod Z: her redeploy multiplier for the cannon (content/modZ.js `fishCannonRedeployMul`), read now
-        const at = battle.time + Math.max(0, num(unit.base.respawnTime) * (Number.isFinite(owner.fishCannonRedeployMul) ? owner.fishCannonRedeployMul : 1));
+        // (Fish Edition) `fishCannonWait.at` can be pulled in by Mod W (content/modZ.js: the cooldown is set to 1 s)
+        const wait = unit.fishCannonWait = { at: battle.time + Math.max(0, num(unit.base.respawnTime) * (Number.isFinite(owner.fishCannonRedeployMul) ? owner.fishCannonRedeployMul : 1)) };
         battle.every(RETRY, (b, sched) => {
           if (unit.alive || unit.removed) { sched.cancel(); return; }
-          if (b.time + 1e-9 < at || !up(owner)) return;
+          if (b.time + 1e-9 < wait.at || !up(owner)) return;
           if (b.redeploy(unit, { free: false })) sched.cancel();
         }, { owner: unit });
       }, { owner: unit, priority: -10 });

@@ -543,7 +543,9 @@ function installPrefSync({ net, timers, target, notify, key, stateKey, msgType, 
     const code = s?.room?.code ?? null;
     if (code === roomCode) return;
     roomCode = code;
-    if (code && gated) { revision++; lastSent = null; schedule(50); }
+    // at once, not debounced: a start right after the room appears must not overtake it (same socket ⇒ ordered;
+    // upstream 54d24b2b, §37.115: a quick start lost the custom squad)
+    if (code && gated) { revision++; lastSent = null; T.clearTimeout(timer); timer = null; void flush(); }
   }) : null;
   // the room's content set arrived or went (DESIGN §32.6): sent again, checked against the data the room plays now (a
   // setting that is not seat-bound only when its payload changed: `seatBound`)

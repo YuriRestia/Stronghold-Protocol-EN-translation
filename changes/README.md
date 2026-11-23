@@ -19,16 +19,101 @@ conflict on the changelog. The maintainer folds the fragments into FORK-CHANGELO
 
 - …
 
+Kind: player
+
 Server cost: none
+
+Operator notes:
+
+- (optional) Anything only our own servers need: hosts, regions, deploy steps, settings we set. Never folded.
 ```
 
 - The first line is `## YYYY-MM-DD`: the day of the change. Then one or more `### Heading` sections, each with at least
-  one `- ` bullet. Nothing else at heading level 1 or 2. LF line ends. Last, the `Server cost:` block (below).
+  one `- ` bullet. Nothing else at heading level 1 or 2. LF line ends. Last, the `Kind:` line, the `Server cost:`
+  block (below) and, optionally, an `Operator notes:` block, in any order.
 - The sections are written exactly as they will read in FORK-CHANGELOG.md (English only, credits as there: "thanks to
   @login" for contributions, upstream merges as one linked line).
 - A later fix to the same change edits its fragment while it is still here; once folded, it is a new fragment.
-- No fragment for development workflow or tooling-only changes (test plumbing, merge and review process, dev
-  tools): the changelog lists what players and server hosts get.
+- No fragment is needed for development workflow or tooling-only changes; when one is (a merge guard asks for its
+  `Server cost:`), it is `Kind: internal`.
+
+## Kind: player or internal
+
+FORK-CHANGELOG.md is for players. Every fragment says which it is, on one line:
+
+| `Kind: player`: folded into FORK-CHANGELOG.md | `Kind: internal`: checked, then deleted at fold time, never folded |
+|---|---|
+| Game, UI, balance, sounds and art, fixes players notice, new options in Settings | Release, deploy and server scripts, CI, tests, golden files, hooks, crew tooling, loop caps |
+| Credits for contributions, upstream merges | The changelog and fragment machinery itself |
+| | Server-only changes players never see (logging, limits, internal refactors) |
+
+No `Kind:` line, or anything else after it, is an error from `npm run changelog` (and from the merge guard). **When
+unsure, it is internal.** The update news draft of `scripts/release.mjs` also uses only `Kind: player` fragments.
+
+## News lines (player fragments)
+
+A `Kind: player` fragment whose change players should read about in the lobby's update news carries a `News:` block:
+its line(s) for the news, in all five languages the game ships, written with the change so a release never waits on
+translation. The release builds the news from these blocks (`scripts/release-news.mjs`). A player fragment without one
+is fine (not every change is news); an internal fragment with one is an error. The block is never folded.
+
+```markdown
+Kind: player
+
+Server cost: none
+
+News:
+
+- highlight: <@sp.leaf>{term:大同盟}</> rooms now find players through matchmaking
+  zh: <@sp.leaf>{term:大同盟}</>房间现在可以通过匹配找到玩家
+  ja: <@sp.leaf>{term:大同盟}</>ルームがマッチングでプレイヤーを見つけられるようになりました
+  ko: <@sp.leaf>{term:大同盟}</> 방이 이제 매칭으로 플레이어를 찾습니다
+  zh-TW: <@sp.leaf>{term:大同盟}</>房間現在可以透過配對找到玩家
+- point: {name:char_4247_oxi}'s fireballs now play their sounds
+  zh: {name:char_4247_oxi}的火球现在会播放音效
+  ja: {name:char_4247_oxi|タルラ}の火球に効果音が付きました
+  ko: {name:char_4247_oxi}의 화염구가 이제 효과음을 냅니다
+  zh-TW: {name:char_4247_oxi}的火球現在會播放音效
+```
+
+- `- highlight:` is a bold line at the top of the news, `- point:` a bullet. The English line follows the colon; the
+  `zh:`, `ja:`, `ko:` and `zh-TW:` lines follow, indented. Every item has all five.
+- **Names are never typed by hand.** `{name:<id>}` is the game's own name of an operator, token, enemy, item or bond by
+  its game-data id (`char_1033_swire2` → Swire the Elegant Wit / 琳琅诗怀雅 / 琳琅スワイヤー / 스와이어 디 엘리건트 위트 /
+  琳瑯詩懷雅), filled in per language. `{term:<Chinese UI text>}` is a UI term from the language packs (`{term:大同盟}` →
+  Grand Alliance / 大同盟 / 대동맹). Sources, all in git: `data/*.json` (ids → Chinese names), `data/i18n/<lang>.json`
+  (the official game data's names), `public/i18n/<lang>.json` (the UI packs). zh-TW falls back to the Chinese name, as
+  the game does.
+- Only where the game data has no name in a language, write it out: `{name:<id>|<name>}` (Talulah has no Japanese name
+  in our data, so `{name:char_4247_oxi|タルラ}`). It is refused when the data has one.
+- Colour tags as the game uses them (`<@sp.leaf>…</>`); every language has the same tags and the same placeholders as
+  the English line. At most 200 characters a line once the names are filled in. Only what players notice: no server,
+  CI, test, tooling, bandwidth or download lines, no "Many fixes" line.
+- `npm run changelog` checks all of it and names the problem: a missing language, other placeholders or tags than the
+  English line, an unknown id, a missing name, a line too long.
+- At release time Notepad shows each line with its translations under it. A line whose English is rewritten there, or
+  a new one, has no translations: the release stops, names it (`h1` = first highlight, `p1` = first point) and keeps
+  the edit in `logs/news-<id>.draft.txt`. A crew session fills in the four lines there (names as above) and the next
+  release run opens it again; or `node scripts/release.mjs --english-only h1,p3` ships those lines in English for now.
+
+## Public sections, operator notes
+
+FORK-CHANGELOG.md is public. Its sections say what players and **any** server host get: features, fixes, credits,
+upstream links, and a new setting in general terms ("`SP_X=1` turns on Y"). Our own deployment never goes there.
+
+| Goes in the sections | Goes in `Operator notes:` (or `Server cost:`), never folded |
+|---|---|
+| "Players connect to the nearest server" | Which servers we run, their regions and SSH aliases |
+| "New setting `SP_REGIONS` lists the servers" | The values we set, our domain, IP addresses, the proxy or CDN set-up we use |
+| "A prepared version waits 4 hours for activate" | Deploy steps, `ssh` / `sudo` / `systemctl` / `journalctl` commands, `/etc` and `/opt` paths, `peer.env` |
+| "Bots run in the host's browser" | Traffic and disk numbers (MB/s, GB/day): they belong in `Server cost:` |
+| | Hosting providers, incidents on our servers and their dates |
+
+Both blocks stay in the fragment, where the merge guards read them, and are dropped when the fragment is folded.
+`npm run changelog` refuses a section, and FORK-CHANGELOG.md itself, holding any of the right-hand column
+(`OPERATOR_ONLY` in `tools/changelog.mjs`: domains other than public references, IP addresses, the server aliases and
+region names, server commands and paths, secrets files, provider names, MB/s and GB/day rates). The refusal names the
+line; move it under `Operator notes:`.
 
 ## Server cost
 
@@ -36,9 +121,10 @@ Every fragment ends with a line starting `Server cost:` (the SERVER COST rule, 2
 numbers). `npm run changelog -- --check` (and `test/changelog.test.js`) refuse a fragment without it.
 
 - `Server cost: none` only when the change touches no server, network or bot code. A reason in parentheses is fine
-  (`none (tooling only)`). A `none` line is left out when the fragment is folded into FORK-CHANGELOG.md.
+  (`none (tooling only)`).
 - Otherwise `Server cost:` and the numbers, typical **and** worst case, measured with the dev traffic meter where
-  possible (below), arithmetic marked "estimated". The block is folded into FORK-CHANGELOG.md with the entry. It must
+  possible (below), arithmetic marked "estimated". The block stays in the fragment; it is never folded into
+  FORK-CHANGELOG.md (2026-11-13: the public changelog carries no traffic numbers). It must
   state per player, per room and for 300 concurrent players: bandwidth out / in in **MB/s** at peak and **GB/day**
   (never Mbit/s), server CPU as % of one core, memory MB, disk MB/day, bot ms/round against the budget, and a
   `Cap:` line (what bounds the worst case; no cap, no build):
@@ -48,17 +134,27 @@ Server cost:
 
 | Measure | Typical | Worst case |
 |---|---|---|
-| Bandwidth out / in, per player | 0.002 / 0.0005 MB/s (0.17 / 0.04 GB/day) | 0.01 / 0.001 MB/s |
-| Bandwidth out / in, per room (4 players) | 0.008 / 0.002 MB/s | 0.04 / 0.004 MB/s |
-| Bandwidth out / in, 300 players | 0.6 / 0.15 MB/s (52 / 13 GB/day) | 3 / 0.3 MB/s |
-| Server CPU | 0.5 % of one core | 2 % |
-| Memory | 1 MB | 4 MB |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | 0 ms/round | 0 ms/round |
+| Bandwidth out / in, per player | 0.002 / 0.0005 MB/s (0.17 / 0.04 GB/day) [src: traffic-report run] | 0.01 / 0.001 MB/s [unverified] |
+| Bandwidth out / in, per room (4 players) | 0.008 / 0.002 MB/s [src: traffic-report run] | 0.04 / 0.004 MB/s [unverified] |
+| Bandwidth out / in, 300 players | 0.6 / 0.15 MB/s (52 / 13 GB/day) [src: per player × 300] | 3 / 0.3 MB/s [unverified] |
+| Server CPU | 0.5 % of one core [unverified] | 2 % [unverified] |
+| Memory | 1 MB [unverified] | 4 MB [unverified] |
+| Disk | 0 MB/day [src: server/match/x.js:40 writes nothing] | 0 MB/day |
+| Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
-- Cap: one update per unit per second, at most 32 units per room.
+- Cap: one update per unit per second, at most 32 units per room [src: server/match/x.js:12].
 - Measured with tools/traffic-report.mjs over one 4-player test match; CPU and memory estimated.
 ```
+
+- **Sourced claims** (2026-11-13, `tools/claims.mjs`): each line of a numbers block that states a number with a unit,
+  and each section or `Operator notes:` line with a timing number ("0.3 s apart"), carries its source:
+  `[src: path:line]`, `[src: doc §heading]`, `[src: official <file> <field>]` (the game data) or `[unverified]`. One
+  marker covers its line (a table row, a bullet with its continuation lines, a paragraph). The markers are stripped
+  when the sections are folded; never put them in `News:` lines. The fragments already here when the rule came in are
+  listed in `tools/changelog.mjs` `UNSOURCED_BEFORE_RULE`.
+- **The [ASSUMED gate**: `--check` also fails on a line this branch adds (since dev-0.2) that states an assumption,
+  `[ASSUMED] …` or `[ASSUMED: …]`, unless the same line says `user OK YYYY-MM-DD` (the user approved it that day).
+  Lines from upstream merges, `data/` and golden files are exempt; it is skipped in a clone without dev-0.2 (CI).
 
 - Fragments written before the rule say `Server cost: none (pre-rule)`, or, for the seven whose change did touch
   server code, `Server cost: unmeasured (pre-rule)`, accepted only from the names in `tools/changelog.mjs`

@@ -17,7 +17,7 @@ import { UF } from '../../shared/constants.js';
 import { AURA_HOLD_S } from '../../public/js/render/vfx/skillfx.js';
 import {
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, auraTargets, enemyBindingKeys, modeLoopKeys, bindingEffects, FX_BINDINGS, FX_COVER, coverOf,
-  ENEMY_FX_COVER, enemyCoverOf,
+  ENEMY_FX_COVER, enemyCoverOf, enemyBinds,
 } from '../../public/js/render/vfx/skills.js';
 import { compileEffect, Effect } from '../../public/js/render/vfx/effect.js';
 
@@ -28,7 +28,7 @@ const HAS_INDEX = existsSync(INDEX);
 const LOOPING = new Set(['ymgtop_spin', 'enemy_nhpbr_attack_range', 'enemy_nhtank_attack_range', 'enemy_actoxi_idle', 'enemy_wintun_range', 'dsubrl_aura', 'cjhot_aura',
   'enemy_cjhot_debuff', 'horn_skill_01_hit_02_buff', 'skadi2_skill_03_buff', 'svrash_skill_02_buff', 'tinman_skill_01_range_01', 'sleach_skill_02_flag_01',
   'sleach_skill_02_ground_01', 'sleach_skill_03_flag_01', 'sleach_skill_03_range_loop_01', 'thumpy_skill_03_range_01', 'svash2_skill_03_range_01']);
-const KEYS = [...LOOPING, 'svash2_skill_03_trail_02', 'svash2_skill_03_hit_01', 'svash2_skill_03_deploy_01', 'oxi_skill_03_trail_01', 'oxi_skill_03_hit_01', 'tinman_skill_01_hit_01', 'mousek_skill_02_range', 'mousek_skill_02_start', 'bombd_cast', 'enemy_dsubrl_attack_hit', 'horn_skill_01_hit_02', 'g_hit', 'g_enemy', 'g_heal',
+const KEYS = [...LOOPING, 'svash2_skill_03_trail_02', 'svash2_skill_03_hit_01', 'svash2_skill_03_deploy_01', 'oxi_skill_03_trail_01', 'oxi_skill_03_hit_01', 'tinman_skill_01_hit_01', 'mousek_skill_02_range', 'mousek_skill_02_start', 'mousek_skill_01_range', 'mousek_skill_01_range_02', 'bombd_cast', 'enemy_dsubrl_attack_hit', 'horn_skill_01_hit_02', 'g_hit', 'g_enemy', 'g_heal',
   'tank_shell_hit', 'sleach_skill_03_range_start_01', 'chen2_skill_02_range_01', 'enemy_dslily_skill_02_start_l', 'enemy_dslily_skill_02_range',
   'enemy_dslily_skill_01_start'];
 const GROUND = new Set(['enemy_nhpbr_attack_range', 'enemy_nhtank_attack_range', 'enemy_actoxi_idle', 'enemy_wintun_range', 'mousek_skill_02_range']);
@@ -169,11 +169,12 @@ const zone = (o) => ({ r: 2, dur: 8, ...o });
 describe('skills.js: the enemies\' kit-fx bindings', () => {
   test('every binding names its kind, owner and prefabs; the kinds index lists the units', () => {
     for (const [key, kinds] of Object.entries(ENEMY_FX_BINDINGS)) {
-      for (const [kind, b] of Object.entries(kinds)) {
-        assert.ok(['id', 'died', 'cast', 'near', 'any'].includes(b.owner), `${key} ${kind} owner`);
-        assert.ok(b.talent || b.projectile || b.keys || b.modeLoops || b.endMode, `${key} ${kind} plays something`);
+      for (const [kind, entry] of Object.entries(kinds)) for (const b of enemyBinds(entry)) {
+        assert.ok(['id', 'died', 'cast', 'near', 'any', 'from'].includes(b.owner), `${key} ${kind} owner`);
+        assert.ok(b.talent || b.projectile || b.keys || b.modeLoops || b.endMode || b.fly || b.cover || b.quiet, `${key} ${kind} plays something`);
         assert.ok(ENEMY_FX_KINDS[kind].includes(key));
-        if (b.owner === 'cast') assert.equal(typeof b.skill, 'string', 'a cast owner names the skill (its prefabKey, lower case)');
+        if (b.owner === 'cast' || b.cover) assert.equal(typeof b.skill, 'string', 'a cast owner / a cover names the skill (its prefabKey, lower case)');
+        if (Array.isArray(entry)) assert.ok(b.xkind, `${key} ${kind}: a list's bindings each name their xkind`);
       }
     }
     assert.deepEqual(ENEMY_FX_KINDS.pulse, ['enemy_1234_dsubrl', 'enemy_1234_dsubrl_2']);
@@ -187,7 +188,7 @@ describe('skills.js: the enemies\' kit-fx bindings', () => {
     assert.deepEqual(auraTargets(idx, 'enemy_1234_dsubrl', 'AOE'), { shots: ['enemy_dsubrl_attack_hit'], loops: [] });
     assert.deepEqual(auraTargets(idx, 'enemy_10054_cjhot', 'aoe'), { shots: [], loops: ['enemy_cjhot_debuff'] });
     assert.deepEqual(enemyBindingKeys(idx, 'enemy_1234_dsubrl'), ['enemy_dsubrl_attack_hit']);
-    assert.deepEqual(enemyBindingKeys(idx, 'enemy_1509_mousek'), ['mousek_skill_02_range']);
+    assert.deepEqual(enemyBindingKeys(idx, 'enemy_1509_mousek'), ['mousek_skill_02_range', 'mousek_skill_01_range', 'mousek_skill_01_range_02']);
     assert.deepEqual(enemyBindingKeys(idx, 'char_4039_horn'), []);
     assert.deepEqual(modeLoopKeys(idx, 'enemy_10116_ymgtop', 'RotateEffect'), ['ymgtop_spin']);
     assert.deepEqual(enemyBindingKeys(idx, 'enemy_10116_ymgtop'), ['ymgtop_spin']);
@@ -321,6 +322,15 @@ describe('an enemy\'s zone under the official layer', () => {
     w.attack(boss, ally, 'enemy', 3);
     assert.ok(!spawned.slice(before).includes('mousek_skill_02_range') && !spawned.slice(before).includes('mousek_skill_02_start'), 'a normal attack, not the sandstorm again');
     assert.equal(w.skills.state(boss).plan, null);
+  });
+
+  // (fork, enemy skills 2026-11-13) 【唱沙】's castTarget rows: the kit's 'telegraph' of kind 'driftSand' on the target's cross
+  test("鼠王's 唱沙 (id = it): both of DriftSand's range rows once on its target, the procedural cue skipped", async () => {
+    const { w, view, frame, spawned } = await setup();
+    view(1, 'enemy_1509_mousek', 10);
+    frame();
+    assert.equal(w.simFx('telegraph', 4, 10, { r: 1, kind: 'driftSand', tiles: 'plus', id: 1 }), true);
+    assert.deepEqual(spawned.slice().sort(), ['mousek_skill_01_range', 'mousek_skill_01_range_02']);
   });
 
   test("an attack-rooted skill no kit fx stands for keeps its window's rows for its attack (暴鸰's bomb, 0.27 s after the cast)", async () => {
@@ -900,8 +910,17 @@ describe('the extracted effects (when fx was extracted on this machine)', { skip
   test("every enemy binding's prefabs and the new operator bindings resolve to extracted prefabs of the client", () => {
     for (const [key, kinds] of Object.entries(ENEMY_FX_BINDINGS)) {
       assert.ok(idx.units[key] || idx.units[key.replace(/_\d+$/, '')], `${key} is a unit of the index`);
-      for (const [kind, b] of Object.entries(kinds)) {
+      for (const [kind, entry] of Object.entries(kinds)) for (const b of enemyBinds(entry)) {
         if (b.endMode) continue;
+        if (b.cover) { assert.ok(idx.units[key].skills[b.skill], `${key}: skill ${b.skill}`); continue; }
+        if (b.quiet) { assert.ok(idx.prefabs[b.quiet], `${key}: quiet ${b.quiet} is an extracted prefab`); continue; }
+        if (b.fly) {
+          const p = idx.projectiles[b.fly];
+          // its flying effect, a harpoon's rope, a timer's on-target / hit / reached effects: at least one, all extracted
+          const keys = p ? [p.main, p.link, ...(p.toTargetOnStart || []), ...(p.onHit || []), ...(p.onReached || [])].filter(Boolean) : [];
+          assert.ok(keys.length && [...keys, ...(b.hits || [])].every((k) => idx.prefabs[k]), `${key} ${kind}: ${b.fly} flies and hits`);
+          continue;
+        }
         if (b.modeLoops) {
           const keys = modeLoopKeys(idx, key, b.modeLoops);
           assert.ok(keys.length && keys.every((k) => idx.prefabs[k]), `${key}: ${b.modeLoops}'s loops ${keys.join(' ')}`);

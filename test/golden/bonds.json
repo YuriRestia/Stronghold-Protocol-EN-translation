@@ -522,8 +522,8 @@
       ],
       "enemies": {"enemy_1116_liprr":[11,11,0,4370,69696],"enemy_1116_liprr_2":[4,4,0,18,34560],"enemy_1121_lifbos":[1,1,0,8203,23040]},
       "hooks": [1,28,2429,225,225,393,393,1997,18,18,10,8,0,9548,8,15,16,0,1,18,2,0,0],
-      "events": {"atk":232,"deploy":9,"die":18,"dmg":382,"engage":5,"fx":60,"heal":27,"layer":2,"rate":36,"skill":18,"spawn":27,"status":43},
-      "fx": {"displace":15,"garrison":2,"healField":1,"liberate":4,"phase":3,"redistribute":15,"reweave":1,"sandChains":1,"sandChainsCharged":1,"shield":2,"slash":14,"truesilver":1},
+      "events": {"atk":232,"deploy":9,"die":18,"dmg":382,"engage":5,"fx":61,"heal":27,"layer":2,"rate":36,"skill":18,"spawn":27,"status":43},
+      "fx": {"ability":1,"displace":15,"garrison":2,"healField":1,"liberate":4,"phase":3,"redistribute":15,"reweave":1,"sandChains":1,"sandChainsCharged":1,"shield":2,"slash":14,"truesilver":1},
       "snaps": "da3a82af 77168861 b744499e a942f640 eeeb5a01 d1d2d5d7 cc3a78d9 1c631d04"
     },
     "bond-kazimierzShip-high": {
@@ -800,7 +800,7 @@
       ],
       "enemies": {"enemy_1288_duskls":[11,11,0,0,63415],"enemy_1288_duskls_2":[7,7,0,0,48419],"enemy_1292_duskld":[5,5,0,490,57650]},
       "hooks": [1,38,2447,250,281,483,481,128,23,25,19,15,0,11296,192,27,23,0,1,46,0,0,0],
-      "events": {"atk":305,"deploy":12,"die":25,"dmg":481,"engage":12,"fx":338,"rate":130,"skill":34,"spawn":38,"status":392},
+      "events": {"atk":305,"cast":23,"deploy":12,"die":25,"dmg":481,"engage":12,"fx":338,"rate":130,"skill":34,"spawn":38,"status":392},
       "fx": {"aoe":2,"copy":1,"crit":4,"displace":4,"dp":2,"ember":23,"iceSpike":62,"palsy":1,"sleep":4,"split":3,"tick":131,"weightless":2,"zone":99},
       "snaps": "ff21bd98 0b42d52b b6bcc1c9 5e3f6155 c22a9e31 e628289a e875db8f 46a3cca2 64870e60"
     },

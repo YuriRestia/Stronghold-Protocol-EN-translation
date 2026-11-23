@@ -145,6 +145,18 @@ const QUALITY = [['low', N_('低')], ['medium', N_('中')], ['high', N_('高')]]
  */
 const OFFICIAL_FX = [['off', N_('关')], ['lite', N_('精简')], ['full', N_('完整')]];
 /**
+ * (fork) 简化单位动画 (en: "Simplified Sprite Animation"; `spriteAnim`, render/crowd.js SPRITE_ANIM_MODES): when units switch to the simplified (impostor)
+ * animation. The option texts are the user's own (2026-11-15); the hint under the row explains the selected one.
+ */
+const SPRITE_ANIM = [
+  ['auto', N_('自动'), N_('完整动画。帧率下降时，单位会切换为简化动画，直到帧率恢复。')],
+  // en: "Quality" · "Units keep full animation even if the frame rate drops. Very large crowds (about 90+ units) still use simplified animation."
+  ['quality', N_('画质优先'), N_('即使帧率下降，单位也保持完整动画。规模极大的单位群（约 90 个以上）仍会使用简化动画。')],
+  // en: "Unlimited" · "Every unit is always fully animated. Don't blame me if your phone cooks itself."
+  ['unlimited', N_('无限制'), N_('所有单位始终播放完整动画。手机烫得能煎蛋可别怪我。')],
+];
+// en (auto): "Auto" · "Full animation. If the frame rate drops, units switch to simplified animation until it recovers."
+/**
  * 文字大小: one step of TEXT_SIZES (ui/gameLogic/settings.js) with its label — 小 is the design's own sizes, the others
  * raise the text root `--t` (css/theme.css) and with it every readable font-size; the board and the HUD's boxes stay.
  */
@@ -564,6 +576,14 @@ export function SettingsModal({ open, onClose }) {
             class=${s.quality === id ? 'is-on' : ''} onClick=${() => updateSettings({ quality: id })}>${t(label)}</button>`)}
         </div>
       </div>
+      <div class="set-row" data-testid="sprite-anim">
+        <span class="set-row__label">${t('简化单位动画')}<${MicroLabel}>SPRITE ANIMATION<//></span>
+        <div class="set-seg" role="radiogroup" aria-label=${t('简化单位动画')}>
+          ${SPRITE_ANIM.map(([id, label, hint]) => html`<button key=${id} type="button" role="radio" aria-checked=${s.spriteAnim === id ? 'true' : 'false'}
+            class=${s.spriteAnim === id ? 'is-on' : ''} title=${t(hint)} onClick=${() => updateSettings({ spriteAnim: id })}>${t(label)}</button>`)}
+        </div>
+      </div>
+      <p class="set-hint" data-testid="sprite-anim-hint">${t((SPRITE_ANIM.find(([id]) => id === s.spriteAnim) || SPRITE_ANIM[0])[2])}</p>
       ${fxOk ? html`<div class="set-row" data-testid="official-fx">
         <span class="set-row__label">${t('官方特效')}<${MicroLabel}>OFFICIAL FX<//></span>
         <div class="set-seg" role="radiogroup" aria-label=${t('官方特效')}>

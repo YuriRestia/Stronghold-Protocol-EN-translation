@@ -176,6 +176,15 @@ export default {
         unit.mem.coins -= coinCost;
         fx(battle, 'summon', bomb, { src: unit.id, token: tokenId, coins: unit.mem.coins });
       }, { owner: unit });
+      // Her bombs leave the field with her (knocked out, retreated, sold): upstream's maintainer tested it in the official
+      // client on 2026-10-23 (GitHub #871 / PR #872 review). Only her own bombs, on her own death hook, as the artificer's
+      // devices do (op-ironmn.js devicesLeaveWithOwner); an unexploded bomb leaves without its blast.
+      battle.on('death', (ctx) => {
+        if (ctx.unit !== unit) return;
+        for (const b of battle.allyUnits) {
+          if (b.ownerUnit === unit && b.defId === tokenId && b.alive && b.deployed) battle.retreat(b, { reason: 'expired' });
+        }
+      }, { owner: unit });
     };
     const installS3 = (battle, unit) => { // 千金一掷: "击倒敌人时获得一枚金币"
       battle.on('kill', (ctx) => {

@@ -58,6 +58,8 @@ export class MatchPhases {
    */
   enterBandDraft() {
     if (this.phase !== PHASE.INFO_CHECK) return;
+    // (fork, user 2026-11-13) the briefing ran out during a reroll vote: the vote fails, the setup on screen is played
+    this.setupVote = null;
     // (fork) One for All: one room-wide secret vote instead of turns (match/oneForAll.js)
     if (this.oneForAll) { this._enterBandVote(); return; }
     // (fork) a large room with two squads: one draft per squad, both at once (match/largeRoom.js)

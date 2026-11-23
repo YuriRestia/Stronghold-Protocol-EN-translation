@@ -77,9 +77,15 @@ export const FX_KINDS = Object.freeze({
   // summon, fork #131) — the official shows no number and
   // no effect [ASSUMED], so nothing is drawn (`a: 'none'`)
   hitCap: { a: 'none', c: 0xffffff },
+  // (fork, enemy sound audit job 3) sound-only moments (public/js/audio.js _fxSound): an official sound with no effect of
+  // its own here — 'sound' { kind }, and Mudrock's tier 'mode' { n } — draw nothing
+  sound: { a: 'none', c: 0xffffff }, mode: { a: 'none', c: 0xffffff },
   // (fork) a kit's 'ability' (id = the unit, name = the client buff template whose action triggers one of its abilities):
   // the official talent binding it fires draws it (render/vfx/talents.js triggerKinds `ability:<template>`); nothing else
   ability: { a: 'none', c: 0xffffff },
+  // (fork) a kit's shot the sim flies as its own projectile (never drawn: sim projectiles are not in the snapshot) — from /
+  // to / dur name it for the official flight (render/vfx/skills.js ENEMY_FX_BINDINGS); nothing else
+  shot: { a: 'none', c: 0xffffff },
   // 丰川祥子's notes (sim notes.js): born / hit, drawn by render/fx/notes.js (the hit burst) — nothing generic here
   note: { a: 'none', c: 0xffffff },
   // the Ave Mujica Fever start / end (sim fever.js): the BGM (audio.js) and the gauge (render/units.js) show it

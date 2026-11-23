@@ -2,9 +2,11 @@
 // (Fish Edition) Paired bot-strength runs anyone can contribute to, with results small enough to paste into a GitHub
 // comment (fish-edition/COLLABORATION.md "Compute jobs").
 //
-//   node tools/bench-share.mjs run --a legacy --b evobot [--config solo:ABYSS] [--seeds 200] [--seed S] [--jobs N]
+//   node tools/bench-share.mjs run --a legacy --b evobot [--config solo:ABYSS] [--seeds 200] [--seed S] [--jobs N] [--rules R]
 //       Plays both bots on the same seeds (tools/botbench.mjs) and prints one block to paste as a reply. --a / --b take
-//       a bot id or a profile JSON file. --seed defaults to a random start (ai-players/README.md "Seeds").
+//       a bot id or a profile JSON file. --seed defaults to a random start (ai-players/README.md "Seeds"). --rules: lobby
+//       rules for every match, as botbench takes them (e.g. the SPA-CC tags of a grinder set, ccSwift=1,ccJunk=2); the
+//       block records them, and merge keeps runs with different rules apart.
 //   node tools/bench-share.mjs merge FILE…   (or stdin)
 //       Reads every block in the files (a saved issue thread is fine), drops repeated seeds, and prints the totals and
 //       one sign test. Blocks of another config or bot pair are listed apart.
@@ -37,13 +39,13 @@ export const fromHex = (hex, n) => {
 };
 
 /** The block a run prints. */
-export function formatBlock({ commit, config, a, b, seed, aBits, bBits }) {
+export function formatBlock({ commit, config, a, b, seed, aBits, bBits, rules = null }) {
   const n = aBits.length;
   const w = (x) => x.reduce((s, v) => s + v, 0);
   const up = aBits.filter((v, i) => !v && bBits[i]).length, dn = aBits.filter((v, i) => v && !bBits[i]).length;
   return [
     '```',
-    `${TAG} commit=${commit} config=${config} a=${a} b=${b} seed=${seed} n=${n}`,
+    `${TAG} commit=${commit} config=${config}${rules ? ` rules=${rules}` : ''} a=${a} b=${b} seed=${seed} n=${n}`,
     `a ${toHex(aBits)}`,
     `b ${toHex(bBits)}`,
     `# a won ${w(aBits)}, b won ${w(bBits)}; b gained ${up} seeds, lost ${dn}`,
@@ -51,15 +53,15 @@ export function formatBlock({ commit, config, a, b, seed, aBits, bBits }) {
   ].join('\n');
 }
 
-/** Every block in `text`: { commit, config, a, b, seed, n, aBits, bBits }. */
+/** Every block in `text`: { commit, config, rules, a, b, seed, n, aBits, bBits } (rules: null when the run had none). */
 export function parseBlocks(text) {
   const out = [];
   const re = new RegExp(`^${TAG} (.+)\\r?\\n\\s*a ([0-9a-f]+)\\s*\\r?\\n\\s*b ([0-9a-f]+)`, 'gm');
   for (const m of String(text).matchAll(re)) {
-    const kv = Object.fromEntries(m[1].trim().split(/\s+/).map((p) => p.split('=')));
+    const kv = Object.fromEntries(m[1].trim().split(/\s+/).map((p) => { const i = p.indexOf('='); return [p.slice(0, i), p.slice(i + 1)]; }));
     const n = Number(kv.n), seed = Number(kv.seed);
     if (!Number.isInteger(n) || n <= 0 || !Number.isInteger(seed)) continue;
-    out.push({ commit: kv.commit, config: kv.config, a: kv.a, b: kv.b, seed, n, aBits: fromHex(m[2], n), bBits: fromHex(m[3], n) });
+    out.push({ commit: kv.commit, config: kv.config, rules: kv.rules ?? null, a: kv.a, b: kv.b, seed, n, aBits: fromHex(m[2], n), bBits: fromHex(m[3], n) });
   }
   return out;
 }
@@ -74,11 +76,11 @@ export function signTest(up, dn) {
   return Math.min(1, 2 * tail);
 }
 
-/** Totals per (config, a, b): seeds counted once (the first block that has a seed wins). */
+/** Totals per (config, rules, a, b): seeds counted once (the first block that has a seed wins). */
 export function merge(blocks) {
   const groups = new Map();
   for (const bl of blocks) {
-    const key = `${bl.config} a=${bl.a} b=${bl.b}`;
+    const key = `${bl.config}${bl.rules ? ` rules=${bl.rules}` : ''} a=${bl.a} b=${bl.b}`;
     const g = groups.get(key) ?? { key, seen: new Map(), commits: new Set(), dupes: 0 };
     g.commits.add(bl.commit);
     for (let i = 0; i < bl.n; i++) {
@@ -100,6 +102,8 @@ const sd = (w, n) => 100 * Math.sqrt((w / n) * (1 - w / n) / n);
 
 function run(opt) {
   const config = opt.config ?? 'solo:ABYSS';
+  const rules = opt.rules ? String(opt.rules).split(',').map((x) => x.trim()).filter(Boolean).sort().join(',') : null;
+  if (rules && /\s/.test(rules)) throw new Error('--rules: key=value pairs separated by commas, no spaces');
   const n = Number(opt.seeds ?? 200);
   const seed = opt.seed != null ? Number(opt.seed) : 1e5 + Math.floor(Math.random() * 9e8);
   const jobs = Number(opt.jobs ?? Math.max(1, os.cpus().length - 1));
@@ -114,7 +118,7 @@ function run(opt) {
     const out = path.join(tmp, `${side}.json`);
     console.error(`${side} = ${who}: ${n} seeds from ${seed}, ${jobs} threads…`);
     const r = spawnSync(process.execPath, [path.join(ROOT, 'tools/botbench.mjs'), '--configs', config, '--seeds', String(n), '--seed', String(seed),
-      '--jobs', String(jobs), ...sel, '--json', out, '--quiet'], { stdio: ['ignore', 'ignore', 'inherit'], cwd: ROOT });
+      '--jobs', String(jobs), ...sel, ...(rules ? ['--rules', rules] : []), '--json', out, '--quiet'], { stdio: ['ignore', 'ignore', 'inherit'], cwd: ROOT });
     if (r.status !== 0) throw new Error(`botbench failed for ${who} (exit ${r.status})`);
     const rows = JSON.parse(fs.readFileSync(out, 'utf8'));
     const won = new Map();
@@ -123,7 +127,7 @@ function run(opt) {
     bits[side] = Array.from({ length: n }, (_, i) => (won.get(seed + i) ? 1 : 0));
   }
   fs.rmSync(tmp, { recursive: true, force: true });
-  console.log(formatBlock({ commit, config, a: path.basename(opt.a).replace(/\.json$/, ''), b: path.basename(opt.b).replace(/\.json$/, ''), seed, aBits: bits.a, bBits: bits.b }));
+  console.log(formatBlock({ commit, config, a: path.basename(opt.a).replace(/\.json$/, ''), b: path.basename(opt.b).replace(/\.json$/, ''), seed, aBits: bits.a, bBits: bits.b, rules }));
 }
 
 function mergeCmd(files) {
@@ -146,7 +150,7 @@ function main(argv) {
   }
   if (cmd === 'run') return run(opt);
   if (cmd === 'merge') return mergeCmd(files);
-  console.error('usage: node tools/bench-share.mjs run --a BOT --b BOT [--config solo:ABYSS] [--seeds 200] [--seed S] [--jobs N]\n       node tools/bench-share.mjs merge [FILE…]');
+  console.error('usage: node tools/bench-share.mjs run --a BOT --b BOT [--config solo:ABYSS] [--seeds 200] [--seed S] [--jobs N] [--rules R]\n       node tools/bench-share.mjs merge [FILE…]');
   process.exitCode = 1;
 }
 

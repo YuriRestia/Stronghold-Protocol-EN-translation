@@ -243,7 +243,7 @@ import { CODE_ALPHABET, DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_
 import { anyRule, sameRuleValue } from '../shared/rules.js';
 import { CHAT_BUSY_MS, CHAT_COOLDOWN_GRACE_MS, EMOTE_COOLDOWN_MS, ROOM_CHAT_GAP_MS, ROOM_CHAT_HISTORY_BYTES, ROOM_CHAT_HISTORY_LINES } from '../shared/constants.js';
 import { chatLine } from '../shared/text.js';
-import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes, utf8Bytes } from './chatLimit.js';
+import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes, utf8Bytes } from './match/chatLimit.js';
 import { CHAT_ON } from './match/chatWallet.js';
 import { LARGE_ROOM_SEATS, IDLE_PREP_ROUNDS, SQUAD_SEATS, ROOM_PASSWORD_RE, ROOM_PASSWORD_TRIES, ROOM_PASSWORD_WINDOW_MS, squadOfSeat, squadMoveWait, squadMoveLog, SQUAD_MOVE_LOG_MAX } from '../shared/largeRoom.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../shared/protocol.js';
@@ -256,7 +256,7 @@ import { altArtChance } from './match/results.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
 import { Matchmaker, groupReady, isMatchable, roomSize, roomCap, poolKey, squadCounts, squadFree, fitSquads } from './matchmaker.js';
 import { countPresence } from './presence.js';
-import { SoloQueue, planSolos } from './soloQueue.js';
+import { SoloQueue, planSolos, entryDifficulty, entryVersions } from './soloQueue.js';
 import { PeerRelay } from './peerRelay.js';
 
 const VANILLA_KITTED = new Set(KITTED_CHARS);
@@ -353,6 +353,8 @@ const matchAnswer = (res) => (res && typeof res === 'object' && res.error
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 /** What a retiring lobby refuses (retire()): everything that opens a room, a queue or a match. */
 const RETIRED_MSGS = new Set(['room.create', 'room.join', 'room.spectate', 'room.start', 'room.search', 'queue.join', 'queue.ai']);
+/** (fork) Lines one match logs of refused frames (Lobby.onRejected), one per message type; then one "more suppressed". */
+export const REJECTED_LOG_MAX = 10;
 
 /**
  * @typedef {{ seat: number, playerId: string, name: string, isBot: boolean, ready: boolean,
@@ -526,6 +528,11 @@ export class Room {
     this.searching = false;
     /** @type {number | null} */
     this.searchSince = null;
+    /**
+     * (fork) the room was open to strangers before a match: it searched (搜寻队友), the solo queue formed or filled it, or
+     * it was a public Grand Alliance. Its matches have no setup reroll (Lobby.rerollLock; user, 2026-11-13). Never cleared.
+     */
+    this.wentPublic = false;
     /** (fork) a full matchmade room waiting for its pages to load its content (Lobby.waitContent): since when, for whom */
     /** @type {{ since: number, key: string } | null} */
     this.contentWait = null;
@@ -697,6 +704,8 @@ export class Lobby {
      */
     this.simPool = simPool;
     this.log = log;
+    /** (fork) onRejected: what each match has logged of the frames validateC2S refused (dropped with the match) */
+    this._rejectedLog = new WeakMap();
     this.MatchClass = MatchClass;
     this.getData = getData;
     this.now = now;
@@ -734,7 +743,7 @@ export class Lobby {
     this.graceTimers = new Map();
     /** @type {Map<string, NodeJS.Timeout>} deferred (coalesced) resyncs by playerId */
     this.resyncTimers = new Map();
-    /** @type {Map<string, number[]>} (fork) room chat: recent line times per network address (server/chatLimit.js) */
+    /** @type {Map<string, number[]>} (fork) room chat: recent line times per network address (server/match/chatLimit.js) */
     this.chatNets = new Map();
     /** per-network limit warnings: at most one log line per 10 s (the rest are counted) */
     this.limitLog = { at: -Infinity, suppressed: 0 };
@@ -914,6 +923,10 @@ export class Lobby {
       return;
     }
     session.notice = null;
+    // A result kept for a seat that dropped *during* its match (onMatchEnd) must survive this resume too: the room's
+    // replay may be gone (disposeRoom / every other player moved on). Held here and sent after this resume's state, in
+    // the order a player who stayed connected gets them (room.state, m.public RESULT, m.result). (upstream PR #912)
+    const kept = session.pendingResult;
     session.pendingResult = null;
     // a player seat, or a spectator seat (header): both carry `connected` / `name`
     const seat = room.seatOf(session.playerId) || room.spectatorOf(session.playerId);
@@ -931,6 +944,8 @@ export class Lobby {
     if (!room.hostId) { this.migrateHost(room); changed = true; }
     if (changed) this.broadcastState(room);
     else this.sendState(room, session);
+    // the room no longer replays the result (resync would send nothing): the kept frames are the only copy
+    if (kept && (room.disposed || !room.replay)) for (const frame of kept) if (frame) sendRaw(session.ws, frame);
     if (resumed) this.sendRoomChatLog(room, session);
     this.resync(session, !resumed);
   }
@@ -955,6 +970,29 @@ export class Lobby {
     // between bumps it, and the page that comes back checks the set again (contentReady)
     const ctx = msg && msg.t === 'room.contentReady' ? { from: this.seatGen(room, session.playerId) } : null;
     return this.serial(room, () => this.handleMessage(session, msg, ctx));
+  }
+
+  /**
+   * (fork) A frame of `session` that failed validateC2S (server/net.js): logged so a refused report is never silent again
+   * (live 2026-11-13, room FKCJ: every browser's 联防 answer was refused for minutes and nothing showed in the log). Only
+   * a member of a running match, one line per message type, at most REJECTED_LOG_MAX lines per match and then one
+   * "more suppressed" line: bounded whatever a client sends.
+   * @param {import('./net.js').Session} session @param {string} t @param {string} reason
+   */
+  onRejected(session, t, reason) {
+    const room = session && session.roomCode ? this.rooms.get(session.roomCode) : null;
+    const match = room && !room.disposed ? room.match : null;
+    if (!match) return;
+    let seen = this._rejectedLog.get(match);
+    if (!seen) { seen = { types: new Set(), lines: 0, suppressed: false }; this._rejectedLog.set(match, seen); }
+    if (seen.types.has(t)) return;
+    if (seen.lines >= REJECTED_LOG_MAX) {
+      if (!seen.suppressed) { seen.suppressed = true; this.log.warn?.(`[match ${room.code}] rejected frames: more suppressed`); }
+      return;
+    }
+    seen.types.add(t);
+    seen.lines++;
+    this.log.warn?.(`[match ${room.code}] rejected ${t} from ${session.playerId}: ${String(reason).slice(0, 120)}`);
   }
 
   /** A seat (or spectator seat) of `room` and its content generation (header "Gameplay plugins"), or null. */
@@ -1224,6 +1262,7 @@ export class Lobby {
     if (large) { room.capacity = LARGE_ROOM_SEATS; room.seats = new Array(LARGE_ROOM_SEATS).fill(null); }
     if (large && password != null) { room.locked = true; room.password = password.toUpperCase(); }
     if (large && oneForAll === true) room.oneForAll = true;
+    if (large && !room.locked) room.wentPublic = true;   // (fork) a public Grand Alliance (Lobby.rerollLock)
     // 「不限时」 only on a solo room of a version whose solo is timed (header). Anywhere else the key is ignored, so a
     // stray true cannot change a default or co-op create.
     if (mode === 'solo' && soloUnlimited === true && this.versionSoloTimed(version)) room.soloUnlimited = true;
@@ -2021,6 +2060,7 @@ export class Lobby {
     if (on && password != null && !(typeof password === 'string' && ROOM_PASSWORD_RE.test(password))) return fail(ERR.BAD_MSG, 'a password of 4 letters');
     if (on) room.password = password != null ? password.toUpperCase() : room.password || randomPassword();
     room.locked = on;
+    if (!on) room.wentPublic = true;   // (fork) a public Grand Alliance (Lobby.rerollLock)
     this.broadcastState(room);
     return OK;
   }
@@ -2162,6 +2202,18 @@ export class Lobby {
       return fail(ERR.RATE, 'too many running matches from your network');
     }
     return this.startMatch(room, key);
+  }
+
+  /**
+   * (fork) Why a room's matches have no setup reroll, or null (user, 2026-11-13: rerolls are for friends playing
+   * privately or solo, not for strangers to stall each other): 'public' for a public (unlocked) Grand Alliance,
+   * 'matchmade' for a room that was ever open to strangers (Find teammates, the solo queue, a merge or a cross-server
+   * move seat matched players). The match refuses room.rerollSetup and its m.public carries `rerollOff` for the client.
+   */
+  rerollLock(room) {
+    if (room.large && !room.locked) return 'public';
+    if (room.wentPublic || room.searching || room.seats.some((s) => s && s.matched)) return 'matchmade';
+    return null;
   }
 
   /**
@@ -2332,7 +2384,7 @@ export class Lobby {
 
   /**
    * (fork) room.chat: a seated player's line in the room screen (docs/design/network.md "Room chat"). Plain text and the
-   * line cap (shared/text.js chatLine), the spam limits (server/chatLimit.js: gap, burst → escalating pause, duplicates,
+   * line cap (shared/text.js chatLine), the spam limits (server/match/chatLimit.js: gap, burst → escalating pause, duplicates,
    * the per-network cap); no kill wallet in the room (user, 2026-11-11). Not during a match (match chat has its own), not
    * from spectators or with chat off. A refused line gets no frame back; only a new pause is told, to the sender.
    * The room keeps its last lines in memory (roomChatKeep) for members who reconnect; nothing is written anywhere.
@@ -2644,6 +2696,8 @@ export class Lobby {
         ...(room.large ? { largeRoom: true, botExecution: 'host', botBattles: 'host', onIdle: (playerId) => this.idleKick(room, ctx, playerId) } : {}),
         // (fork) the One for All strategy vote (server/match/match/oneForAll.js); a Grand Alliance only
         ...(room.large && room.oneForAll ? { oneForAll: true } : {}),
+        // (fork) no setup reroll in a room strangers could join (Lobby.rerollLock); a private room's opts keep their keys
+        ...(this.rerollLock(room) ? { rerollLock: this.rerollLock(room) } : {}),
         // only a room created as a test room; a normal match opts object does not grow a test key
         ...(room.test === true ? { test: true } : {}),
         // (fork) the anonymous match record (server/records.js, SP_RECORDS); a test room's match is never recorded
@@ -2743,6 +2797,18 @@ export class Lobby {
       if (!s.connected) this.startGrace(room, s);
     }
     for (const s of room.spectators) if (!s.connected) this.startGrace(room, s);
+    // (upstream PR #912 by SatsumaUton) A seat that dropped *during* the match is still here, but `m.result` reached it
+    // through sendSession, which drops frames of a disconnected session. The room's replay holds it only while the room
+    // lives: a removal that skips the grace's copy (e.g. waitContent in a matchmade room) disposes the room and the
+    // replay with it. Keep the frames on the session itself (two frames, freed on its resume or expiry); onHello hands
+    // them over whether the room still exists or not.
+    for (const s of room.seats) {
+      if (!s || s.isBot || s.left || s.connected) continue;
+      const session = this.registry.byId(s.playerId);
+      if (!session) continue;
+      const frames = this.replayFor(room, s.playerId);
+      if (frames && frames.length) session.pendingResult = frames;
+    }
     const host = room.hostId ? room.seatOf(room.hostId) : null;
     if (!host || host.isBot || host.left) this.migrateHost(room);
     if (room.activeHumans().length === 0) this.disposeRoom(room, 'empty');
@@ -2997,6 +3063,7 @@ export class Lobby {
     if (!groupReady(room)) return fail(ERR.NOT_READY);
     room.searching = true;
     room.searchSince = this.now();
+    room.wentPublic = true;   // (fork) Find teammates: strangers may sit down (Lobby.rerollLock)
     this.log.info(`[lobby] ${room.code} searching (${roomSize(room)}/${roomCap(room)}, ${room.difficulty}${room.version !== DEFAULT_VERSION ? `, ${room.version}` : ''})`);
     this.broadcastState(room);
     return OK;
@@ -3129,7 +3196,7 @@ export class Lobby {
     const solos = [];
     for (const e of this.soloQueue.list()) {
       const s = this.registry.byId(e.playerId);
-      if (s?.connected && !this.roomOf(s)) solos.push({ id: e.playerId, difficulty: e.difficulty, wait: now - e.since, versions: [...e.versions], ...(e.large ? { large: true } : {}) });
+      if (s?.connected && !this.roomOf(s)) solos.push({ id: e.playerId, difficulty: e.difficulty, wait: now - e.since, versions: [...e.versions], ...(e.large ? { large: true } : {}), ...(e.at ? { at: { ...e.at } } : {}) });
     }
     return { rooms, solos, versions: this.versions ? [...this.versions.ids] : [DEFAULT_VERSION] };
   }
@@ -3145,7 +3212,7 @@ export class Lobby {
     const out = [];
     for (const id of ids || []) {
       const e = this.soloQueue.get(id);
-      const fits = e && e.difficulty === difficulty && e.versions.includes(version) && (!large || e.large);
+      const fits = e && e.versions.includes(version) && entryDifficulty(e, version) === difficulty && (!large || e.large);
       const s = fits ? this.registry.byId(id) : null;
       if (!s?.connected || this.roomOf(s)) return null;
       out.push(s);
@@ -3241,7 +3308,8 @@ export class Lobby {
   crossMove({ member, region, code, ticket, rooms: codes = [], solos: ids = [], humans = null, bots = null, version = DEFAULT_VERSION, large = false, assign = null, soloSquads = null, squads = null }) {
     const rooms = codes.map((c) => this.rooms.get(c));
     if (this.retiring || !rooms.every((r) => isMatchable(r) && r.version === version && !!r.large === large && !r.oneForAll)) return { ok: false, member };
-    const difficulty = rooms[0]?.difficulty ?? this.soloQueue.get(ids[0])?.difficulty;
+    const first = this.soloQueue.get(ids[0]);
+    const difficulty = rooms[0]?.difficulty ?? (first ? entryDifficulty(first, version) : undefined);
     const sessions = this.crossSolos(ids, difficulty, version, large);
     if (!sessions) return { ok: false, member };
     // the target holds exactly the seats this plan counted: a Doctor who joined since would find no seat and no room
@@ -3360,7 +3428,9 @@ export class Lobby {
         // (fork) the versions queued for (omitted for 第二期下半 alone, so that queue.state stays as it was) and the Grand
         // Alliance opt-in and its One for All sub-opt-in (each omitted when off)
         ...(e.versions.length === 1 && e.versions[0] === DEFAULT_VERSION ? {} : { versions: [...e.versions] }), ...(e.large ? { large: true } : {}),
-        ...(e.oneForAll ? { oneForAll: true } : {}) }
+        ...(e.oneForAll ? { oneForAll: true } : {}),
+        // (fork, 2026-11-15) each version queued at another difficulty than `difficulty` (it lacks the one picked); omitted when none
+        ...(e.at ? { at: { ...e.at } } : {}) }
       : { t: 'queue.state', queued: false, ...extra });
   }
 
@@ -3372,7 +3442,10 @@ export class Lobby {
   /**
    * queue.join { difficulty, versions?, large? }. (fork) `versions`: the official versions this Doctor plays (left out:
    * 第二期下半 alone, as before); one this server does not enable is refused (VERSION_UNKNOWN), and one whose data is not
-   * available or that has no co-op room at this difficulty is dropped — none left is VERSION_UNSUPPORTED. `large`: may
+   * available or that has no co-op rooms is dropped — none left is VERSION_UNSUPPORTED. (2026-11-15, the user's decision)
+   * A version without the difficulty picked waits at its fallback (fallbackDifficulty, as room.create: 终极 → 绝境), each
+   * version at its own (the entry's `at`, queue.state.at), so 终极 with every version ticked is 终极 for 第二期下半 and
+   * 绝境 for the others. `large`: may
    * also be seated in a Grand Alliance (only while the server has them and 第二期下半 is queued for: they play it alone).
    * `oneForAll` (with `large` only): may also be seated in a One for All Grand Alliance (off by default).
    */
@@ -3382,15 +3455,22 @@ export class Lobby {
     if (this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
     const wanted = Array.isArray(asked) && asked.length ? [...new Set(asked)] : [DEFAULT_VERSION];
     if (wanted.some((v) => !this.versionEnabled(v))) return fail(ERR.VERSION_UNKNOWN);
-    const versions = wanted.filter((v) => this.versionAvailable(v) && this.offered(v, 'coop').includes(difficulty));
-    if (!versions.length) return fail(ERR.VERSION_UNSUPPORTED, 'none of these versions has co-op rooms at this difficulty');
-    const opts = { versions, large: large === true && this.largeRooms === true && versions.includes(DEFAULT_VERSION) };
+    const versions = wanted.filter((v) => this.versionAvailable(v) && this.offered(v, 'coop').length);
+    if (!versions.length) return fail(ERR.VERSION_UNSUPPORTED, 'none of these versions has co-op rooms');
+    // (fork) the page offers the lobby version's difficulties: a version without the one picked waits at its own fallback
+    /** @type {Record<string, string>} */
+    const at = {};
+    for (const v of versions) { const d = this.fallbackDifficulty(v, 'coop', difficulty); if (d !== difficulty) at[v] = d; }
+    const opts = { versions, at: Object.keys(at).length ? at : null, large: large === true && this.largeRooms === true && versions.includes(DEFAULT_VERSION) };
     opts.oneForAll = opts.large && oneForAll === true;
     if (cur) this.removeMember(cur, session.playerId);
     const e = this.soloQueue.get(session.playerId);
     // a second click keeps the wait; another difficulty starts over; other versions or opt-in keep the wait
     if (!e || e.difficulty !== difficulty) this.soloQueue.add(session.playerId, difficulty, this.now(), opts);
-    else { e.versions = opts.versions; e.large = opts.large; e.oneForAll = opts.oneForAll; }
+    else {
+      e.versions = opts.versions; e.large = opts.large; e.oneForAll = opts.oneForAll;
+      if (opts.at) e.at = { ...opts.at }; else delete e.at;
+    }
     this.sendQueue(session);
     this.matchmaker.poke();
     return OK;
@@ -3409,7 +3489,8 @@ export class Lobby {
     if (this.now() - e.since < this.matchmaker.opts.soloAiAfterMs) return fail(ERR.NOT_READY, 'still searching');
     if (this.roomOf(session)) return fail(ERR.ALREADY);
     // (fork) the first version queued for (the lobby's, as the page sends it)
-    const room = this.soloRoom(e.difficulty, [session], e.versions[0] ?? DEFAULT_VERSION);
+    const v0 = e.versions[0] ?? DEFAULT_VERSION;
+    const room = this.soloRoom(entryDifficulty(e, v0), [session], v0);
     if (!room) return fail(ERR.RATE, 'too many rooms');
     while (room.freeSeat() >= 0) {
       const idx = room.freeSeat();
@@ -3461,6 +3542,7 @@ export class Lobby {
 
   /** Seat queued sessions in `room`'s free seats, ready, and take them out of the queue. Sends nothing. */
   seatSolos(room, sessions) {
+    if (sessions.length) room.wentPublic = true;   // (fork) the solo queue seats strangers (Lobby.rerollLock)
     // (fork) new humans take seats: the version vote is void, as on a join (header "Official versions")
     if (sessions.length && room.versionVote) this.voidVersionVote(room, 'members');
     for (const s of sessions) {
@@ -3488,7 +3570,7 @@ export class Lobby {
       if (this.roomOf(s)) { this.unqueue(s); continue; }
       placeable.push(e);
     }
-    const diffs = new Set(placeable.map((e) => e.difficulty));
+    const diffs = new Set(placeable.flatMap((e) => entryVersions(e).map((v) => entryDifficulty(e, v))));
     const rooms = [...this.rooms.values()].filter((r) => r.searching && diffs.has(r.difficulty) && this.matchAllowed(r));
     for (const plan of planSolos(rooms, placeable, { now: this.now(), partialMergeAfterMs: this.matchmaker.opts.partialMergeAfterMs })) {
       const sessions = plan.entries.map((e) => this.registry.byId(e.playerId));

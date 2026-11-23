@@ -1239,7 +1239,10 @@ function yanyouFallbackDef(battle) {
  */
 const YANYOU_STOP = 0.25;             // [ASSUMED] how close it hovers to the tracked enemy (tiles)
 const YANYOU_FRAGILE_RADIUS = 1.5;    // PRTS "在场期间自身<!--固定半径-->半径1.5范围内的敌方单位受到20%的元素脆弱"
-const YANYOU_AURA_EVERY = 0.2;        // aura refresh period (s); the status lasts two periods
+const YANYOU_AURA_EVERY = 0.2;
+// (fork) 祛恶之焰's official buff (Skill_2's acloon_s_2): its range loop on the locked target (render/vfx/skills.js
+// STATE_BUFFS). Its per-second hit and line stay the procedural flame (fx 'yanyouFlame')
+const YANYOU_FLAME_FX = 'acloon_s_2';        // aura refresh period (s); the status lasts two periods
 const YANYOU_PROFILE = Object.freeze({ canHitFly: true });
 
 /** Highest-aggro targetable enemy of the whole field for `u` (operator order, targeting.js sortEnemyTargets). */
@@ -1300,6 +1303,8 @@ function yanyouKit(bb, raw) {
         sortEnemyTargets(battle, unit, list, null);
         unit.mem.flame = { target: list[0] ?? null, acc: 1 };
         if (!list[0]) unit.skill.end('noTarget');
+        // (fork) the official channel buff's range effect on the locked target while it lasts (display only)
+        else battle.fxState?.(list[0], YANYOU_FLAME_FX, true, { src: unit });
       },
       onTick({ battle, unit, dt }) {
         const f = unit.mem.flame;
@@ -1317,7 +1322,10 @@ function yanyouKit(bb, raw) {
         for (const e of hit) battle.dealDamage(unit, e, { amount: unit.s.atk * flameScale, type: 'arts', isSkill: true, tags: ['flame'] });
         battle.fx('yanyouFlame', { x: t.x, y: t.y, id: unit.id, target: t.id, r: flameR, n: hit.length, dur: 1 });
       },
-      onEnd({ unit }) { unit.mem.flame = null; },
+      onEnd({ battle, unit }) {
+        if (unit.mem.flame?.target) battle.fxState?.(unit.mem.flame.target, YANYOU_FLAME_FX, false);
+        unit.mem.flame = null;
+      },
     } : null,
     trait: { attack: 'ranged', dmgType: 'arts', projectile: 'bolt', canHitFly: true, maxTargets, heal: null, noAttack: false },
     install(battle, unit) {

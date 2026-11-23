@@ -45,8 +45,12 @@ const isPeerCandidate = (v) => isPlain(v) && isStr(v.candidate, 2048)
 
 // ---- client-side combat (DESIGN §14): b.progress / b.result payloads -------------------------------------------
 
-/** Size limits of a b.result payload (the whole frame also obeys the 64 KB inbound limit). */
-export const RESULT_LIMITS = Object.freeze({ players: 4, leaked: 400, unitsEnd: 64, unitStats: 160, layerGains: 40, mods: 16, unspawned: 400 });
+/**
+ * Size limits of a b.result payload (the whole frame also obeys the 64 KB inbound limit). (fork) `players` covers a large
+ * room's 8 seats: a 联防's per-leaker maps (b.progress `left`, a bot battle timeline's `left`) and its helpers' perPlayer
+ * hold up to 8 players. At 4, an 8-player 联防 answer failed validateC2S and was dropped (live report 2026-11-13).
+ */
+export const RESULT_LIMITS = Object.freeze({ players: LARGE_ROOM_SEATS, leaked: 400, unitsEnd: 64, unitStats: 160, layerGains: 40, mods: 16, unspawned: 400 });
 const BIG = 1e13;
 const isStat = (v) => v === undefined || isNum(v, 0, BIG);
 const isModVal = (v) => v === null || isNum(v, -BIG, BIG) || isStr(v, 64) || isBool(v);
@@ -609,7 +613,7 @@ export const C2S = {
   // operator charId ('' for none; the server keeps only a visible charId of the room's chess.json); cosmetic, any room phase
   'room.card': { charId: (v) => v === '' || isCharId(v) },
   // (fork) room chat (docs/design/network.md "Room chat"): a seated player's line in the room screen, cleaned and cut by
-  // the lobby like match chat's, under the same spam limits (server/chatLimit.js); and an emote. Both without a rid.
+  // the lobby like match chat's, under the same spam limits (server/match/chatLimit.js); and an emote. Both without a rid.
   'room.chat': { x: (v) => isStr(v, CHAT_FRAME_MAX) },
   'room.emote': { id: (v) => EMOTES.includes(v) },
   // operator ownership (干员持有, 0.2.0 补位): stored per session / seat; a match takes the list its seat had when it

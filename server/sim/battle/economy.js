@@ -2,17 +2,19 @@
 // coins.
 // Installed on Battle.prototype by server/sim/Battle.js (a method container: never instantiated; `this` is the battle).
 
-import { layerGainRoom } from '../../../shared/constants.js';
+import { layerGainRoom, layerCapOf } from '../../../shared/constants.js';
 
 export class BattleEconomy {
   // Optional source is presentation attribution; the return value and DP arithmetic stay unchanged.
+  /** The most DP a player holds: the battle's `dpMax`, or more while their 围攻 Mod Z is on the field (content/modZ.js, GitHub #176). */
+  dpCapOf(ps) { return ps && ps.fishDpMax > this.flags.dpMax ? ps.fishDpMax : this.flags.dpMax; }
   addDp(playerId, n, source = null) {
     const ps = this.getPlayer(playerId);
     if (!ps || !Number.isFinite(n)) return 0;
     // (Fish Edition) Mod Z: an operator whose DP gain is doubled (content/modZ.js `fishDpMul`)
     if (n > 0 && source && Number.isFinite(source.fishDpMul)) n *= source.fishDpMul;
     const before = ps.dp;
-    ps.dp = Math.max(0, Math.min(this.flags.dpMax, ps.dp + n));
+    ps.dp = Math.max(0, Math.min(this.dpCapOf(ps), ps.dp + n));
     const reason = source?.def?.subProf;
     if ((n > 0 && ['agent', 'charger', 'pioneer'].includes(reason)) || (n < 0 && reason === 'merchant')) {
       this.resourceNumber(source, 'cost', ps.dp - before, reason);
@@ -39,11 +41,12 @@ export class BattleEconomy {
     if (!pp) return 0;
     const ps = this.getPlayer(playerId);
     const live = ps && ps.bonds[bondId] ? (ps.bonds[bondId].layers ?? 0) : (pp.layerGains[bondId] ?? 0);
-    if (!(layerGainRoom(live, Infinity) > 0)) return 0;
+    const cap = layerCapOf(this.flags.rules);
+    if (!(layerGainRoom(live, Infinity, cap) > 0)) return 0;
     const source = opts.source ?? null;
     const ctx = { playerId, bondId, n, reason, source, tile: Array.isArray(opts.tile) ? opts.tile : this._sourceTile(source) };
     if (this._hooks.layerGain) { this.emit('layerGain', ctx); if (!(ctx.n > 0) || !Number.isFinite(ctx.n)) return 0; }
-    const add = layerGainRoom(live, ctx.n);
+    const add = layerGainRoom(live, ctx.n, cap);
     if (!(add > 0)) return 0;
     pp.layerGains[bondId] = (pp.layerGains[bondId] ?? 0) + add;
     if (ps && ps.bonds[bondId]) ps.bonds[bondId].layers = (ps.bonds[bondId].layers ?? 0) + add;

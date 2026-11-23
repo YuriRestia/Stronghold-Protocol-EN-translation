@@ -37,7 +37,8 @@ test('(fork) the panel shows the unreleased section first, without its In develo
   for (const [file, dev] of [['CHANGELOG.md', /^### 开发中/m], ['CHANGELOG.en.md', /^### In development/m]]) {
     const real = forkReleaseSections(readFileSync(file, 'utf8'), APP_VERSION);
     assert.match(real[0].body, /^### Fish Edition$/m, file);
-    assert.doesNotMatch(real[0].body, dev, file);
+    // only an unreleased section ahead of the running version hides its development part; once released (0.3.4-3) it is the shipped section
+    if (/— (?:未发布|Unreleased)\s*$/.test(real[0].title)) assert.doesNotMatch(real[0].body, dev, file);
     assert.ok(real.some((s) => s.version === APP_VERSION), file);
   }
 });

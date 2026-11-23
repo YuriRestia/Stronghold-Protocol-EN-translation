@@ -19,7 +19,9 @@
 // 上一阶段为退场状态的干员强制退场）" — the sim deploys it with everyone and forces it out at once (constants.js
 // FORCED_EXIT), so it lies on its own tile with the redeploy ring and comes back like after any knock-out (user
 // playtest #5 item 2: it used to be left out and vanished). Its timer is its full redeploy time (the official 联防
-// setup carries only hp / tech per operator, research 09 §3 HelpBattleInfo; the user confirmed it restarts). The board's summon
+// setup carries only hp / tech per operator, research 09 §3 HelpBattleInfo; the user confirmed it restarts), except a
+// member of a reached 阿戈尔 revive tier (blackboard max_free_respawn_cnt): that bond revives it on the battle-start
+// scan and spends one slot (GitHub #882, BV1auHq67Eoi). With no slot left the full timer remains. The board's summon
 // pieces are fielded as the board has them and keep only their SP ("召唤物仅修改技力": carryState `{ sp }`, unitsEnd lists
 // them beside the operators; one off the field at the end enters fresh [ASSUMED]). Enemies = the union of every leaker's
 // counted leaks (same stats: the SpawnSpec mods travel with the leak), routed on the escaped template (`escaped_single`
@@ -36,7 +38,7 @@
 // at birth (sim/battle/spawns.js) and neither uniteSurvivors nor the HUD's ×N reads it.
 
 import { buildUniteWave } from './waves.js';
-import { layerGainRoom } from '../../shared/constants.js';
+import { layerGainRoom, layerCapOf } from '../../shared/constants.js';
 
 /**
  * @param {import('./Match.js').Match} m
@@ -100,7 +102,7 @@ export function helperStats(m, ps, results) {
     active = true;
     const stored = Number(ps.layers && ps.layers[id]) || Number(b.layers) || 0;
     const gain = pending && Number(pending[id]);
-    const add = Number.isFinite(gain) && gain > 0 ? layerGainRoom(stored, Math.floor(gain)) : 0;
+    const add = Number.isFinite(gain) && gain > 0 ? layerGainRoom(stored, Math.floor(gain), layerCapOf(m.lobbyRules)) : 0;
     layers += stored + add;
   }
   const r = results && typeof results.get === 'function' ? results.get(ps.playerId) : null;

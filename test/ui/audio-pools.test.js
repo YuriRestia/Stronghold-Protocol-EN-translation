@@ -538,3 +538,73 @@ test('screen cleanup stops playing field sounds once while UI and prep bond feed
   assert.equal(f.a.voiceGate.playing?.slot, 'select');
   assert.equal(f.a.landLimiter.active, 1, 'late end callbacks leave the next landing alone');
 });
+
+// (fork, attack sound delays follow game speed) the official delay is battle time: the official SoundFX keeps
+// ignoreTimeScale beside delay, false on every official sound (Il2Cpp dump.cs SoundFXBank.SoundFX; audio_data
+// soundFXBanks sounds[].ignoreTimeScale). Chen's attack bank: delay 0.6 s (streamFixture's default).
+const heardCount = (f) => f.sources.filter(s => s.heard).length;
+
+test('game speed 1x: the official 0.6 s attack delay waits 0.6 s', async (t) => {
+  const f = streamFixture(t);
+  f.attack(1); await flush();
+  f.advance(570);
+  assert.equal(f.sources.length, 0, 'still waiting at 0.57 s');
+  f.advance(60);
+  assert.equal(heardCount(f), 1, 'heard by 0.63 s');
+});
+
+test('game speed 2x: the official 0.6 s attack delay waits 0.3 s', async (t) => {
+  const f = streamFixture(t);
+  f.a.setBattleView({ rate: () => 2 });
+  f.attack(1); await flush();
+  f.advance(270);
+  assert.equal(f.sources.length, 0, 'still waiting at 0.27 s');
+  f.advance(60);
+  assert.equal(heardCount(f), 1, 'heard by 0.33 s, half the 1x wait');
+});
+
+test('a speed change during the attack delay takes hold from then on', async (t) => {
+  const f = streamFixture(t);
+  const speed = { now: 1 };
+  f.a.setBattleView({ rate: () => speed.now });
+  f.attack(1); await flush();
+  f.advance(200);                 // 0.2 battle s used at 1x, 0.4 left
+  speed.now = 4;                  // the rest at 4x: 0.1 s
+  f.advance(80);
+  assert.equal(f.sources.length, 0, 'still waiting 0.08 s after the change');
+  f.advance(80);                  // the change takes hold within one battle tick: due by about 0.33 s
+  assert.equal(heardCount(f), 1, 'heard by 0.36 s, not 0.6 s');
+});
+
+test('paused (rate 0) holds the attack delay; resuming runs the whole delay', async (t) => {
+  const f = streamFixture(t);
+  const speed = { now: 0 };
+  f.a.setBattleView({ rate: () => speed.now });
+  f.attack(1); await flush();
+  f.advance(3000);
+  assert.equal(f.sources.length, 0, 'paused 3 s: still waiting');
+  assert.equal(f.a.poolRequests.size, 1, 'the request is still pending, held');
+  speed.now = 1;
+  f.advance(570);
+  assert.equal(f.sources.length, 0, 'resumed: the full 0.6 battle s still has to pass');
+  f.advance(100);                 // the resume takes hold within one battle tick
+  assert.equal(heardCount(f), 1);
+});
+
+test('a request dropped during the attack delay (field change, mute) never plays and leaves no timer', async (t) => {
+  const f = streamFixture(t);
+  f.attack(1); await flush();
+  f.advance(300);
+  assert.equal(f.a.poolRequests.size, 1);
+  f.a.stopPoolSounds();           // a field change invalidates it: _dropPoolRequest clears its pending timer
+  assert.equal(f.a.poolRequests.size, 0);
+  assert.equal(f.timers.size, 0, 'the delay timer was cleared');
+  f.advance(1000);
+  assert.equal(f.sources.length, 0, 'the old field\'s attack stays silent');
+  f.attack(2); await flush();
+  f.advance(300);
+  f.a.volumes.muted = true;       // mute: the next step drops it
+  f.advance(1000);
+  assert.equal(f.a.poolRequests.size, 0);
+  assert.equal(f.sources.length, 0, 'muted mid-wait: dropped');
+});

@@ -1,9 +1,11 @@
 // scripts/deploy-regions.mjs — (fork) one command, run on the operator's own PC, for every server of a game with several
-// regions (DESIGN §8.7). It only runs the ordinary commands over `ssh`, in the right order; each server asks for its sudo
-// password if it needs one. A page's generation must exist on every server, so one id and one commit go everywhere:
+// regions (DESIGN §8.7). It only runs the ordinary commands over `ssh`, in the right order. (fork) A server that asks
+// for a sudo password gets the one remembered for this Windows user (scripts/ssh-sudo.mjs, shared with release.mjs; typed
+// once in a terminal when none is remembered); `--forget-sudo` deletes it. A page's generation must exist on every
+// server, so one id and one commit go everywhere:
 //
-//   prepare   on every server: pull, start the new generation, wait for its /healthz, list it as prepared. Nobody is
-//             sent there: players keep the current generation. Prints the id and the private test URLs
+//   prepare   on every server: move the checkout to the commit, start the new generation, wait for its /healthz,
+//             list it as prepared. Nobody is sent there: players keep the current generation. Prints the id and the private test URLs
 //             (https://<page server>/_build/<gen>/, plus ?region=<id> for each other server): the routers already serve a
 //             prepared generation under its own prefix. If any server fails, nothing has changed for players.
 //   activate  checks that <gen> is prepared (or already current) and answering on EVERY server, and refuses otherwise
@@ -39,6 +41,8 @@ import { newGenId, PREPARED_MAX_AGE_MS } from './generations.mjs';
 import { readFileSync } from 'node:fs';
 import { GEN_ID_RE } from '../shared/gen.js';
 import { newsProblems } from '../shared/news.js';
+import { sudoRunners } from './ssh-sudo.mjs';
+import * as sudoStore from './release-sudo.mjs';
 
 const APP = '/opt/stronghold/app';
 const AS_APP = 'sudo -u stronghold';
@@ -59,12 +63,34 @@ export const formatHosts = (hosts) => hosts.map((h) => `${h.host}${h.noArt ? ':n
 /** Quote for a POSIX shell. @param {string} s */
 export const shQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
-/** The shell line that prepares a generation on one server. @param {{ gen: string, commit: string, noArt?: boolean }} o */
+/** Exit code of a prepare that refused because the server's checkout has local changes (nothing was changed). */
+export const PREPARE_LOCAL_CHANGES = 3;
+
+/**
+ * The shell line that prepares a generation on one server.
+ * (fork, 2026-11-13) The checkout in APP moves to the exact release commit with fetch + `reset --hard`, not
+ * `pull --ff-only`, so it works whether or not the server's commit is an ancestor of the release (after a force push
+ * it is not, and a fast-forward pull fails).
+ * - First, before anything changes: `git status --porcelain --untracked-files=no`. A local change to any tracked file
+ *   other than data/assets.json (which the server rewrites itself) refuses: the list is printed, nothing is reset and
+ *   that server's prepare stops with exit PREPARE_LOCAL_CHANGES. So `reset --hard` never throws away an edit.
+ * - Never `git clean`: untracked and ignored files stay as they are. The art (public/assets/), the 4 fx lists and
+ *   clip-bounds.json are gitignored, so the reset never touches them. (An untracked file at a path the release starts
+ *   tracking is replaced by the release's file, as a checkout would.)
+ * - Only APP: the generations' own folders are made by generations.mjs from the commit.
+ * @param {{ gen: string, commit: string, noArt?: boolean }} o commit: the full or short commit id (hex only)
+ */
 export function prepareCommand({ gen, commit, noArt = false }) {
+  if (!/^[0-9a-f]{4,64}$/.test(String(commit))) throw new Error(`prepare: not a commit id: ${commit}`);
   const inner = [
     `cd ${APP}`,
+    `st=$(${AS_APP} git status --porcelain --untracked-files=no)`,
+    `changed=$(printf '%s\n' "$st" | grep -v -e '^$' -e '^.. data/assets\.json$' || true)`,
+    `if [ -n "$changed" ]; then echo "prepare refused: tracked files in ${APP} have local changes (nothing was changed; commit, move or undo them first):"; printf '%s\n' "$changed"; exit ${PREPARE_LOCAL_CHANGES}; fi`,
     `${AS_APP} git checkout -- data/assets.json`,
-    `${AS_APP} git pull --ff-only`,
+    `${AS_APP} git fetch --quiet origin`,
+    `${AS_APP} git cat-file -e ${commit}^{commit}`,
+    `${AS_APP} git reset --quiet --hard ${commit}`,
     `node scripts/generations.mjs deploy --prepare --gen ${gen} --ref ${commit}${noArt ? ' --no-art' : ''}`,
   ].join(' && ');
   return `sudo bash -c ${shQuote(inner)}`;
@@ -196,20 +222,28 @@ export function checkOnHost(host, gen, run) {
 
 const sshCapture = (host, cmd) => spawnSync('ssh', [host, cmd], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', windowsHide: true });
 
-function checkAll(hosts, gen) {
+function checkAll(hosts, gen, capture = sshCapture) {
   return hosts.map(({ host }) => {
-    const { check, stderr } = checkOnHost(host, gen, sshCapture);
+    const { check, stderr } = checkOnHost(host, gen, capture);
     if (stderr) console.error(`[${host}] ${stderr.replace(/\n/g, `\n[${host}] `)}`);
     return { host, check };
   });
 }
 
-function prepare(o) {
+/**
+ * Prepare on every server; returns the generation id. (fork) `io` swaps the ssh calls (scripts/release.mjs feeds a
+ * remembered sudo password through them): ssh(host, line) streams and throws on failure, capture(host, line) returns
+ * { stdout, stderr }.
+ * @param {{ hosts: { host: string, noArt?: boolean }[], ref: string }} o
+ * @param {{ ssh?: (host: string, line: string) => void, capture?: (host: string, line: string) => { stdout?: string, stderr?: string } }} [io]
+ */
+export function prepare(o, io = {}) {
+  const run = io.ssh || ssh;
   const commit = execFileSync('git', ['rev-parse', '--verify', `${o.ref}^{commit}`], { encoding: 'utf8', windowsHide: true }).trim();
   const gen = newGenId();
   console.log(`[prepare] generation ${gen}, commit ${commit.slice(0, 10)} (${o.ref}) on ${o.hosts.map((h) => h.host).join(', ')}`);
-  for (const h of o.hosts) ssh(h.host, prepareCommand({ gen, commit, noArt: h.noArt }));
-  const results = checkAll(o.hosts, gen);
+  for (const h of o.hosts) run(h.host, prepareCommand({ gen, commit, noArt: h.noArt }));
+  const results = checkAll(o.hosts, gen, io.capture);
   const problems = checkProblems(gen, results);
   if (problems.length) throw new Error(`prepared, but not ready everywhere:\n  ${problems.join('\n  ')}`);
   console.log(`\n[prepare] ${gen} is prepared on every server (build ${results[0].check.build}). Players are not sent there.`);
@@ -222,8 +256,8 @@ function prepare(o) {
 }
 
 /** (fork) The live update news on every server: checked here, then uploaded and put live one server after another. */
-function news(o) {
-  if (o.action !== 'set') { for (const h of o.hosts) ssh(h.host, newsCommand(o.action)); return; }
+function news(o, io) {
+  if (o.action !== 'set') { for (const h of o.hosts) io.ssh(h.host, newsCommand(o.action)); return; }
   let text;
   try { text = readFileSync(o.file, 'utf8').replace(/^\uFEFF/, ''); } catch (e) { throw new Error(`cannot read ${o.file}: ${e.code || e.message}`, { cause: e }); }
   let raw;
@@ -232,22 +266,42 @@ function news(o) {
   if (problems.length) throw new Error(`${o.file} was refused, nothing was sent:\n  ${problems.join('\n  ')}`);
   for (const h of o.hosts) {
     console.log(`\n=== ${h.host} ===`);
-    const up = spawnSync('ssh', [h.host, newsUploadCommand()], { input: text, encoding: 'utf8', windowsHide: true });
+    // no sudo in the upload line, so the news text is the only stdin (the password is never fed to it)
+    const up = io.capture(h.host, newsUploadCommand(), { input: text });
     const tmp = String(up.stdout || '').trim().split(/\r?\n/).pop();
     if (up.status !== 0 || !tmp) throw new Error(`${h.host}: the upload failed (${String(up.stderr || '').trim() || `exit ${up.status}`})`);
-    ssh(h.host, newsCommand('set', tmp));
+    io.ssh(h.host, newsCommand('set', tmp));
   }
 }
 
-function activate(o, gen) {
-  const problems = checkProblems(gen, checkAll(o.hosts, gen));
+function activate(o, gen, io) {
+  const problems = checkProblems(gen, checkAll(o.hosts, gen, io.capture));
   if (problems.length) throw new Error(`refusing to activate ${gen}; no server was switched:\n  ${problems.join('\n  ')}`);
   console.log(`[activate] ${gen} is ready on every server; switching players over, ${o.hosts[0].host} first`);
-  for (const h of o.hosts) ssh(h.host, activateCommand(gen));
+  for (const h of o.hosts) io.ssh(h.host, activateCommand(gen));
   console.log(`\n[activate] ${gen} is current everywhere.`);
 }
 
-function main(argv) {
+/**
+ * (fork) The ssh calls of every command, through each host's sudo runner (scripts/ssh-sudo.mjs): ssh(host, line)
+ * streams and throws on failure, capture(host, line, { input }) returns { status, stdout, stderr }.
+ * @param {Map<string, { stream: (l: string) => void, capture: (l: string, o?: { input?: string }) => { status: number|null, stdout: string, stderr: string } } | null>} runners
+ */
+export function runnerIo(runners) {
+  const get = (host) => {
+    const r = runners.get(host);
+    if (!r) throw new Error(`${host}: no ssh runner`);
+    return r;
+  };
+  return { ssh: (host, line) => get(host).stream(line), capture: (host, line, opts) => get(host).capture(line, opts) };
+}
+
+export function main(argv, { runnersFor = (hosts) => sudoRunners(hosts), store = sudoStore } = {}) {
+  if (argv.includes('--forget-sudo')) {
+    const gone = store.forget();
+    console.log(gone.length ? `[sudo] forgotten: ${gone.join(', ')}` : '[sudo] no remembered password');
+    return 0;
+  }
   const o = parseArgs(argv);
   if (o.error !== undefined) {
     if (o.error) console.error(`[deploy] ${o.error}`);
@@ -255,19 +309,22 @@ function main(argv) {
       + '       node scripts/deploy-regions.mjs activate <gen> --hosts spa,usspa:no-art\n'
       + '       node scripts/deploy-regions.mjs status --hosts spa,usspa\n'
       + '       node scripts/deploy-regions.mjs announce --hosts spa,usspa [--minutes 5] "text"\n'
-      + '       node scripts/deploy-regions.mjs news --hosts spa,usspa <news.json> | --show | --clear');
-    process.exit(o.error === null ? 0 : 1);
+      + '       node scripts/deploy-regions.mjs news --hosts spa,usspa <news.json> | --show | --clear\n'
+      + '       node scripts/deploy-regions.mjs --forget-sudo   (delete the remembered sudo password)');
+    return o.error === null ? 0 : 1;
   }
-  if (o.cmd === 'status') { for (const h of o.hosts) ssh(h.host, statusCommand()); return; }
-  if (o.cmd === 'announce') { for (const h of o.hosts) ssh(h.host, announceCommand(o.minutes, o.text)); return; }
-  if (o.cmd === 'news') { news(o); return; }
-  if (o.cmd === 'prepare') { prepare(o); return; }
-  if (o.cmd === 'activate') { activate(o, o.gen); return; }
-  activate(o, prepare(o));
+  const io = runnerIo(runnersFor(o.hosts));
+  if (o.cmd === 'status') { for (const h of o.hosts) io.ssh(h.host, statusCommand()); return 0; }
+  if (o.cmd === 'announce') { for (const h of o.hosts) io.ssh(h.host, announceCommand(o.minutes, o.text)); return 0; }
+  if (o.cmd === 'news') { news(o, io); return 0; }
+  if (o.cmd === 'prepare') { prepare(o, io); return 0; }
+  if (o.cmd === 'activate') { activate(o, o.gen, io); return 0; }
+  activate(o, prepare(o, io), io);
+  return 0;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  try { main(process.argv.slice(2)); } catch (e) {
+  try { process.exitCode = main(process.argv.slice(2)); } catch (e) {
     console.error(`\n[deploy] stopped: ${e.message || e}`);
     console.error('A server that was not switched keeps its old generation. Fix the cause and run the same command again.');
     process.exit(1);

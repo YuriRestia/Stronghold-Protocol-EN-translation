@@ -12,6 +12,7 @@ import { DELAYS } from './common.js';
 import { previewPlayer } from '../preview.js';
 import { morphBattleOpt } from '../../../shared/plugins/rules.js';
 import { noteChatKills } from '../chatWallet.js';
+import { noteBattle } from '../autoAward.js';
 
 export class MatchCombat {
   /** Construct a battle; a constructor failure yields a finished stand-in (clean result) and is logged. */
@@ -43,7 +44,7 @@ export class MatchCombat {
     return out;
   }
 
-  _normalBattle(ps) { return this.newBattle(this._normalOpts(ps)); }
+  _normalBattle(ps) { const o = this._normalOpts(ps); noteBattle(this, o); return this.newBattle(o); }
 
   /** Battle options of a player's normal field (after the onBattleStart handlers). */
   _normalOpts(ps, { preview = false, board = ps.board } = {}) {

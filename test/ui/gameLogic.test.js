@@ -16,6 +16,8 @@ import {
   activeBubbles, sortedPlayers, tileKey, prepCapsuleLabel, prepCamera, dropFailureReason, terrainInfo,
 } from '../../public/js/ui/gameLogic.js';
 import { PHASE, GEO } from '../../shared/constants.js';
+import { ASPD_LIMITS } from '../../public/js/ui/gameLogic/format.js';
+import { ASPD_MIN, ASPD_MAX } from '../../server/sim/constants.js';
 import { setLang, setMessages } from '../../shared/i18n.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -509,6 +511,21 @@ describe('placement mirror (canPlace)', () => {
     assert.equal(canPlace(ctx, art.uid, { area: 'hand', idx: 0 }).ok, false, 'arts are not equipped');
     assert.deepEqual(canPlace(ctx, art.uid, { area: 'hand', idx: 1 }), { ok: true, action: 'swap' }, 'item ↔ item swap in the hand');
   });
+  test('信标 is not a legal drop on a 自选 operator; a hammer still is (GitHub #913)', () => {
+    const diy = { ...piece('chess_char_5_diy1_a'), row: 9, col: 3 };
+    const normal = { ...piece(MELEE), row: 9, col: 4 };
+    const beacon = item('chess_item_5_04_e_a');
+    const hammer = item(EQUIP);
+    const ctx = ctxFor(privWith({ board: [diy, normal], hand: [beacon, hammer] }));
+    assert.deepEqual(canPlace(ctx, beacon.uid, { area: 'board', row: 9, col: 3 }), { ok: false, code: 'BAD_TARGET', reason: '无法装备给自选干员' });
+    assert.equal(dropIntent(ctx, beacon.uid, { area: 'board', row: 9, col: 3 }), null);
+    assert.deepEqual(canPlace(ctx, beacon.uid, { area: 'board', row: 9, col: 4 }), { ok: true, action: 'equip' });
+    assert.deepEqual(canPlace(ctx, hammer.uid, { area: 'board', row: 9, col: 3 }), { ok: true, action: 'equip' });
+    const tiles = boardTargets(ctx, beacon.uid);
+    assert.ok(!tiles.legal.some(([r, c]) => r === 9 && c === 3), 'the drag highlight does not offer the 自选 tile');
+    assert.ok(tiles.illegal.some(([r, c]) => r === 9 && c === 3));
+    assert.ok(tiles.legal.some(([r, c]) => r === 9 && c === 4));
+  });
   test('boardTargets lists legal tiles for highlighting', () => {
     const m = piece(MELEE);
     const r = piece(RANGED);
@@ -693,7 +710,15 @@ describe('enemies, HUD, stats', () => {
     assert.equal(attackInterval(1, 100), 1);
     assert.equal(attackInterval(1.2, 120), 1);
     assert.equal(attackInterval(0, 100), null);
-    assert.equal(attackInterval(1, 0), 1, 'bad aspd falls back to 100');
+    // a data ASPD of 0 is the official attribute floor 20 (OpFor: Gun 4.5 s BAT → 22.5 s), not "missing"
+    assert.equal(attackInterval(1, 0), 5, 'ASPD 0 reads as the floor 20');
+    assert.equal(attackInterval(4.5, 0), 22.5);
+    assert.equal(attackInterval(1, 1000), 1 / 6, 'capped at 600');
+    assert.equal(attackInterval(1, undefined), 1, 'missing aspd reads 100');
+    assert.equal(attackInterval(1, null), 1, 'missing aspd reads 100');
+    assert.equal(attackInterval(1, 'x'), 1, 'bad aspd reads 100');
+    // the page's copy of the sim's clamps (it cannot import server/sim/constants.js) stays equal to them
+    assert.deepEqual({ ...ASPD_LIMITS }, { min: ASPD_MIN, max: ASPD_MAX });
     assert.equal(fmtNum(12345), '12,345');
     assert.equal(fmtNum(2_310_000), '231万');
     assert.equal(fmtNum(150_000), '15.0万');
@@ -740,7 +765,7 @@ describe('keyboard & settings', () => {
   test('sanitizeSettings', () => {
     assert.deepEqual(sanitizeSettings(null), { ...DEFAULT_SETTINGS });
     assert.deepEqual(sanitizeSettings({ bgm: 3, sfx: -1, voice: 2, muted: 'yes', damageNumbers: false, quality: 'ultra' }),
-      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'en', voiceNative: false, voiceOverrides: {}, muted: false, matchAlert: true, damageNumbers: false, officialDamageNumbers: false, ammoEnergyCount: false, fullscreenWakeLock: false, bondTimers: false, prepDeployFold: false, quality: 'high', officialFx: 'auto', otherSkins: true, textSize: 'sm', keys: { ...DEFAULT_SETTINGS.keys } },
+      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'en', voiceNative: false, voiceOverrides: {}, muted: false, matchAlert: true, damageNumbers: false, officialDamageNumbers: false, ammoEnergyCount: false, fullscreenWakeLock: false, bondTimers: false, prepDeployFold: false, quality: 'high', officialFx: 'auto', spriteAnim: 'auto', otherSkins: true, textSize: 'sm', keys: { ...DEFAULT_SETTINGS.keys } },
       'a saved profile without `keys` (before 0.2.0) gets the default key map (test/ui/feedback5-hotkeys.test.js)');
     // 显示其他玩家的皮肤 (docs/SKINS.md): on by default, and off only when the profile says so
     assert.equal(DEFAULT_SETTINGS.otherSkins, true);

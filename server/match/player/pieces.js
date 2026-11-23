@@ -7,6 +7,7 @@
 // the player state).
 
 import { tileKey, boardOrder, freeSlot } from '../board.js';
+import { noteHand } from '../autoAward.js';
 import { TEMP_SIZE } from './common.js';
 
 export class PlayerPieces {
@@ -85,11 +86,13 @@ export class PlayerPieces {
     if (!toTemp) {
       if (Number.isInteger(preferIdx) && preferIdx >= 0 && preferIdx < this.hand.length && this.hand[preferIdx] == null) {
         this.hand[preferIdx] = piece;
+        noteHand(this.m, this); // (GitHub #125) Junk 1
         return 'hand';
       }
       const i = freeSlot(this.hand);
-      if (i >= 0) { this.hand[i] = piece; return 'hand'; }
+      if (i >= 0) { this.hand[i] = piece; noteHand(this.m, this); return 'hand'; }
       if (!allowTemp) return null;
+      noteHand(this.m, this, true); // the hand was full: it overflows into temp
     }
     // Five visible slots are a window, not a capacity limit. Once resources are queued, append
     // new gains behind them; recompute fills visible holes without changing an in-progress merge's indices.

@@ -48,6 +48,7 @@ import { FunnelFx } from './funnelfx.js';
 import { YuWall, YU_WALL_SOURCE } from './yuwall.js';
 import { formModes } from './talents.js';
 import { shotOf, CHAIN_RELAYS } from './skills.js';
+import { DUO_PROJECTILES, DEAD_EFFECTS, indexGapKeys } from './indexGaps.js';
 import { UF } from '../../../../shared/constants.js';
 
 /** Battle seconds a non-oneshot cast effect lasts without its end event. */
@@ -372,6 +373,7 @@ export class FxWiring {
     this.keyCache = new Map();    // unit id → index unit key | null
     this.attackN = new Map();     // unit id → attacks so far (onlyOnce / hookEffectAfterFirstAttack rows)
     this.castFrame = new Map();   // unit id → the frame of its last attack (several targets of one attack cast once)
+    this.targetN = new Map();     // (fork) unit id → its last attack's targets so far, from 0 (DuoRangedAttack)
     this.skills = new SkillFx(this);
     this.talents = new TalentFx(this);
     this.funnels = new FunnelFx(this);
@@ -484,7 +486,11 @@ export class FxWiring {
    * BoneFollower points) and the camera's tilt (the plane the drawn model faces).
    */
   pose(v) {
-    return { x: v.x, y: v.y, z: (v.z || 0) + (v.hover || 0), left: (v.visFacing ?? v.facing ?? 1) < 0, back: typeof v._wantsBack === 'function' ? !!v._wantsBack() && !!v.entryBack : false, view: v, tilt: this._camTilt() };
+    // (fork) a graphic follow's offset (units.js UnitView.followGraphic): the drawn body and the points on it move by
+    // `gx` / `gy`; `ux` / `uy` / `uz` stay the unit's own place and height (`uz` without a take-off lift, which raises
+    // only the graphic holder: units.js UnitView.liftZ), where an effect its owner holds stays (playOn `keep`)
+    const ux = v.x, uy = v.y, z = (v.z || 0) + (v.hover || 0);
+    return { x: ux + (v.gx || 0), y: uy + (v.gy || 0), ux, uy, uz: z - (v.liftZ || 0), z, left: (v.visFacing ?? v.facing ?? 1) < 0, back: typeof v._wantsBack === 'function' ? !!v._wantsBack() && !!v.entryBack : false, view: v, tilt: this._camTilt() };
   }
 
   /** The battle camera's tilt (degrees from straight down), or undefined (mounts.js SKELETON_TILT). */
@@ -532,6 +538,7 @@ export class FxWiring {
       }
       if (u.startEffect) keys.add(u.startEffect);
       if (u.deadEffect) keys.add(u.deadEffect);
+      for (const k of indexGapKeys(this.unitKeyOf(v), this.idx)) keys.add(k);   // (fork) render/vfx/indexGaps.js
     }
     // the skill, talent and charge effects (render/vfx/skillfx.js keys: plans, the skills' projectiles, bindings) and the
     // talents' and abilities' (render/vfx/talentfx.js, index v3)
@@ -718,7 +725,7 @@ export class FxWiring {
     const stick = !!o.stick;
     if (!o.track && (P.follow || P.keep || stick || !def || def.direction || def.pause || def.onPlay?.length)) {
       let d = def;
-      const at0 = [pose.x, pose.y, pose.z], kept = new WeakMap(), chained = new Map();
+      const at0 = [pose.ux ?? pose.x, pose.uy ?? pose.y, pose.uz ?? pose.z], kept = new WeakMap(), chained = new Map();
       opts.track = (fx) => {
         if (!v || v.destroyed) return;
         if (!d) {
@@ -761,12 +768,21 @@ export class FxWiring {
           fx.groundZ = -(v.z || 0);
         } else if ((P.keep || Q.keep) && v.alive !== false) {
           // held by the unit: it moves with the unit, its offset from the feet as it started (the client holds such an
-          // effect on its owner: `_holdByOwner`) [ASSUMED]
+          // effect on its owner: `_holdByOwner`) [src: GameAssembly.dll Entity.HoldEffect RVA 0x726120: the effect's
+          // transform SetParent(Transform p) — world position kept, so its starting offset — to the entity's vtable slot
+          // 79 get_effectTransform (Unit._effectTransform, its prefab's `Effects` node: a child of the unit root beside
+          // `Graphic`; CN charpack char_1015_aglna2 Character._effectTransform)]
+          // (fork) So it follows the unit's own place and height, not its drawn body's: a graphic follow offsets only the
+          // graphic holder (GraphicFollowController.Tick RVA 0xAF6340 → Unit.RefreshGraphicHolderPosForFollow), and so
+          // does a take-off lift (Unit.SetGraphicHolderHeightOffset RVA 0xB1C110 → DoSetGraphicHolderHeight). 予愿安洁莉娜
+          // S2's ground wave (aglna2_skill_02_fly_range_01, `_holdByOwner` 1) stays on her tile and sweeps on at its own
+          // pace while she flies ahead (user, 2026-11-15)
           let at = kept.get(fx);
           if (!at) kept.set(fx, at = at0.slice());
-          fx.anchor[0] += p.x - at[0]; fx.anchor[1] += p.y - at[1];
-          fx.anchor[2] = P.onGround ? -(v.z || 0) : fx.anchor[2] - (p.z - at[2]);
-          at[0] = p.x; at[1] = p.y; at[2] = p.z;
+          const px = p.ux ?? p.x, py = p.uy ?? p.y, pz = p.uz ?? p.z;
+          fx.anchor[0] += px - at[0]; fx.anchor[1] += py - at[1];
+          fx.anchor[2] = P.onGround ? -(v.z || 0) : fx.anchor[2] - (pz - at[2]);
+          at[0] = px; at[1] = py; at[2] = pz;
           fx.groundZ = -(v.z || 0);
         }
         if (d && d.direction) {
@@ -1116,7 +1132,12 @@ export class FxWiring {
     const keysOf = (rows) => rows.flatMap((e) => this._rowKeys(e, src, nth).map((k) => ({ k, along: !!e.useOwnerToTargetDirection, speed })));
     const hits = keysOf(a?.hit || []);
     // the projectile: a ranged skill attack's own, else the mode's (a sub-ability's)
-    const pk = sk?.projectile || set?.projectileKey || null;
+    // (fork) a DuoRangedAttack (indexGaps.js DUO_PROJECTILES, the client's CreateProjectile: m_targetCount & 1): its
+    // odd-numbered targets of one attack fly its duo projectile
+    const tn = again ? (this.targetN.get(id) || 0) + 1 : 0;
+    this.targetN.set(id, tn);
+    const duo = !sk?.projectile && (tn & 1) ? DUO_PROJECTILES[this.unitKeyOf(src)] : null;
+    const pk = sk?.projectile || (duo && this.idx.projectiles[duo] ? duo : null) || set?.projectileKey || null;
     const proj = pk ? this.idx.projectiles[pk] : null;
     const isShot = kind && kind !== 'none';
     const tid = tgt ? tgt.id ?? tgt.info?.id : null;
@@ -1847,7 +1868,15 @@ export class FxWiring {
     const u = this.unitOf(v);
     const m = u ? this.mode(u, v) : null;
     const g = this.idx.generic?.die || {};
-    const key = lc(m?.overrideDeadEffect) || lc(u?.deadEffect) || (v.isEnemy ? g.enemy : g.char);
+    const own = lc(m?.overrideDeadEffect) || lc(u?.deadEffect);
+    // (fork) Tools 2: a death effect another unit's skill plays (indexGaps.js DEAD_EFFECTS), when that skill was its cause
+    const gap = !own ? DEAD_EFFECTS[this.unitKeyOf(v)] : null;
+    if (gap && this.skills.castNow(gap.by, gap.skills)) {
+      let drew = false;
+      for (const k of gap.keys) if (this.playOn(k, v, {})) drew = true;
+      if (drew) return true;
+    }
+    const key = own || (v.isEnemy ? g.enemy : g.char);
     return !!(key && this.playOn(key, v, {}));
   }
 
@@ -1910,6 +1939,7 @@ export class FxWiring {
     this.keyCache.clear();
     this.attackN.clear();
     this.castFrame.clear();
+    this.targetN.clear();
     this.skills.clear();
     this.talents.clear();
     this.funnels.clear();

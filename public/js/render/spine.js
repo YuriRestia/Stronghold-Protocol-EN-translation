@@ -75,9 +75,11 @@ const CAST_HOLD = 0.12;
  * wins. Ashlock: Attack01 is his cannon, Attack02 the shield bash (it animates F_weapon_dun). 领主 (lord): Attack is
  * the ranged shot (银灰's cane point with the eagle, user playtest 2026-10-12), Combat the melee; [ASSUMED] the same for
  * Qiubai (Attack / Combat_A), whose two clips animate the same bones. Agent (伊内丝 Ines): Attack / Skill_2_Attack throw
- * her shadow, Combat / Skill_2_Combat strike the enemy she blocks.
+ * her shadow, Combat / Skill_2_Combat strike the enemy she blocks. 予愿安洁莉娜 S3: Skill_3_Loop, Skill_3_Combat on the enemy she
+ * blocks (her charpack Modes/S3/Body/Combat; the only skeleton with both clips).
  */
-const MELEE_TWIN = Object.freeze({ Attack01: ['Attack02'], Attack: ['Combat', 'Combat_A'], Skill_2_Attack: ['Skill_2_Combat'] });
+const MELEE_TWIN = Object.freeze({ Attack01: ['Attack02'], Attack: ['Combat', 'Combat_A'], Skill_2_Attack: ['Skill_2_Combat'],
+  Skill_3_Loop: ['Skill_3_Combat'] });
 /** (fork) The other way round (SpineActor.shot 'ranged'): Thorns' manifest Attack_1 is his melee, Attack_2 the thrown
  *  shot (user playtest 2026-10-12). */
 const RANGED_TWIN = Object.freeze({ Attack_1: ['Attack_2'] });
@@ -818,9 +820,11 @@ export class SpineActor {
    * included); `change` = a transition clip played once first (also while stunned: the pose it ends in is the one a stun
    * then holds). `end` = { clip, in, roles? } (game s): a closing clip played the same way so that it ends `in` s from
    * now, landing in `roles` — a leader's 重生 ends on its last clip while the sim still holds it, and the next form
-   * starts on its own clips.
+   * starts on its own clips. (fork) `hold`: the change clip's last frame holds until the next setForm instead of
+   * the form's resting clip (予愿安洁莉娜 S2's Skill_2_Takeoff_End, which ends faded out high above her, goes straight on
+   * to the chant's `_afterEndAnim` Skill_2_Begin: a resting frame between them showed her for a frame).
    */
-  setForm(roles, change = null, end = null) {
+  setForm(roles, change = null, end = null, hold = false) {
     const anims = this._baseRoles();
     this.formRoles = roles || null;   // kept over a later skill slot (_applyRoles)
     this.roles = roles ? { ...anims, ...roles } : anims;
@@ -831,7 +835,8 @@ export class SpineActor {
       this.endAt = this.clock + Math.max(0, end.in - this.dur(end.clip));
       this.endRoles = end.roles || null;
     }
-    if (change && this.has(change)) this._change(change);
+    if (change && this.has(change)) this._change(change, hold);
+    else if (this.mode === 'change' && this.changeUntil === Infinity) { this.mode = 'base'; this._play(this._baseName(), true); }
     else if (this.mode === 'base') this._play(this._baseName(), true);
     else if (this.mode === 'stun' && this.has(this.roles.stun?.loop)) this._play(this.roles.stun.loop, true);
   }
@@ -873,13 +878,16 @@ export class SpineActor {
     this._posed = true;
   }
 
-  /** Play a form's transition clip once; attacks and the resting state wait for it (mode 'change'). */
-  _change(clip) {
+  /**
+   * Play a form's transition clip once; attacks and the resting state wait for it (mode 'change') — with `hold`, on its
+   * last frame until the next setForm.
+   */
+  _change(clip, hold = false) {
     if (this.mode !== 'change') this.stunWanted = this.mode === 'stun';
     this.frozen = false;
     this.mode = 'change';
     this._play(clip, false, { mix: 0.08 });
-    this.changeUntil = this.clock + this.dur(clip);
+    this.changeUntil = hold ? Infinity : this.clock + this.dur(clip);
   }
 
   has(name) { return !!name && this.names.has(name); }
@@ -1324,6 +1332,8 @@ export class SpineActor {
         const a = mode.down && this.has(this.roles.attackDown?.loop) ? this.roles.attackDown : this.roles.attack;
         if (this.has(a?.loop)) return a;
       } else if (this.has(mode?.animKey)) {
+        // (fork) the mode's own down clip, facing down (a verified `downKey`: 野鬃 S2's Skill_2_Down, §37.107)
+        if (mode.down && mode.downKey && this.has(mode.downKey)) return { begin: null, loop: mode.downKey, end: null };
         if (mode.animKey === sk?.loop) return sk; // keep a skill's own idle / End ownership
         return { begin: null, loop: mode.animKey, end: null };
       }
@@ -1364,6 +1374,7 @@ export class SpineActor {
   _skillOnceClip() {
     const sk = this.roles.skill;
     if (!sk || this.has(sk.begin) || this.has(sk.idle) || !this.has(sk.loop) || sk.via === 'attack') return null;
+    if (this._skillIsModeAttack()) return null;
     if (sk.loop === this.roles.attack?.loop || this._skillIsBuffOnly() || !this.entry?.hits?.[sk.loop]?.length) return null;
     return sk.loop;
   }
@@ -1388,6 +1399,16 @@ export class SpineActor {
   _skillIsBuffOnly() {
     const sk = this.roles.skill;
     return !!sk && sk.loop === this.roles.idle;
+  }
+
+  /**
+   * (fork) The skill clip is its switched mode's attack, not a cast (a verified `modeAttack` mapping, render/skillAttack.js:
+   * 野鬃 S2's Skill_2, §37.107): the skill's start plays no clip of its own, its attacks play it.
+   */
+  _skillIsModeAttack() {
+    const sk = this.roles.skill;
+    const mode = sk ? this.skillAttackMode?.() : null;
+    return !!mode?.modeAttack && mode.animKey === sk.loop;
   }
 
   /**
@@ -1446,7 +1467,8 @@ export class SpineActor {
         // then the skill's own idle until an attack plays its loop (community report #23); without one, the loop
         const next = this._skillIdle() || (this.has(sk.loop) ? this._shot(sk.loop) : null);
         if (next) this._queue(next, true);
-      } else if (!this.has(sk.idle) && this.has(sk.loop) && sk.via !== 'attack' && sk.loop !== this.roles.attack?.loop && !this._skillIsBuffOnly()) {
+      } else if (!this.has(sk.idle) && this.has(sk.loop) && sk.via !== 'attack' && sk.loop !== this.roles.attack?.loop && !this._skillIsBuffOnly()
+        && !this._skillIsModeAttack()) {
         // No Begin and no own Idle: the skill's clip IS its animation (德克萨斯 剑雨 — anims.skill {begin:null,
         // loop:'Skill', end:null}, the 2.17 s clip; 58 instant skills in all). Play it once for its own length. An
         // instant skill turns the flag off inside the same tick (sim skills.js fires 'skill' 1 and 0 together and only

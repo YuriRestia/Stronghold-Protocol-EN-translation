@@ -98,6 +98,12 @@ export function passengerBus(ab, camel = false) {
       }
     },
     tick(b, e, a) {
+      // (fork) Sand Voyager's passenger-count effect on the bus (DurbusAbility._passengerEffects[count - 1]:
+      // render/vfx/indexGaps.js durbus_passengers): display only, read when a snapshot is taken (Battle.fxProbe)
+      if (!camel && !a.fxProbed) {
+        a.fxProbed = true;
+        b.fxProbe(e, 'durbus_passengers', (u) => (u.alive && a.passengers.length ? Math.min(a.passengers.length, max) : false));
+      }
       // A carried enemy can still be removed by something that does not check `hidden`. It frees the seat.
       a.passengers = a.passengers.filter((p) => {
         if (p.alive && p.mem.carrier === e) return true;

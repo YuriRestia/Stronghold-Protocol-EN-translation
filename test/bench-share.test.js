@@ -37,3 +37,14 @@ test('sign test: exact two-sided values', () => {
   assert.ok(Math.abs(signTest(9, 1) - 0.021484375) < 1e-12);
   assert.ok(Math.abs(signTest(332, 272) - 0.01629) < 5e-5); // the evobot confirmation (ai-players/10)
 });
+
+test('--rules: the block records them, parse reads them back, merge keeps runs with other rules apart', () => {
+  const base = { commit: 'abc', config: 'solo:ABYSS', a: 'legacy', b: 'evobot', seed: 10, aBits: [1, 0, 1, 0], bBits: [1, 1, 0, 0] };
+  const tagged = formatBlock({ ...base, rules: 'ccJunk=2,ccSwift=1' });
+  const [p] = parseBlocks(tagged);
+  assert.equal(p.rules, 'ccJunk=2,ccSwift=1');
+  assert.equal(parseBlocks(formatBlock(base))[0].rules, null, 'no rules: none recorded');
+  const groups = merge(parseBlocks(`${tagged}\n${formatBlock(base)}`));
+  assert.equal(groups.length, 2, 'same seeds, different rules: two groups');
+  assert.ok(groups.some((g) => g.key.includes('rules=ccJunk=2,ccSwift=1')));
+});
