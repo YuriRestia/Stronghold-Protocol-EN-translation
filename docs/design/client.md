@@ -497,7 +497,7 @@ needs (`loadLater.js` whenScreenSettled, all the room's cards together) and afte
 code getting ready during that wait; a room card not ready shows its 2D art and switches when ready. A result card's
 one-shot entrance waits for its illustration instead (the user, 2026-11-23: "If an L2D is available, then it should wait
 for the l2d to be ready instead of rushing ahead with the static art, cause the animation there is only made to play
-once"): the team page's cards join one gate (`makeEntranceGate`), each settling once its illustration is live or failed
+once"): the team page's cards join one gate as they render, before any effect of the page (`makeEntranceGate`; joined in their effects, the page's own opened it empty first and a card fell in with its still art, its illustration coming in mid-fall — the user, 2026-11-23: "each card on the result screen should only be either live 2d or static"), each settling once its illustration is live or failed
 (or it has none), and every card's entrance starts from the gate's opening with the row's stagger, held on its first,
 unseen frame until then (`useCardEntrance` `gate`). Static art only for a card without an illustration, one that failed,
 or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending` (the user's OK of 2026-11-23); such
