@@ -605,8 +605,8 @@ by hand; a card finds its key from its operator and outfit without the renderer:
 picture is the client's own (`arts/ui/homebackground/wrapper/<bgId>.ab`: its `_left` and `_right` halves joined), a
 still with no effects at 1280 × 720 (the user: "just get the still image, no need effects … you can even use a low
 resolution version"), extracted by `tools/local-extract/homebg.py` with `--only dynillust` or `--only homebg` into the
-`homebg` group of data/local-assets.json — 24 backgrounds, 2.3 MB in all [src: work/dev-59 extract-test
-local-assets.json, 2026-11-23]; a card whose background the art pack lacks keeps its dark panel. It is cover-fitted at
+`homebg` group of data/local-assets.json — 24 backgrounds, 2.3 MB in all [src: work/dev-59
+homebg-manifest.json, 2026-11-23]; a card whose background the art pack lacks keeps its dark panel. It is cover-fitted at
 50 % / 55 % (`FILL.pos`), and the 2D art and the illustration cast a soft shadow over it, so a scene's torn edge sits on
 the background: the colour of the official still art's own edge shadow, near-black rgb(6, 10, 15) [src: official
 char_1013_chen2 E2 full art, its semi-transparent dark edge pixels, work/dev-59 shadow.cjs, 2026-11-23], blurred all
