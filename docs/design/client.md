@@ -571,8 +571,7 @@ that gave up shows `data-dyn="kept"`; the cards go
 one after another in page order, the result row's 0.083 s apart
 (`FLIP_STEP_S` = `_animDelay`; the user, 2026-11-22: "one player card at a time, in quick succession"). The official card
 has no switch from 2D to its illustration; this reuses its reveal. Without WebGL2, the sprites or under reduced motion,
-the 0.15 s controller fade (`FLIP_FADE_S`). A page not smooth `FLIP_GIVE_UP_MS` 3 s after the start keeps its 2D art and
-stops the illustrations, later cards on it too ("I reject low FPS L2D") [ASSUMED: proposed, not yet OK'd]. A failed card
+the 0.15 s controller fade (`FLIP_FADE_S`). A page not smooth `FLIP_GIVE_UP_MS` 3 s after the start ("I reject low FPS L2D"): every card but the viewer's own (`IllustArt own`) keeps its 2D art and stops, later cards of other players too; the own card, still hidden, gets a fresh 3 s alone and shows if it runs smooth, else it keeps its 2D art too and the page has given up (the user's rule of 2026-11-23: "still art for everyone else, and keep the animated l2d for yourself. If yourself isnt good enough after 3s as well, then still art for everyone"); a spectator, or a page without the viewer's card, keeps its 2D art at 3 s. The result screen has no low-FPS give-up (its cards wait only for their first frames, `makeEntranceGate`). A failed card
 (a download or build error, the renderer's `failed`) keeps its 2D and holds nobody. There is no time limit: a slow card
 holds the group however long it loads, and a slow link only switches the whole screen later, never one card after the
 others (the user's pick B of 2026-11-23; the 8 s cap before it, `GROUP_CAP_MS`, left a room on a 1 MB/s link on its 2D

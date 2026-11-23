@@ -636,8 +636,14 @@ export const gateWaitStore = createStore({ n: 0 });
  * show in one frame once FLIP_SMOOTH_FRAMES frames in a row took at most FLIP_SMOOTH_MS — never before. Showing is the
  * official card's dissolve (ui/cardEntrance.js drawDissolve): the illustration appears at once behind the 2D art and the
  * 2D art dissolves away through the card's mask over FLIP_DISSOLVE_S (the user's pick of 2026-11-22, proposal C). A page
- * that is not smooth FLIP_GIVE_UP_MS after the start keeps its 2D art and stops the illustrations ("I reject low FPS
- * L2D", the user, 2026-11-22). A card that swaps alone waits for its own smooth frames the same way.
+ * that is not smooth FLIP_GIVE_UP_MS after the start ("I reject low FPS L2D", the user, 2026-11-22): every card but the
+ * viewer's own keeps its 2D art and stops, and the own card (IllustArt `own`), still hidden, gets a fresh FLIP_GIVE_UP_MS
+ * alone to run smooth and show; if it does not, it keeps its 2D art too and the page has given up (the user, 2026-11-23:
+ * "if frame rate isnt good enough after 3s, then still art for everyone else, and keep the animated l2d for yourself. If
+ * yourself isnt good enough after 3s as well, then still art for everyone"). A spectator, or a page without the
+ * viewer's card, keeps its 2D art at the first give-up. Once the others stopped, a card of another player that swaps in
+ * alone later keeps its 2D art; one of the viewer's own still tries. A card that swaps alone waits for its own smooth
+ * frames the same way.
  */
 export const FLIP_FADE_S = 0.15; // the fallback without the dissolve: the controller's fade [src: official GameAssembly.dll UICharacterIllustController.Config..cctor 0x147EF10 fadeDuration 0.15]
 export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official GameAssembly.dll UICharacterDynIllust..ctor 0x1495060]
@@ -658,7 +664,7 @@ export const FLIP_STEP_S = ANIM_DELAY_S;
 /** A smooth frame: 30 fps, the flip's gate (no frame over 33 ms: the lead's brief of 2026-11-22), +1 ms of frame-timer jitter as the review page's gates allow [src: public/dev/dyn-review.js measure]. */
 export const FLIP_SMOOTH_MS = 1000 / 30 + 1;
 export const FLIP_SMOOTH_FRAMES = 10; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — about 0.17–0.33 s of smooth frames before the cards show]
-export const FLIP_GIVE_UP_MS = 3000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — the user's PC settled 0.06–0.28 s after the start; a 4× slower CPU never settles with 8 cards]
+export const FLIP_GIVE_UP_MS = 3000; // [ASSUMED: the user's PC settled 0.06–0.28 s after the start; user OK 2026-11-23 (in the lead's session): "i think if frame rate isnt good enough after 3s, then still art for everyone else, and keep the animated l2d for yourself. If yourself isnt good enough after 3s as well, then still art for everyone"]
 let group = null; // { entries: Set, flipped, timer, check, hold, wait, gaveUp }
 
 function startCard(e) { try { e.card?.start(); } catch (err) { console.warn('[dynillust] start', err); } }
@@ -781,7 +787,7 @@ function giveUpCard(e) { try { e.giveUp?.(); } catch (err) { console.warn('[dyni
  * FLIP_SMOOTH_MS and each has its dissolve prepared (`e.prepared`), or keep their 2D art FLIP_GIVE_UP_MS after the
  * start. The first interval measured is the start frame's own, so the count begins a frame later. Returns a cancel.
  */
-function whenSmooth(entries, onGiveUp) {
+function whenSmooth(entries, onGiveUp, onOthersOff) {
   let t0 = 0, last = 0, n = 0, smooth = 0, id = 0, done = false;
   // where the cards draw in Workers (render/dynillust/host.js), the main thread's frames say nothing about the cards':
   // each Worker's card frames must also run FLIP_SMOOTH_FRAMES in a row at FLIP_SMOOTH_MS or better (its frame log,
@@ -819,15 +825,32 @@ function whenSmooth(entries, onGiveUp) {
       cur.slice().sort(byPage).forEach((e, i) => showCard(e, i * FLIP_STEP_S * 1000));
       return;
     }
-    if (t0 && t - t0 >= FLIP_GIVE_UP_MS) { done = true; stopLog(); for (const e of cur) giveUpCard(e); onGiveUp?.(); return; }
+    if (t0 && t - t0 >= FLIP_GIVE_UP_MS) {
+      // not smooth in time: every card but the viewer's own keeps its 2D art; the own card, still hidden, gets a fresh
+      // FLIP_GIVE_UP_MS alone (the user, 2026-11-23: "still art for everyone else, and keep the animated l2d for yourself")
+      const own = cur.length > 1 ? cur.find((e) => e.own) : null;
+      if (own) {
+        for (const e of cur) if (e !== own) giveUpCard(e);
+        onOthersOff?.();
+        entries = [own];
+        t0 = 0; n = 0; smooth = 0; wsmooth.length = 0; workersOk = !st;
+        id = requestAnimationFrame(tick);
+        return;
+      }
+      // "If yourself isnt good enough after 3s as well, then still art for everyone"
+      done = true; stopLog(); for (const e of cur) giveUpCard(e); onGiveUp?.(); return;
+    }
     id = requestAnimationFrame(tick);
   };
   id = requestAnimationFrame(tick);
   return () => { if (!done) stopLog(); done = true; if (id) cancelAnimationFrame(id); };
 }
-/** A card on its own (after the flip): start it hidden and show it once smooth — or keep it 2D on a page that gave up. */
+/**
+ * A card on its own (after the flip): start it hidden and show it once smooth — or keep it 2D on a page that gave up,
+ * and, once the others were stopped for low FPS, any card but the viewer's own.
+ */
 function startAlone(e) {
-  if (e.group?.gaveUp) { giveUpCard(e); return; }
+  if (e.group?.gaveUp || (e.group?.othersOff && !e.own)) { giveUpCard(e); return; }
   startCard(e);
   e.wait = whenSmooth([e]);
 }
@@ -839,7 +862,7 @@ function flipGroup(g) {
     // one frame for all: every card is ready or failed by now; the ready ones start together (still hidden)
     const held = [];
     for (const e of g.entries) if (e.state === 'ready') { startCard(e); held.push(e); }
-    if (held.length) g.wait = whenSmooth(held, () => { g.gaveUp = true; });
+    if (held.length) g.wait = whenSmooth(held, () => { g.gaveUp = true; }, () => { g.othersOff = true; });
   });
 }
 function checkGroup(g) {
@@ -941,8 +964,9 @@ export function leaveGroup(e) {
  *   backdrop: the official card background behind the live illustration (BACKDROP; a tall card of the official shape)
  *   gate: the result page's entrance gate (makeEntranceGate): the card joins it, settles once live or failed, and at
  *   its give-up keeps its 2D art for good
+ *   own: the viewer's own room card: a room page too slow for every card keeps this one (whenSmooth)
  */
-export function IllustArt({ art, animate, wait = 'now', backdrop = false, framing = null, gate = null, class: cls = '', children }) {
+export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = false, framing = null, gate = null, class: cls = '', children }) {
   const on = !!(animate && art);
   const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
@@ -978,7 +1002,7 @@ export function IllustArt({ art, animate, wait = 'now', backdrop = false, framin
     setCovered(false);
     if (!on) return undefined;
     let card = null, live = true, kept = false, raf = 0, cur = 'loading', isCovered = false, trans = null;
-    const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false, prepared: false, show: (delay) => { if (live) showNow(delay); }, giveUp: () => keep2d() } : null;
+    const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false, own: !!own, prepared: false, show: (delay) => { if (live) showNow(delay); }, giveUp: () => keep2d() } : null;
     // a page that never got smooth: the card keeps its 2D art and its illustration stops (no low-FPS illustration)
     const keep2d = () => {
       if (!live || kept) return;

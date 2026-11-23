@@ -378,6 +378,60 @@ test('a stalled download (open, no byte for DOWNLOAD_STALL_MS) drops the cards s
   } finally { F.restore(); setDynModule(null); }
 });
 
+test('low FPS at 3 s: the others keep their 2D art and the viewer\'s own card gets 3 s alone; smooth, it shows', () => {
+  const F = fakeFrames();
+  try {
+    const shows = [], kept = [];
+    const mk = (n, own = false) => ({ card: { start() {} }, show: () => shows.push(n), giveUp: () => kept.push(n), state: 'loading', alone: false, own });
+    const me = mk('me', true), b = mk('b'), c = mk('c');
+    for (const e of [me, b, c]) joinGroup(e);
+    for (const e of [me, b, c]) groupState(e, 'ready');
+    F.tick(); F.tick();
+    // every frame 50 ms: never smooth for FLIP_GIVE_UP_MS
+    for (let ms = 0; ms <= FLIP_GIVE_UP_MS + 100; ms += 50) F.tick(50);
+    assert.deepEqual(kept.sort(), ['b', 'c'], 'everyone else keeps their still art');
+    assert.deepEqual(shows, [], 'the own card is still hidden');
+    // alone it runs smooth: it shows
+    for (let i = 0; i < 2 + FLIP_SMOOTH_FRAMES; i++) F.tick(16);
+    assert.deepEqual(shows, ['me'], 'the own card shows with its dissolve');
+    // a card of another player swapping in now keeps its still art
+    const d = mk('d');
+    joinGroup(d); groupState(d, 'ready');
+    assert.ok(kept.includes('d'));
+    for (const e of [me, b, c, d]) leaveGroup(e);
+  } finally { F.restore(); }
+});
+
+test('low FPS: the own card not smooth in its own 3 s either keeps its 2D art too; a spectator\'s page gives up at 3 s', () => {
+  const F = fakeFrames();
+  try {
+    const shows = [], kept = [];
+    const mk = (n, own = false) => ({ card: { start() {} }, show: () => shows.push(n), giveUp: () => kept.push(n), state: 'loading', alone: false, own });
+    const me = mk('me', true), b = mk('b');
+    for (const e of [me, b]) joinGroup(e);
+    for (const e of [me, b]) groupState(e, 'ready');
+    F.tick(); F.tick();
+    for (let ms = 0; ms <= FLIP_GIVE_UP_MS + 100; ms += 50) F.tick(50);
+    assert.deepEqual(kept, ['b']);
+    for (let ms = 0; ms <= FLIP_GIVE_UP_MS + 100; ms += 50) F.tick(50);
+    assert.deepEqual(kept, ['b', 'me'], 'still art for everyone');
+    assert.deepEqual(shows, []);
+    const late = mk('mine-later', true);
+    joinGroup(late); groupState(late, 'ready');
+    assert.ok(kept.includes('mine-later'), 'the page has given up: even the own card swapping in later keeps its still art');
+    for (const e of [me, b, late]) leaveGroup(e);
+    // a spectator: no own card, everyone at 3 s, as before
+    kept.length = 0;
+    const x = mk('x'), y = mk('y');
+    for (const e of [x, y]) joinGroup(e);
+    for (const e of [x, y]) groupState(e, 'ready');
+    F.tick(); F.tick();
+    for (let ms = 0; ms <= FLIP_GIVE_UP_MS + 100; ms += 50) F.tick(50);
+    assert.deepEqual(kept, ['x', 'y'], 'everyone keeps their still art at 3 s');
+    for (const e of [x, y]) leaveGroup(e);
+  } finally { F.restore(); }
+});
+
 test('the group shows only after FLIP_SMOOTH_FRAMES smooth frames in a row with its dissolve prepared; a page never smooth keeps its 2D art, later cards too', () => {
   const F = fakeFrames();
   try {
