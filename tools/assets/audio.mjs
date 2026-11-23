@@ -976,7 +976,22 @@ export const VOICE_SLOTS = Object.freeze({
   TWO_STAR: 'resultTwo',            // 非3星结束行动
   LOSE: 'resultLose',               // 行动失败
   GACHA: 'gacha',                   // 干员报到
+  // (fork) the lobby lines of the operators with an animated illustration (LOBBY_VOICE_SLOTS)
+  HOME_SHOW: 'talk',                // 交谈1-3, 晋升后交谈1-2, 信赖提升后交谈1-3
+  HOME_WAIT: 'idle',                // 闲置
+  GREETING: 'greeting',             // 问候
 });
+
+/**
+ * (fork) The room / Grand Alliance lobby lines (crew-docs/l2d-lobby-voice-proposal.md, the user's decisions of
+ * 2026-11-23), planned only for the voice sets of tools/assets/lobby-voice.json (the operators and outfits with an
+ * animated illustration): the chatter (交谈 talk + 闲置 idle, ui/lobbyVoice.js CHATTER_VOICE_SLOTS) and the lines a player
+ * joining with such a card says (JOIN_VOICE_SLOTS). 部署 `place` is a battle slot already.
+ */
+export const LOBBY_VOICE_SLOTS = Object.freeze(['talk', 'idle', 'greeting', 'squadFirst']);
+
+/** (fork) The join line is a random pick of 任命队长 / 部署 / 问候 (the user, 2026-11-23); their word counts cut it off. */
+export const JOIN_VOICE_SLOTS = Object.freeze(['squadFirst', 'place', 'greeting']);
 
 /**
  * The slots the client can actually request — the only ones `public/js/audio.js` ever asks for: 行动出发 start, 首次接敌

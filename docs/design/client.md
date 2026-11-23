@@ -670,6 +670,21 @@ the illustration and its art together; unlinked, the art's own placement (the ex
 `--separate` takes); Still-only arts (`&set=stills`) pages through the arts without an illustration. A static edit is a move / zoom on top of the art's generated placement
 (exported as `stills`). Prev / Next change the page without a reload, the illustrations of the page left behind
 freed (coming back to a freed page drew it black until the renderer's loader fix of 2026-11-23).
+(fork) **The cards talk** (`ui/lobbyVoice.js`, the user's decisions of 2026-11-23, crew-docs `l2d-lobby-voice-proposal.md`).
+In the room and the Grand Alliance room a card whose illustration is live on this screen (`data-dyn="live"`) speaks
+official home-screen lines in the player's voice language, per-operator pick and the card's outfit voice set (audio.js
+`voice`, `takeover`); a card showing its 2D art, a muted voice or a voice volume of 0 says nothing and downloads nothing.
+Chatter: the official home screen plays its 闲置 line after 120 s with no touch and no voice playing, a touch or any voice
+restarting the timer [src: official GameAssembly.dll HomeIllustView.Update RVA 0x1F36800: isFingerDown / VoiceManager.isPlaying → PeriodicTimer.Reset, else Reset(120.0f), LoadRandomCharData showType 2 HOME_WAIT];
+here after `CHATTER_QUIET_MS` 120 s of quiet plus a random 0–`CHATTER_JITTER_MS` 60 s, the card silent the longest says a
+random 交谈 or 闲置 line (never its last one), one card at most every `CARD_REST_MS` 300 s, one line at a time; a click, tap
+or key press (room chat typing too) restarts the quiet; nothing while the tab is hidden [ASSUMED: the random 0–60 s and the 300 s, user OK 2026-11-23].
+Joins: a player seated after the room opened says a random pick of 任命队长 / 部署 / 问候 as their card first goes live (the
+official home screen speaks as an animated illustration enters [src: official GameAssembly.dll HomeIllustView.PlayDynEntranceVoice RVA 0x1F35E00];
+the user's pick of the lines), one's own card once per room; the newest join cuts the line on air off with the official
+0.1 s fade once that one said about 2 of its words (2 ÷ its word count, `audio.voiceWords`, × the length of the file
+playing; the user's "by line length"), faster joins wait (at most 8), the last plays out, a chatter line is cut at once
+and any other voice makes the join skip [src: public/js/ui/lobbyVoice.js]. No server message: joins and cards come from `room.state`.
 (fork) **The result card's entrance** (`ui/cardEntrance.js`, the user's go of 2026-11-22) is the client's own: the clip
 `auto_chess_settle_game_player_item_show` (25 float curves, 1.31667 s — a legacy clip runs to its last key) played once,
 linearly, after the card's place in the row × `_animDelay` 0.083 s (`_PlayShowCardAnim`, GameAssembly.dll 0x28E0C60). It

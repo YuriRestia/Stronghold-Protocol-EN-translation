@@ -2270,10 +2270,12 @@ export class AudioManager {
    * @param {string} charId e.g. 'char_263_skadi'
    * @param {'start'|'faceEnemy'|'select'|'place'|'skill1'|'skill2'|'skill3'|'skill4'|'squad'|'squadFirst'
    *   |'resultFour'|'resultThree'|'resultTwo'|'resultLose'|'gacha'} slot
-   * @param {{ unitKey?: string|number|null, volume?: number, voiceKey?: string|null, line?: number, takeover?: boolean }} [o]
+   * @param {{ unitKey?: string|number|null, volume?: number, voiceKey?: string|null, line?: number, takeover?: boolean,
+   *   onStart?: (seconds: number) => void }} [o]
    *   `unitKey` = the cooldown key (a battle unit id); (fork) `line` = which of the slot's lines (voiceLine), `takeover`
-   *   = outside a battle (the Operator Loadout, ui/loadoutVoice.js): no VoiceGate, the newest line cuts the one on air off
-   * @returns {boolean} whether such a line exists and started
+   *   = outside a battle (the Operator Loadout, ui/loadoutVoice.js; the lobby, ui/lobbyVoice.js): no VoiceGate, the newest
+   *   line cuts the one on air off; `onStart` = called with the length (s) of the file that plays, as it starts
+   * @returns {boolean} whether such a line exists and started (decoding; `voiceToken` is the line's own)
    */
   voice(charId, slot, o = {}) {
     try {
@@ -2292,10 +2294,19 @@ export class AudioManager {
       if (verdict === 'preempt') this._stopVoice();
       this.voiceGate.start(slot, o.takeover ? null : o.unitKey ?? null, now);
       const token = ++this.voiceToken;
-      this._playVoice(line.url, token, o.volume, line.fallback, pick);
+      this._playVoice(line.url, token, o.volume, line.fallback, pick, typeof o.onStart === 'function' ? o.onStart : null);
       return true;
     } catch (err) { this._warn('voice', err); return false; }
   }
+
+  /** (fork) Whether a voice line holds the channel (decoding or playing): ui/lobbyVoice.js speaks only into silence. */
+  voiceBusy() { return !!this.voiceGate.playing; }
+
+  /** (fork) Whether the line started with `token` (`voiceToken` right after `voice` answered true) still holds the channel. */
+  voiceOnAir(token) { return !!this.voiceGate.playing && token === this.voiceToken; }
+
+  /** (fork) Fade the line of `token` out (the official 0.1 s, VOICE_XFADE_S) if it still holds the channel: leaving the lobby. */
+  stopVoice(token) { if (this.voiceOnAir(token)) this._stopVoice(); }
 
   /**
    * (fork) How many lines `slot` has in the set `voice` would draw it from: outfit voice set `voiceKey` (a string; the
@@ -2348,9 +2359,10 @@ export class AudioManager {
    * Fetch/decode and start one voice line through the voice channel. `fallback`: the line to play instead when this one
    * cannot be loaded (a JP file the host lacks → the Chinese file of the same name; voiceLine) — same token, same gate.
    * `again`: the slot's line picked from the manifest again — played instead (once) when this one was a cosmetic plugin's
-   * file that would not load (its entry fell back: see the header).
+   * file that would not load (its entry fell back: see the header). (fork) `onStart`: told the file's length (s) as it
+   * starts.
    */
-  _playVoice(url, token, volume, fallback = null, again = null) {
+  _playVoice(url, token, volume, fallback = null, again = null, onStart = null) {
     // `token` is the line's own `voiceToken`. Every deferred step below — the decode, a failed fetch, `onended` and the
     // safety timer — can land AFTER this line was taken over or stopped: `voiceToken` has moved on and the channel then
     // belongs to the line that replaced it. So each step re-checks its token and, when it is stale, touches NOTHING:
@@ -2360,8 +2372,8 @@ export class AudioManager {
     const failed = () => {
       if (token !== this.voiceToken) return;   // taken over / stopped meanwhile: not ours to release
       const next = again && this.fellBack.has(url) ? again() : null;
-      if (next && next.url !== url && this.ctx && this.voiceGain) this._playVoice(next.url, token, volume, next.fallback);
-      else if (fallback && fallback !== url && this.ctx && this.voiceGain) this._playVoice(fallback, token, volume);
+      if (next && next.url !== url && this.ctx && this.voiceGain) this._playVoice(next.url, token, volume, next.fallback, null, onStart);
+      else if (fallback && fallback !== url && this.ctx && this.voiceGain) this._playVoice(fallback, token, volume, null, null, onStart);
       else this.voiceGate.release();
     };
     this._buffer(url).then((buf) => {
@@ -2394,6 +2406,7 @@ export class AudioManager {
         setTimeout(end, (buf.duration + 0.3) * 1000); // safety if onended never fires
         src.start();
         this.voiceNode = node;
+        if (onStart) { try { onStart(buf.duration); } catch (err) { this._warn('voice-start', err); } }
       } catch (err) {
         this._warn('voice-play', err);
         if (token === this.voiceToken) this.voiceGate.release();

@@ -80,6 +80,7 @@ import { chessAvatarUrl, chessPortraitUrl, chessFullArtUrl } from '../ui/assetUr
 import { CARD_KEY, cardStore, setCard, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc, botCharId } from '../ui/seatArt.js';
 import { outfitOptsOf } from '../ui/outfits.js';
 import { IllustArt, CardArt, cardArtOf, cardAnimates, useDynIllustMode } from '../ui/dynCards.js';
+import { useLobbyVoice } from '../ui/lobbyVoice.js';
 import { useAvatarArt } from '../ui/avatars.js';
 import { AvatarPicker, useAvatarPickerReady } from '../ui/avatarPicker.js';
 import { skinsStore, SKINS_KEY, ownerSkin } from '../ui/skins.js';
@@ -379,7 +380,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
     ${!seat.isBot && !isMe && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `kick${index}`}
       onClick=${() => onKick(index, seat.name, seat.playerId)} title=${t('将该博士移出同盟')} aria-label=${t('移出该博士')}><${Icon} name="user" /><${Icon} name="close" /></button>` : null}`;
   return html`<article class=${`seat rseat${isMe ? ' is-me' : ''}${isHostSeat ? ' is-host' : ''}${seat.isBot ? ' is-bot' : ''}${art ? ' has-art' : ''}${lit ? ' is-lit' : ''}${flash ? ' is-flash' : ''} is-${state}`}
-      style=${`--i:${index}`}>
+      style=${`--i:${index}`} data-voice-seat=${seat.isBot ? undefined : seat.playerId}>
     ${wide && isHostSeat
       ? html`<span class="rseat__crown" role="img" aria-label=${t('创建者')} title=${t('创建者')}><${Icon} name="crown" /></span>`
       : html`<span class="rseat__clip" aria-hidden="true"></span>`}
@@ -710,6 +711,13 @@ export function RoomScreen() {
   useTicker(bubbles.size ? 500 : 0);
   // (fork) the wide cards' seat area, measured (room.css --rs-cw / --rs-ch): their width follows it
   const seatsRef = useSeatArea(!!room && room.mode !== 'solo');
+  // (fork) the animated cards' lobby voices (ui/lobbyVoice.js): the seats whose card plays its illustration on this screen
+  const voiceCards = room ? normalizeSeats(room).map((s) => {
+    if (!s || s.isBot || !s.playerId) return null;
+    const op = seatOperator(s, cards, { myId: me.playerId, myCard });
+    return op && cardAnimates(dynMode, s.playerId === me.playerId) ? { id: String(s.playerId), charId: op.chess.charId, ownerId: s.playerId } : null;
+  }).filter(Boolean) : [];
+  useLobbyVoice({ roomCode: room?.code || null, cards: voiceCards, myId: me.playerId != null ? String(me.playerId) : null, seatsRef });
   if (!room) return null;
   const chatOn = !room.chatOff;
   const online = conn.status === 'online';

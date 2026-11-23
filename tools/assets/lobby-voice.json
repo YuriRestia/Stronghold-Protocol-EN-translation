@@ -1,0 +1,1055 @@
+{
+  "about": "Voice sets with lobby lines (the animated illustrations of data/local-assets.json dynillust) and the word counts of their join lines. Written by tools/assets/lobby-voice.mjs; read by tools/fetch-assets.mjs.",
+  "keys": {
+    "char_003_kalts": {
+      "words": {
+        "squadFirst": [
+          9
+        ],
+        "place": [
+          4,
+          3
+        ],
+        "greeting": [
+          1
+        ]
+      }
+    },
+    "char_003_kalts_boc#6": {
+      "words": {
+        "squadFirst": [
+          12
+        ],
+        "place": [
+          3,
+          1
+        ],
+        "greeting": [
+          8
+        ]
+      }
+    },
+    "char_1012_skadi2": {
+      "words": {
+        "squadFirst": [
+          6
+        ],
+        "place": [
+          9,
+          7
+        ],
+        "greeting": [
+          4
+        ]
+      }
+    },
+    "char_1012_skadi2_iteration#2": {
+      "words": {
+        "squadFirst": [
+          14
+        ],
+        "place": [
+          8,
+          4
+        ],
+        "greeting": [
+          7
+        ]
+      }
+    },
+    "char_1013_chen2": {
+      "words": {
+        "squadFirst": [
+          10
+        ],
+        "place": [
+          7,
+          2
+        ],
+        "greeting": [
+          4
+        ]
+      }
+    },
+    "char_1014_nearl2": {
+      "words": {
+        "squadFirst": [
+          7
+        ],
+        "place": [
+          5,
+          5
+        ],
+        "greeting": [
+          7
+        ]
+      }
+    },
+    "char_1015_aglna2": {
+      "words": {
+        "squadFirst": [
+          16
+        ],
+        "place": [
+          2,
+          2
+        ],
+        "greeting": [
+          17
+        ]
+      }
+    },
+    "char_1016_agoat2": {
+      "words": {
+        "squadFirst": [
+          11
+        ],
+        "place": [
+          12,
+          9
+        ],
+        "greeting": [
+          29
+        ]
+      }
+    },
+    "char_1016_agoat2_epoque#34": {
+      "words": {
+        "squadFirst": [
+          9
+        ],
+        "place": [
+          7,
+          6
+        ],
+        "greeting": [
+          18
+        ]
+      }
+    },
+    "char_1016_agoat2_epoque#57": {
+      "words": {
+        "squadFirst": [
+          12
+        ],
+        "place": [
+          16,
+          16
+        ],
+        "greeting": [
+          12
+        ]
+      }
+    },
+    "char_1019_siege2": {
+      "words": {
+        "squadFirst": [
+          9
+        ],
+        "place": [
+          5,
+          9
+        ],
+        "greeting": [
+          17
+        ]
+      }
+    },
+    "char_1020_reed2": {
+      "words": {
+        "squadFirst": [
+          22
+        ],
+        "place": [
+          4,
+          6
+        ],
+        "greeting": [
+          7
+        ]
+      }
+    },
+    "char_1023_ghost2": {
+      "words": {
+        "squadFirst": [
+          17
+        ],
+        "place": [
+          6,
+          7
+        ],
+        "greeting": [
+          9
+        ]
+      }
+    },
+    "char_1026_gvial2": {
+      "words": {
+        "squadFirst": [
+          16
+        ],
+        "place": [
+          5,
+          11
+        ],
+        "greeting": [
+          9
+        ]
+      }
+    },
+    "char_1028_texas2": {
+      "words": {
+        "squadFirst": [
+          11
+        ],
+        "place": [
+          6,
+          7
+        ],
+        "greeting": [
+          15
+        ]
+      }
+    },
+    "char_1032_excu2": {
+      "words": {
+        "squadFirst": [
+          10
+        ],
+        "place": [
+          3,
+          8
+        ],
+        "greeting": [
+          5
+        ]
+      }
+    },
+    "char_1032_excu2_sale#12": {
+      "words": {
+        "squadFirst": [
+          3
+        ],
+        "place": [
+          2,
+          2
+        ],
+        "greeting": [
+          13
+        ]
+      }
+    },
+    "char_1035_wisdel": {
+      "words": {
+        "squadFirst": [
+          12
+        ],
+        "place": [
+          10,
+          9
+        ],
+        "greeting": [
+          14
+        ]
+      }
+    },
+    "char_1035_wisdel_sale#14": {
+      "words": {
+        "squadFirst": [
+          15
+        ],
+        "place": [
+          10,
+          12
+        ],
+        "greeting": [
+          12
+        ]
+      }
+    },
+    "char_1038_whitw2": {
+      "words": {
+        "squadFirst": [
+          4
+        ],
+        "place": [
+          9,
+          15
+        ],
+        "greeting": [
+          7
+        ]
+      }
+    },
+    "char_1038_whitw2_sale#15": {
+      "words": {
+        "squadFirst": [
+          11
+        ],
+        "place": [
+          8,
+          9
+        ],
+        "greeting": [
+          11
+        ]
+      }
+    },
+    "char_1039_thorn2": {
+      "words": {
+        "squadFirst": [
+          11
+        ],
+        "place": [
+          10,
+          12
+        ],
+        "greeting": [
+          9
+        ]
+      }
+    },
+    "char_1041_angel2": {
+      "words": {
+        "squadFirst": [
+          41
+        ],
+        "place": [
+          17,
+          19
+        ],
+        "greeting": [
+          5
+        ]
+      }
+    },
+    "char_1041_angel2_iteration#6": {
+      "words": {
+        "squadFirst": [
+          13
+        ],
+        "place": [
+          5,
+          8
+        ],
+        "greeting": [
+          5
+        ]
+      }
+    },
+    "char_1042_phatm2": {
+      "words": {
+        "squadFirst": [
+          11
+        ],
+        "place": [
+          3,
+          9
+        ],
+        "greeting": [
+          10
+        ]
+      }
+    },
+    "char_1044_hsgma2": {
+      "words": {
+        "squadFirst": [
+          19
+        ],
+        "place": [
+          9,
+          8
+        ],
+        "greeting": [
+          20
+        ]
+      }
+    },
+    "char_1045_svash2": {
+      "words": {
+        "squadFirst": [
+          6
+        ],
+        "place": [
+          5,
+          4
+        ],
+        "greeting": [
+          7
+        ]
+      }
+    },
+    "char_1045_svash2_sale#20": {
+      "words": {
+        "squadFirst": [
+          7
+        ],
+        "place": [
+          6,
+          8
+        ],
+        "greeting": [
+          27
+        ]
+      }
+    },
+    "char_1046_sbell2": {
+      "words": {
+        "squadFirst": [
+          7
+        ],
+        "place": [
+          3,
+          5
+        ],
+        "greeting": [
+          43
+        ]
+      }
+    },
+    "char_1052_kalts2": {
+      "words": {
+        "squadFirst": [
+          2
+        ],
+        "place": [
+          5,
+          8
+        ],
+        "greeting": [
+          5
+        ]
+      }
+    },
+    "char_113_cqbw": {
+      "words": {
+        "squadFirst": [
+          10
+        ],
+        "place": [
+          7,
+          9
+        ],
+        "greeting": [
+          14
+        ]
+      }
+    },
+    "char_113_cqbw_epoque#7": {
+      "words": {
+        "squadFirst": [
+          11
+        ],
+        "place": [
+          9,
+          9
+        ],
+        "greeting": [
+          3
+        ]
+      }
+    },
+    "char_172_svrash": {
+      "words": {
+        "squadFirst": [
+          18
+        ],
+        "place": [
+          1,
+          2
+        ],
+        "greeting": [
+          7
+        ]
+      }
+    },
+    "char_179_cgbird": {
+      "words": {
+        "squadFirst": [
+          8
+        ],
+        "place": [
+          4,
+          7
+        ],
+        "greeting": [
+          3
+        ]
+      }
+    },
+    "char_2014_nian": {
+      "words": {
+        "squadFirst": [
+          14
+        ],
+        "place": [
+          15,
+          6
+        ],
+        "greeting": [
+          6
+        ]
+      }
+    },
+    "char_2015_dusk": {
+      "words": {
+        "squadFirst": [
+          6
+        ],
+        "place": [
+          9,
+          10
+        ],
+        "greeting": [
+          7
+        ]
+      }
+    },
+    "char_2023_ling": {
+      "words": {
+        "squadFirst": [
+          16
+        ],
+        "place": [
+          8,
+          10
+        ],
+        "greeting": [
+          5
+        ]
+      }
+    },
+    "char_2023_ling_nian#12": {
+      "words": {
+        "squadFirst": [
+          8
+        ],
+        "place": [
+          14,
+          14
+        ],
+        "greeting": [
+          16
+        ]
+      }
+    },
+    "char_2024_chyue": {
+      "words": {
+        "squadFirst": [
+          14
+        ],
+        "place": [
+          11,
+          21
+        ],
+        "greeting": [
+          11
+        ]
+      }
+    },
+    "char_2024_chyue_cfa#1": {
+      "words": {
+        "squadFirst": [
+          15
+        ],
+        "place": [
+          8,
+          8
+        ],
+        "greeting": [
+          13
+        ]
+      }
+    },
+    "char_2025_shu": {
+      "words": {
+        "squadFirst": [
+          5
+        ],
+        "place": [
+          9,
+          11
+        ],
+        "greeting": [
+          23
+        ]
+      }
+    },
+    "char_2026_yu": {
+      "words": {
+        "squadFirst": [
+          9
+        ],
+        "place": [
+          12,
+          11
+        ],
+        "greeting": [
+          15
+        ]
+      }
+    },
+    "char_2027_wang": {
+      "words": {
+        "squadFirst": [
+          9
+        ],
+        "place": [
+          14,
+          7
+        ],
+        "greeting": [
+          14
+        ]
+      }
+    },
+    "char_202_demkni": {
+      "words": {
+        "squadFirst": [
+          9
+        ],
+        "place": [
+          1,
+          1
+        ],
+        "greeting": [
+          4
+        ]
+      }
+    },
+    "char_245_cello": {
+      "words": {
+        "squadFirst": [
+          15
+        ],
+        "place": [
+          4,
+          4
+        ],
+        "greeting": [
+          26
+        ]
+      }
+    },
+    "char_245_cello_sale#12": {
+      "words": {
+        "squadFirst": [
+          15
+        ],
+        "place": [
+          6,
+          6
+        ],
+        "greeting": [
+          18
+        ]
+      }
+    },
+    "char_249_mlyss": {
+      "words": {
+        "squadFirst": [
+          7
+        ],
+        "place": [
+          3,
+          2
+        ],
+        "greeting": [
+          11
+        ]
+      }
+    },
+    "char_249_mlyss_boc#8": {
+      "words": {
+        "squadFirst": [
+          13
+        ],
+        "place": [
+          8,
+          6
+        ],
+        "greeting": [
+          15
+        ]
+      }
+    },
+    "char_250_phatom": {
+      "words": {
+        "squadFirst": [
+          7
+        ],
+        "place": [
+          5,
+          6
+        ],
+        "greeting": [
+          11
+        ]
+      }
+    },
+    "char_322_lmlee": {
+      "words": {
+        "squadFirst": [
+          21
+        ],
+        "place": [
+          7,
+          10
+        ],
+        "greeting": [
+          16
+        ]
+      }
+    },
+    "char_332_archet": {
+      "words": {
+        "squadFirst": [
+          24
+        ],
+        "place": [
+          4,
+          5
+        ],
+        "greeting": [
+          6
+        ]
+      }
+    },
+    "char_350_surtr": {
+      "words": {
+        "squadFirst": [
+          4
+        ],
+        "place": [
+          4,
+          3
+        ],
+        "greeting": [
+          4
+        ]
+      }
+    },
+    "char_377_gdglow": {
+      "words": {
+        "squadFirst": [
+          9
+        ],
+        "place": [
+          7,
+          4
+        ],
+        "greeting": [
+          7
+        ]
+      }
+    },
+    "char_391_rosmon": {
+      "words": {
+        "squadFirst": [
+          26
+        ],
+        "place": [
+          4,
+          13
+        ],
+        "greeting": [
+          5
+        ]
+      }
+    },
+    "char_4010_etlchi": {
+      "words": {
+        "squadFirst": [
+          9
+        ],
+        "place": [
+          9,
+          12
+        ],
+        "greeting": [
+          26
+        ]
+      }
+    },
+    "char_4055_bgsnow": {
+      "words": {
+        "squadFirst": [
+          25
+        ],
+        "place": [
+          6,
+          4
+        ],
+        "greeting": [
+          16
+        ]
+      }
+    },
+    "char_4058_pepe": {
+      "words": {
+        "squadFirst": [
+          14
+        ],
+        "place": [
+          13,
+          15
+        ],
+        "greeting": [
+          2
+        ]
+      }
+    },
+    "char_4064_mlynar": {
+      "words": {
+        "squadFirst": [
+          2
+        ],
+        "place": [
+          10,
+          6
+        ],
+        "greeting": [
+          3
+        ]
+      }
+    },
+    "char_4064_mlynar_epoque#28": {
+      "words": {
+        "squadFirst": [
+          2
+        ],
+        "place": [
+          10,
+          7
+        ],
+        "greeting": [
+          27
+        ]
+      }
+    },
+    "char_4080_lin": {
+      "words": {
+        "squadFirst": [
+          18
+        ],
+        "place": [
+          5,
+          6
+        ],
+        "greeting": [
+          9
+        ]
+      }
+    },
+    "char_4087_ines": {
+      "words": {
+        "squadFirst": [
+          15
+        ],
+        "place": [
+          5,
+          2
+        ],
+        "greeting": [
+          27
+        ]
+      }
+    },
+    "char_4098_vvana": {
+      "words": {
+        "squadFirst": [
+          21
+        ],
+        "place": [
+          11,
+          6
+        ],
+        "greeting": [
+          23
+        ]
+      }
+    },
+    "char_4116_blkkgt": {
+      "words": {
+        "squadFirst": [
+          10
+        ],
+        "place": [
+          7,
+          6
+        ],
+        "greeting": [
+          10
+        ]
+      }
+    },
+    "char_4121_zuole": {
+      "words": {
+        "squadFirst": [
+          23
+        ],
+        "place": [
+          12,
+          9
+        ],
+        "greeting": [
+          13
+        ]
+      }
+    },
+    "char_4132_ascln": {
+      "words": {
+        "squadFirst": [
+          11
+        ],
+        "place": [
+          5,
+          5
+        ],
+        "greeting": [
+          19
+        ]
+      }
+    },
+    "char_4133_logos": {
+      "words": {
+        "squadFirst": [
+          4
+        ],
+        "place": [
+          3,
+          5
+        ],
+        "greeting": [
+          35
+        ]
+      }
+    },
+    "char_4134_cetsyr": {
+      "words": {
+        "squadFirst": [
+          9
+        ],
+        "place": [
+          4,
+          10
+        ],
+        "greeting": [
+          5
+        ]
+      }
+    },
+    "char_4134_cetsyr_epoque#50": {
+      "words": {
+        "squadFirst": [
+          8
+        ],
+        "place": [
+          13,
+          10
+        ],
+        "greeting": [
+          25
+        ]
+      }
+    },
+    "char_4179_monstr": {
+      "words": {
+        "squadFirst": [
+          21
+        ],
+        "place": [
+          3,
+          2
+        ],
+        "greeting": [
+          1
+        ]
+      }
+    },
+    "char_4202_haruka": {
+      "words": {
+        "squadFirst": [
+          13
+        ],
+        "place": [
+          8,
+          10
+        ],
+        "greeting": [
+          11
+        ]
+      }
+    },
+    "char_4247_oxi": {
+      "words": {
+        "squadFirst": [
+          18
+        ],
+        "place": [
+          8,
+          8
+        ],
+        "greeting": [
+          8
+        ]
+      }
+    },
+    "char_437_mizuki": {
+      "words": {
+        "squadFirst": [
+          16
+        ],
+        "place": [
+          7,
+          8
+        ],
+        "greeting": [
+          5
+        ]
+      }
+    },
+    "char_450_necras": {
+      "words": {
+        "squadFirst": [
+          11
+        ],
+        "place": [
+          4,
+          5
+        ],
+        "greeting": [
+          7
+        ]
+      }
+    },
+    "char_472_pasngr": {
+      "words": {
+        "squadFirst": [
+          19
+        ],
+        "place": [
+          5,
+          3
+        ],
+        "greeting": [
+          3
+        ]
+      }
+    },
+    "char_472_pasngr_epoque#17": {
+      "words": {
+        "squadFirst": [
+          14
+        ],
+        "place": [
+          7,
+          7
+        ],
+        "greeting": [
+          37
+        ]
+      }
+    }
+  }
+}

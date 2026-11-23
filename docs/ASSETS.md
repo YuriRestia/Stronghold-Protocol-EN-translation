@@ -316,6 +316,25 @@ they go to the server with the art upload like any other file under `public/asse
 whose file is on disk whether or not the mirror has it. Review the `data/assets.json` diff before committing: a run
 also adds anything else the plan wants but has never been fetched.
 
+### Lobby voice lines of the animated cards (fork)
+
+The room's animated cards speak official home-screen lines (design/client.md §10 "The cards talk"). Which voice sets
+get them is the committed `tools/assets/lobby-voice.json`, never the disk: the base charId of every illustration in the
+`dynillust` group of `data/local-assets.json` and the word key of every illustrated outfit with its own voice set
+(`data/outfits.json voice`), with the word counts of their join lines (`audio.voiceWords`). After the illustrations
+were re-extracted, rewrite it (the EN gamedata's charword_table gives the English word counts):
+
+```sh
+node tools/assets/lobby-voice.mjs [--en <ArknightsGamedata>/en/gamedata/excel/charword_table.json]
+node tools/assets/lobby-voice.mjs --check     # exit 1 when the committed file is stale
+node tools/fetch-assets.mjs --add-only        # downloads the new lines, every dub, and adds them to data/assets.json
+```
+
+The lines come from the same mirror folders as the battle lines (`voice_cn/`, `voice/`, `voice_en/`, `voice_kr/`,
+`voice_custom/`); English gaps are filled by `voice.py` as above. They sit in the voice packs' folders, so the
+preloader's voice pack and the full release zip carry them with the dub (`shared/resources.js packOf`,
+`tools/package.mjs`).
+
 ### Re-extracting scenes after an update
 
 Scene extraction version **4** removes complete, exact redundant renderers (GitHub #684, DESIGN §34.24).
@@ -524,7 +543,15 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                            // out (an operator with none has no entry), never an empty array. Only these twelve ever play (DESIGN §21.30): the
                            // prep-only slots 干员报到 / 编入队伍 / 任命队长 are left out of the plan by default —
                            // nothing requests them and they cost 360 files (19.3 MB) per run — and `--voice-all` adds
-                           // them (audio.mjs VOICE_PREP_SLOTS) for the complete official set
+                           // them (audio.mjs VOICE_PREP_SLOTS) for the complete official set.
+                           // (fork) The voice sets of tools/assets/lobby-voice.json — the operators and outfits with an
+                           // animated illustration, 58 + 17 — also carry the lobby lines (audio.mjs LOBBY_VOICE_SLOTS):
+                           // talk (交谈, 8), idle (闲置), greeting (问候), squadFirst (任命队长); public/js/ui/lobbyVoice.js
+                           // plays them in the room (design/client.md §10 "The cards talk")
+    voiceWords?: { [charId or word key]: { squadFirst?: number[], place?: number[], greeting?: number[] } },
+                           // (fork) the official text's word count of each join line, in voiceIndex order (English
+                           // text first, else Chinese; Intl.Segmenter): a join line is cut off after 2 of its words
+                           // when the next player's comes in (tools/assets/lobby-voice.mjs)
     voiceJp: { [charId]: { …the slots of `voice` } },
                            // the Japanese dub (0.2.2, the owner's request 「全套的日配语音」): the same slots, lines and file
                            // names as `voice`, under /assets/audio/voice/jp/ (AA2 `voice/`). The client plays it when the

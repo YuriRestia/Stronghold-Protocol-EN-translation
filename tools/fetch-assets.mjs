@@ -441,8 +441,10 @@ async function main() {
   const all = presentationUnion(versionSets);
   log(`[versions] planning presentation for ${versionSets.length} official versions`);
   // fork (docs/OUTFITS.md): the outfits of tools/build-outfits.mjs and the default version's roster + 自选编队
-  const [dataBackups, dataChess, dataOutfits] = await Promise.all(
-    ['data/backups.json', 'data/chess.json', 'data/outfits.json'].map((f) => readJson(f).catch(() => null)));
+  // (fork) the voice sets with lobby lines (the animated illustrations' operators and outfits) and their join lines' word
+  // counts: the committed tools/assets/lobby-voice.json (tools/assets/lobby-voice.mjs), never the disk's extraction
+  const [dataBackups, dataChess, dataOutfits, lobbyVoice] = await Promise.all(
+    ['data/backups.json', 'data/chess.json', 'data/outfits.json', 'tools/assets/lobby-voice.json'].map((f) => readJson(f).catch(() => null)));
   const extraHandbook = {};
   for (const d of versionSets) for (const b of Object.values(d.bosses || {})) {
     if (b?.enemyKey && typeof b.handbookId === 'string') extraHandbook[b.enemyKey] ??= b.handbookId;
@@ -455,6 +457,7 @@ async function main() {
     // default: only the slots a battle can play (plan.mjs VOICE_BATTLE_SLOTS); --voice-all takes the whole official set
     voiceSlots: opts.voiceAll ? null : undefined,
     optionalVoice: opts.optionalVoice,
+    lobbyVoice,
     extraEnemyIds: Object.keys(all.enemies),
     extraTokenIds: Object.keys(all.tokens),
     extraHandbook,
