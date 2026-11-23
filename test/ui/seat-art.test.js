@@ -285,7 +285,8 @@ test('a co-op room\'s wide card (the user\'s layout I, 2026-11-22): nothing over
   assert.match(roomJs, /\$\{wide \? null : seatBtns\}/);
   // the wide card's framing per illustration (data/dyn-card-framing.json, the face-aware zoom); `own`: the viewer's card,
   // which a too-slow room keeps animated (dynCards.js whenSmooth, the user's rule of 2026-11-23)
-  assert.match(roomJs, /wait="settled" own=\$\{isMe\} backdrop=\$\{!wide\} framing=\$\{wide \? 'cover' : null\} class="rseat__dyn"/);
+  // `fill`: the wide card's official home background behind its art (dynCards.js FILL, the user's picks of 2026-11-23)
+  assert.match(roomJs, /wait="settled" own=\$\{isMe\} backdrop=\$\{!wide\} fill=\$\{wide\} framing=\$\{wide \? 'cover' : null\} class="rseat__dyn"/);
   // its 2D art: the full art where the illustration draws (CardArt, data/card-art-framing.json), the portrait as fallback;
   // the default's full art once the outfit's picture gave way
   assert.match(roomJs, /const fullSrc = wide && art \? \(art === portrait \? fullArt : fullArtDefault\) : null;/);

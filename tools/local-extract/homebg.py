@@ -12,7 +12,8 @@ Written:
   homebg/<bgId>.webp                         the two halves joined, then cover-scaled to 1280 x 720 (lossy WebP q80): a
                                              still filler, no effects (the user, 2026-11-23: "just get the still image,
                                              no need effects ... you can even use a low resolution version")
-  manifest group `homebg`: bgId -> { path, w, h, kind: 'HomeBg' }
+  manifest group `homebg`: bgId -> { path, w, h, kind: 'HomeBg', webp: 'lossy' } (a WebP-only folder, no PNG beside it:
+                                             extract.py DIRECT_WEBP lists it)
 Only the backgrounds data/dyn-card-background.json uses. Caps: 40 files, 40 MB written, 10 min; over a cap the run
 deletes what it wrote this run and stops with an error.
 """
@@ -108,7 +109,8 @@ def export_homebg(ab_root, out_root, manifest, log, root, ids=None):
             (out_dir / fname).write_bytes(data)
             written.append(out_dir / fname)
             manifest.setdefault(HOMEBG_SUB, {})[bg_id] = {
-                'path': f'/assets/local/{HOMEBG_SUB}/{fname}', 'w': HOMEBG_SIZE[0], 'h': HOMEBG_SIZE[1], 'kind': 'HomeBg'}
+                'path': f'/assets/local/{HOMEBG_SUB}/{fname}', 'w': HOMEBG_SIZE[0], 'h': HOMEBG_SIZE[1], 'kind': 'HomeBg',
+                'webp': 'lossy'}
             log(f'homebg: {bg_id} {len(data)} B')
     except Exception:
         for f in written:

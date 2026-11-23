@@ -390,8 +390,9 @@ GUIDE_WEBP_OPTIONS = {
 
 # (fork) Output subdirs whose sprites are written straight as WebP, with no PNG beside them (every file under
 # public/assets is in the preload manifest and zip): the 200 profile icons, 7.7 MB of PNG → 1.8 MB at lossy quality 90,
-# the user's choice of 2026-11-08 after a side-by-side comparison at 2×.
-DIRECT_WEBP = {'avatar': GUIDE_WEBP_OPTIONS['lossy']}
+# the user's choice of 2026-11-08 after a side-by-side comparison at 2×. (fork) `homebg` (homebg.py, the wide room cards'
+# home backgrounds) writes its own WebP files (q80, 1280 x 720) and is listed so the manifest's checks know it has no PNG.
+DIRECT_WEBP = {'avatar': GUIDE_WEBP_OPTIONS['lossy'], 'homebg': GUIDE_WEBP_OPTIONS['lossy']}
 
 # Shader bundles loaded beside every job that exports Materials, only so that the materials' shader references
 # (external CABs) resolve to a name in materials.json (e.g. Torappu/Scene/StandardDirectional); nothing is exported

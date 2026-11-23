@@ -30,7 +30,6 @@ import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
 import { loadDissolve, dissolveMaskUrl, artPlacement, paintBackgroundStyle, paintCover, scaleFilterPx, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, BLOOM, GLOW, sweepRange, ANIM_DELAY_S } from './cardEntrance.js';
-import { assets } from '../assets.js';
 import { findDynIllustKey } from '../render/dynillust/key.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
@@ -214,6 +213,8 @@ export function loadCardBackgrounds() {
 /** The home background URL of a card's art ({ charId, outfit }), or null: none picked, or the art pack lacks it. */
 export async function cardBackground(art) {
   if (!art?.charId) return null;
+  // the asset store loads only when it is needed, never with the page's start (test/ui/plugins-client.test.js)
+  const { assets } = await import('../assets.js');
   const [, m] = await Promise.all([loadCardBackgrounds(), assets.local().catch(() => null)]);
   const key = findDynIllustKey(m?.groups?.dynillust, art.charId, art.outfit || null);
   const bg = key ? fillTable?.get(key) : null;
