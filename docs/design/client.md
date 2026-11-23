@@ -530,7 +530,7 @@ and mask, additive on a canvas with `mix-blend-mode: plus-lighter`; the user's d
 bloom that moves on the boundary between old and new, … leaving the entire card artwork white glow before the glow fades
 away into the live2D"): a bright band on the dissolve's edge (the official `color_mask` layer's band construction: mask ×
 inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone
-[ASSUMED: the band's width and brightness, the glow and its fade, tuned to the user's descriptions]. No particles: the
+[ASSUMED: the band's width and brightness, the glow and its fade, tuned to the user's descriptions; user OK 2026-11-23: "Look 5 settings is okay, approved."]. No particles: the
 glitter that once fell from the border, on a page-wide layer, was dropped (the user, 2026-11-23: "you may remove the
 glitter particles, it's useless now"). The border's look is one of `GLOW_STYLES` (the user, 2026-11-23: the white glow
 "drowns out any particle effect"; proposals for the user's pick, the review page's `&glow=0…4`, 0 the one above): 1 a
@@ -542,7 +542,7 @@ line?", "good enough for now"): the old picture dims to 75 % over 0.2 s, then on
 (`#4ed8af`) rim sweeps it away over a faint mint wash. One line: the bands and the
 dissolve read a smoothed copy of the official mask (box-blurred, 15 % of the raw mask kept, a half-float texture),
 since the raw mask's noise repeats each value in patches and drew stray second lines; the dissolve under it is tight
-(smooth 0.06, the official material's 0.5) [ASSUMED: the widths, the dim, the wash, not yet OK'd as numbers]. The
+(smooth 0.06, the official material's 0.5) [ASSUMED: the widths, the dim, the wash; user OK 2026-11-23: "Look 5 settings is okay, approved."]. The
 show's set-up happens while the cards load, one card a frame: the shared GL canvas is grown for every card
 (`reserveTiles`); at the cover or the show the same work (with the glitter's layer, since dropped) cost the show's
 first frames 60 ms of script and 125–180 ms of rendering. The cards keep their tiles after the show and the shared canvas
@@ -578,7 +578,7 @@ holds the group however long it loads, and a slow link only switches the whole s
 others (the user's pick B of 2026-11-23; the 8 s cap before it, `GROUP_CAP_MS`, left a room on a 1 MB/s link on its 2D
 art [src: work/dev-55 latecap.mjs run, Grand Alliance page 6, 2319 × 1356 @1, 2026-11-23]). Only a stalled download
 drops a card: while the group waits it reads the stage's downloads every 0.5 s (`Stage.netState`, vfx-format.md §33.19),
-and when a download is open and no byte of any arrived for `DOWNLOAD_STALL_MS` 10 s [ASSUMED: proposed, not yet OK'd]
+and when a download is open and no byte of any arrived for `DOWNLOAD_STALL_MS` 5 s (the user's value, 2026-11-23)
 the cards still loading keep their 2D art until the screen is opened again and the others switch together. A slow link
 keeps sending bytes, and building an illustration after its files are in opens no download, so neither a slow link nor
 a slow computer reads as a stall (the user's question of 2026-11-23, "how would the download no progress for awhile

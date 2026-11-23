@@ -423,7 +423,7 @@ export function loadDissolveMask(mask) {
  * over what the edge has passed, then a fade. `width` is the band's half-width in mask units, `band` / `glow` its
  * alpha and the glow's, `fadeS` the glow's fade after the dissolve.
  */
-export const BLOOM = Object.freeze({ width: 0.2, band: 1, glow: 0.8, fadeS: 0.5 }); // [ASSUMED: tuned to the user's description of 2026-11-22, not yet OK'd on the clip]
+export const BLOOM = Object.freeze({ width: 0.2, band: 1, glow: 0.8, fadeS: 0.5 }); // [ASSUMED: tuned to the user's description of 2026-11-22; user OK 2026-11-23 (in the lead's session): "Look 5 settings is okay, approved."]
 let bloomMask = null;
 
 /**
@@ -436,7 +436,7 @@ let bloomMask = null;
 const WHITE = [1, 1, 1], TEAL = [0.15, 0.8, 0.75];
 /** The game's mint accent `#4ed8af` [src: docs/design/client.md §10 Look & feel]. */
 const MINT = [0x4e / 255, 0xd8 / 255, 0xaf / 255];
-export const GLOW_STYLES = Object.freeze({ // [ASSUMED: 0–4 the proposals; 5 the user's pick of 2026-11-23 ("good enough for now"), its widths, dim and wash not yet OK'd as numbers]
+export const GLOW_STYLES = Object.freeze({ // [ASSUMED: 0–4 the proposals, review page only; 5 the user's pick, user OK 2026-11-23 (in the lead's session): "Look 5 settings is okay, approved."]
   0: { glow: { a: 0.8, color: WHITE }, fadeS: 0.5, bands: [{ lo: -0.2, hi: 0.2, soft: 0.2, color: WHITE, a: 1 }] },
   1: { glow: null, fadeS: 0.25, bands: [
     { lo: -0.3, hi: 0, soft: 0.17, color: [0.35, 0.85, 0.8], a: 0.45 },
