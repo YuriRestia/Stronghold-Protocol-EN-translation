@@ -24,7 +24,7 @@
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { BOT_OPERATORS } from '../../shared/constants.js';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, pickEnemySfx, pickEnemyCastSfx, ENEMY_SHOT_SOUNDS, ENEMY_ATTACK_VARIANTS, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, pickEnemySfx, pickEnemyCastSfx, ENEMY_SHOT_SOUNDS, ENEMY_ATTACK_VARIANTS, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS, LOBBY_VOICE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { skillAbilitySounds } from './skillSounds.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
@@ -1059,6 +1059,9 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @param {Iterable<string>|null} [p.voiceSlots] which voice slots to plan: VOICE_BATTLE_SLOTS (default) plans only the
  *   lines a battle can play, null plans every slot of audio.mjs VOICE_SLOTS (`--voice-all`). The prep-only slots
  *   (干员报到 / 编入队伍 / 任命队长) are never requested by the client and cost 360 files / 19.3 MB of downloads.
+ * @param {{ keys: Record<string, { words: Record<string, number[]> }> } | null} [p.lobbyVoice] (fork) the committed
+ *   tools/assets/lobby-voice.json: these voice sets (the operators and outfits with an animated illustration) also get
+ *   the lobby slots (audio.mjs LOBBY_VOICE_SLOTS), and `audio.voiceWords` carries their join lines' word counts
  * @param {string[]} [p.extraEnemyIds] more enemy ids that can spawn (e.g. keys of data/enemies.json)
  * @param {string[]} [p.extraTokenIds] more token ids (e.g. token_* keys of data/tokens.json)
  * @param {Record<string,string>} [p.extraHandbook] enemyId → handbook/model id (e.g. from data/bosses.json)
@@ -1084,7 +1087,7 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @returns {{ template: any, models: Map<string, any>, notes: string[] }}
  */
 export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsData, charword = null, voiceLang = 'cn',
-  voiceJp = true, voiceSlots = VOICE_BATTLE_SLOTS, optionalVoice = false,
+  voiceJp = true, voiceSlots = VOICE_BATTLE_SLOTS, optionalVoice = false, lobbyVoice = null,
   extraEnemyIds = [], extraTokenIds = [], extraHandbook = {}, localEnemySpines = {}, localTokenSpines = {}, extraOperators = {},
   moduleTypes = [], outfits = null, outfitChars = [], statsTemplate = [], charModes = null, enemyCasts = null, extraBands = {}, extraItems = {}, extraBonds = {} }) {
   const notes = [];
@@ -1736,6 +1739,19 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   // (fork, docs/OUTFITS.md) + each outfit's own voice set, under its word key (data/outfits.json `voice`)
   const outfitVoices = new Set(Object.values(outfits || {}).filter((r) => typeof r?.voice === 'string' && operators[r.charId]).map((r) => r.voice));
   const voiceSlotsByChar = indexVoice(charword, VOICE_ID_LANG, voiceSlots, outfitVoices);
+  // (fork) the room / Grand Alliance lobby lines (crew-docs/l2d-lobby-voice-proposal.md): the voice sets of
+  // tools/assets/lobby-voice.json — the operators and outfits with an animated illustration — also get 交谈 / 闲置 / 问候 /
+  // 任命队长 (LOBBY_VOICE_SLOTS), played by ui/lobbyVoice.js; every other operator keeps the battle slots only
+  const lobbyKeys = new Set(Object.keys(lobbyVoice?.keys || {}));
+  if (voiceSlots && lobbyKeys.size) {
+    const lobbyIdx = indexVoice(charword, VOICE_ID_LANG, LOBBY_VOICE_SLOTS, [...outfitVoices].filter((k) => lobbyKeys.has(k)));
+    for (const [key, slots] of lobbyIdx) {
+      if (!lobbyKeys.has(key)) continue;
+      const cur = voiceSlotsByChar.get(key);
+      if (cur) Object.assign(cur, slots);
+      else voiceSlotsByChar.set(key, slots);
+    }
+  }
   // `dir` (VOICE_OPTIONAL_TREES native): the operator's own-language folder, or nothing when it has no such dub
   // A collab operator whose only dub is LINKAGE (丰川祥子 …, audio.mjs linkageOnlyVoice) has no `voice_cn/` lines: the
   // Chinese tree takes her Japanese ones, as the official client plays them under the 中文 setting (owner, 2026-10-15).
@@ -1763,6 +1779,10 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   };
   const voice = voiceTree(voiceLang);
   if (!Object.keys(voice).length) notes.push('battle voice: charword_table.json has no slots (index missing?)');
+  // (fork) the join lines' word counts (tools/assets/lobby-voice.json), for the voice sets the tree has: ui/lobbyVoice.js
+  // cuts a join line off after 2 of its words when the next player's line comes in
+  const voiceWords = {};
+  for (const key of [...lobbyKeys].sort()) if (voice[key]) voiceWords[key] = lobbyVoice.keys[key].words;
 
   // English, Korean and each operator's own-language dub (VOICE_OPTIONAL_TREES; public/js/audio.js VOICE_TREES):
   // `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative`, the same slots and file names. A line missing upstream
@@ -1788,6 +1808,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       voice,
       ...(voiceJp ? { voiceJp: voiceTree(VOICE_JP_LANG) } : {}),
       ...optionalTrees,
+      ...(Object.keys(voiceWords).length ? { voiceWords: literal(voiceWords) } : {}),
       sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx, ...(Object.keys(outfitSfx).length ? { outfits: outfitSfx } : {}), ...(Object.keys(sfxBurst).length ? { burst: sfxBurst } : {}), pools: sfxPools, groups: literal(sfxGroups) },
     },
   };
