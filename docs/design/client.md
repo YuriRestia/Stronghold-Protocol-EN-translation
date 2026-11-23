@@ -578,7 +578,7 @@ holds the group however long it loads, and a slow link only switches the whole s
 others (the user's pick B of 2026-11-23; the 8 s cap before it, `GROUP_CAP_MS`, left a room on a 1 MB/s link on its 2D
 art [src: work/dev-55 latecap.mjs run, Grand Alliance page 6, 2319 × 1356 @1, 2026-11-23]). Only a stalled download
 drops a card: while the group waits it reads the stage's downloads every 0.5 s (`Stage.netState`, vfx-format.md §33.19),
-and when a download is open and no byte of any arrived for `DOWNLOAD_STALL_MS` 10 s [ASSUMED: proposed, not yet OK'd]
+and when a download is open and no byte of any arrived for `DOWNLOAD_STALL_MS` 5 s (the user's value, 2026-11-23)
 the cards still loading keep their 2D art until the screen is opened again and the others switch together. A slow link
 keeps sending bytes, and building an illustration after its files are in opens no download, so neither a slow link nor
 a slow computer reads as a stall (the user's question of 2026-11-23, "how would the download no progress for awhile

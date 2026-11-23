@@ -848,7 +848,7 @@ function checkGroup(g) {
  * building an illustration after its files are in is no download, so a slow computer does not either. The user's ask of
  * 2026-11-23 (pick B: no time limit on the room's cards, "but how would the download no progress for awhile work?").
  */
-export const DOWNLOAD_STALL_MS = 10000; // [ASSUMED: proposed to the user 2026-11-23, not yet OK'd — a live link sends a chunk well under a second apart]
+export const DOWNLOAD_STALL_MS = 5000; // [ASSUMED: a live link sends a chunk well under a second apart; user OK 2026-11-23: "i think 5s is good enough, no need for 10"]
 /** How often the group's stall check reads the stage's downloads (ms). */
 const NET_POLL_MS = 500;
 /** The page's stage when it counts its downloads (netState), else null (the stand-in: no check). */
