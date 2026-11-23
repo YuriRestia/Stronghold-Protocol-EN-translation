@@ -505,8 +505,8 @@ a card keeps its 2D art for good, no switch after its entrance. Every result pag
 同盟 hidden, above), so its gate only guards the loaded cards' first frames against a renderer that never answers, with
 what is left of the same 8 s from `ending` — one budget, never a second 8 s from the page's mount, which could hold the
 cover black about 16 s (the lead's fix of 2026-11-23) — and at least `RESULT_FIRST_FRAMES_MS` 0.5 s, so a page mounted
-at the give-up still gets its loaded cards live (0.23–0.33 s measured from mount, below) [ASSUMED: the 0.5 s, proposed,
-not yet OK'd]: the cover is down at most 8.5 s after `ending`. Without a result load (the review page) the gate keeps
+at the give-up still gets its loaded cards live (0.23–0.33 s measured from mount, below; the 0.5 s the user's OK of
+2026-11-23): the cover is down at most 8.5 s after `ending`. Without a result load (the review page) the gate keeps
 the whole 8 s from its mount. (The earlier 2 s minimum for a page opened late, `RESULT_MOUNT_MIN_MS`, went with the
 pre-mount.)
 Measured on the review page (renderer booted, local server, 4 cards, 1440p and 4K): the load 0.70–0.99 s from files not

@@ -507,17 +507,26 @@ export function startResultLoad(cardsOf) {
  */
 export function resultWaitMs(now = Date.now()) {
   const s = resultLoad;
-  if (!s || !s.pending || s.gaveUp) return 0;
+  if (!s || !s.pending || gaveUpBy(s, now)) return 0;
   return Math.max(0, s.startedAt + RESULT_GIVE_UP_MS - now);
+}
+
+/**
+ * The give-up by the clock, not only by its timer: the cover's own timer (screens/settle.js useResultHold) can open the
+ * result screen at the deadline a moment before the give-up timer runs, and its cards then read resultKeyReady — a card
+ * still loading must keep its 2D art then too, not mount and load on the open screen (seen on the review page's &hang).
+ */
+function gaveUpBy(s, now) {
+  return s.gaveUp || (s.pending && now >= s.startedAt + RESULT_GIVE_UP_MS);
 }
 
 /**
  * Whether a result card may show its illustration: always, unless the result screen opened at the give-up while its
  * illustration was still loading — then it keeps its 2D art at once (no wait on the open screen, no switch later).
  */
-export function resultKeyReady(key) {
+export function resultKeyReady(key, now = Date.now()) {
   const s = resultLoad;
-  return !s || !s.gaveUp || s.ready.has(key);
+  return !s || !gaveUpBy(s, now) || s.ready.has(key);
 }
 
 /** Forget the match's result load (the next match began, or the page left the match). */
@@ -543,7 +552,7 @@ export const RESULT_GIVE_UP_MS = 8000; // [ASSUMED: proposed on a measured basis
  * loaded card got live 0.23–0.33 s after its mount [src: work/dev-55 rw-1440.json / rw-4k.json, aKept and bWarm, 2026-11-23],
  * so the cover can stay at most RESULT_GIVE_UP_MS + this after `ending`, and only when a load ran into the give-up.
  */
-export const RESULT_FIRST_FRAMES_MS = 500; // [ASSUMED: about 1.5× the measured 0.33 s, proposed to the user 2026-11-23, not yet OK'd]
+export const RESULT_FIRST_FRAMES_MS = 500; // [ASSUMED: about 1.5× the measured 0.33 s; user OK 2026-11-23: "0.5s then"]
 
 /**
  * One result page's gate: its animating cards join (IllustArt `gate`), each settles when its illustration is live or

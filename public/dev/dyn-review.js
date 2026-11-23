@@ -16,7 +16,9 @@ import { settingsStore } from '/js/ui/settingsStore.js';
 import { GAME_FILES } from '/js/ui/gameComponents.js';
 import { initLang } from '/js/ui/lang.js';
 import { ensurePixi } from '/js/render/app/pixi.js';
-import { SettleFlow } from '/js/screens/settle.js';
+import { SettleFlow, useResultHold } from '/js/screens/settle.js';
+import { useState, useEffect } from '/vendor/hooks.module.js';
+import { startResultLoad, endResultLoad } from '/js/ui/dynCards.js';
 import { RoomScreen } from '/js/screens/room.js';
 import { setDynModule, setDynQuality, setDynFraming, setCardArtSeparate, setCardArtAdjust } from '/js/ui/dynCards.js';
 import { cardStore, CARD_KEY } from '/js/ui/seatArt.js';
@@ -31,6 +33,14 @@ const PER = SCREEN === 'ga' ? 8 : 4;
 const DEVICE = P.get('device') === 'phone' ? 'phone' : 'pc';
 const FRAME = P.has('frame');
 const SLOW = Math.max(0, Number(P.get('slow')) || 0); // MB/s, 0 = the connection as it is
+// &ending (result screen): the match's end as the game plays it — the result cards' load starts at m.public `ending`, the
+// 3 s settlement pause, then the game's own hold (screens/settle.js useResultHold: the black cover while they still load,
+// at most until ui/dynCards.js RESULT_GIVE_UP_MS) and the result screen; a clock shows the time since the end
+const ENDING = SCREEN === 'result' && P.has('ending');
+// &hang=<n>: the n-th card's download never finishes (a frozen connection), to watch the give-up: the black cover until
+// RESULT_GIVE_UP_MS, then the loaded cards get at least RESULT_FIRST_FRAMES_MS to start and the hung one keeps its picture
+const HANG = Math.max(0, Math.floor(Number(P.get('hang')) || 0));
+const SETTLE_PAUSE_MS = 3000; // DELAYS.SETTLE [src: server/match/match/common.js:19]
 const SHOT = P.has('shot');
 // &tier=half|full: the renderer's page tier on any device (the half-size art comparison); default as in the game
 const TIER = ['half', 'full'].includes(P.get('tier')) ? P.get('tier') : null;
@@ -126,12 +136,29 @@ function slowFetch(mbps) {
   };
 }
 
-/** The renderer this page uses: the page's own, or one on a throttled connection. */
+/**
+ * &hang: a fetch whose answer never comes for the hung card's files (its illustration's folder), as a frozen connection.
+ * Which card: the n-th of the page shown when the request is made.
+ */
+function hangFetch(base, n) {
+  const dir = () => {
+    const e = review?.pages[review.page]?.[n - 1];
+    const path = e && review.stage?._group?.[e.key]?.path;
+    return path ? (String(path).match(/dynillust\/([^/]+)\//) || [])[1] : null;
+  };
+  return (url, opts) => {
+    const d = dir();
+    return d && String(url).includes(`dynillust/${d}/`) ? new Promise(() => {}) : base(url, opts);
+  };
+}
+
+/** The renderer this page uses: the page's own, or one on a throttled or frozen connection (page thread). */
 async function installRenderer() {
   await ensurePixi();
   const R = await import('/js/render/dynillust/index.js');
-  if (!SLOW) return R.getDynIllustStage();
-  const st = new R.DynIllustStage({ manifest: () => assets.local(), fetch: slowFetch(SLOW) });
+  if (!SLOW && !HANG) return R.getDynIllustStage();
+  const base = SLOW ? slowFetch(SLOW) : (url, opts) => fetch(url, opts);
+  const st = new R.DynIllustStage({ manifest: () => assets.local(), fetch: HANG ? hangFetch(base, HANG) : base });
   st.index();
   const key = (charId, skinId = null) => {
     const g = st._group;
@@ -179,10 +206,45 @@ function fakeResult(group, ids) {
 }
 
 let replay = 0;
+
+/**
+ * &ending: the match's end as screens/game.js plays it. The cards' illustrations are freed first (a cold load from the
+ * HTTP cache, as after a match that kept none), the load starts at `ending`, a stand-in match screen holds through the
+ * settlement pause, then the game's hold and the result screen (a spectator's 同盟, the cards' entrance). Replay
+ * entrance plays it again.
+ */
+function EndingFlow({ group, res }) {
+  const [phase, setPhase] = useState('start');
+  const [t0, setT0] = useState(0);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    let live = true, id = 0;
+    try { review.stage?.release?.([]); } catch { /* a stand-in */ }
+    // a frame later, so the freed illustrations are gone before the load asks for them again
+    const raf = requestAnimationFrame(() => {
+      if (!live) return;
+      startResultLoad(() => group.map((e) => ({ art: { charId: e.charId, outfit: e.skinId === `${e.charId}#2` ? null : e.skinId }, mine: false })));
+      setT0(performance.now());
+      setPhase('match');
+      id = setTimeout(() => { if (live) setPhase('result'); }, SETTLE_PAUSE_MS);
+    });
+    const clock = setInterval(() => tick((n) => n + 1), 100);
+    return () => { live = false; cancelAnimationFrame(raf); clearTimeout(id); clearInterval(clock); endResultLoad(); };
+  }, []);
+  const hold = useResultHold(phase === 'result');
+  const showResult = phase === 'result' && !(hold.wait > 0);
+  const s = t0 ? ((performance.now() - t0) / 1000).toFixed(1) : '0.0';
+  const what = phase !== 'result' ? 'settlement pause' : hold.wait > 0 || hold.cover ? 'black cover: waiting for the cards' : 'result screen';
+  return html`${showResult
+    ? html`<${SettleFlow} res=${res} myId=${null} backLabel="Back" onBack=${() => {}} />`
+    : html`<div style="position:fixed;inset:0;display:grid;place-items:center;background:#1b2226;color:#8fa;font:600 28px sans-serif">MATCH SCREEN (stand-in): the last battle is over</div>`}${hold.cover}<div style="position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:10002;padding:6px 10px;background:#000c;color:#fff;font:600 15px/1.3 sans-serif;border-radius:4px;pointer-events:none">${s} s since the match ended · ${what}${HANG ? ` · card ${HANG}'s download hangs` : ''}</div>`;
+}
+
 function Screen() {
   const { pages, page } = review;
   const group = pages[page] || [];
   const ids = group.map((_, i) => `rv${page}_${i}`);
+  if (SCREEN === 'result' && ENDING) return html`<${EndingFlow} key=${`${page}|${replay}`} group=${group} res=${fakeResult(group, ids)} />`;
   if (SCREEN === 'result') {
     return html`<${SettleFlow} key=${`${page}|${replay}`} res=${fakeResult(group, ids)} myId=${null} backLabel="Back" onBack=${() => {}} />`;
   }
@@ -432,6 +494,7 @@ function renderBar(target) {
     + '<span class="sep"></span>' + btn('‹ Prev', false, 'prev') + `<span>${total ? page + 1 : 0} / ${total}</span>` + btn('Next ›', false, 'next')
     + '<span class="sep"></span>' + btn('Special idle now', false, 'special') + btn('Start now', false, 'start') + btn('Replay entrance', false, 'replay')
     + btn(SLOW ? `Slow ${SLOW} MB/s` : 'Slow connection', !!SLOW, 'slow')
+    + (SCREEN === 'result' ? btn('Match end', ENDING, 'ending') + btn(HANG ? `Card ${HANG} hangs` : 'Hang a card', !!HANG, 'hang') : '')
     + btn(TIER === 'half' ? 'Half-size art' : 'Half-size art: off', TIER === 'half', 'tier')
     + (SCREEN !== 'result' ? '<span class="sep"></span>'
       + btn('Static art', STATIC, 'static') + btn(SET_STILLS ? 'Still-only arts' : 'Still-only arts: off', SET_STILLS, 'stills')
@@ -450,6 +513,8 @@ function renderBar(target) {
       if (target) { target.__review?.goPage?.(n); review = target.__review?.state?.() || review; renderBar(target); } else goPage(n);
     }
     else if (a === 'slow') go({ slow: SLOW ? null : 1 });
+    else if (a === 'ending') go({ ending: ENDING ? null : 1, hang: ENDING ? null : HANG || null });
+    else if (a === 'hang') go({ hang: HANG ? null : 1, ending: 1 });
     else if (a === 'tier') go({ tier: TIER === 'half' ? null : 'half' });
     else if (a === 'export') exportFramings();
     else if (a === 'static') setStatic(!STATIC);

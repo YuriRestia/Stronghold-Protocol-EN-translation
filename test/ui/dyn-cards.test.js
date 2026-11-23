@@ -164,6 +164,22 @@ test('at the give-up the result screen opens and the cards still loading keep th
   } finally { endResultLoad(); setDynModule(null); }
 });
 
+test('at the deadline a card still loading keeps its 2D art even before the give-up timer has run', async () => {
+  const fake = fakeModule(['char_a', 'char_b']);
+  setDynModule(fake);
+  try {
+    const t0 = Date.now();
+    startResultLoad(() => [card('char_a', true), card('char_b')]);
+    await settled();
+    fake.st.settles[0].res();
+    await settled();
+    const at = t0 + RESULT_GIVE_UP_MS + 50; // past the deadline; the real give-up timer has not run
+    assert.equal(resultWaitMs(at), 0, 'the cover lets the result screen open');
+    assert.equal(resultKeyReady('k_char_b', at), false, 'so the card still loading keeps its 2D art, never loads on the open screen');
+    assert.equal(resultKeyReady('k_char_a', at), true, 'one in by then plays');
+  } finally { endResultLoad(); setDynModule(null); }
+});
+
 test('a hung renderer never holds the black cover past the give-up from `ending`: the pages\' gates get what is left of the same budget', async (t) => {
   const { makeEntranceGate, gateWaitStore, RESULT_FIRST_FRAMES_MS } = await import('../../public/js/ui/dynCards.js');
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
