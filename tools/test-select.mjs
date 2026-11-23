@@ -242,7 +242,8 @@ export const MAPPED = (f) => /^(public\/(js|css|dev)\/|server\/|shared\/|test\/|
 export function changeKind(f, { presentation = [] } = {}) {
   if (/\.(md|txt)$/i.test(f) || /^(docs|\.github|\.claude|changes|crew-docs)\//.test(f) || /^(LICENSE|NOTICE)/.test(f)) return 'ignored';
   if (MAPPED(f)) return 'code';
-  if (/^(ci-shards\.json$|tools\/browser-suite\.json$|tools\/.*\.py$|tools\/local-extract\/|\.eslint|eslint\.config|\.editorconfig$|\.gitignore$|\.gitattributes$)/.test(f)) return 'ignored';
+  // tools/ data (asset plans, timing tables, the extractor): never served to a page or read by the server
+  if (/^(ci-shards\.json$|tools\/.*\.(json|py|txt)$|tools\/local-extract\/|\.eslint|eslint\.config|\.editorconfig$|\.gitignore$|\.gitattributes$)/.test(f)) return 'ignored';
   const data = /^data\/([^/]+)\.json$/.exec(f);
   if (data) return presentation.includes(data[1]) ? 'page' : 'gameplay';
   if (/^public\/(?!(js|css)\/).+\.(json|html|svg|txt|webmanifest)$/.test(f)) return 'page';

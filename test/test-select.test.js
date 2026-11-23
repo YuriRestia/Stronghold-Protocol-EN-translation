@@ -198,7 +198,7 @@ test('(fork) changeKind: code by line, data and pages by the pages\' requests, d
   assert.deepEqual(['public/js/ui/a.js', 'tools/test-select.mjs', 'scripts/release.mjs', 'public/css/x.css'].map(k), ['code', 'code', 'code', 'code']);
   assert.deepEqual(['data/dyn-card-background.json', 'public/i18n/en.json', 'public/dev/dyn-review.html'].map(k), ['page', 'page', 'page']);
   assert.deepEqual(['data/chess.json', 'data/waves.json'].map(k), ['gameplay', 'gameplay']);
-  assert.deepEqual(['docs/x.md', 'changes/a.md', 'ci-shards.json', 'tools/browser-suite.json', 'tools/local-extract/homebg.py', 'tools/local-extract/client-candidates.json'].map(k), Array(6).fill('ignored'));
+  assert.deepEqual(['docs/x.md', 'changes/a.md', 'ci-shards.json', 'tools/browser-suite.json', 'tools/local-extract/homebg.py', 'tools/local-extract/client-candidates.json', 'tools/assets/lobby-voice.json'].map(k), Array(7).fill('ignored'));
   assert.deepEqual(['package.json', 'package-lock.json', 'public/vendor/x.bin'].map(k), ['unknown', 'unknown', 'unknown']);
 });
 
