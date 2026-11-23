@@ -518,7 +518,7 @@ one frame behind their 2D art ("wait until it's ready, then play the animation a
 and show in one frame only once `FLIP_SMOOTH_FRAMES` 10 frames in a row took at most `FLIP_SMOOTH_MS` (30 fps) — the
 renderer's first frames with the whole group live are its slow ones — on the main thread and, where the cards draw in
 Workers, in every Worker's card-frame log too (`whenSmooth`, read every 250 ms while the group waits)
-[ASSUMED: proposed, not yet OK'd]. Showing is the
+[ASSUMED: the 10 frames; user OK 2026-11-23, to "Are the 0.5 s floor and 10 smooth frames OK?": "Both OK"]. Showing is the
 official card's dissolve (the user's pick of 2026-11-22): the illustration and its background appear at once behind the
 2D art, and the art box as it shows — its background, then the 2D art at its object-fit cover crop and filter, composed
 on a canvas while the cards wait — dissolves away over `FLIP_SWEEP_S` 0.35 s (the user's value of 2026-11-23, after
@@ -532,11 +532,10 @@ away into the live2D"): a bright band on the dissolve's edge (the official `colo
 inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone
 [ASSUMED: the band's width and brightness, the glow and its fade, tuned to the user's descriptions; user OK 2026-11-23: "Look 5 settings is okay, approved."]. No particles: the
 glitter that once fell from the border, on a page-wide layer, was dropped (the user, 2026-11-23: "you may remove the
-glitter particles, it's useless now"). The border's look is one of `GLOW_STYLES` (the user, 2026-11-23: the white glow
-"drowns out any particle effect"; proposals for the user's pick, the review page's `&glow=0…4`, 0 the one above): 1 a
-thin white edge in a teal halo with a short trail and no wash, 2 the old picture dimmed for 0.35 s before a softer white
-sweep, 3 a teal band with a white core and a teal wash, 4 a burning orange edge that chars the picture ahead of it
-[ASSUMED: proposals]. The cards use look 5 (`GLOW_DEFAULT`, the user's pick of 2026-11-23: "1 + 2 + 3, but the color
+glitter particles, it's useless now"). The border's look is one (`ui/cardEntrance.js GLOW`): the white glow above
+"drowns out any particle effect" (the user, 2026-11-23), so five looks were proposed on the review page; the user picked
+the fifth and the others were removed (the user, 2026-11-23: "remove"), with the review page's switch between them. The
+look (the user's pick of 2026-11-23: "1 + 2 + 3, but the color
 matches the theme color", then "the edge should be half as thin … cleaner and more elegant", "why do I see a 2nd
 line?", "good enough for now"): the old picture dims to 75 % over 0.2 s, then one thin white line in a narrow mint
 (`#4ed8af`) rim sweeps it away over a faint mint wash. One line: the bands and the

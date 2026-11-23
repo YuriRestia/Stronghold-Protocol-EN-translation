@@ -29,7 +29,7 @@ import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
-import { loadDissolve, dissolveMaskUrl, artPlacement, paintBackgroundStyle, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, BLOOM, glowStyle, sweepRange, ANIM_DELAY_S } from './cardEntrance.js';
+import { loadDissolve, dissolveMaskUrl, artPlacement, paintBackgroundStyle, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, BLOOM, GLOW, sweepRange, ANIM_DELAY_S } from './cardEntrance.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -654,7 +654,7 @@ export const FLIP_DISSOLVE_S = 0.5; // DYN_ILLUST_INIT_SECONDS [src: official Ga
  */
 export const FLIP_SWEEP_S = 0.35; // the user's value of 2026-11-23 (official DYN_ILLUST_INIT_SECONDS 0.5, FLIP_DISSOLVE_S)
 /** The dissolve's drive `s` seconds into the show: across the look's range over FLIP_SWEEP_S, then 1 (all gone). */
-export function sweepDrive(s, S = glowStyle()) {
+export function sweepDrive(s, S = GLOW) {
   if (s >= FLIP_SWEEP_S) return 1;
   const [a, b] = sweepRange(S);
   return a + (b - a) * Math.max(0, s) / FLIP_SWEEP_S;
@@ -663,7 +663,7 @@ export function sweepDrive(s, S = glowStyle()) {
 export const FLIP_STEP_S = ANIM_DELAY_S;
 /** A smooth frame: 30 fps, the flip's gate (no frame over 33 ms: the lead's brief of 2026-11-22), +1 ms of frame-timer jitter as the review page's gates allow [src: public/dev/dyn-review.js measure]. */
 export const FLIP_SMOOTH_MS = 1000 / 30 + 1;
-export const FLIP_SMOOTH_FRAMES = 10; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — about 0.17–0.33 s of smooth frames before the cards show]
+export const FLIP_SMOOTH_FRAMES = 10; // [ASSUMED: about 0.17–0.33 s of smooth frames before the cards show; user OK 2026-11-23 (in the lead's session, to "Are the 0.5 s floor and 10 smooth frames OK?"): "Both OK"]
 export const FLIP_GIVE_UP_MS = 3000; // [ASSUMED: the user's PC settled 0.06–0.28 s after the start; user OK 2026-11-23 (in the lead's session): "i think if frame rate isnt good enough after 3s, then still art for everyone else, and keep the animated l2d for yourself. If yourself isnt good enough after 3s as well, then still art for everyone"]
 let group = null; // { entries: Set, flipped, timer, check, hold, wait, gaveUp }
 
@@ -756,7 +756,7 @@ function dissolveWorker() {
       if (d.type === 'ready') { if (d.ok) done(api); else fail(d.err || 'not ready'); } else if (d.type === 'prepared') { const f = waits.get(d.id); waits.delete(d.id); f?.(d); }
     };
     w.onerror = (ev) => { ev?.preventDefault?.(); fail(ev?.message || 'error'); };
-    w.postMessage({ type: 'init', maskUrl: new URL(maskUrl, globalThis.location?.href).href, glow: globalThis.__dynGlow ?? null });
+    w.postMessage({ type: 'init', maskUrl: new URL(maskUrl, globalThis.location?.href).href });
   });
   return dissolveBackend;
 }
@@ -1163,7 +1163,7 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
       setShown(true);
       const t0 = performance.now() + Math.max(0, delay);
       let dissolved = false, lastS = 0, k = 0, glow = 0, endFrames = 0;
-      const G = glowStyle();
+      const G = GLOW;
       if (wc && wc.style.opacity !== '1') wc.style.opacity = '1';
       // one frame of this card in the shared pass (runTransitions): queue its tiles (or the Worker's numbers), then the end
       trans = {
@@ -1171,7 +1171,7 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
           if (!live) return false;
           const s = (now - t0) / 1000;
           if (s < 0) return true;
-          // the glow's look (GLOW_STYLES): a dim of the old picture first, then the sweep
+          // the glow's look (cardEntrance.js GLOW): a dim of the old picture first, then the sweep
           const dimS = G.dim?.s || 0, sw = s - dimS;
           const dim = G.dim ? 1 - (1 - G.dim.to) * Math.min(1, s / dimS) : 1;
           k = sweepDrive(sw, G);

@@ -427,44 +427,24 @@ export const BLOOM = Object.freeze({ width: 0.2, band: 1, glow: 0.8, fadeS: 0.5 
 let bloomMask = null;
 
 /**
- * The border glow's looks, for the user to choose from (2026-11-23: "the border glow and white glow of the card … just
- * drowns out any particle effect"; the review page's `&glow=0…4`, 0 the current one). Bands are in mask units around
- * the dissolve's edge (`lo` … `hi`, ramping over `soft`, `color` rgb, `a` alpha); `glow` the wash over what the edge
- * passed (none: only the bands), faded over `fadeS` once the picture is gone; `dim` darkens the old picture to `to`
- * over `s` seconds before the sweep starts; `char` darkens the old picture just ahead of the edge (a burn).
+ * The border glow's look: the user's pick of 2026-11-23 ("look 5" of five proposals; the others were removed, the user,
+ * 2026-11-23: "remove"). "1 + 2 + 3, but the color matches the theme color", then "the edge should be half as thin, …
+ * cleaner and more elegant", and "why do I see a 2nd line?" (the official mask is noise on a slope: the same value comes
+ * back in patches, each its own line): the old picture dims to `dim.to` over `dim.s` seconds, then one thin white line in
+ * a narrow mint rim, on a smoothed copy of the mask (`soft`), sweeps it away over a tight dissolve (`dissolveSoft`, the
+ * official material's is 0.5) and a faint mint wash starting at the line (`glowReach`), faded over `fadeS` once the
+ * picture is gone. Bands are in mask units around the dissolve's edge (`lo` … `hi`, ramping over `soft`, `color` rgb,
+ * `a` alpha); `reach` how far they reach past the edge (sweepRange).
  */
-const WHITE = [1, 1, 1], TEAL = [0.15, 0.8, 0.75];
+const WHITE = [1, 1, 1];
 /** The game's mint accent `#4ed8af` [src: docs/design/client.md §10 Look & feel]. */
 const MINT = [0x4e / 255, 0xd8 / 255, 0xaf / 255];
-export const GLOW_STYLES = Object.freeze({ // [ASSUMED: 0–4 the proposals, review page only; 5 the user's pick, user OK 2026-11-23 (in the lead's session): "Look 5 settings is okay, approved."]
-  0: { glow: { a: 0.8, color: WHITE }, fadeS: 0.5, bands: [{ lo: -0.2, hi: 0.2, soft: 0.2, color: WHITE, a: 1 }] },
-  1: { glow: null, fadeS: 0.25, bands: [
-    { lo: -0.3, hi: 0, soft: 0.17, color: [0.35, 0.85, 0.8], a: 0.45 },
-    { lo: -0.13, hi: 0.1, soft: 0.09, color: TEAL, a: 0.9 },
-    { lo: -0.035, hi: 0.035, soft: 0.035, color: WHITE, a: 1 }] },
-  2: { dim: { to: 0.45, s: 0.35 }, glow: { a: 0.3, color: WHITE }, fadeS: 0.35, bands: [
-    { lo: -0.16, hi: 0.16, soft: 0.16, color: WHITE, a: 1 }] },
-  3: { glow: { a: 0.4, color: [0.2, 0.72, 0.68] }, fadeS: 0.5, bands: [
-    { lo: -0.22, hi: 0.2, soft: 0.2, color: TEAL, a: 1 },
-    { lo: -0.04, hi: 0.04, soft: 0.04, color: WHITE, a: 1 }] },
-  4: { char: { lo: 0, hi: 0.2, soft: 0.1, a: 0.92 }, glow: null, fadeS: 0.2, bands: [
-    { lo: -0.07, hi: 0.06, soft: 0.06, color: [1, 0.38, 0.06], a: 1 },
-    { lo: -0.02, hi: 0.025, soft: 0.025, color: [1, 0.88, 0.55], a: 1 }] },
-  // the user's pick of 2026-11-23: "1 + 2 + 3, but the color matches the theme color" — the old picture dims, then a thin
-  // white edge in a mint halo with a short mint trail sweeps it away over a faint mint wash;
-  // then "the edge should be half as thin, … cleaner and more elegant", and "why do I see a 2nd line?" (the official
-  // mask is noise on a slope: the same value comes back in patches, each its own line): one line on a smoothed copy of
-  // the mask (`soft`), a tight dissolve under it (`dissolveSoft`, the official material's is 0.5), no trail, a faint
-  // wash starting at the line (`glowReach`), a lighter dim
-  5: { soft: true, dissolveSoft: 0.06, glowReach: 0.02, reach: 0.05,
-    dim: { to: 0.75, s: 0.2 }, glow: { a: 0.15, color: MINT }, fadeS: 0.3, bands: [
-      { lo: -0.035, hi: 0.025, soft: 0.025, color: MINT, a: 0.8 },
-      { lo: -0.01, hi: 0.01, soft: 0.01, color: WHITE, a: 1 }] },
+export const GLOW = Object.freeze({ // [ASSUMED: the widths, dim and wash; user OK 2026-11-23 (in the lead's session): "Look 5 settings is okay, approved."]
+  soft: true, dissolveSoft: 0.06, glowReach: 0.02, reach: 0.05,
+  dim: { to: 0.75, s: 0.2 }, glow: { a: 0.15, color: MINT }, fadeS: 0.3, bands: [
+    { lo: -0.035, hi: 0.025, soft: 0.025, color: MINT, a: 0.8 },
+    { lo: -0.01, hi: 0.01, soft: 0.01, color: WHITE, a: 1 }],
 });
-/** The look the cards use (the user's pick, 5); the review page's `&glow=0…4` shows the others. */
-export const GLOW_DEFAULT = 5;
-/** The glow's look now (the review page's choice, else the default). */
-export function glowStyle() { return GLOW_STYLES[globalThis.__dynGlow] || GLOW_STYLES[GLOW_DEFAULT]; }
 
 /**
  * Draw the bloom into the 2D canvas `target` (w × h device px), premultiplied and additive (the canvas composites with
@@ -480,7 +460,7 @@ export function drawBloom(target, k, glow, band, w, h) {
 function tileBloom(it) {
   const tm = bloomMask ? textures.get(`${bloomMask}|false`) : null;
   if (!tm || tm.then) return false;
-  const S = glowStyle(), edge = edgeOf(it.k, S), mk = lookMask(S, tm), gr = S.glowReach ?? BLOOM.width;
+  const S = GLOW, edge = edgeOf(it.k, S), mk = lookMask(S, tm), gr = S.glowReach ?? BLOOM.width;
   gl.blendFunc(gl.ONE, gl.ONE);
   if (S.glow) maskPass(mk, null, -2, edge + gr, gr, S.glow.color, S.glow.a * it.glow);
   for (const b of S.bands) maskPass(mk, mk.tex, edge + b.lo, edge + b.hi, b.soft, b.color, b.a * it.band);
@@ -629,20 +609,20 @@ function maskPixels(url) {
  * The dissolve edge's mask value at progress k: half alpha at d = 2k − 1 + smooth / 2 (the official material's smooth
  * 0.5: 2k − 0.75; a look's own `dissolveSoft` otherwise).
  */
-export const edgeOf = (k, S = glowStyle()) => 2 * k - 1 + (S.dissolveSoft ?? DISSOLVE_SMOOTH) / 2;
+export const edgeOf = (k, S = GLOW) => 2 * k - 1 + (S.dissolveSoft ?? DISSOLVE_SMOOTH) / 2;
 /** The official dissolve material's smooth [src: MAT DISSOLVE_MAT s1]. */
 const DISSOLVE_SMOOTH = 0.5;
 /**
  * The drive range a look's sweep runs over: from where its bands first reach the card (edge −reach) to where they
  * leave it (edge 1 + reach), so none of the sweep's time is spent off the card.
  */
-export function sweepRange(S = glowStyle()) {
+export function sweepRange(S = GLOW) {
   const off = (S.dissolveSoft ?? DISSOLVE_SMOOTH) / 2, reach = S.reach ?? BLOOM.width;
   return [(-reach + 1 - off) / 2, (1 + reach + 1 - off) / 2];
 }
 
 /**
- * The look's smoothed mask (GLOW_STYLES `soft`): the official mask's 128 px copy box-blurred (two passes each way,
+ * The look's smoothed mask (GLOW `soft`): the official mask's 128 px copy box-blurred (two passes each way,
  * SOFT_BLUR_PX), a little of the raw mask kept for an organic edge (SOFT_RAW), stretched back to 0 … 1; on the GPU as a
  * half-float texture (8-bit steps showed as stairs on a line this thin).
  */
@@ -736,7 +716,7 @@ function tileDissolve(it) {
   const pic = it.pic;
   const tm = pic?.tex ? textures.get(`${pic.mask}|false`) : null;
   if (!tm || tm.then) return false;
-  const m = MAT[DISSOLVE_MAT], S = glowStyle(), mk = lookMask(S, tm);
+  const m = MAT[DISSOLVE_MAT], S = GLOW, mk = lookMask(S, tm);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   bindTex(0, pic.tex, loc.u_main); bindTex(1, mk.tex, loc.u_d1); bindTex(2, null, loc.u_d2);
   // vertex colour: r drives mask 1; g 0 keeps mask 2 (white) whole (threshold −1)
@@ -747,16 +727,6 @@ function tileDissolve(it) {
   gl.uniform3fv(loc.u_color, m.col.map((c) => c * dim));
   for (const [u, val] of [['u_ic', m.ic], ['u_ci', m.ci], ['u_c1', m.c1], ['u_s1', S.dissolveSoft ?? m.s1], ['u_r1', m.r1], ['u_c2', m.c2], ['u_s2', m.s2], ['u_r2', m.r2], ['u_add', 0]]) gl.uniform1f(loc[u], val);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
-  // the burn look: the old picture darkened just ahead of the edge (its colour times 1 − the pass, alpha kept)
-  const ch = glowStyle().char;
-  if (ch && bloomMask && it.drive > 0) {
-    const bt = textures.get(`${bloomMask}|false`);
-    if (bt && !bt.then) {
-      const edge = edgeOf(it.drive, glowStyle());
-      gl.blendFuncSeparate(gl.ZERO, gl.ONE_MINUS_SRC_COLOR, gl.ZERO, gl.ONE);
-      maskPass(bt, bt.tex, edge + ch.lo, edge + ch.hi, ch.soft, WHITE, ch.a);
-    }
-  }
   return true;
 }
 
