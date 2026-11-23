@@ -208,7 +208,8 @@ describe('名片干员 seat cards (real server)', { skip: !ENABLED && 'set SP_E2
 
       // (fork, docs/OUTFITS.md) the fork's outfits (room.outfits → room.state seats[].outfits): the teammate's card wears
       // THAT doctor's outfit, never the viewer's own choice for the same operator; taken off, the default again
-      const outfitPortrait = (id) => guest.page.evaluate(async (id) => (await import('/js/data.js')).data.get('assets')?.outfits?.chars?.[id]?.portrait || null, id);
+      // a co-op room's wide card shows the outfit's full art (room.js SeatCard fullArt, the user's pick of 2026-11-23)
+      const outfitPortrait = (id) => guest.page.evaluate(async (id) => (await import('/js/data.js')).data.get('assets')?.outfits?.chars?.[id]?.art || null, id);
       const wearOutfit = (c, id) => c.page.evaluate(async (charId, id) => (await import('/js/ui/outfits.js')).setOutfit(charId, id), PICK, id);
       const seatOutfit = (c, name) => c.page.waitForFunction((name, id) => (globalThis.__SP__.store.get().room.seats.find((s) => s?.name === name)?.outfits?.[id] ?? null),
         { timeout: 10000 }, name, PICK).then((h) => h.jsonValue());

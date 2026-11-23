@@ -547,6 +547,14 @@ export const UI_EXTRAS = (() => {
   L.push(['skillIcon', 'empty', 'arts/ui/[uc]charcommon/skills/empty_skill.png']);
   L.push(['skillIcon', 'empty_large', 'arts/ui/[uc]charcommon/skills/empty_skill_large.png']);
   L.push(['entry', 'season_logo_settle', 'activity/[uc]act2autochess/arts/seasonlogo/season_logo_settle_game.png']);
+  // (fork) the result card's entrance (the official auto_chess_settle_game_player_item prefab and its show clip;
+  // screens/settle.js CardEntrance): its background (group_bg/bg, sliced), frame, mattes, glow and line sprites
+  const pi = 'ui/autochess/[uc]autochessouter/settlegame/auto_chess_settle_game_player_item/';
+  for (const k of ['card_bg', 'bg_frame', 'char_color_mask', 'char_mask', 'complete_up_bg', 'complete_up_glow', 'line_up', 'round_complete_bg', 'unfinish_bg']) {
+    L.push(['settleCard', k, `${pi}${k}.png`]);
+  }
+  // its materials' dissolve masks (Torappu/UI/Dissolve/UI-DoubleDissolve-Tex _DissolveTex1 / _DissolveTex2)
+  for (const k of ['img_uifx_basicmask_03', 'img_uifx_common_basicmask_01']) L.push(['uiFxMask', k, `arts/ui/[uc]fxcommon/textures/mask/${k}.png`]);
   const ec = 'ui/autochess/[uc]autochessbattle/effectchoose/';
   for (const k of ['bg_circle', 'bg_grad', 'bottom', 'deco_glow_top', 'plus', 'square_1', 'square_2', 'square_fill_1', 'square_fill_2', 'tip_glow', 'tip_wait', 'title']) {
     L.push(['effectChoose', k, `${ec}autochess_battle_effect_choose_panel/${k}.png`]);
@@ -615,12 +623,13 @@ function nativeVoiceAlt(asset, dir) {
 }
 
 /**
- * Full artwork (yuanyan `skin/<portraitId>b.png`, ~3 MB) → `outfit/art/<name>.webp`, converted at download time
- * (downloader.mjs convertImage: ≤ 1024 px, ~150 KB). `ids` = candidate portrait ids, best first (one file).
+ * Full artwork (yuanyan `skin/<portraitId>b.png`, ~3 MB) → `outfit/art2k/<name>.webp`, converted at download time
+ * (downloader.mjs convertImage: ≤ 2048 px). A folder of its own since the 2048 copies (2026-11-23): in `outfit/art/` the
+ * ledger kept the 1024 copies already on disk. `ids` = candidate portrait ids, best first (one file).
  */
 function artAlt(name, ids) {
   const urls = ids.map((id) => joinUrl(RAW.yuanyan, `skin/${id}b.png`));
-  return { ...alt(`outfit/art/${safeName(name)}.webp`, urls), from: 'png' };
+  return { ...alt(`outfit/art2k/${safeName(name)}.webp`, urls), from: 'png' };
 }
 
 /**

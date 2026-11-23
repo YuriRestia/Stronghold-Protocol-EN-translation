@@ -76,9 +76,10 @@ import { hasScriptConsent, rememberScriptConsent, pageVersion } from '../content
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } from '../store.js';
 import { data, useData, getConfig } from '../data.js';
-import { chessAvatarUrl, chessPortraitUrl } from '../ui/assetUrls.js';
+import { chessAvatarUrl, chessPortraitUrl, chessFullArtUrl } from '../ui/assetUrls.js';
 import { CARD_KEY, cardStore, setCard, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc, botCharId } from '../ui/seatArt.js';
 import { outfitOptsOf } from '../ui/outfits.js';
+import { IllustArt, CardArt, cardArtOf, cardAnimates, useDynIllustMode } from '../ui/dynCards.js';
 import { useAvatarArt } from '../ui/avatars.js';
 import { AvatarPicker, useAvatarPickerReady } from '../ui/avatarPicker.js';
 import { skinsStore, SKINS_KEY, ownerSkin } from '../ui/skins.js';
@@ -117,16 +118,24 @@ export function normalizeSeats(room) {
 export function isLargeRoom(room) { return Number.isInteger(room?.capacity) && room.capacity > MAX_SEATS; }
 
 /**
- * (fork) A large room's seat cards in their two squads (seats 1–4 = A, 5–8 = B), each under its label; any other room's
- * cards as they are.
+ * (fork) A large room's seat cards in their two squads (seats 1–4 = A, 5–8 = B), each under its heading line — the
+ * squad's name, a rule and its doctors' ready count (the bar's count, per squad; the user's pick of 2026-11-22); any other
+ * room's cards as they are.
  */
-function squadGroups(room, cards) {
+function squadGroups(room, facts, cards) {
   // msgid 小队 {name} — en: "Squad {name}"
   if (!isLargeRoom(room)) return cards;
-  return [0, 1].map((sq) => html`<section key=${`sq${sq}`} class="rs-squad" data-squad=${sq ? 'B' : 'A'}>
-    <h3 class="rs-squad__k">${t('小队 {name}', { name: sq ? 'B' : 'A' })}</h3>
-    <div class="rs-squad__cards">${cards.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS)}</div>
-  </section>`);
+  return [0, 1].map((sq) => {
+    const humans = facts.seats.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS).filter((s) => s && !s.isBot);
+    return html`<section key=${`sq${sq}`} class="rs-squad" data-squad=${sq ? 'B' : 'A'}>
+      <header class="rs-squad__head">
+        <h3 class="rs-squad__k">${t('小队 {name}', { name: sq ? 'B' : 'A' })}</h3>
+        <i class="rs-squad__rule" aria-hidden="true"></i>
+        ${humans.length ? html`<span class="rs-squad__ready num"><b>${humans.filter(facts.isReady).length}</b>/${humans.length} ${t('已就绪')}</span>` : null}
+      </header>
+      <div class="rs-squad__cards">${cards.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS)}</div>
+    </section>`;
+  });
 }
 
 /**
@@ -290,9 +299,13 @@ function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
  * (`onPickCard`); the host gets 移出 / 移除 AI 队友 at the top right. An empty seat: 邀请 (copies the key) and, for the
  * host of a co-op room, 添加 AI 队友. `portrait` is the outfit's picture, `portraitDefault` the operator's default one
  * (given when an outfit is worn): a picture that fails to load gives way to the next, the last to the avatar frame.
+ * (fork) `fullArt` / `fullArtDefault`: on a co-op room's wide card, the outfit's (else the operator's) official full art
+ * in place of the portrait — the default's once the outfit's picture gave way —, placed where the card's illustration
+ * draws, or framed on the face (dynCards.js CardArt, the user's pick of 2026-11-23); the portrait when it has no
+ * placement or fails to load.
  */
 function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, portrait = null, portraitDefault = null, botAvatar = null, operator = null, onPickCard = null, onPickAvatar = null, fresh = false,
-  onMoveSquad = null, mySquad = null, moveWait = 0, swapFrom = null, onSwap = null, bubble = null, chatOn = false, muted = false }) {
+  onMoveSquad = null, mySquad = null, moveWait = 0, swapFrom = null, onSwap = null, bubble = null, chatOn = false, muted = false, illust = null, fullArt = null, fullArtDefault = null }) {
   const [badArt, setBadArt] = useState([]);
   // (fork) the profile icon (ui/avatars.js): the name plate's frame, and the card's frame without portrait art
   const iconSrc = useAvatarArt(seat, !!seat && seat.playerId === myId);
@@ -341,22 +354,46 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
   const state = offline ? 'offline' : seat.ready || seat.isBot ? 'ready' : isHostSeat ? 'host' : 'waiting';
   const lit = state === 'ready' || state === 'host';
   const art = seat.isBot ? null : seatArtSrc([portrait, portraitDefault], badArt);
-  const canPick = isMe && !seat.isBot && !!onPickCard;
+  const portraitImg = art ? html`<img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />` : null;  const canPick = isMe && !seat.isBot && !!onPickCard;
   // an AI teammate's name without its 「AI·」 prefix on a phone (room.css; botNameParts)
   const botPrefix = botNameParts(seat);
+  // (fork) a co-op room's wide card (the user's layout I of 2026-11-22, the 4-seat room like it the same day): nothing over
+  // the art — the ready state, the AI tag and the buttons sit in the name plate, the host's 创建者 is a crown on the card's
+  // top edge, one's own card a ring (room.css .rs-seats--wide); the solo room keeps its tall card beside the briefing
+  const wide = coop;
+  // the wide card's full art follows the portrait: the outfit's while its picture shows, the default's once it gave way
+  const fullSrc = wide && art ? (art === portrait ? fullArt : fullArtDefault) : null;
+  const botTag = seat.isBot ? html`<span class="rseat__bot"><${Icon} name="robot" />${t('AI 队友')}</span>` : null;
+  const pickBtn = canPick ? html`<button type="button" class="rseat__pick" data-testid="seat-card-pick" onClick=${onPickCard}
+    title=${t('更换名片干员')} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null;
+  const stateBox = html`<span class=${`rseat__state seat__state--${state}`}>
+    <span class="rseat__box">${lit ? html`<${Icon} name="check" />` : null}</span>
+    <span class="rseat__said">${state === 'ready' ? t('已就绪') : state === 'host' ? t('待命中') : state === 'offline' ? t('连接中断') : t('准备中')}</span>
+  </span>`;
+  const seatBtns = html`${large && facts.isHost && !swapping ? html`<button type="button" class="rseat__swap" data-testid="seat-swap" onClick=${() => onSwap?.(index, null)}
+      title=${t('与另一个座位交换')} aria-label=${t('与另一个座位交换')}><${Icon} name="swap" /></button>` : null}
+    ${swapping && swapFrom === index ? html`<button type="button" class="rseat__swap is-on" onClick=${() => onSwap?.(null, null)}
+      title=${t('取消交换')} aria-label=${t('取消交换')}><${Icon} name="close" /></button>` : null}
+    ${seat.isBot && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `rm${index}`} onClick=${() => onRemoveBot(index)}
+      title=${t('移除该 AI 队友')} aria-label=${t('移除 AI 队友')}><${Icon} name="robot" /><${Icon} name="close" /></button>` : null}
+    ${!seat.isBot && !isMe && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `kick${index}`}
+      onClick=${() => onKick(index, seat.name, seat.playerId)} title=${t('将该博士移出同盟')} aria-label=${t('移出该博士')}><${Icon} name="user" /><${Icon} name="close" /></button>` : null}`;
   return html`<article class=${`seat rseat${isMe ? ' is-me' : ''}${isHostSeat ? ' is-host' : ''}${seat.isBot ? ' is-bot' : ''}${art ? ' has-art' : ''}${lit ? ' is-lit' : ''}${flash ? ' is-flash' : ''} is-${state}`}
       style=${`--i:${index}`}>
-    <span class="rseat__clip" aria-hidden="true"></span>
+    ${wide && isHostSeat
+      ? html`<span class="rseat__crown" role="img" aria-label=${t('创建者')} title=${t('创建者')}><${Icon} name="crown" /></span>`
+      : html`<span class="rseat__clip" aria-hidden="true"></span>`}
     <header class="rseat__strip"><i></i><span class="num">P${index + 1}</span></header>
     <div class="seat__art rseat__art">
       ${art
-        ? html`<img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />`
+        ? html`<${IllustArt} art=${illust?.art || null} animate=${!!illust?.animate} wait="settled" own=${isMe} backdrop=${!wide} framing=${wide ? 'cover' : null} class="rseat__dyn">
+            ${fullSrc ? html`<${CardArt} key=${fullSrc} src=${fullSrc} class="seat__portrait" fallback=${portraitImg} />` : portraitImg}
+          </${IllustArt}>`
         : html`<${AvatarFrame} size="xl" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}
       <div class="rseat__top">
-        ${isHostSeat ? html`<span class="rseat__host"><${Icon} name="crown" />${t('创建者')}</span>` : null}
-        ${seat.isBot ? html`<span class="rseat__bot"><${Icon} name="robot" />${t('AI 队友')}</span>` : null}
-        ${canPick ? html`<button type="button" class="rseat__pick" data-testid="seat-card-pick" onClick=${onPickCard}
-          title=${t('更换名片干员')} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null}
+        ${isHostSeat && !wide ? html`<span class="rseat__host"><${Icon} name="crown" />${t('创建者')}</span>` : null}
+        ${wide ? null : botTag}
+        ${wide ? null : pickBtn}
         ${consent ? html`<span class="rseat__tag" data-testid="script-consented">${t('已同意')}</span>` : null}
         ${facts.needsContent && !seat.isBot ? html`<span class=${`rseat__tag seat__content is-${seat.content || 'loading'}`} data-testid="seat-content">
           ${facts.versionRoom
@@ -364,36 +401,30 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
             : seat.content === 'ready' ? t('插件内容就绪') : seat.content === 'failed' ? t('插件内容校验失败') : t('插件内容载入中')}
         </span>` : null}
       </div>
-      ${offline ? html`<span class="rseat__lost"><${Icon} name="wifiOff" />${t('连接中断')}</span>` : null}
+      ${offline && !wide ? html`<span class="rseat__lost"><${Icon} name="wifiOff" />${t('连接中断')}</span>` : null}
       ${bubble ? html`<div class="rseat__bubble" data-testid="seat-bubble">${bubble.text != null
         ? html`<${ChatBubble} key=${bubble.seq} text=${bubble.text} at=${bubble.at} ttl=${bubble.ttl} />`
         : html`<${EmoteBubble} key=${bubble.seq} id=${bubble.id} />`}</div>` : null}
-      <div class="rseat__low">
+      ${wide && art ? html`<span class="seat__op sr-only">${operator?.name || ''}</span>` : null}
+      ${wide ? null : html`<div class="rseat__low">
         ${art ? html`<span class="seat__op">${operator?.name || ''}</span>` : null}
-        <span class=${`rseat__state seat__state--${state}`}>
-          <span class="rseat__box">${lit ? html`<${Icon} name="check" />` : null}</span>
-          <span class="rseat__said">${state === 'ready' ? t('已就绪') : state === 'host' ? t('待命中') : state === 'offline' ? t('连接中断') : t('准备中')}</span>
-        </span>
-      </div>
+        ${stateBox}
+      </div>`}
     </div>
-    ${large && facts.isHost && !swapping ? html`<button type="button" class="rseat__swap" data-testid="seat-swap" onClick=${() => onSwap?.(index, null)}
-      title=${t('与另一个座位交换')} aria-label=${t('与另一个座位交换')}><${Icon} name="swap" /></button>` : null}
-    ${swapping && swapFrom === index ? html`<button type="button" class="rseat__swap is-on" onClick=${() => onSwap?.(null, null)}
-      title=${t('取消交换')} aria-label=${t('取消交换')}><${Icon} name="close" /></button>` : null}
+    ${wide ? null : seatBtns}
     ${swapping && swapFrom !== index ? html`<div class="rseat__swapbox">${swapHere}</div>` : null}
-    ${seat.isBot && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `rm${index}`} onClick=${() => onRemoveBot(index)}
-      title=${t('移除该 AI 队友')} aria-label=${t('移除 AI 队友')}><${Icon} name="robot" /><${Icon} name="close" /></button>` : null}
-    ${!seat.isBot && !isMe && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `kick${index}`}
-      onClick=${() => onKick(index, seat.name, seat.playerId)} title=${t('将该博士移出同盟')} aria-label=${t('移出该博士')}><${Icon} name="user" /><${Icon} name="close" /></button>` : null}
     <div class="rseat__plate">
-      ${isMe ? html`<span class="rseat__me" role="img" aria-label=${t('你')} title=${t('你')}><${Icon} name="info" /></span>` : null}
+      ${isMe && !wide ? html`<span class="rseat__me" role="img" aria-label=${t('你')} title=${t('你')}><${Icon} name="info" /></span>` : null}
+      ${isMe && wide ? html`<span class="sr-only">${t('你')}</span>` : null}
       ${isMe && !seat.isBot && onPickAvatar
         ? html`<button type="button" class="avedit rseat__face" data-testid="seat-avatar-pick" onClick=${onPickAvatar}
             title=${/* en: "Change profile icon" */ t('更换头像')} aria-label=${t('更换头像')}>
             <${AvatarFrame} size="sm" name=${seat.name} src=${iconSrc} seat=${index} self=${isMe} />
             <span class="avedit__pen" aria-hidden="true"><${Icon} name="edit" /></span></button>`
         : html`<${AvatarFrame} size="sm" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} />`}
-      <span class="rseat__who"><b class="seat__name">${botPrefix ? html`<span class="seat__name-pre">${botPrefix[0]}</span>${botPrefix[1]}` : seat.name || t('博士')}</b>${isMe ? html`<span class="seat__you" aria-hidden="true">${t('你')}</span>` : null}</span>
+      <span class="rseat__who"><b class="seat__name">${botPrefix ? html`<span class="seat__name-pre">${botPrefix[0]}</span>${botPrefix[1]}` : seat.name || t('博士')}</b>${isMe && !wide ? html`<span class="seat__you" aria-hidden="true">${t('你')}</span>` : null}</span>
+      ${wide ? html`<span class="rseat__num num" aria-hidden="true">P${index + 1}</span>
+        <span class="rseat__acts">${botTag}${stateBox}${pickBtn}${seatBtns}</span>` : null}
       <small class="rseat__doc">${seat.isBot ? 'AUTONOMOUS UNIT' : `DOCTOR #${doctorNo(seat.playerId)}`}</small>
       ${chatOn && !isMe && !seat.isBot ? html`<${ChatMuteButton} player=${seat} muted=${muted} class="team__mute rseat__mute" />` : null}
     </div>
@@ -579,6 +610,31 @@ function GoButton({ label, onClick, disabled, loading = false, ready = null, ico
 const PROPOSE_RETRY_MS = 1200;
 
 /** Room screen component. */
+/**
+ * (fork) The seat area's content box as CSS variables `--rs-cw` / `--rs-ch` (px) on the element the returned ref is put
+ * on, kept current with a ResizeObserver: a co-op room's wide cards take their width from it (room.css .rs-seats--wide),
+ * in place of container query units (Firefox ESR 115 and Safari < 16 lack them, client-static.test.js).
+ */
+function useSeatArea(on) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!on || !el) return undefined;
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      if (w > 0) el.style.setProperty('--rs-cw', `${w}px`);
+      if (h > 0) el.style.setProperty('--rs-ch', `${h}px`);
+    };
+    measure();
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [on]);
+  return ref;
+}
+
 export function RoomScreen() {
   const room = useStore((s) => s.room);
   const me = useStore((s) => s.me, shallowEqual);
@@ -599,6 +655,7 @@ export function RoomScreen() {
   const myCard = useStore((s) => s[CARD_KEY], Object.is, cardStore);
   const localSkins = useStore((s) => s[SKINS_KEY], Object.is, skinsStore);
   const otherSkins = useStore((s) => s.otherSkins !== false, Object.is, settingsStore);
+  const dynMode = useDynIllustMode(); // (fork) 动态立绘 (ui/dynCards.js)
   const [picking, setPicking] = useState(false);
   // (fork) the profile icon picker (ui/avatarPicker.js), offered once this server has the icon art
   const [pickingAvatar, setPickingAvatar] = useState(false);
@@ -651,6 +708,8 @@ export function RoomScreen() {
   const chatMute = useStore((s) => s.chatMute);
   const bubbles = activeBubbles(emotes, Date.now(), EMOTE_BUBBLE_MS);
   useTicker(bubbles.size ? 500 : 0);
+  // (fork) the wide cards' seat area, measured (room.css --rs-cw / --rs-ch): their width follows it
+  const seatsRef = useSeatArea(!!room && room.mode !== 'solo');
   if (!room) return null;
   const chatOn = !room.chatOff;
   const online = conn.status === 'online';
@@ -868,8 +927,8 @@ export function RoomScreen() {
       </div>
     </header>
 
-    <main class=${`seats rs-seats${coop ? '' : ' seats--solo'}${isLargeRoom(room) ? ' rs-seats--large' : ''}`}>
-      ${squadGroups(room, facts.seats.map((s, i) => {
+    <main ref=${seatsRef} class=${`seats rs-seats${coop ? ' rs-seats--wide' : ' seats--solo'}${isLargeRoom(room) ? ' rs-seats--large' : ''}`}>
+      ${squadGroups(room, facts, facts.seats.map((s, i) => {
         const op = seatOperator(s, cards, { myId: me.playerId, myCard });
         // the player's outfit for that operator (header "Outfits"); null = the default art
         const skin = op ? seatCardSkin(s, op.chess.charId, { myId: me.playerId, localSkins, players: facts.occupied, otherSkins }) : null;
@@ -878,9 +937,16 @@ export function RoomScreen() {
         const outfit = op ? outfitOptsOf(op.chess.charId, s.playerId) : undefined;
         const art = op ? chessPortraitUrl(data.get('assets'), op.chess, { skin, ...outfit }) : null;
         const plain = op ? chessPortraitUrl(data.get('assets'), op.chess, { outfit: null }) : null;
+        // a co-op room's wide card shows the full art (SeatCard fullArt)
+        const full = coop && op ? chessFullArtUrl(data.get('assets'), op.chess, { skin, ...outfit }) : null;
+        const fullPlain = coop && op ? chessFullArtUrl(data.get('assets'), op.chess, { outfit: null }) : null;
+        // (fork) the card's animated illustration (ui/dynCards.js; the result card's rules, D5): the room card's operator
+        // in the seat's outfit, when 动态立绘 lets this card play it
+        const dyn = op ? cardArtOf(op.chess, s.playerId) : null;
         return html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
+          illust=${dyn ? { art: dyn, animate: cardAnimates(dynMode, s.playerId === me.playerId) } : null}
           myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
-          portrait=${art} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
+          portrait=${art} fullArt=${full} fullArtDefault=${fullPlain} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
           portraitDefault=${art && plain !== art ? plain : null} operator=${op?.chess} onPickCard=${() => setPicking(true)} onPickAvatar=${avatarReady ? () => setPickingAvatar(true) : null}
           fresh=${shownRoom.current === room.code} onMoveSquad=${moveSquad} mySquad=${mySquad} moveWait=${moveWait} swapFrom=${swapFrom} onSwap=${swap}
           bubble=${s ? bubbles.get(s.playerId) || null : null} chatOn=${chatOn} muted=${!!s && chatMuted(chatMute, s.playerId)} />`;

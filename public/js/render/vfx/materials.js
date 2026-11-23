@@ -37,13 +37,12 @@ const BY_NAME = {
   'Torappu/Particles-L2D/Dissolve/Dissolve AB (VertexColor Major)': 'dissolveVc', 'Torappu/Particles-L2D/Dissolve/Dissolve Add (VertexColor Major)': 'dissolveVc',
   'Torappu/Particles/Dissolve/Dissolve AB Double': 'dissolveDouble', 'Torappu/Particles/Dissolve/Dissolve Add Double': 'dissolveDouble',
   'Torappu/Particles/Dissolve/Dissolve Double': 'dissolveDouble', 'Torappu/Particles-L2D/Dissolve/Dissolve AB Double': 'dissolveDouble',
-  'Torappu/Particles-L2D/Dissolve/Dissolve Add Double': 'dissolveDouble', 'Torappu/Particles-L2D/Dissolve/Dissolve AB Double edge': 'dissolveDouble',
-  'Torappu/Particles-L2D/Dissolve/Dissolve Add Double edge': 'dissolveDouble',
+  'Torappu/Particles-L2D/Dissolve/Dissolve Add Double': 'dissolveDouble',
   'Torappu/Particles/Dissolve/Dissolve(CustomData)': 'dissolveCd', 'Torappu/Particles-L2D/Dissolve/Dissolve(CustomData)': 'dissolveCd',
   'Torappu/Particles/ZDistort/Dissolve(CustomData)': 'dissolveCd',
   'Torappu/Particles/Disturb/Disturb Origin': 'disturbOrigin',
   'Torappu/Particles-L2D/Disturb/Disturb (Add)': 'disturbOrigin', 'Torappu/Particles-L2D/Disturb/Disturb (AlphaBlend)': 'disturbOrigin',
-  'Torappu/Particles-L2D/Disturb/Disturb2 (Add)': 'disturbOrigin', 'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)': 'disturbOrigin',
+  'Torappu/Particles-L2D/Disturb/Disturb2 (Add)': 'disturb2', 'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)': 'disturb2',
   'Torappu/Particles/Disturb/Disturb Anchor': 'disturbAnchor', 'Torappu/Particles-L2D/Disturb/Disturb Anchor (Add)': 'disturbAnchor',
   'Torappu/Particles-L2D/Disturb/Disturb Anchor (AlphaBlend)': 'disturbAnchor',
   'Torappu/Particles/Disturb/Disturb(CustomData)': 'disturbCd', 'Torappu/Particles-L2D/Disturb/Disturb(CustomData)': 'disturbCd',
@@ -59,6 +58,35 @@ const BY_NAME = {
   'Torappu/Particles-L2D/Rim/Rim Tint (Add)': 'rimTint', 'Torappu/Particles-L2D/Rim/Rim Tint (AlphaBlend)': 'rimTint',
   'Torappu/Particles/Flipbook(Add)': 'flipbook', 'Torappu/Particles/Flipbook(Blend)': 'flipbook',
   'Torappu/Particles/Multiply': 'multiply', 'Torappu/Particles-L2D/Multiply': 'multiply',
+  // the dynamic illustrations' shaders (render/vfx/glsl-l2d.js; L2D_SHADERS below gives their variants)
+  'Torappu/Particles-L2D/Dissolve/Dissolve AB Double edge': 'dissolveDoubleEdge', 'Hidden/Particles-L2D/Dissolve/Dissolve AB Double edge': 'dissolveDoubleEdge',
+  'Torappu/Particles-L2D/Dissolve/Dissolve Add Double edge': 'dissolveDoubleEdge',
+  'Torappu/Particles-L2D/Disturb/Disturb GrabPass': 'disturbGrab', 'Torappu/Particles-L2D/Disturb/Disturb GrabPassOnce': 'disturbGrab',
+  'Torappu/Particles/RGBsplit': 'rgbSplit', 'Torappu/Particles-L2D/Unlit-Outline': 'unlitOutline', 'Torappu/Particles-L2D/Mask/Erase': 'maskErase',
+  'Torappu/Particles-L2D/3D/Toon': 'toon', 'Torappu/Particles-L2D/3D/MatCapTransparent': 'matcap',
+  'Torappu/Particles-L2D/Particles-Poker-Reflect': 'poker', 'Torappu/UI/AlphaBlend': 'uiAlphaBlend',
+  'Torappu/Particles-L2D/Special/Particle-Blur': 'particleBlur',
+};
+
+/**
+ * Per-shader settings of the dynamic illustrations' families [src: official [uc]shaders.ab of the CN client, Unity
+ * 2021.3, pass list and keywords]: `edgeAdd` the Add program's edge term; `grab` 'each' (an unnamed GrabPass: the frame
+ * is copied before every renderer that uses it) or 'once' (GrabPass "_DisturbGrabTexture": once per frame, at the first
+ * such renderer); `drawPass` the index of the pass that draws (a GrabPass shader's pass 0 is the grab); `hull` the
+ * index of a second pass drawn after the first (Unlit-Outline's outline); `vx` the vertex extra (glsl-l2d.js); `cvs`
+ * the keyword or float that turns the custom vertex streams on.
+ */
+const L2D_SHADERS = {
+  'Torappu/Particles-L2D/Dissolve/Dissolve Add Double edge': { edgeAdd: true },
+  'Torappu/Particles-L2D/Disturb/Disturb GrabPass': { grab: 'each', drawPass: 1, vx: 'grab', cvs: '_CUSTOMDATA_ON' },
+  'Torappu/Particles-L2D/Disturb/Disturb GrabPassOnce': { grab: 'once', drawPass: 1, vx: 'grab', cvs: '_CUSTOMDATA_ON' },
+  'Torappu/Particles-L2D/Special/Particle-Blur': { grab: 'once', drawPass: 1, cvs: '_CUSTOMDATA_ON' },
+  'Torappu/Particles-L2D/Disturb/Disturb2 (AlphaBlend)': { glowKw: '_DISTURBMODE_GLOW' },
+  'Torappu/Particles-L2D/Disturb/Disturb2 (Add)': { glowKw: '_DISTURBMODE_GLOW', add: true },
+  'Torappu/Particles-L2D/Unlit-Outline': { hull: 1 },
+  'Torappu/Particles-L2D/Particles-Poker-Reflect': { vx: 'tangent' },
+  // the Ram/Disturb(CustomData) fragment with the main UV always disturbed, plus its vertex displacement
+  'Torappu/Particles-L2D/Ram/VertexDisturb(CustomData)': { vx: 'vdisturb' },
 };
 
 const fallbacks = new Map(); // shader name → family it falls back to
@@ -67,8 +95,8 @@ const fallbacks = new Map(); // shader name → family it falls back to
 export function familyOf(name) {
   const s = String(name || '');
   if (BY_NAME[s]) return { family: BY_NAME[s] };
-  // unported (GrabPass distortions, RGB split, blur, toon / matcap, outline, SimSpine, erase …) or unknown: the closest
-  // simple family by name
+  // unported (the battle set's GrabPass distortions and blurs — the battle layer has no frame of its own to copy —,
+  // SimSpine …) or unknown: the closest simple family by name
   let family = 'basic';
   if (/Dissolve/.test(s)) family = /CustomData/.test(s) ? 'dissolveCd' : /Double/.test(s) ? 'dissolveDouble' : 'dissolve';
   if (!fallbacks.has(s)) fallbacks.set(s, family);
@@ -112,9 +140,35 @@ export function compileMaterial(m, opts = {}) {
     const key = typeof t?.tex === 'string' && !t.tex.startsWith('builtin:') ? t.tex : null;
     textures.push({ name, key, def: typeof t?.default === 'string' ? t.default : (/Distur|Disturb|Add|Mask/.test(name) ? 'black' : 'white') });
   }
-  const p = Array.isArray(m?.passes) && m.passes.length ? m.passes[0] : {};
+  const passes = Array.isArray(m?.passes) ? m.passes : [];
+  const l2d = L2D_SHADERS[m?.shader] || null;
+  const p = passes[l2d?.drawPass ?? 0] || passes[0] || {};
+  const state = passState(p);
+  const queue = typeof m?.queue === 'number' ? m.queue : m?.queue === 'Geometry' ? 2000 : m?.queue === 'AlphaTest' ? 2450 : m?.queue === 'Overlay' ? 4000 : 3000;
+  const defs = { cvs: kw.has('_HGCUSTOMVERTEXSTREAM_ON') || num(floats._HGCustomVertexStream, 0) > 0.5, weight: kw.has('_WEIGHT_ON') || num(floats._Weight, 0) > 0.5, lite };
+  let key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}`;
+  const out = { name: m?.name || '', shader: m?.shader || '', family, defs, key, floats, vecs, textures, state, queue, fallback: !!fallback };
+  if (l2d) {
+    if (l2d.cvs) defs.cvs = kw.has(l2d.cvs);
+    if (l2d.edgeAdd) defs.edgeAdd = true;
+    if (l2d.vx) defs.vx = l2d.vx;
+    if (l2d.glowKw) defs.glow = kw.has(l2d.glowKw);
+    if (l2d.add) defs.add = true;
+    out.key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}|${defs.edgeAdd ? 1 : 0}${defs.vx || ''}${defs.glow ? 'g' : ''}${defs.add ? 'a' : ''}`;
+    if (l2d.grab) out.grab = l2d.grab;
+    // a second pass drawn right after the first with the same geometry (Unlit-Outline's outline hull)
+    if (l2d.hull != null && passes[l2d.hull]) {
+      const hdefs = { cvs: false, weight: false, lite, vx: 'hull' };
+      out.second = { ...out, family: `${family}Hull`, defs: hdefs, key: `${family}Hull|00${lite ? 1 : 0}|0hull`, state: passState(passes[l2d.hull]), second: null };
+    }
+  }
+  return out;
+}
+
+/** Render state of a descriptor pass (blend factors, blend op, ZTest, ZWrite, cull, colour mask). */
+function passState(p) {
   const b = Array.isArray(p.blend) ? p.blend : ['SrcAlpha', 'OneMinusSrcAlpha', 'Zero', 'OneMinusSrcAlpha'];
-  const state = {
+  return {
     src: BLEND[b[0]] ?? BLEND.SrcAlpha, dst: BLEND[b[1]] ?? BLEND.OneMinusSrcAlpha,
     srcA: BLEND[b[2]] ?? BLEND.Zero, dstA: BLEND[b[3]] ?? BLEND.OneMinusSrcAlpha,
     op: String(p.blendOp || 'Add'),
@@ -123,8 +177,4 @@ export function compileMaterial(m, opts = {}) {
     cull: p.cull === 'Back' || p.cull === 'Front' ? p.cull : 'Off',
     colorMask: num(p.colorMask, 15) | 0,
   };
-  const queue = typeof m?.queue === 'number' ? m.queue : m?.queue === 'Geometry' ? 2000 : m?.queue === 'AlphaTest' ? 2450 : m?.queue === 'Overlay' ? 4000 : 3000;
-  const defs = { cvs: kw.has('_HGCUSTOMVERTEXSTREAM_ON') || num(floats._HGCustomVertexStream, 0) > 0.5, weight: kw.has('_WEIGHT_ON') || num(floats._Weight, 0) > 0.5, lite };
-  const key = `${family}|${defs.cvs ? 1 : 0}${defs.weight ? 1 : 0}${lite ? 1 : 0}`;
-  return { name: m?.name || '', shader: m?.shader || '', family, defs, key, floats, vecs, textures, state, queue, fallback: !!fallback };
 }

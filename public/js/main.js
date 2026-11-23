@@ -63,6 +63,7 @@ import { RoomScreen, TrustedNotice } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
 import { preloadBootArt } from './ui/protocolBoot.js';
 import { playEntryFilm, watchTitleReturns } from './ui/entryFilm.js';
+import { afterOpening } from './ui/dynCards.js';
 import { loadLater } from './loadLater.js';
 import { audio, installAudio } from './audio.js';
 import { installLobbyMedia } from './ui/lobbyMedia.js';
@@ -637,6 +638,7 @@ async function boot() {
     .catch((err) => console.warn('[app] entry film unavailable', err));
   watchTitleReturns(filmOptions); // (fork) again on every return to the login screen
   openingLoaded.then(warmBattleScripts);
+  afterOpening(openingLoaded); // (fork) the room cards' animated illustrations wait for the film's files (ui/dynCards.js)
   globalThis.__SP__ = { store, net, regions, data, version: 1 };
   // Settings ▸ Preload assets: a preload that is on resumes a few seconds after the opening's files (resources/index.js)
   installPreload(openingLoaded);

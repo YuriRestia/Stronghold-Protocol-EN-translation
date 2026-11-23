@@ -361,6 +361,42 @@
       ]
     },
     {
+      "id": "render-dynillust",
+      "paths": [
+        "public/js/render/dynillust/**"
+      ],
+      "why": "animated official illustrations: the extracted format, the mount API and the card states; they draw through the official-effect player",
+      "read": [
+        {
+          "doc": "docs/design/vfx-format.md",
+          "headings": [
+            "### 33.19 Dynamic illustrations (动态立绘): the extracted format and the mount API (fork, 2026-11-22)"
+          ]
+        },
+        {
+          "doc": "docs/design/client.md",
+          "headings": [
+            "### Official battle effects (官方特效; render/vfx, 0.3.0)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dynillust-extract",
+      "paths": [
+        "tools/local-extract/dynillust.py"
+      ],
+      "why": "dynamic illustrations: the extracted format the renderer reads",
+      "read": [
+        {
+          "doc": "docs/design/vfx-format.md",
+          "headings": [
+            "### 33.19 Dynamic illustrations (动态立绘): the extracted format and the mount API (fork, 2026-11-22)"
+          ]
+        }
+      ]
+    },
+    {
       "id": "render-outfits",
       "paths": [
         "public/js/ui/outfits.js",

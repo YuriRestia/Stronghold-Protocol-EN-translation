@@ -306,6 +306,30 @@ span.settle__nexticon .icon { width: .34rem; height: .34rem; }
 .steam__cards .hscroll__arrow { top: 3.2rem; }
 .tcard { position: relative; isolation: isolate; width: 3.47rem; flex: none; display: flex; flex-direction: column; animation: tcard-in 560ms var(--ease-out) calc(150ms + var(--i) * 120ms) both; }
 @keyframes tcard-in { 0% { opacity: 0; transform: translateY(-.3rem); filter: brightness(2.4) saturate(0); } 50% { opacity: 1; } }
+/* (fork) the official entrance (ui/cardEntrance.js: the client's show clip drives these variables, and its mattes are
+   drawn into the two .tcard__ce canvases — under the title, rounds, header text and name card, over the art; the
+   additive layers composited with plus-lighter). The CSS entrance above stays for a page without the sprites / WebGL2. */
+.tcard.has-ce { animation: none; opacity: var(--ce-a, 0); }
+.tcard__ce { position: absolute; left: 0; width: 100%; z-index: 1; pointer-events: none; }
+.tcard__ce--add { mix-blend-mode: plus-lighter; }
+.tcard.has-ce .tcard__head { z-index: 2; background: transparent; }
+.tcard.has-ce .tcard__plate, .tcard.has-ce .tcard__chips { position: relative; z-index: 2; }
+.tcard.has-ce .tcard__plate { transform: translateY(var(--ce-card, 0px)); }
+.tcard.has-ce .tcard__img, .tcard.has-ce .dyn-art__live { transform: translateY(var(--ce-root, 0px)); }
+.tcard.has-ce .tcard__rounds { opacity: var(--ce-round, 1); }
+/* the official background and square: card_bg behind the card (9-slice, placed by cardEntrance.js CARD_BG), and the
+   square the top strip's own sprite carries (unfinish_bg / complete_up_bg, drawn in the mattes) — our panel and teal pin
+   give way to them */
+.tcard__cardbg { position: absolute; z-index: -1; box-sizing: border-box; border-style: solid; border-color: transparent; pointer-events: none; }
+.tcard.has-ce::before { background: none; box-shadow: none; }
+.tcard.has-ce .tcard__pin { display: none; }
+/* the strip sprite prints its own STRONGHOLD PROTOCOL text and no seat number (the official card, D1): ours give way;
+   hidden, not removed, so the header keeps the height the mattes are placed by */
+.tcard.has-ce .tcard__code, .tcard.has-ce .tcard__seat { visibility: hidden; }
+/* a live illustration's see-through pixels show the official card background behind the card (group_bg/bg, drawn before
+   group_char), not our art window's gradient (`has-live-art`: set by IllustArt on its parent — no parent selector,
+   which Firefox ESR 115 lacks) */
+.tcard.has-ce .tcard__art.has-live-art { background: none; }
 .tcard::before { content: ''; position: absolute; left: -.06rem; right: -.06rem; top: .36rem; bottom: .7rem; background: rgba(22, 27, 26, .78); box-shadow: 0 0 0 1px rgba(180, 196, 192, .14); z-index: -1; }
 .tcard__head { position: relative; height: .45rem; margin-top: .39rem; display: flex; align-items: center; gap: .1rem; padding: 0 .12rem; background: #32dcae; color: #0b3a2f; }
 .tcard__pin { position: absolute; left: 50%; top: -.39rem; width: .14rem; height: .14rem; margin-left: -.07rem; background: #32dcae; }
@@ -385,7 +409,20 @@ span.settle__nexticon .icon { width: .34rem; height: .34rem; }
 .steam__outcome, .steam__rounds, .steam__when, .sbtn { animation: steam-bar 420ms var(--ease-out) 520ms both; }
 @keyframes steam-bar { from { opacity: 0; transform: translateY(.2rem); } }
 
+/* (fork) the 同盟 page mounted ahead of its turn (screens/settle.js TeamPage `shown`): hidden under the intro and 个人战报
+   while its cards' illustrations get live, its CSS entrance held at its first frame until it shows */
+.steam.is-pre { visibility: hidden; pointer-events: none; z-index: -1; }
+.steam.is-pre, .steam.is-pre * { animation-play-state: paused; }
+
+/* (fork) the black cover the result screen waits behind while its cards' illustrations load (screens/settle.js
+   ResultCover): over everything, fades in, holds black with a small spinner, fades out over the result screen */
+.rcover { position: fixed; inset: 0; z-index: 10001; display: grid; place-items: center; background: #000;
+  animation: rcover-in var(--rcover-ms, 380ms) linear both; transition: opacity var(--rcover-ms, 380ms) linear; }
+.rcover.is-out { opacity: 0; pointer-events: none; }
+@keyframes rcover-in { from { opacity: 0; } }
+
 @media (prefers-reduced-motion: reduce) {
   .settle *, .settle *::before, .settle *::after { animation: none; }
   .sintro { display: none; }
+  .rcover { animation: none; transition: none; }
 }

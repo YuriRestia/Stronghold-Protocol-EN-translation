@@ -58,7 +58,8 @@ import { TurnBanner, TURN_BANNER_LATE_MS } from '../ui/turnBanner.js';
 import { onBootArt, preloadBootArt } from '../ui/protocolBoot.js';
 import { reducedMotion } from '../ui/device.js';
 import { useRise } from '../ui/transitions.js';
-import { CARD_KEY, cardStore, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc } from '../ui/seatArt.js';
+import { seatOperator, seatCardSkin, seatArtSrc } from '../ui/seatArt.js';
+import { useMatchCards } from '../ui/dynCards.js';
 import { outfitOptsOf } from '../ui/outfits.js';
 import { skinsStore, SKINS_KEY } from '../ui/skins.js';
 import { settingsStore } from '../ui/settingsStore.js';
@@ -301,7 +302,6 @@ export function BandDraftScreen({ held = null } = {}) {
   const priv = useStore((s) => s.match.private);
   const myId = useStore((s) => s.me.playerId);
   const roomSolo = useStore((s) => s.room?.mode === 'solo');
-  const roomSeats = useStore((s) => s.room?.seats);
   const gd = useGameData();
   const [sel, setSel] = useState(null);
   const [open, setOpen] = useState(false);   // the detail pane: only once a portrait (or a row's pick) is tapped
@@ -425,13 +425,13 @@ export function BandDraftScreen({ held = null } = {}) {
   // players (m.public.players[].skins), none for another seat while 「显示其他玩家的皮肤」 is off, the default art when the
   // outfit's pictures are not here (chessPortraitUrl) — or fail to load (the row falls back to them: §35.51)
   // (gd.backups: the room version's 自选编队 pool joins the card list, as on the room's seat cards)
-  const cards = useMemo(() => cardContext(cardOperators(gd.list('chess'), gd.backups), { pending: !gd.backups }), [gd.ready, gd.backups]);
-  const myCard = useStore((s) => s[CARD_KEY], Object.is, cardStore);
+  // (the same room cards the result cards read: ui/dynCards.js useMatchCards)
+  const { ctx: cards, myCard, seatOf } = useMatchCards(gd);
   const localSkins = useStore((s) => s[SKINS_KEY], Object.is, skinsStore);
   const otherSkins = useStore((s) => s.otherSkins !== false, Object.is, settingsStore);
   const artOf = (p) => {
     if (p.isBot) return null;
-    const seat = (Array.isArray(roomSeats) && roomSeats.find((x) => x && x.playerId === p.playerId)) || { playerId: p.playerId };
+    const seat = seatOf(p.playerId);
     const op = seatOperator(seat, cards, { myId, myCard });
     const skin = op ? seatCardSkin(p, op.chess.charId, { myId, localSkins, players, otherSkins }) : null;
     if (!op) return null;

@@ -154,7 +154,26 @@ history and the open points: DESIGN §32.14.25.
   bursts with cycles and probability), the shapes, velocity / limit velocity / force / inherit velocity / noise /
   rotation / size / colour over lifetime and by speed, texture sheets, trails, sub-emitters, prewarm, start delay,
   simulation spaces and scaling modes (a particle's size × the scaling mode's scale per axis, a local-space one's as it
-  is now: DESIGN §33.5), in fixed sub-steps of at most 1/30 s with a seeded generator. `clips.js` samples
+  is now: DESIGN §33.5), in fixed sub-steps of at most 1/30 s with a seeded generator. Each step ages and kills the
+  particles first, then emits; a rate-over-time particle starts at the moment the accumulator crossed its whole number
+  (particle j of the step, newest first, (j + what the accumulator keeps) / (rate × step) of the step old), so a full
+  system whose particle dies in a step is refilled in that step (fork, 2026-11-23: the evenly spread birth left
+  Nightingale's Iakhu of Flows ring balls, one particle each, gone for seconds) [src: official UnityPlayer.dll
+  2021.3.39 game build with its UnityPlayer.pdb: EmissionModule::EmitCommon, ParticleSystem::StartModules,
+  ParticleSystem::Update1Incremental]. A loop boundary inside a step splits its emission, and what a piece emits
+  also ages through the rest of the step, as the engine runs each piece's simulate → emit → start in turn (her gold
+  bars, life = loop = 1 / rate, were otherwise empty a whole second now and then). A texture sheet's random start
+  frame, frame and row are the engine's own (fork, 2026-11-23): each particle also gets the seed the engine would
+  give it — four Unity Randoms seeded with the system seed + 0x16f · lane, drawn once per four particles of one
+  emission call (one per Update and loop piece; the prewarm is one Update) and again from the start at each play —, and
+  a field's random is the first draw of Random(that seed + the field's constant) (`rng.js UnitySeeds`, `unityRand`)
+  [src: official UnityPlayer.dll 2021.3.39 game build: RandN::SetSeed, InitialModule::ResetSeed / Start,
+  UpdateSingleRow2Tpl / UpdateWholeSheet2Tpl, ParticleSystem::Play / Simulate]. So a system with a fixed seed shows
+  the sprites the game shows (Texas the Omertosa's Il Segreto Della Notte balloons, a 2 × 4 sheet of blue, purple and
+  orange balloons: 810 such systems in 67 of the 98 illustrations); one with an automatic seed stays random, as in the
+  game. Not reproduced: the engine's prewarm is a single step that emits once per loop at its end, ours steps through
+  it, so which prewarmed particles are alive at the start may differ; the other fields keep our own per-field hash.
+  `clips.js` samples
   the prefabs' clips (transforms, active flags, material, renderer and system properties). `effect.js Effect` runs the
   hierarchy and the behaviours: ParticleEffect (delays, loop and stop fade, max lifetime, direction helpers, spawn
   location), ProjectileEffect, FxDelay, FxUVTweener(Advance), FxUVRotation, FxLODSetting, FollowMountPoint /
@@ -177,8 +196,41 @@ history and the open points: DESIGN §32.14.25.
   source is in the repository): basic, legacy premultiplied / alpha-blended, standard unlit, dissolve (tween, vertex
   colour, double, custom data), disturb (origin, anchor, custom data, ramp), ramp, mask, rim, flipbook and multiply,
   with `_Time` on the battle clock, the custom vertex streams and FxUVRotation as DESIGN §33.6 / §33.11 resolve them.
-  A shader of no ported family (GrabPass distortion, RGB split, blur, toon, matcap, outline, …) draws with the basic or
-  dissolve program by its name and is logged once (`materials.js fallbackLog`).
+  (fork) The animated illustrations' effects (动态立绘) add `glsl-l2d.js`, each family after the official D3D11
+  program of its shader in the CN client's `[uc]shaders.ab` (Unity 2021.3, read 2026-11-22): Dissolve AB / Add Double
+  edge (Torappu/ and Hidden/), Disturb GrabPass / GrabPassOnce and Particle-Blur (they read a copy of the frame drawn so
+  far: `gl.js _grabFrame` copies the bound framebuffer's viewport before each renderer of an unnamed GrabPass, once per
+  frame for the named `_DisturbGrabTexture`), Disturb2 AlphaBlend / Add (the main texture moved by two scrolling noise
+  reads, the vertex colour's rgb unread, the `_DISTURBMODE_GLOW` mode; Dusk's Elite 2 background), Ram/VertexDisturb
+  (the Ram/Disturb program with the main UV always disturbed, and vertex extra `vdisturb`: a mesh's vertices moved in
+  object space by `_VertexDisturbTex` × its weight texture × `_VertexDisturbIntensity`; Degenbrecher's outfit), RGBsplit,
+  Unlit-Outline (its outline hull is the material's second pass: `materials.js` `second`, drawn right after the first),
+  Mask/Erase (colour 0, alpha (1 − mask) × `_Strength`; with its alpha factors (One, OneMinusSrcAlpha) it makes the
+  pixel see-through), 3D/Toon and 3D/MatCapTransparent (the camera's
+  rotation: `draw` frame `viewRot`), Particles-Poker-Reflect (a mesh's tangents and second UV set, a cubemap) and
+  UI/AlphaBlend. A vertex variant (`defs.vx`) only appends code to the kind's vertex shader; the battle families'
+  programs and keys are unchanged. An illustration's own FxGL (`new FxGL(gl, lib, { rtAlpha: true })`) keeps the
+  materials' official alpha factors, translated to coverage: the official illustration camera clears its render
+  texture to alpha 1 and the card adds RT.rgb + background × RT.a (shader UI/UI_RT_DYN_ILLUST), so the RT alpha is a
+  transmittance (`gl.js rtAlphaFactors`); the battle canvas keeps its rewrite. Unity's `Standard` appears in two illustrations only on inactive placeholder quads
+  no clip enables, so it is never drawn. A shader of no ported family (the battle set's GrabPass and blur shaders —
+  the battle layer has no frame of its own to copy —, SimSpine, …) draws with the basic or dissolve program by its name
+  and is logged once (`materials.js fallbackLog`).
+  The illustrations' Spine skeletons draw through `render/dynillust/spine-shader.js` (`createDynSpine`): one Pixi batch
+  plugin applies the official Spine materials — Torappu Skeleton-AlphaSplit (L2D) with bleed and gray, the Tint Black
+  twins, the PMA Multiply and SkeletonGraphic shaders — per slot as spine-unity routes its blend mode (a blend-mode
+  material when the SkeletonDataAsset lists one: Dusk 'Hazy Jade''s multiply material is the plain AlphaSplit shader,
+  so those slots blend normally), with spine-unity's vertex colours (PMA bytes, an additive slot's alpha 0). It also
+  clips only while a slot shows its clipping attachment: pixi-spine kept a clip after an animation swapped it for a
+  mesh and masked every later slot (Hazy Jade's eyes, brows and props: the blank face).
+  (fork, 2026-11-23) An illustration draws as the engine's forward loop does: every renderer whose material queue is
+  at most 2500 in an opaque pass first, then the rest by sorting layer, order, queue and depth
+  (`render/dynillust/renderer.js byUnityOrder`) [src: official UnityPlayer.dll 2021.3.39 game build:
+  BuildRenderObjectData `cmp ebp, 0x9c4`; DoRenderLoop's opaque then transparent DoForwardShaderRenderLoop]; the
+  skeleton, on the GPU path, sits at its root's depth and tests it as its Spine material says (all 98: ZTest
+  LessEqual, ZWrite Off; `loader.js spineDepth`), so W's Elite 2 bullets (3D/Toon, queue 2000, ZWrite On) hide it
+  where they are nearer and it hides them where they are behind it. 3D/Toon reads no vertex colour (the official
+  program's inputs: position, UV, normal), so those bullets appear and vanish without a fade, as in the game.
 - **Wiring** (`wiring.js FxWiring`, from index.json §33.12). An attack: its cast rows on the attacker — the
   ON_CAST_START ones when the attack's wind-up starts its Spine clip (`app.js onUpcoming` → `castStart`, as far into the
   effect as the clip started), the ON_SPELL_ON ones at the 'atk' event; a NONE row's first slot, a directional row's
@@ -405,6 +457,218 @@ focus remains visible). Each of the two equipment slots constrains its icon with
 The 下一步 button maps the face of its 297×86 art (rows 1–68, columns 1–268) onto its box; label and icon use layout rem, with the label registered as a text-size exception (§35.94).
 [ASSUMED] Browser title budgets and uniform shrinking accommodate translation and text-size expansion; they are
 not measurements of the official client.
+
+(fork) **Animated illustrations** (动态立绘; the user's decisions D1–D13 of 2026-11-22, crew-docs `l2d-art-proposal.md`;
+`ui/dynCards.js`, the renderer and format in vfx-format.md §33.19). The result cards (同盟), the room's seat cards and
+the Grand Alliance room's eight play the operator's official dynamic illustration — one component, `IllustArt`, around
+the card's 2D art, the same on the three screens (D5); no tap action (D9). Which illustration: the worn outfit, else the
+E2 art. Which cards: 设置「动态立绘」 (`dynIllust`) 关 / 仅自己 / 所有人, `auto` = 仅自己 on a phone (touch, shorter
+screen side under 600 px) and 所有人 elsewhere (D7); all eight Grand Alliance cards at once (D8). What a result card shows:
+设置「结算卡片立绘」 (`resultArt`, D6) — 名片干员 (the room card in its outfit, the default: the official card shows the
+player's assistant) or 阵容最强干员 (the final lineup's ace, `shared/resultAce.js`); an AI seat shows its ace. Both rows
+show only on a server whose index lists illustrations. Loading (D10 / D11): nothing during the match. As the match
+starts, the room's illustrations are freed except the result cards' own (follow-up A, the user's pick of 2026-11-23:
+`screens/settle.js useKeepResultArt`, `releaseIllusts(arts)`): with 名片干员 the animating players' room cards, one's own
+first, kept at the room's tier (the 动态立绘画质 setting's, if set) while their GPU memory stays within `KEEP_CAP_MB`
+160 MB (the user's OK of 2026-11-23) — each index entry's own `gpu` / `gpuHalf` figure, else its download size times
+the measured 90th-percentile ratio (full 12.2×, half 4.7×; per illustration full median 40 MB, half 10 MB [src: work/dev-55
+gpumem.json, 2026-11-23]); with 阵容最强干员 nothing (the aces are known only at `ending`). The result screen then stays
+on that tier (`resultPin`), so the kept cards show with no load. The rest of the result cards'
+illustrations load from m.public `ending` (META §1) through the settlement pause (DELAYS.SETTLE 3 s), one preload a key;
+if they are still loading when RESULT comes, the result screen waits behind a black cover — never on screen (the user's
+correction of 2026-11-23, through the lead: "If the delay is necessary to load the L2d, then have a black screen or
+something to load when the match was ending, not half ass load the result screen only for it to awkwardly wait for the
+l2ds!"; it replaced D11's hold of the match screen for up to `RESULT_WAIT_MS` 3 s): `screens/settle.js useResultHold`
+(the one `screens/game.js` uses) fades `ResultCover` in over the match screen and holds it black with a small spinner
+until every card's illustration is in or failed, or the give-up; a cover that went up finishes its fade-in first, stays
+over a page whose cards are still getting their first frames (a spectator's 同盟 opens first: its entrance gate,
+`gateWaitStore`) and fades out over the result screen as its entrance starts; its fades are the flow's own page change
+(`RESULT_COVER_FADE_MS` = `LEAVE_MS`), none under reduced motion. No cover when the illustrations are in by the end of
+the pause (kept through the match, follow-up A, or loaded during it). At the give-up a card still loading keeps its 2D
+art at once (`resultKeyReady`). A seat's 同盟 page is mounted from the result screen's start, hidden and inert behind the
+intro and 个人战报 (`TeamPage` `shown`; its count-up, sound and CSS entrance wait for it), so its cards are live by the
+time it shows: its entrance gate opens when it shows (`joined()` / `open()`), and the entrance played 5–7 ms after
+下一步's page change instead of being held up to about 0.5 s on screen (the lead's go of 2026-11-23, after the user's
+correction above) [src: work/dev-55 sf-1440.json / sf-4k.json, pages 3 and 5, cold and warm, 2319 × 1356 @1 and @1.5]. Measured with the game's hold on the review page (pages 3 and 5, 4 cards, cold / warm /
+kept, 2319 × 1356 @1 and @1.5) [src: work/dev-55 rc-*.json, 2026-11-23]: from the local server every case opened 5–12 ms
+after the pause, no cover; on a 4 MB/s link (the review page's `&slow`) page 3 cold showed the cover 984–1214 ms and warm
+804–805 ms, the result screen 3.39–3.78 s after `ending`, kept and page 5 none. The room's load after the screen has what it
+needs (`loadLater.js` whenScreenSettled, all the room's cards together) and after the entry film's files, the renderer's
+code getting ready during that wait; a room card not ready shows its 2D art and switches when ready. A result card's
+one-shot entrance waits for its illustration instead (the user, 2026-11-23: "If an L2D is available, then it should wait
+for the l2d to be ready instead of rushing ahead with the static art, cause the animation there is only made to play
+once"): the team page's cards join one gate (`makeEntranceGate`), each settling once its illustration is live or failed
+(or it has none), and every card's entrance starts from the gate's opening with the row's stagger, held on its first,
+unseen frame until then (`useCardEntrance` `gate`). Static art only for a card without an illustration, one that failed,
+or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending` (the user's OK of 2026-11-23); such
+a card keeps its 2D art for good, no switch after its entrance. Every result page mounts with the result screen (a seat's
+同盟 hidden, above), so its gate only guards the loaded cards' first frames against a renderer that never answers, with
+what is left of the same 8 s from `ending` — one budget, never a second 8 s from the page's mount, which could hold the
+cover black about 16 s (the lead's fix of 2026-11-23) — and at least `RESULT_FIRST_FRAMES_MS` 0.5 s, so a page mounted
+at the give-up still gets its loaded cards live (0.23–0.33 s measured from mount, below; the 0.5 s the user's OK of
+2026-11-23): the cover is down at most 8.5 s after `ending`. Without a result load (the review page) the gate keeps
+the whole 8 s from its mount. (The earlier 2 s minimum for a page opened late, `RESULT_MOUNT_MIN_MS`, went with the
+pre-mount.)
+Measured on the review page (renderer booted, local server, 4 cards, 1440p and 4K): the load 0.70–0.99 s from files not
+yet fetched, 0.45–0.65 s from the HTTP cache, mount to the gate's opening 0.36–0.41 s / 0.27–0.33 s, 0.23–0.25 s with
+the illustrations still in the renderer [src: work/dev-55 rw-1440.json / rw-4k.json, 2026-11-23].
+The room's and the Grand Alliance room's cards switch together (the user, 2026-11-22: keep the placeholders and flip at
+the same time; `joinGroup`): each keeps its 2D art until every card on the screen is ready or failed, then all start in
+one frame behind their 2D art ("wait until it's ready, then play the animation and switch the live 2d in in the back"),
+and show in one frame only once `FLIP_SMOOTH_FRAMES` 10 frames in a row took at most `FLIP_SMOOTH_MS` (30 fps) — the
+renderer's first frames with the whole group live are its slow ones — on the main thread and, where the cards draw in
+Workers, in every Worker's card-frame log too (`whenSmooth`, read every 250 ms while the group waits)
+[ASSUMED: the 10 frames; user OK 2026-11-23, to "Are the 0.5 s floor and 10 smooth frames OK?": "Both OK"]. Showing is the
+official card's dissolve (the user's pick of 2026-11-22): the illustration and its background appear at once behind the
+2D art, and the art box as it shows — its background, then the 2D art at its object-fit cover crop and filter, composed
+on a canvas while the cards wait — dissolves away over `FLIP_SWEEP_S` 0.35 s (the user's value of 2026-11-23, after
+1 s, 0.67 s and the official `DYN_ILLUST_INIT_SECONDS` 0.5 s, `FLIP_DISSOLVE_S`), its drive across the look's range
+from where its bands first reach the card to where they leave it (`sweepDrive`, `sweepRange`), through the result
+card's own `complete_up_bg_dissolve` material and
+mask (`ui/cardEntrance.js drawDissolve`, the entrance's shader), with a white bloom on top (`drawBloom`, the same shader
+and mask, additive on a canvas with `mix-blend-mode: plus-lighter`; the user's direction of 2026-11-22: "a white bright
+bloom that moves on the boundary between old and new, … leaving the entire card artwork white glow before the glow fades
+away into the live2D"): a bright band on the dissolve's edge (the official `color_mask` layer's band construction: mask ×
+inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone
+[ASSUMED: the band's width and brightness, the glow and its fade, tuned to the user's descriptions; user OK 2026-11-23: "Look 5 settings is okay, approved."]. No particles: the
+glitter that once fell from the border, on a page-wide layer, was dropped (the user, 2026-11-23: "you may remove the
+glitter particles, it's useless now"). The border's look is one (`ui/cardEntrance.js GLOW`): the white glow above
+"drowns out any particle effect" (the user, 2026-11-23), so five looks were proposed on the review page; the user picked
+the fifth and the others were removed (the user, 2026-11-23: "remove"), with the review page's switch between them. The
+look (the user's pick of 2026-11-23: "1 + 2 + 3, but the color
+matches the theme color", then "the edge should be half as thin … cleaner and more elegant", "why do I see a 2nd
+line?", "good enough for now"): the old picture dims to 75 % over 0.2 s, then one thin white line in a narrow mint
+(`#4ed8af`) rim sweeps it away over a faint mint wash. One line: the bands and the
+dissolve read a smoothed copy of the official mask (box-blurred, 15 % of the raw mask kept, a half-float texture),
+since the raw mask's noise repeats each value in patches and drew stray second lines; the dissolve under it is tight
+(smooth 0.06, the official material's 0.5) [ASSUMED: the widths, the dim, the wash; user OK 2026-11-23: "Look 5 settings is okay, approved."]. The
+show's set-up happens while the cards load, one card a frame: the shared GL canvas is grown for every card
+(`reserveTiles`); at the cover or the show the same work (with the glitter's layer, since dropped) cost the show's
+first frames 60 ms of script and 125–180 ms of rendering. The cards keep their tiles after the show and the shared canvas
+is shrunk only as the last of them unmounts, in the screen change's own frame: shrunk 2 s after the show it cost a frame
+of 42–67 ms in 7 of 8 loads, none in 8 since [src: work/dev-55 wf-ab-before / wf-ab-shrink, Grand Alliance page 6,
+2560 × 1440 @1 and @1.5, 2026-11-23]; the canvas holds about 16 MB there at 1440p (3564 × 1110 px × 4 bytes [src: work/dev-55
+ss-1440-5.json, its resizes]) while the room is open [unverified: at 4K]. The dissolve is drawn in a Worker where the browser can (`ui/dissolveWorker.js`, the lead's go of
+2026-11-23): the same shader, mask and tiles (`ui/cardEntrance.js`, which imports nothing of the page; the result
+entrance's hook is `ui/cardEntranceHook.js`) in the Worker's own WebGL2 context, drawing into each card's dissolve and
+wash canvases handed over with `transferControlToOffscreen`; the Worker fetches, decodes and composes each card's
+picture itself (its art box's computed background and the 2D art at `artPlacement`), and the page only posts each
+frame's numbers. On the page, the context's creation, the shader's status queries, the shared canvas's first allocation
+and each picture's upload waited on the GPU process while the cards loaded. The Worker reports ready only after a test
+draw; without OffscreenCanvas or WebGL2 in Workers, after a failed test draw, an error or no answer within
+`FLIP_GIVE_UP_MS`, the page draws the dissolve itself as before (`dissolveWorker`). A cover drawn there shows over the
+2D art two frames before the illustration takes the 2D art's place under it, so a late cover frame can only show the 2D
+art. Measured on Grand Alliance page 6, 8 cold loads each at 2319 × 1356 @1 and @1.5 [src: work/dev-55 wf-ab-base-*,
+wf-ab-worker-*, sw-final-*.json, 2026-11-23]: the page's long frames of the dissolve while the cards load went from 2–8 a
+load (51–249 ms) to none; frames over 33 ms in the switch from 1 in 16 loads (41.7 ms) to none; none after it either way;
+every frame from each card's cover to its sweep showed the cover whole (opaque, unchanged; 16 loads × 8 cards); the
+switch comes 4.1–4.4 s after the load at @1 (3.1–3.4 s on the page) and 4.3–5.0 s at @1.5 (3.5–5.2 s). On the page's
+path each card's picture is composed, uploaded and drawn once while the cards wait, one card per frame, and the shader
+builds off the main thread (`glReady`, KHR_parallel_shader_compile); while they play, every card's dissolve
+and bloom are drawn in one GL pass a frame (`batchDissolve` / `batchBloom` / `flushBatch`, tiles in one canvas); a card
+that gave up shows `data-dyn="kept"`; the cards go
+one after another in page order, the result row's 0.083 s apart
+(`FLIP_STEP_S` = `_animDelay`; the user, 2026-11-22: "one player card at a time, in quick succession"). The official card
+has no switch from 2D to its illustration; this reuses its reveal. Without WebGL2, the sprites or under reduced motion,
+the 0.15 s controller fade (`FLIP_FADE_S`). A page not smooth `FLIP_GIVE_UP_MS` 3 s after the start ("I reject low FPS L2D"): every card but the viewer's own (`IllustArt own`) keeps its 2D art and stops, later cards of other players too; the own card, still hidden, gets a fresh 3 s alone and shows if it runs smooth, else it keeps its 2D art too and the page has given up (the user's rule of 2026-11-23: "still art for everyone else, and keep the animated l2d for yourself. If yourself isnt good enough after 3s as well, then still art for everyone"); a spectator, or a page without the viewer's card, keeps its 2D art at 3 s. The result screen has no low-FPS give-up (its cards wait only for their first frames, `makeEntranceGate`). A failed card
+(a download or build error, the renderer's `failed`) keeps its 2D and holds nobody. There is no time limit: a slow card
+holds the group however long it loads, and a slow link only switches the whole screen later, never one card after the
+others (the user's pick B of 2026-11-23; the 8 s cap before it, `GROUP_CAP_MS`, left a room on a 1 MB/s link on its 2D
+art [src: work/dev-55 latecap.mjs run, Grand Alliance page 6, 2319 × 1356 @1, 2026-11-23]). Only a stalled download
+drops a card: while the group waits it reads the stage's downloads every 0.5 s (`Stage.netState`, vfx-format.md §33.19),
+and when a download is open and no byte of any arrived for `DOWNLOAD_STALL_MS` 5 s (the user's value, 2026-11-23)
+the cards still loading keep their 2D art until the screen is opened again and the others switch together. A slow link
+keeps sending bytes, and building an illustration after its files are in opens no download, so neither a slow link nor
+a slow computer reads as a stall (the user's question of 2026-11-23, "how would the download no progress for awhile
+work?"); a card mounted after the
+flip — a player who sits down, a changed outfit or portrait — is a new card and swaps alone (its own smooth frames, its
+own dissolve); the result cards do not group (their entrance gate). The
+strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
+the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
+cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
+with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a result card's illustration
+appears — straight into Idle, no intro (the user, 2026-11-22) — is the renderer's; it no longer switches late on screen
+(its entrance waits, above); the room cards' dissolve (above) is the client's.
+An illustration's see-through pixels (its erasers) show the official card background, which both official cards draw
+before the illustration (group_bg/bg, the same 9-slice `bg_normal2` / `card_bg`): behind the result card the real one
+(below), and on a tall card of the official shape (the solo room's) `IllustArt backdrop`, mapped onto the art window as the
+prefab places it around group_char (`BACKDROP`), only while the illustration is live. A co-op room's wide card draws none:
+cut for the tall card, the 9-slice stretched across a wide one showed its light half and + marks where a scene ends (the
+user, 2026-11-22), so there the card's own dark panel shows. Nothing is sampled or blurred at runtime (the user,
+2026-11-22: a blurred background, if chosen, is prepared per illustration with the art, not made in the browser).
+(fork) **A co-op room's wide cards** (the 4-seat and the Grand Alliance room, the user's layout I and its 4-seat follow-up
+of 2026-11-22; room.js SeatCard `wide`, room.css `.rs-seats--wide`): the event's tall card gives way to a wide window onto
+the art (`--rs-ar`, a design choice: 16 : 9 in the 4-seat room — the user asked for a phone's sideways framing without too
+much of the scenes' jagged edges; of the 98 illustrations 86 % leave at most 5 % of the card uncovered there, 92 % at 1.6,
+70 % at 2 : 1 — and 1.6 in a Grand Alliance room), as
+large as the seat area allows (its width from the area's content box, measured by room.js `useSeatArea` into `--rs-cw` /
+`--rs-ch` — no container queries, which Firefox ESR 115 lacks: whichever of the area's width or height is tighter); the
+4-seat room 2 × 2, a Grand Alliance room a row of 4 per squad under a heading line — the squad's name in its colour (A grey,
+B blue; squad B's cards light in blue), a rule, its doctors' ready count. Nothing over the art: no strip, no 创建者 / AI
+tags, no wash, no operator name (kept for screen readers); the name plate carries the avatar, the name, the seat number, the
+ready state, the AI tag, 更换立绘 (icon only) and the host's swap / remove buttons, the chat mute last. One's own card is a
+mint ring around the whole card (read as 你), the host's a crown in a tab on its top edge (read as 创建者); one's own profile
+picture a dark quarter-circle with a pen in its corner, mint under the pointer. The solo room keeps the tall card.
+Each illustration on a wide card is framed on its operator's face (the user's pick of 2026-11-23, "card zoom", after
+"faces cut off … bad photography"): the card framing zoomed about a point of the card (the renderer's `framing: { mode:
+'card', zoom, fx, fy }`), one value per illustration in `data/dyn-card-framing.json` (`IllustArt framing="cover"`,
+`dynCards.js coverFraming`), generated by `tools/dyn-cover-framing.mjs` — never edited by hand — from the illustration's
+own rig (the operator's eye / mouth / face bones, else ears / head / hair; the head's top from the head-family bones near
+the face) and its coverage measured on the review page: the face kept on, or moved onto, the line 0.22–0.38 of the card's
+height (lower, up to 0.45, when the head is tall), the head's top inside, the smallest zoom of 1 / 1.1 / 1.2 / 1.35 that
+covers the card (measured 2026-11-23 on 98 illustrations: 77 fully, 93 within 5 %; the zooms and lines are design values).
+The user's list of 2026-11-23 ("looks fine by default, no zooming needed", `PLAIN` in the tool, 23 illustrations) keeps
+the plain card framing (zoom 1).
+A wide card's 2D art is the official full art (the user's pick of 2026-11-23, `assetUrls.js chessFullArtUrl`: the
+outfit's, else the operator's E2 / E1 art; the default's once the outfit's picture gave way; the portrait for a `skin`
+picture or a missing placement), placed by `dynCards.js CardArt` from `data/card-art-framing.json`, generated by
+`tools/card-art-framing.mjs`. An illustration's 2D art is linked to it by default — placed where the illustration draws
+(`registered`: the full art found by image matching on the illustration rendered zoomed out to 0.35, `--zoom`, so the
+whole picture is in view; on the tight zoom-1 crop Chongyue's E2 matched a corner of his coat, score 0.41, against 0.96
+zoomed out; all 98 now at least 0.87) and moved with the illustration's own framing value — and keeps a placement of its
+own for the exceptions listed in `separate` (the user, 2026-11-23: "a separate setting for static and live2d", then "a way
+to still link the values since the mismatched ones are the exception"; by default the registrations under
+`SEPARATE_BELOW` 0.45, none today); the dissolve may then move the picture as it reveals the illustration. Every full art
+has that own placement (`stills`): framed with the face rule, its face from the official portrait found inside it (the
+portraits put the eyes at about a third of their height), up to 2× (`STILL_ZOOMS`: a still sits in a wide torn frame; of
+440 stills 168 still leave over 5 % of the card bare at 2×, measured 2026-11-23), plus the user's move / zoom on it
+(`adjust`, `--still-edits`). The full arts are 2048 px (`outfit/art2k/`, the user's pick of 2026-11-23: a wide card draws
+them 1,900–2,650 px wide on a 4K screen).
+The dissolve composes a placed art at its own box (`object-fit: fill`) inside the card.
+Which pages (the user's choice of 2026-11-22, "automatic by card size"): each card measures its art window and wants half
+pages while it is drawn at most `HALF_MAX_SCALE` 1 device px per unit of the official 232 × 458 window (measured: there half
+kept 74–100 % of full's detail, above it 36–82 %), full above; the page uses full while any card wants full (the renderer's
+tier is page-wide), re-picks on resize, and the cards re-mount when it changes; the result load picks it from the result
+card's size before the screen exists (`resultCardTier`). That is 设置「动态立绘画质」 (`dynQuality`) 自动, the default;
+半分辨率 / 完整 put every card on half / full pages (the user, 2026-11-22: "have it be auto/half/full"; `setDynQuality`),
+applied at once: the cards re-mount at the new tier, no reload. The review page's `&tier` overrides it.
+Review (D12): `public/dev/dyn-review.html` puts every illustration of the server's index on the real screens — the result
+screen's team page 4 at a time, the room 4 seats, the Grand Alliance room 8 — with made-up players whose room card is that
+operator in that outfit, 动态立绘 on 所有人; PC or a landscape phone frame (half pages), page by page; review-only buttons
+play the special idle or Start now, replay the entrance, and throttle the connection (`&slow=<MB/s>`) to show the late
+switch; `&tier=half|full` picks the page tier on any device (the half-size comparison); `__review.measure(s)` reports the frame intervals for the §7 gates and `&off` gives the 2D baseline; on the result screen `&ending` (Match end) plays the match's end through the game's own hold — the load from `ending`, the 3 s pause, the black cover, the result screen — with a clock of the time since, and `&hang=<n>` (Hang a card) freezes the n-th card's download to show the 8 s give-up and `RESULT_FIRST_FRAMES_MS`.
+On the room and Grand Alliance pages each wide card can be framed by hand (the user, 2026-11-23: "drag and zoom the
+live2d to a good position and export all of them"): a drag moves it, the wheel zooms about the pointer, a double-click
+resets it to the table's; applied live to the running card (the renderer's `setFraming`, §33.19) and its 2D art, kept
+per illustration in the browser (`dynReview.framings`) and exported as `dyn-card-framing-edits.json` (the table's
+`cards` with `edited` marks), the zoom and the move (X / Y, % of the card) also typed in boxes at the card's corner.
+Static art (the bar's button, `&off`) shows the 2D art instead, with a link box per illustration: linked, an edit moves
+the illustration and its art together; unlinked, the art's own placement (the export's `separate`, which the tool's
+`--separate` takes); Still-only arts (`&set=stills`) pages through the arts without an illustration. A static edit is a move / zoom on top of the art's generated placement
+(exported as `stills`). Prev / Next change the page without a reload, the illustrations of the page left behind
+freed (coming back to a freed page drew it black until the renderer's loader fix of 2026-11-23).
+(fork) **The result card's entrance** (`ui/cardEntrance.js`, the user's go of 2026-11-22) is the client's own: the clip
+`auto_chess_settle_game_player_item_show` (25 float curves, 1.31667 s — a legacy clip runs to its last key) played once,
+linearly, after the card's place in the row × `_animDelay` 0.083 s (`_PlayShowCardAnim`, GameAssembly.dll 0x28E0C60). It
+fades the card in, drops the illustration holder in with its overshoot, slides the name card up, fades the rounds in, and
+draws the card's matte layers with the client's sprites (`settleCard/*`, the two `uiFxMask/*` dissolve masks) through a
+WebGL2 port of `Torappu/UI/Dissolve/UI-DoubleDissolve-Tex` into two canvases over the card (alpha-blended, and additive with
+`plus-lighter`): a cleared card the light beam, the hanger line, the top strip's and the frame's dissolves and the teal
+wash (`group_complete`), the others the grey strip and frame and their wash (`group_normal`); the layers stay at the clip's
+last frame. Behind the card, the prefab's own background `settleCard/card_bg` (group_bg/bg: a 9-slice, 300 × 528 at
+(0, −13) under the 234 × 486 card, borders 75 / 43 / 78 / 212 — `CARD_BG`, a CSS border-image) replaces our panel, and the
+square on the top strip is the strip sprite's own (`unfinish_bg` dark, `complete_up_bg` teal), so our teal pin gives way, as do our header's STRONGHOLD PROTOCOL text and seat number (the strip prints its own text).
+Without those sprites or WebGL2 the card keeps its CSS entrance; under reduced motion it shows the last frame.
 
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
 

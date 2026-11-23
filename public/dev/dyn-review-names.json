@@ -1,0 +1,409 @@
+{
+ "char_003_kalts@boc#6": {
+  "op": "Kal'tsit",
+  "outfit": "Remnant"
+ },
+ "char_003_kalts@sale#14": {
+  "op": "Kal'tsit",
+  "outfit": "The Remains of Time"
+ },
+ "char_1012_skadi2@boc#4": {
+  "op": "Skadi the Corrupting Heart",
+  "outfit": "Sublimation"
+ },
+ "char_1012_skadi2@iteration#2": {
+  "op": "Skadi the Corrupting Heart",
+  "outfit": "Red Countess"
+ },
+ "char_1012_skadi2#2": {
+  "op": "Skadi the Corrupting Heart",
+  "outfit": "Elite 2 art"
+ },
+ "char_1013_chen2@boc#6": {
+  "op": "Ch'en the Holungday",
+  "outfit": "Ten Thousand Mountains"
+ },
+ "char_1013_chen2@summer#20": {
+  "op": "Ch'en the Holungday",
+  "outfit": "Holiday HD79"
+ },
+ "char_1013_chen2#2": {
+  "op": "Ch'en the Holungday",
+  "outfit": "Elite 2 art"
+ },
+ "char_1014_nearl2@epoque#17": {
+  "op": "Nearl the Radiant Knight",
+  "outfit": "Relight"
+ },
+ "char_1014_nearl2#2": {
+  "op": "Nearl the Radiant Knight",
+  "outfit": "Elite 2 art"
+ },
+ "char_1015_aglna2#2": {
+  "op": "Angelina the Mellow Wish (CN only)",
+  "outfit": "Elite 2 art",
+  "cnOnly": true
+ },
+ "char_1016_agoat2@epoque#34": {
+  "op": "Eyjafjalla the Hvít Aska",
+  "outfit": "A Picnic Before A Long Trip"
+ },
+ "char_1016_agoat2@epoque#57": {
+  "op": "Eyjafjalla the Hvít Aska",
+  "outfit": "EPOQUE #57",
+  "cnOnly": true
+ },
+ "char_1016_agoat2#2": {
+  "op": "Eyjafjalla the Hvít Aska",
+  "outfit": "Elite 2 art"
+ },
+ "char_1019_siege2@epoque#50": {
+  "op": "Vina Victoria",
+  "outfit": "Glorious Path"
+ },
+ "char_1020_reed2@epoque#30": {
+  "op": "Reed the Flame Shadow",
+  "outfit": "Curator"
+ },
+ "char_1020_reed2@summer#17": {
+  "op": "Reed the Flame Shadow",
+  "outfit": "Summer Flowers FA075"
+ },
+ "char_1023_ghost2@boc#6": {
+  "op": "Specter the Unchained",
+  "outfit": "Born as One"
+ },
+ "char_1023_ghost2#2": {
+  "op": "Specter the Unchained",
+  "outfit": "Elite 2 art"
+ },
+ "char_1026_gvial2@summer#12": {
+  "op": "Gavial the Invincible",
+  "outfit": "Holiday HD26"
+ },
+ "char_1026_gvial2#2": {
+  "op": "Gavial the Invincible",
+  "outfit": "Elite 2 art"
+ },
+ "char_1028_texas2@epoque#36": {
+  "op": "Texas the Omertosa",
+  "outfit": "Il Segreto Della Notte"
+ },
+ "char_1028_texas2@iteration#1": {
+  "op": "Texas the Omertosa",
+  "outfit": "Wingbreaker"
+ },
+ "char_1028_texas2#2": {
+  "op": "Texas the Omertosa",
+  "outfit": "Elite 2 art"
+ },
+ "char_1032_excu2@sale#12": {
+  "op": "Executor the Ex Foedere",
+  "outfit": "Allmind As One"
+ },
+ "char_1035_wisdel@sale#14": {
+  "op": "Wiš'adel",
+  "outfit": "Supernova"
+ },
+ "char_1035_wisdel#2": {
+  "op": "Wiš'adel",
+  "outfit": "Elite 2 art"
+ },
+ "char_1038_whitw2@sale#15": {
+  "op": "Lappland the Decadenza",
+  "outfit": "Unruly Humbleness"
+ },
+ "char_1038_whitw2#2": {
+  "op": "Lappland the Decadenza",
+  "outfit": "Elite 2 art"
+ },
+ "char_1039_thorn2@marthe#9": {
+  "op": "Thorns the Lodestar",
+  "outfit": "Boundless Sail"
+ },
+ "char_1041_angel2@iteration#6": {
+  "op": "Exusiai the New Covenant",
+  "outfit": "The Legend Seeker"
+ },
+ "char_1041_angel2#2": {
+  "op": "Exusiai the New Covenant",
+  "outfit": "Elite 2 art"
+ },
+ "char_1042_phatm2@sightseer#4": {
+  "op": "Tragodia",
+  "outfit": "Misaligned Sightseer #4",
+  "cnOnly": true
+ },
+ "char_1044_hsgma2@whirlwind#11": {
+  "op": "Hoshiguma the Breacher",
+  "outfit": "0011/Tempest #11",
+  "cnOnly": true
+ },
+ "char_1044_hsgma2#2": {
+  "op": "Hoshiguma the Breacher",
+  "outfit": "Elite 2 art"
+ },
+ "char_1045_svash2@sale#20": {
+  "op": "SilverAsh the Reignfrost",
+  "outfit": "Test Collection #20",
+  "cnOnly": true
+ },
+ "char_1045_svash2#2": {
+  "op": "SilverAsh the Reignfrost",
+  "outfit": "Elite 2 art"
+ },
+ "char_1046_sbell2@ambiencesynesthesia#8": {
+  "op": "Pramanix the Prerita",
+  "outfit": "Ambience Synesthesia #8",
+  "cnOnly": true
+ },
+ "char_1052_kalts2#2": {
+  "op": "Kal'tsit Esperanta",
+  "outfit": "Elite 2 art"
+ },
+ "char_113_cqbw@epoque#7": {
+  "op": "W",
+  "outfit": "Fugue"
+ },
+ "char_113_cqbw#2": {
+  "op": "W",
+  "outfit": "Elite 2 art"
+ },
+ "char_172_svrash@ambiencesynesthesia#4": {
+  "op": "SilverAsh",
+  "outfit": "Ambience Synesthesia #4",
+  "cnOnly": true
+ },
+ "char_179_cgbird@sightseer#1": {
+  "op": "Nightingale",
+  "outfit": "Iakhu of Flows"
+ },
+ "char_2014_nian@cfa#1": {
+  "op": "Nian",
+  "outfit": "Thunderbolt Director"
+ },
+ "char_2014_nian@nian#4": {
+  "op": "Nian",
+  "outfit": "Unfettered Freedom"
+ },
+ "char_2014_nian#2": {
+  "op": "Nian",
+  "outfit": "Elite 2 art"
+ },
+ "char_2015_dusk@nian#12": {
+  "op": "Dusk",
+  "outfit": "Hazy Jade"
+ },
+ "char_2015_dusk@nian#7": {
+  "op": "Dusk",
+  "outfit": "Everything Is a Miracle"
+ },
+ "char_2015_dusk#2": {
+  "op": "Dusk",
+  "outfit": "Elite 2 art"
+ },
+ "char_202_demkni@ambiencesynesthesia#7": {
+  "op": "Saria",
+  "outfit": "Ambience Synesthesia #7",
+  "cnOnly": true
+ },
+ "char_2023_ling@ncg#1": {
+  "op": "Ling",
+  "outfit": "Towering is Cliff of Nostalgia"
+ },
+ "char_2023_ling@nian#12": {
+  "op": "Ling",
+  "outfit": "A Gallant Dream"
+ },
+ "char_2023_ling@nian#9": {
+  "op": "Ling",
+  "outfit": "It Does Wash the Strings"
+ },
+ "char_2023_ling#2": {
+  "op": "Ling",
+  "outfit": "Elite 2 art"
+ },
+ "char_2024_chyue@cfa#1": {
+  "op": "Chongyue",
+  "outfit": "All-Round Actor"
+ },
+ "char_2024_chyue@nian#10": {
+  "op": "Chongyue",
+  "outfit": "Alighting"
+ },
+ "char_2024_chyue#2": {
+  "op": "Chongyue",
+  "outfit": "Elite 2 art"
+ },
+ "char_2025_shu@nian#11": {
+  "op": "Shu",
+  "outfit": "Spring Feast"
+ },
+ "char_2025_shu@nlc#1": {
+  "op": "Shu",
+  "outfit": "nlc #1",
+  "cnOnly": true
+ },
+ "char_2025_shu#2": {
+  "op": "Shu",
+  "outfit": "Elite 2 art"
+ },
+ "char_2026_yu@nian#12": {
+  "op": "Yu",
+  "outfit": "Clear Morning View"
+ },
+ "char_2026_yu#2": {
+  "op": "Yu",
+  "outfit": "Elite 2 art"
+ },
+ "char_2027_wang#2": {
+  "op": "Wang",
+  "outfit": "Elite 2 art"
+ },
+ "char_245_cello@sale#12": {
+  "op": "Virtuosa",
+  "outfit": "Diversity Oneness"
+ },
+ "char_245_cello#2": {
+  "op": "Virtuosa",
+  "outfit": "Elite 2 art"
+ },
+ "char_249_mlyss@ambiencesynesthesia#6": {
+  "op": "Muelsyse",
+  "outfit": "Ambience Synesthesia #6",
+  "cnOnly": true
+ },
+ "char_249_mlyss@boc#8": {
+  "op": "Muelsyse",
+  "outfit": "Young Branch"
+ },
+ "char_249_mlyss#2": {
+  "op": "Muelsyse",
+  "outfit": "Elite 2 art"
+ },
+ "char_250_phatom@sale#4": {
+  "op": "Phantom",
+  "outfit": "Focus"
+ },
+ "char_322_lmlee@witch#3": {
+  "op": "Lee",
+  "outfit": "Trust Your Eyes"
+ },
+ "char_332_archet@sale#14": {
+  "op": "Archetto",
+  "outfit": "Glory of the Devout"
+ },
+ "char_350_surtr@ambiencesynesthesia#6": {
+  "op": "Surtr",
+  "outfit": "Ambience Synesthesia #6",
+  "cnOnly": true
+ },
+ "char_350_surtr@summer#9": {
+  "op": "Surtr",
+  "outfit": "Colorful Wonderland CW03"
+ },
+ "char_377_gdglow@summer#12": {
+  "op": "Goldenglow",
+  "outfit": "Summer Flowers FA394"
+ },
+ "char_391_rosmon@epoque#17": {
+  "op": "Rosmontis",
+  "outfit": "Become Anew"
+ },
+ "char_391_rosmon@sale#16": {
+  "op": "Rosmontis",
+  "outfit": "An Airy Dream"
+ },
+ "char_391_rosmon#2": {
+  "op": "Rosmontis",
+  "outfit": "Elite 2 art"
+ },
+ "char_4010_etlchi@winter#5": {
+  "op": "Entelechia",
+  "outfit": "Dazzling Blue"
+ },
+ "char_4055_bgsnow@wild#7": {
+  "op": "Pozëmka",
+  "outfit": "Snowy Plains in Words"
+ },
+ "char_4058_pepe@sightseer#2": {
+  "op": "Pepe",
+  "outfit": "Nuit of the Nightsky"
+ },
+ "char_4058_pepe#2": {
+  "op": "Pepe",
+  "outfit": "Elite 2 art"
+ },
+ "char_4064_mlynar@epoque#28": {
+  "op": "Młynar",
+  "outfit": "W Dali"
+ },
+ "char_4080_lin@nian#10": {
+  "op": "Lin",
+  "outfit": "Heavenly Mirage"
+ },
+ "char_4080_lin@summer#19": {
+  "op": "Lin",
+  "outfit": "Summer Flowers FA137"
+ },
+ "char_4087_ines@ambiencesynesthesia#5": {
+  "op": "Ines",
+  "outfit": "Ambience Synesthesia #5",
+  "cnOnly": true
+ },
+ "char_4087_ines@boc#8": {
+  "op": "Ines",
+  "outfit": "Under the Flaming Dome"
+ },
+ "char_4098_vvana@epoque#59": {
+  "op": "Viviana",
+  "outfit": "EPOQUE #59",
+  "cnOnly": true
+ },
+ "char_4116_blkkgt@witch#5": {
+  "op": "Degenbrecher",
+  "outfit": "The Shadow of the Dark Moon"
+ },
+ "char_4121_zuole@nian#11": {
+  "op": "Zuo Le",
+  "outfit": "Youthful Journey"
+ },
+ "char_4132_ascln@iteration#4": {
+  "op": "Ascalon",
+  "outfit": "Phototaxis"
+ },
+ "char_4133_logos@ambiencesynesthesia#6": {
+  "op": "Logos",
+  "outfit": "Ambience Synesthesia #6",
+  "cnOnly": true
+ },
+ "char_4134_cetsyr@epoque#50": {
+  "op": "Civilight Eterna",
+  "outfit": "Condolence"
+ },
+ "char_4179_monstr@boc#11": {
+  "op": "Mon3tr",
+  "outfit": "Sharpened Claws"
+ },
+ "char_4202_haruka@iteration#6": {
+  "op": "Haruka",
+  "outfit": "Stranded in Utopia"
+ },
+ "char_4247_oxi#2": {
+  "op": "Talulah (CN only)",
+  "outfit": "Elite 2 art",
+  "cnOnly": true
+ },
+ "char_437_mizuki@sale#7": {
+  "op": "Mizuki",
+  "outfit": "Summer Feast"
+ },
+ "char_450_necras@summer#20": {
+  "op": "Necrass",
+  "outfit": "Summer Flowers FA161"
+ },
+ "char_472_pasngr@epoque#17": {
+  "op": "Passenger",
+  "outfit": "Dream In A Moment"
+ }
+}

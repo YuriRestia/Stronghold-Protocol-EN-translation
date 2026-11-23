@@ -44,8 +44,23 @@ export const TEXT_SIZES = Object.freeze(['sm', 'md', 'lg', 'xl']);
  *  of the operator's own model. A pure client preference (never sent): off, only this player's own pieces wear a skin.
  *  (fork) matchAlert: 设置「匹配提示音」 — a sound as the briefing (INFO_CHECK) opens, heard from a background tab too
  *  (main.js), on by default. (fork) prepDeployFold defaults to OFF here.
+ *  (fork) dynIllust: 设置「动态立绘」 (en: "Animated illustrations"; ui/dynCards.js): which result / room / Grand Alliance
+ *  cards play the operator's official dynamic illustration — 'auto' (default: 'mine' on a phone, 'all' elsewhere —
+ *  the user's decision D7 of 2026-11-22), 'off', 'mine', 'all'.
+ *  (fork) resultArt: 设置「结算卡片立绘」 (en: "Result card art"; ui/dynCards.js resultCardArt): what a result card shows,
+ *  for every card from this viewer's side — 'card' (the player's room card in its outfit, as the official card shows the
+ *  player's assistant) or 'ace' (the best unit of the final lineup, the remake's card before) — the user's decision D6.
+ *  (fork) dynQuality: 设置「动态立绘画质」 (en: "Live2D quality"; ui/dynCards.js setDynQuality): the art pages every
+ *  animated card loads — 'auto' (default: half or full by the cards' size on screen, dynCards.js cardTier), 'half',
+ *  'full' (the user, 2026-11-22: "have it be auto/half/full").
  */
-export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.8, sfx: 0.8, voice: 0.8, voiceLang: 'en', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, matchAlert: true, damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, fullscreenWakeLock: false, bondTimers: false, prepDeployFold: false, quality: 'high', officialFx: 'auto', spriteAnim: 'auto', otherSkins: true, textSize: 'sm', keys: DEFAULT_HOTKEYS });
+export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.8, sfx: 0.8, voice: 0.8, voiceLang: 'en', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, matchAlert: true, damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, fullscreenWakeLock: false, bondTimers: false, prepDeployFold: false, quality: 'high', officialFx: 'auto', spriteAnim: 'auto', otherSkins: true, dynIllust: 'auto', resultArt: 'card', dynQuality: 'auto', textSize: 'sm', keys: DEFAULT_HOTKEYS });
+/** (fork) The values of 设置「动态立绘」 (ui/dynCards.js DYN_ILLUST_MODES). */
+export const DYN_ILLUST_SETTING = Object.freeze(['auto', 'off', 'mine', 'all']);
+/** (fork) The values of 设置「结算卡片立绘」. */
+export const RESULT_ART_SETTING = Object.freeze(['card', 'ace']);
+/** (fork) The values of 设置「动态立绘画质」 (ui/dynCards.js setDynQuality: anything but half / full is auto). */
+export const DYN_QUALITY_SETTING = Object.freeze(['auto', 'half', 'full']);
 const QUALITIES = ['high', 'medium', 'low'];
 /** The values of 设置「官方特效」 (render/vfx/tier.js OFFICIAL_FX). Display order in the dialog is low / medium / high. */
 export const OFFICIAL_FX_MODES = Object.freeze(['auto', 'off', 'lite', 'full']);
@@ -70,6 +85,7 @@ function ammoEnergyCountOf(r) {
  * Sanitize persisted settings. Retired keys `ammoCount` and `mysticEnergy` are read here and never returned.
  * @param {any} raw
  * @returns {{ bgm: number, sfx: number, voice: number, voiceLang: 'cn'|'jp'|'en'|'kr', voiceNative: boolean, voiceOverrides: Record<string, string>, muted: boolean, matchAlert: boolean, damageNumbers: boolean, officialDamageNumbers: boolean, ammoEnergyCount: boolean, fullscreenWakeLock: boolean, bondTimers: boolean, prepDeployFold: boolean, quality: 'high'|'medium'|'low', officialFx: 'auto'|'off'|'lite'|'full', spriteAnim: 'auto'|'quality'|'unlimited', otherSkins: boolean,
+ *   dynIllust: 'auto'|'off'|'mine'|'all', resultArt: 'card'|'ace', dynQuality: 'auto'|'half'|'full',
  *   textSize: 'sm'|'md'|'lg'|'xl', keys: Record<'buy'|'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready', string> }}
  */
 export function sanitizeSettings(raw) {
@@ -94,6 +110,9 @@ export function sanitizeSettings(raw) {
     officialFx: OFFICIAL_FX_MODES.includes(r.officialFx) ? r.officialFx : DEFAULT_SETTINGS.officialFx,
     spriteAnim: SPRITE_ANIM_MODES.includes(r.spriteAnim) ? r.spriteAnim : DEFAULT_SETTINGS.spriteAnim,
     otherSkins: r.otherSkins !== false,
+    dynIllust: DYN_ILLUST_SETTING.includes(r.dynIllust) ? r.dynIllust : DEFAULT_SETTINGS.dynIllust,
+    resultArt: RESULT_ART_SETTING.includes(r.resultArt) ? r.resultArt : DEFAULT_SETTINGS.resultArt,
+    dynQuality: DYN_QUALITY_SETTING.includes(r.dynQuality) ? r.dynQuality : DEFAULT_SETTINGS.dynQuality,
     textSize: TEXT_SIZES.includes(r.textSize) ? r.textSize : DEFAULT_SETTINGS.textSize,
     keys: sanitizeHotkeys(r.keys),
   };

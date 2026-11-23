@@ -5,10 +5,11 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { compileSystem, PSys } from '../../public/js/render/vfx/psys.js';
+import { compileSystem, PSys, setPrewarmSink } from '../../public/js/render/vfx/psys.js';
 import { Shape } from '../../public/js/render/vfx/shapes.js';
 import { Rng } from '../../public/js/render/vfx/rng.js';
 import { mat4, mat4Trs, quatEuler } from '../../public/js/render/vfx/math.js';
+import { sheetRect } from '../../public/js/render/vfx/geom.js';
 
 const ID = { m: mat4(), scale: [1, 1, 1] };
 const frameAt = (x, y, z, rot = [0, 0, 0, 1], s = [1, 1, 1]) => ({ m: mat4Trs([x, y, z], rot, s), scale: s });
@@ -39,6 +40,75 @@ describe('emission', () => {
     const born = run(ps, 1.5);
     assert.ok(Math.abs(born - 20) <= 1, `born ${born}`);
     assert.equal(ps.emitting, false);
+  });
+
+  test('a particle starts when it was due: a full one-particle system is replaced in the step it dies (no gap)', () => {
+    // Nightingale's Iakhu of Flows ring balls: max 1, life 2 s, rate 2 / s, simulation speed 0.1, prewarmed
+    // [src: official fx.json char_179_cgbird_sightseer#1 node 21 'ball_01 (4)']; uneven frames as a Worker draws them.
+    // An evenly spread birth (age 0 at the step's end) left the ball's successor refused while it still lived, and the
+    // ball gone for 0.5 / 0.1 = 5 s; the engine dates each new particle by the accumulator (psys.js _emitSpan).
+    const ps = new PSys(compileSystem(sys({ top: { looping: true, prewarm: true, simulationSpeed: 0.1 },
+      I: { startLifetime: 2, maxNumParticles: 1 }, E: { rateOverTime: 2 } })), {});
+    ps.play(ID);
+    let s = 12345, t = 0, empty = 0;
+    while (t < 60) {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      const dt = 1 / 144 + (s / 4294967296) * (1 / 50 - 1 / 144);
+      ps.update(dt, ID); t += dt;
+      if (ps.count === 0) empty += dt;
+    }
+    assert.equal(empty, 0, `the ball was gone for ${empty.toFixed(2)} s of 60`);
+  });
+
+  test('a particle born before a loop boundary inside a step lives through the rest of the step (no gap)', () => {
+    // Nightingale's Iakhu of Flows gold bars (BG_xian/jinshu xian_01 …): loop 1 s, life 1 s, rate 1 / s, max 1,
+    // prewarmed [src: official fx.json char_179_cgbird_sightseer#1 nodes 119–138]: every birth falls on a loop end
+    const ps = new PSys(compileSystem(sys({ top: { looping: true, prewarm: true, lengthInSec: 1 },
+      I: { startLifetime: 1, maxNumParticles: 1 }, E: { rateOverTime: 1 } })), {});
+    ps.play(ID);
+    let s = 777, t = 0, empty = 0;
+    while (t < 60) {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      const dt = 1 / 144 + (s / 4294967296) * (1 / 50 - 1 / 144);
+      ps.update(dt, ID); t += dt;
+      if (ps.count === 0) empty += dt;
+    }
+    assert.equal(empty, 0, `the bar was gone for ${empty.toFixed(2)} s of 60`);
+  });
+
+  test('rate over time: the newest particle is acc / toEmit of the step old, the next one 1 / toEmit older', () => {
+    const ps = new PSys(compileSystem(sys({ top: { looping: true }, I: { startLifetime: 10 }, E: { rateOverTime: 25 } })), {});
+    ps.play(ID);
+    ps.update(0.1, ID);   // toEmit 2.5: two particles, acc 0.5 left
+    assert.equal(ps.count, 2);
+    const ages = [...ps.age.subarray(0, 2)].sort((a, b) => a - b);
+    assert.ok(Math.abs(ages[0] - 0.02) < 1e-6 && Math.abs(ages[1] - 0.06) < 1e-6, `ages ${ages}`);
+  });
+
+  // Texas the Omertosa's Il Segreto Della Notte balloons (qiqiu01 (1): fixed seed 881279541, a 2 × 4 sheet, one row
+  // at random, frame 0.5 + random 0…0.9999) [src: official fx.json char_1028_texas2_epoque#36 node 13]; the expected
+  // cells are the engine's rule (rng.js UnitySeeds / unityRand, read from UnityPlayer.dll) worked out apart from it
+  const balloons = (rate) => compileSystem(sys({
+    top: { looping: true, randomSeed: 881279541 }, I: { startLifetime: 10 }, E: { rateOverTime: rate },
+    extra: { UVModule: { mode: 0, timeMode: 0, fps: 30, frameOverTime: { min: 0, max: 0.9999 }, startFrame: 0.5,
+      tilesX: 2, tilesY: 4, animationType: 1, rowIndex: 0, cycles: 1, rowMode: 1, flipU: 0, flipV: 0 } },
+  }));
+  const cell = (def, ps, i) => { const r = sheetRect(def, ps, i, 0.5, [0, 0, 0, 0]); return [Math.round((1 - r[1]) / 0.25) - 1, Math.round(r[0] / 0.5)]; };
+
+  test('a fixed-seed texture sheet shows the engine\'s sprites: one call\'s particles take the seed lanes in turn', () => {
+    const def = balloons(60), ps = new PSys(def, {});
+    ps.play(ID);
+    ps.update(0.1, ID);   // one engine Update: one emission call of 6 particles (lanes 0–3, then 0–1 of the next draw)
+    assert.equal(ps.count, 6);
+    assert.deepEqual([0, 1, 2, 3, 4, 5].map((i) => cell(def, ps, i)), [[0, 1], [3, 0], [0, 0], [3, 0], [1, 1], [2, 0]]);
+  });
+
+  test('a fixed-seed texture sheet: each emission call starts a new draw of the seed lanes', () => {
+    const def = balloons(8), ps = new PSys(def, {});
+    ps.play(ID);
+    for (let k = 0; k < 3; k++) ps.update(0.125, ID);   // three Updates of one particle each: lane 0 of draws 1, 2, 3
+    assert.equal(ps.count, 3);
+    assert.deepEqual([0, 1, 2].map((i) => cell(def, ps, i)), [[0, 1], [1, 1], [3, 1]]);
   });
 
   test('a looping system keeps emitting; stopEmitting lets the particles finish', () => {
@@ -105,6 +175,44 @@ describe('emission', () => {
     ps.play(ID);
     assert.ok(ps.count >= 19 && ps.count <= 21, `prewarmed ${ps.count}`);
     assert.equal(ps.delay, 0, 'no start delay with prewarm');
+  });
+
+  test('a prewarm handed to a sink and run in slices ends exactly as the one-loop prewarm (illustration staging)', () => {
+    const def = compileSystem(sys({ top: { looping: true, prewarm: true, lengthInSec: 2 }, I: { startLifetime: 3, startSpeed: 2 }, E: { rateOverTime: 40 } }));
+    const at = frameAt(1, 2, 0);
+    const state = (ps) => { const o = { count: ps.count, time: ps.time }; for (const [k, v] of Object.entries(ps)) if (v instanceof Float32Array) o[k] = Array.from(v.subarray(0, ps.count)); return o; };
+    // one loop: play, the owner's first step(0), then a real frame
+    const a = new PSys(def, { seed: 7 });
+    a.play(at); a.update(0, at); a.update(1 / 30, at);
+    // sliced: the same calls, the prewarm deferred and run a few steps per slice
+    const b = new PSys(def, { seed: 7 });
+    const sunk = [];
+    setPrewarmSink((s) => sunk.push(s));
+    try { b.play(at); } finally { setPrewarmSink(null); }
+    assert.deepEqual(sunk, [b]);
+    assert.equal(b.count, 0, 'nothing simulated yet');
+    b.update(0, frameAt(9, 9, 9));            // a zero update while pending waits for the prewarm…
+    b.update(0, at);                          // …and the last one is applied after it
+    let slices = 0;
+    while (!b.prewarmStep(0)) slices++;       // a budget of 0: one step per slice
+    assert.ok(slices > 10, `slices ${slices}`);
+    b.update(1 / 30, at);
+    assert.deepEqual(state(b), state(a));
+  });
+
+  test('a real update or a stop while a prewarm is pending finishes it first', () => {
+    const def = compileSystem(sys({ top: { looping: true, prewarm: true }, I: { startLifetime: 2 }, E: { rateOverTime: 10 } }));
+    const a = new PSys(def, { seed: 3 }); a.play(ID); a.update(0.1, ID);
+    const b = new PSys(def, { seed: 3 });
+    setPrewarmSink(() => {});
+    try { b.play(ID); } finally { setPrewarmSink(null); }
+    b.update(0.1, ID);
+    assert.equal(b.count, a.count);
+    const c = new PSys(def, { seed: 3 });
+    setPrewarmSink(() => {});
+    try { c.play(ID); } finally { setPrewarmSink(null); }
+    c.stopEmitting();
+    assert.ok(c.count >= 19, `prewarmed before the stop: ${c.count}`);
   });
 
   test('rate over distance emits per unit the emitter moves (none while it stands)', () => {
