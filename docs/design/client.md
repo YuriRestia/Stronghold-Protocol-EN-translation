@@ -497,7 +497,7 @@ needs (`loadLater.js` whenScreenSettled, all the room's cards together) and afte
 code getting ready during that wait; a room card not ready shows its 2D art and switches when ready. A result card's
 one-shot entrance waits for its illustration instead (the user, 2026-11-23: "If an L2D is available, then it should wait
 for the l2d to be ready instead of rushing ahead with the static art, cause the animation there is only made to play
-once"): the team page's cards join one gate (`makeEntranceGate`), each settling once its illustration is live or failed
+once"): the team page's cards join one gate as they render, before any effect of the page (`makeEntranceGate`; joined in their effects, the page's own opened it empty first and a card fell in with its still art, its illustration coming in mid-fall — the user, 2026-11-23: "each card on the result screen should only be either live 2d or static"), each settling once its illustration is live or failed
 (or it has none), and every card's entrance starts from the gate's opening with the row's stagger, held on its first,
 unseen frame until then (`useCardEntrance` `gate`). Static art only for a card without an illustration, one that failed,
 or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending` (the user's OK of 2026-11-23); such
@@ -626,6 +626,23 @@ tags, no wash, no operator name (kept for screen readers); the name plate carrie
 ready state, the AI tag, 更换立绘 (icon only) and the host's swap / remove buttons, the chat mute last. One's own card is a
 mint ring around the whole card (read as 你), the host's a crown in a tab on its top edge (read as 创建者); one's own profile
 picture a dark quarter-circle with a pen in its corner, mint under the pointer. The solo room keeps the tall card.
+On a short landscape phone (≤ 520 px tall, where 1rem is 40 px) the wide cards keep this layout at the screen's scale
+(the user, 2026-11-23: "adapt the room & grand alliance UI for mobile, I expect the current layout of PC is fine, just
+need correct scaling"; room.css): the gaps, the plate and the heading come down from the PC's px floors, the plate's text
+keeps its 中 size at 小 and grows half a pixel a step above it (`--t-step`), the name one line with an ellipsis; the plate
+leaves out the ready word (screen readers still read it), the seat number and the remove button's person / robot, a Grand
+Alliance plate also the ✓ box (the lit ring and the squad's count say it) and the other players' profile icons (one's
+own, the icon picker, stays); a Grand Alliance squad's heading line stands at the left of its row, read bottom to top;
+the 4-seat room's cards stand in one row of tall cards there (the user's pick of 2026-11-23 from the phone mock-ups,
+"yeah one row tall is a good idea"): each a quarter of the seat area's width and as tall as the area allows, about
+0.8 wide : tall, so a phone's sides hold no empty space (every illustration's framing and full art checked at that shape
+on 844 × 390, 2026-11-23), the room chat's button (`rs--chat`) in a 58 px margin at the row's left;
+on a touch screen each plate button takes taps over a `--tap-min` tall strip no wider than itself; the footer puts the
+status line beside the pill (above it when they do not fit) and, from 721 px wide, 搜寻队友 beside the big button; the chat button shows its
+icon and unread count, without the last line. The short-screen rules written for the tall cards stay off the wide ones.
+A Grand Alliance squad's count there leaves out the word 已就绪. On tablets and small windows (1rem under about 78 px,
+which 2319 × 1356 is not) the plate's and the heading's text take a larger share of `--t`, so they stay readable and
+still follow 文字大小. The sizes are design values. Portrait phones get the rotate hint (theme.css), not this screen.
 Each illustration on a wide card is framed on its operator's face (the user's pick of 2026-11-23, "card zoom", after
 "faces cut off … bad photography"): the card framing zoomed about a point of the card (the renderer's `framing: { mode:
 'card', zoom, fx, fy }`), one value per illustration in `data/dyn-card-framing.json` (`IllustArt framing="cover"`,

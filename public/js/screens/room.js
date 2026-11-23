@@ -131,7 +131,7 @@ function squadGroups(room, facts, cards) {
       <header class="rs-squad__head">
         <h3 class="rs-squad__k">${t('小队 {name}', { name: sq ? 'B' : 'A' })}</h3>
         <i class="rs-squad__rule" aria-hidden="true"></i>
-        ${humans.length ? html`<span class="rs-squad__ready num"><b>${humans.filter(facts.isReady).length}</b>/${humans.length} ${t('已就绪')}</span>` : null}
+        ${humans.length ? html`<span class="rs-squad__ready num"><b>${humans.filter(facts.isReady).length}</b>/${humans.length} <span class="rs-squad__word">${t('已就绪')}</span></span>` : null}
       </header>
       <div class="rs-squad__cards">${cards.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS)}</div>
     </section>`;
@@ -895,7 +895,8 @@ export function RoomScreen() {
     if (sent && alive.current) setVersionOpen(false);
   };
 
-  return html`<div class=${`screen room-screen rs${coop ? '' : ' rs--solo'}`} style=${`--d-color:${DIFFICULTY_COLORS[room.difficulty] || 'var(--amber)'}; --n:${facts.seats.length}`}>
+  // (fork) rs--chat: the room chat is on (room.css keeps the phone's chat button clear of the seat cards)
+  return html`<div class=${`screen room-screen rs${coop ? '' : ' rs--solo'}${coop && chatOn ? ' rs--chat' : ''}`} style=${`--d-color:${DIFFICULTY_COLORS[room.difficulty] || 'var(--amber)'}; --n:${facts.seats.length}`}>
     <div class="rs__bg" aria-hidden="true"></div>
     <header class="topbar rs-top">
       <div class="topbar__left rs-top__left">

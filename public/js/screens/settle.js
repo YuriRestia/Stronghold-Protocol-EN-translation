@@ -643,8 +643,10 @@ function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDe
   const self = r.players.find((p) => p.playerId === myId) || null;
   const cardOpts = useTeamCardOpts(gd, myId);
   const bg = self?.left ? 'quit' : r.victory ? 'success' : 'fail';
-  // (fork) the cards' entrance gate: the cards join in their effects, which run before this page's (joined); it opens
-  // when the page shows, and the entrance plays then — at once when the cards went live while it was hidden
+  // (fork) the cards' entrance gate: the cards join it as they render (IllustArt), before any effect runs — this page's
+  // joined() included, which ran before the cards' effects and opened an empty gate (the still art, then the
+  // illustration mid-fall); it opens when the page shows, and the entrance plays then — at once when the cards went live
+  // while it was hidden
   const gate = useMemo(() => makeEntranceGate(), []);
   useEffect(() => { gate.joined(); return () => gate.dispose(); }, []);
   useEffect(() => { if (shown) gate.open(); }, [shown]);
