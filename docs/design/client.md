@@ -505,8 +505,8 @@ a card keeps its 2D art for good, no switch after its entrance. Every result pag
 同盟 hidden, above), so its gate only guards the loaded cards' first frames against a renderer that never answers, with
 what is left of the same 8 s from `ending` — one budget, never a second 8 s from the page's mount, which could hold the
 cover black about 16 s (the lead's fix of 2026-11-23) — and at least `RESULT_FIRST_FRAMES_MS` 0.5 s, so a page mounted
-at the give-up still gets its loaded cards live (0.23–0.33 s measured from mount, below) [ASSUMED: the 0.5 s, proposed,
-not yet OK'd]: the cover is down at most 8.5 s after `ending`. Without a result load (the review page) the gate keeps
+at the give-up still gets its loaded cards live (0.23–0.33 s measured from mount, below; the 0.5 s the user's OK of
+2026-11-23): the cover is down at most 8.5 s after `ending`. Without a result load (the review page) the gate keeps
 the whole 8 s from its mount. (The earlier 2 s minimum for a page opened late, `RESULT_MOUNT_MIN_MS`, went with the
 pre-mount.)
 Measured on the review page (renderer booted, local server, 4 cards, 1440p and 4K): the load 0.70–0.99 s from files not
@@ -571,8 +571,7 @@ that gave up shows `data-dyn="kept"`; the cards go
 one after another in page order, the result row's 0.083 s apart
 (`FLIP_STEP_S` = `_animDelay`; the user, 2026-11-22: "one player card at a time, in quick succession"). The official card
 has no switch from 2D to its illustration; this reuses its reveal. Without WebGL2, the sprites or under reduced motion,
-the 0.15 s controller fade (`FLIP_FADE_S`). A page not smooth `FLIP_GIVE_UP_MS` 3 s after the start keeps its 2D art and
-stops the illustrations, later cards on it too ("I reject low FPS L2D") [ASSUMED: proposed, not yet OK'd]. A failed card
+the 0.15 s controller fade (`FLIP_FADE_S`). A page not smooth `FLIP_GIVE_UP_MS` 3 s after the start ("I reject low FPS L2D"): every card but the viewer's own (`IllustArt own`) keeps its 2D art and stops, later cards of other players too; the own card, still hidden, gets a fresh 3 s alone and shows if it runs smooth, else it keeps its 2D art too and the page has given up (the user's rule of 2026-11-23: "still art for everyone else, and keep the animated l2d for yourself. If yourself isnt good enough after 3s as well, then still art for everyone"); a spectator, or a page without the viewer's card, keeps its 2D art at 3 s. The result screen has no low-FPS give-up (its cards wait only for their first frames, `makeEntranceGate`). A failed card
 (a download or build error, the renderer's `failed`) keeps its 2D and holds nobody. There is no time limit: a slow card
 holds the group however long it loads, and a slow link only switches the whole screen later, never one card after the
 others (the user's pick B of 2026-11-23; the 8 s cap before it, `GROUP_CAP_MS`, left a room on a 1 MB/s link on its 2D
@@ -648,7 +647,7 @@ Review (D12): `public/dev/dyn-review.html` puts every illustration of the server
 screen's team page 4 at a time, the room 4 seats, the Grand Alliance room 8 — with made-up players whose room card is that
 operator in that outfit, 动态立绘 on 所有人; PC or a landscape phone frame (half pages), page by page; review-only buttons
 play the special idle or Start now, replay the entrance, and throttle the connection (`&slow=<MB/s>`) to show the late
-switch; `&tier=half|full` picks the page tier on any device (the half-size comparison); `__review.measure(s)` reports the frame intervals for the §7 gates and `&off` gives the 2D baseline.
+switch; `&tier=half|full` picks the page tier on any device (the half-size comparison); `__review.measure(s)` reports the frame intervals for the §7 gates and `&off` gives the 2D baseline; on the result screen `&ending` (Match end) plays the match's end through the game's own hold — the load from `ending`, the 3 s pause, the black cover, the result screen — with a clock of the time since, and `&hang=<n>` (Hang a card) freezes the n-th card's download to show the 8 s give-up and `RESULT_FIRST_FRAMES_MS`.
 On the room and Grand Alliance pages each wide card can be framed by hand (the user, 2026-11-23: "drag and zoom the
 live2d to a good position and export all of them"): a drag moves it, the wheel zooms about the pointer, a double-click
 resets it to the table's; applied live to the running card (the renderer's `setFraming`, §33.19) and its 2D art, kept

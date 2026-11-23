@@ -283,8 +283,9 @@ test('a co-op room\'s wide card (the user\'s layout I, 2026-11-22): nothing over
   // the state, the AI tag and the buttons in the plate; the art without the result card's background
   assert.match(roomJs, /<span class="rseat__acts">\$\{botTag\}\$\{stateBox\}\$\{pickBtn\}\$\{seatBtns\}<\/span>/);
   assert.match(roomJs, /\$\{wide \? null : seatBtns\}/);
-  // the wide card's framing per illustration (data/dyn-card-framing.json, the face-aware zoom)
-  assert.match(roomJs, /wait="settled" backdrop=\$\{!wide\} framing=\$\{wide \? 'cover' : null\} class="rseat__dyn"/);
+  // the wide card's framing per illustration (data/dyn-card-framing.json, the face-aware zoom); `own`: the viewer's card,
+  // which a too-slow room keeps animated (dynCards.js whenSmooth, the user's rule of 2026-11-23)
+  assert.match(roomJs, /wait="settled" own=\$\{isMe\} backdrop=\$\{!wide\} framing=\$\{wide \? 'cover' : null\} class="rseat__dyn"/);
   // its 2D art: the full art where the illustration draws (CardArt, data/card-art-framing.json), the portrait as fallback;
   // the default's full art once the outfit's picture gave way
   assert.match(roomJs, /const fullSrc = wide && art \? \(art === portrait \? fullArt : fullArtDefault\) : null;/);
