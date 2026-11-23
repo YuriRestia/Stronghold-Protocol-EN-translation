@@ -614,10 +614,11 @@ export const gateWaitStore = createStore({ n: 0 });
 /**
  * The room's and the Grand Alliance room's cards keep their 2D art until every card on the screen is ready (or failed),
  * then all start in one animation frame and fade in together over FLIP_FADE_S (CSS `.dyn-art--flip`). A card that
- * fails keeps its 2D and does not hold the others. Past GROUP_CAP_MS from the first card's mount the ready ones flip and
- * one still loading keeps its 2D art until the screen is opened again (`late`; the user, 2026-11-23, through the lead:
- * as on the result screen); a card mounted after the flip (a player who joins, a new outfit or portrait) is a new card
- * and swaps alone when ready. The result screen does not group (its entrance gate, makeEntranceGate).
+ * fails (a download or build error: the renderer's 'failed') keeps its 2D and does not hold the others. There is no time
+ * limit: a slow link only switches the whole screen later, never one card at a time (the user's pick B of 2026-11-23,
+ * after a cap that left a slow room on its 2D art). A card mounted after the flip (a player who joins, a new outfit or
+ * portrait) is a new card and swaps alone when ready. The result screen does not group (its entrance gate,
+ * makeEntranceGate).
  *
  * Start, then show (the user, 2026-11-22: "Wait until it's ready, then play the animation and switch the live 2d in in
  * the back"): the renderer's first frames with a whole group live are its slow ones (8 Grand Alliance cards: 2–5 frames
@@ -644,7 +645,6 @@ export function sweepDrive(s, S = glowStyle()) {
 }
 /** The stagger between the group's cards: the result row's step [src: ui/cardEntrance.js ANIM_DELAY_S, official _animDelay]. */
 export const FLIP_STEP_S = ANIM_DELAY_S;
-export const GROUP_CAP_MS = 8000; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — 8 s covers a typical PC's cold Grand Alliance load, 4.9–5.3 s measured at 1080p]
 /** A smooth frame: 30 fps, the flip's gate (no frame over 33 ms: the lead's brief of 2026-11-22), +1 ms of frame-timer jitter as the review page's gates allow [src: public/dev/dyn-review.js measure]. */
 export const FLIP_SMOOTH_MS = 1000 / 30 + 1;
 export const FLIP_SMOOTH_FRAMES = 10; // [ASSUMED: proposed to the user 2026-11-22, not yet OK'd — about 0.17–0.33 s of smooth frames before the cards show]
@@ -824,16 +824,11 @@ function startAlone(e) {
 function flipGroup(g) {
   if (g.flipped) return;
   g.flipped = true;
-  clearTimeout(g.timer);
   g.hold = requestAnimationFrame(() => {
     g.hold = 0;
-    // one frame for all: the ready cards start together (still hidden); one still loading keeps its 2D art until the
-    // screen is opened again (`late`: a new group forms then), as a result card still loading at the give-up does (the
-    // user, 2026-11-23, through the lead: the cards switch together, never one by one after the others)
+    // one frame for all: every card is ready or failed by now; the ready ones start together (still hidden)
     const held = [];
-    for (const e of g.entries) {
-      if (e.state === 'ready') { startCard(e); held.push(e); } else if (e.state !== 'failed') { e.late = true; giveUpCard(e); }
-    }
+    for (const e of g.entries) if (e.state === 'ready') { startCard(e); held.push(e); }
     if (held.length) g.wait = whenSmooth(held, () => { g.gaveUp = true; });
   });
 }
@@ -848,9 +843,7 @@ function checkGroup(g) {
 /** A room card's illustration is mounted (not started): it joins the screen's group, or swaps alone after the flip. */
 export function joinGroup(e) {
   if (!group) {
-    const g = { entries: new Set(), flipped: false, check: 0, timer: 0 };
-    g.timer = setTimeout(() => flipGroup(g), GROUP_CAP_MS);
-    group = g;
+    group = { entries: new Set(), flipped: false, check: 0 };
   }
   e.group = group;
   group.entries.add(e);
@@ -862,7 +855,7 @@ export function groupState(e, s) {
   const was = e.state;
   e.state = s;
   const g = e.group;
-  if (!g || e.late) return;
+  if (!g) return;
   if (e.alone) { if (s === 'ready' && was !== 'ready') startAlone(e); } else checkGroup(g);
 }
 /** The card left (the screen closed, the seat emptied, its art changed): a group with no card left is forgotten. */
@@ -874,7 +867,7 @@ export function leaveGroup(e) {
   g.entries.delete(e);
   e.group = null;
   if (!g.entries.size) {
-    clearTimeout(g.timer); if (g.check) cancelAnimationFrame(g.check); if (g.hold) cancelAnimationFrame(g.hold); g.wait?.();
+    if (g.check) cancelAnimationFrame(g.check); if (g.hold) cancelAnimationFrame(g.hold); g.wait?.();
     if (group === g) group = null;
   } else checkGroup(g);
 }

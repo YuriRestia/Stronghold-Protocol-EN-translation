@@ -573,11 +573,12 @@ one after another in page order, the result row's 0.083 s apart
 has no switch from 2D to its illustration; this reuses its reveal. Without WebGL2, the sprites or under reduced motion,
 the 0.15 s controller fade (`FLIP_FADE_S`). A page not smooth `FLIP_GIVE_UP_MS` 3 s after the start keeps its 2D art and
 stops the illustrations, later cards on it too ("I reject low FPS L2D") [ASSUMED: proposed, not yet OK'd]. A failed card
-keeps its 2D and holds nobody; past `GROUP_CAP_MS` 8 s from the first card's mount [ASSUMED: proposed, not yet OK'd] the
-ready ones flip and one still loading keeps its 2D art until the screen is opened again (a new group forms then; the
-user's ask of 2026-11-23, through the lead: the cards switch together, as on the result screen, never one by one after
-the others); a card mounted after the flip — a player who sits down, a changed outfit or portrait — is a new card and
-swaps alone (its own smooth frames, its own dissolve); the result cards do not group (their entrance gate). The
+(a download or build error, the renderer's `failed`) keeps its 2D and holds nobody. There is no time limit: a slow card
+holds the group however long it loads, and a slow link only switches the whole screen later, never one card after the
+others (the user's pick B of 2026-11-23; the 8 s cap before it, `GROUP_CAP_MS`, left a room on a 1 MB/s link on its 2D
+art [src: work/dev-55 latecap.mjs run, Grand Alliance page 6, 2319 × 1356 @1, 2026-11-23]); a card mounted after the
+flip — a player who sits down, a changed outfit or portrait — is a new card and swaps alone (its own smooth frames, its
+own dissolve); the result cards do not group (their entrance gate). The
 strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
 the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
