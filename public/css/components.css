@@ -1513,3 +1513,7 @@
    container, so the 9-slice's borders scale with the art window (cqw) */
 .dyn-art__bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .dyn-art__bg > i { position: absolute; box-sizing: border-box; }
+/* (fork) a wide room card's home background (ui/dynCards.js FILL): under the 2D art and the illustration, both of which
+   cast the soft shadow over it (--dyn-shadow: its blur for the card's height, set on .dyn-art) */
+.dyn-art__fill { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: no-repeat center / cover; }
+.dyn-art--fill .dyn-art__live, .dyn-art--fill .dyn-art__still > img { filter: drop-shadow(0 0 var(--dyn-shadow, 0px) var(--dyn-shadow-color, transparent)); }

@@ -592,10 +592,27 @@ appears — straight into Idle, no intro (the user, 2026-11-22) — is the rende
 An illustration's see-through pixels (its erasers) show the official card background, which both official cards draw
 before the illustration (group_bg/bg, the same 9-slice `bg_normal2` / `card_bg`): behind the result card the real one
 (below), and on a tall card of the official shape (the solo room's) `IllustArt backdrop`, mapped onto the art window as the
-prefab places it around group_char (`BACKDROP`), only while the illustration is live. A co-op room's wide card draws none:
-cut for the tall card, the 9-slice stretched across a wide one showed its light half and + marks where a scene ends (the
-user, 2026-11-22), so there the card's own dark panel shows. Nothing is sampled or blurred at runtime (the user,
-2026-11-22: a blurred background, if chosen, is prepared per illustration with the art, not made in the browser).
+prefab places it around group_char (`BACKDROP`), only while the illustration is live. A co-op room's wide card draws no
+9-slice: cut for the tall card, stretched across a wide one it showed its light half and + marks where a scene ends (the
+user, 2026-11-22). (fork) It shows an official **home background** instead (the user's pick of 2026-11-23, "how about
+using the client home screen lobby backgrounds to fill in the gap? i mean that's how it works in official": the home
+screen shows an illustration over the player's home background, display_meta_table homeBackgroundData): `IllustArt
+fill` (room.js, wide cards only — not the solo room, not the result screen), behind the card's 2D art and its live
+illustration alike, so the 2D art (动态立绘 关, a card still loading or kept 2D) has it too. Which one: the user's picks of
+2026-11-23 for the 98 illustrations, matched by the outfit's theme, else the operator's faction (no official pairing),
+in `data/dyn-card-background.json` (illustration key → background id; written by `tools/dyn-card-background.mjs`, never
+by hand; a card finds its key from its operator and outfit without the renderer: `render/dynillust/key.js`). The
+picture is the client's own (`arts/ui/homebackground/wrapper/<bgId>.ab`: its `_left` and `_right` halves joined), a
+still with no effects at 1280 × 720 (the user: "just get the still image, no need effects … you can even use a low
+resolution version"), extracted by `tools/local-extract/homebg.py` with `--only dynillust` or `--only homebg` into the
+`homebg` group of data/local-assets.json — 24 backgrounds, 2.3 MB in all [src: work/dev-59
+homebg-manifest.json, 2026-11-23]; a card whose background the art pack lacks keeps its dark panel. It is cover-fitted at
+50 % / 55 % (`FILL.pos`), and the 2D art and the illustration cast a soft shadow over it, so a scene's torn edge sits on
+the background: the colour of the official still art's own edge shadow, near-black rgb(6, 10, 15) [src: official
+char_1013_chen2 E2 full art, its semi-transparent dark edge pixels, work/dev-59 shadow.cjs, 2026-11-23], blurred all
+round by 1.2 % of the card's height at 55 % (the user's pick "K" of 2026-11-23 over the official offset shadow, which
+fell under the art where the gaps are) [ASSUMED: the position, blur and strength; user OK 2026-11-23]. The dissolve's
+picture draws the background and the shadow too, on the page and in its Worker, so the switch shows no dark gap.
 (fork) **A co-op room's wide cards** (the 4-seat and the Grand Alliance room, the user's layout I and its 4-seat follow-up
 of 2026-11-22; room.js SeatCard `wide`, room.css `.rs-seats--wide`): the event's tall card gives way to a wide window onto
 the art (`--rs-ar`, a design choice: 16 : 9 in the 4-seat room — the user asked for a phone's sideways framing without too

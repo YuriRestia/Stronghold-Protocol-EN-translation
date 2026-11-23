@@ -780,3 +780,22 @@ export function paintBackgroundStyle(g, cs, w, h) {
   g.fillStyle = grad;
   g.fillRect(0, 0, w, h);
 }
+
+/**
+ * (fork) Draw an image over w × h as CSS `background-size: cover` at `background-position: px py` does (fractions): a
+ * wide room card's home background (ui/dynCards.js FILL) in the dissolve's picture, on the page and in the Worker.
+ * @param {CanvasRenderingContext2D|OffscreenCanvasRenderingContext2D} g
+ * @param {CanvasImageSource & { width: number, height: number, naturalWidth?: number, naturalHeight?: number }} img
+ */
+export function paintCover(g, img, w, h, px = 0.5, py = 0.5) {
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  if (!(iw > 0 && ih > 0 && w > 0 && h > 0)) return;
+  const k = Math.max(w / iw, h / ih), dw = iw * k, dh = ih * k;
+  g.drawImage(img, (w - dw) * px, (h - dh) * py, dw, dh);
+}
+
+/** A computed CSS `filter` with every px length × k: the 2D art's filter in CSS px, drawn on a canvas of device px. */
+export function scaleFilterPx(filter, k = 1) {
+  if (!filter || filter === 'none' || k === 1) return filter;
+  return String(filter).replace(/(-?\d*\.?\d+)px/g, (_, v) => `${+(parseFloat(v) * k).toFixed(2)}px`);
+}

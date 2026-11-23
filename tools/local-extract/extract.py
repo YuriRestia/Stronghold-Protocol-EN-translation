@@ -50,6 +50,9 @@ aklz4.py registers a decoder for it. This script pulls the art the web sources l
     → dynillust/<dir>/illust.json + Spine files + WebP pages (full and half) + the effect layer; one manifest group
     `dynillust` (key → illust.json); only with an explicit --only dynillust (about 0.5 GB for the 98), --dyn-keys for
     named ones
+  - (fork) the official home backgrounds the co-op room's wide cards show behind those illustrations (homebg.py,
+    data/dyn-card-background.json) → homebg/<bgId>.webp, 1280 x 720 stills; one manifest group `homebg`; with
+    --only dynillust or --only homebg
 
 Usage:
   python3 -m venv .venv && .venv/bin/pip install -r tools/local-extract/requirements.txt
@@ -79,6 +82,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import scenes  # noqa: E402  (the battlefield scene table and exporter; imports UnityPy only when it runs)
 import fx  # noqa: E402  (the official battle effects, DESIGN §33; imports UnityPy only when it runs)
 import dynillust  # noqa: E402  (fork: the dynamic illustrations, DESIGN §33.19; imports UnityPy only when it runs)
+import homebg  # noqa: E402  (fork: the wide room cards' home backgrounds; imports UnityPy only when it runs)
 import operators  # noqa: E402 (installed plugin operators' optional official art, §34.28)
 import versions  # noqa: E402 (the official-version roster's missing presentation art)
 
@@ -386,8 +390,9 @@ GUIDE_WEBP_OPTIONS = {
 
 # (fork) Output subdirs whose sprites are written straight as WebP, with no PNG beside them (every file under
 # public/assets is in the preload manifest and zip): the 200 profile icons, 7.7 MB of PNG → 1.8 MB at lossy quality 90,
-# the user's choice of 2026-11-08 after a side-by-side comparison at 2×.
-DIRECT_WEBP = {'avatar': GUIDE_WEBP_OPTIONS['lossy']}
+# the user's choice of 2026-11-08 after a side-by-side comparison at 2×. (fork) `homebg` (homebg.py, the wide room cards'
+# home backgrounds) writes its own WebP files (q80, 1280 x 720) and is listed so the manifest's checks know it has no PNG.
+DIRECT_WEBP = {'avatar': GUIDE_WEBP_OPTIONS['lossy'], 'homebg': GUIDE_WEBP_OPTIONS['lossy']}
 
 # Shader bundles loaded beside every job that exports Materials, only so that the materials' shader references
 # (external CABs) resolve to a name in materials.json (e.g. Torappu/Scene/StandardDirectional); nothing is exported
@@ -973,6 +978,12 @@ def dyn_selected(only):
     return any(p.rstrip('/') == dynillust.DYN_SUB for p in only)
 
 
+def homebg_selected(only):
+    """(fork) Whether the wide room cards' home backgrounds run: with the illustrations (--only dynillust) or alone
+    (--only homebg); a plain run leaves them out, as the illustrations they go with."""
+    return dyn_selected(only) or any(p.rstrip('/') == homebg.HOMEBG_SUB for p in only)
+
+
 def scene_ids(only):
     """The stage ids of scenes.SCENES that run under --only (all with no prefix, `scene` or a parent of it)."""
     return spine_ids(only, scenes.SCENE_SUB, [sid for sid, _deps in scenes.SCENES])
@@ -1158,6 +1169,8 @@ def main():
                                  'sample': {'keys': fx.FX_SAMPLE_KEYS, 'units': fx.FX_SAMPLE_UNITS,
                                             'coverage': fx.FX_COVERAGE_KEYS}},
                           'dynillust': {'sub': dynillust.DYN_SUB, 'version': dynillust.DYN_VERSION, 'optIn': True},
+                          'homebg': {'sub': homebg.HOMEBG_SUB, 'size': list(homebg.HOMEBG_SIZE), 'optIn': True,
+                                     'ids': homebg.wanted(ROOT)},
                           'scenes': {'sub': scenes.SCENE_SUB, 'tex': scenes.TEX_SUB,
                                      'version': scenes.SCENE_EXTRACT_VERSION,
                                      'stages': [{'id': sid, 'bundle': scenes.scene_bundle(sid), 'deps': deps}
@@ -1177,12 +1190,13 @@ def main():
     stage_ids = scene_ids(args.only)
     fx_on = fx_selected(args.only)
     dyn_on = dyn_selected(args.only)
+    homebg_on = homebg_selected(args.only)
     # §34.28: a normal full run is not consent for optional plugin art. --only plugin-art is explicit too.
     art_on = wants_sub(args.only, operators.SUB) and (bool(args.only) or args.plugin_art)
     art_ids = spine_ids(args.only, operators.SUB, operators.references(Path(args.plugin_root))) if art_on else []
     versions_on = not args.only or 'versions' in args.only
     if (not jobs and not enemy_ids and not token_ids and not stage_ids and not fx_on and not art_on and not versions_on
-            and not dyn_on):
+            and not dyn_on and not homebg_on):
         print(f'--only {args.only}: no job matches', file=sys.stderr)
         return 2
     out_root = Path(args.out)
@@ -1222,6 +1236,8 @@ def main():
                 manifest[dynillust.DYN_SUB] = dict(sorted({**kept, **manifest.get(dynillust.DYN_SUB, {})}.items()))
             except (OSError, ValueError):
                 pass
+    if homebg_on:
+        total += homebg.export_homebg(ab_root, out_root, manifest, print, ROOT)
     old, old_chars = {}, {}
     if Path(args.manifest).exists():
         try:
@@ -1229,8 +1245,10 @@ def main():
             old_chars = previous.get('chars') or {}
             old = previous.get('groups') or {}
             if not args.only:
-                # (fork) the opt-in dynamic illustrations stay listed through a plain run, like the plugin art
-                old = {g: v for g, v in old.items() if g.startswith(('char/', 'spine/char/')) or g == dynillust.DYN_SUB}
+                # (fork) the opt-in dynamic illustrations and their wide cards' home backgrounds stay listed through a
+                # plain run, like the plugin art
+                old = {g: v for g, v in old.items()
+                       if g.startswith(('char/', 'spine/char/')) or g in (dynillust.DYN_SUB, homebg.HOMEBG_SUB)}
         except (OSError, ValueError) as e:
             print(f'warn: previous manifest unreadable ({e}); writing only the re-extracted groups', file=sys.stderr)
     # Partial sprite packs keep previously extracted pictures, just as merge_chars keeps their URLs.

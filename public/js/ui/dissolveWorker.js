@@ -6,9 +6,9 @@
 // ss-1440-5.json, ss-1440-7.json, 2026-11-23]. Here they cost the page nothing; the page only posts each frame's numbers.
 //
 // Messages in: init { maskUrl, glow } → ready { ok, err }; card { id, dis, wash } (OffscreenCanvas each);
-// prep { id, url, gm, bg, filter, key } → prepared { id, ok, key }; frame { items }; end { id }; washEnd { id };
+// prep { id, url, gm, bg, fill?, filter, key } → prepared { id, ok, key }; frame { items }; end { id }; washEnd { id };
 // drop { id } (picture and tiles freed, canvases kept); forget { id }.
-import { glReady, loadDissolveMask, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, drawDissolve, paintBackgroundStyle } from './cardEntrance.js';
+import { glReady, loadDissolveMask, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, drawDissolve, paintBackgroundStyle, paintCover } from './cardEntrance.js';
 
 const cards = new Map(); // id → { dis, wash, pic }
 let mask = null;
@@ -30,17 +30,25 @@ async function init({ maskUrl }) {
   if (!px || px[3] < 200 || px[0] < 200) throw new Error(`test draw ${px ? Array.from(px).join(',') : 'failed'}`);
 }
 
-async function prep({ id, url, gm, bg, filter, key }) {
+async function prep({ id, url, gm, bg, fill, filter, key }) {
   const c = cards.get(id);
   if (!c || !mask) return { ok: false, key };
   const r = await fetch(url, { cache: 'force-cache' });
   if (!r.ok) return { ok: false, key };
+  // (fork) a wide room card's home background (ui/dynCards.js FILL): in the picture under the 2D art, as on the card
+  let fillBmp = null;
+  if (fill?.url) {
+    const fr = await fetch(fill.url, { cache: 'force-cache' });
+    if (!fr.ok) return { ok: false, key };
+    fillBmp = await createImageBitmap(await fr.blob());
+  }
   const { x, y, w, h } = gm.crop;
   const bmp = await createImageBitmap(await r.blob(), Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h)),
     { resizeWidth: Math.max(1, Math.round(gm.dw)), resizeHeight: Math.max(1, Math.round(gm.dh)), resizeQuality: 'high' });
   // the art box as it shows: its background, then the 2D art at its place (and its filter)
   const cv = new OffscreenCanvas(gm.W, gm.H), g = cv.getContext('2d');
   paintBackgroundStyle(g, bg, gm.W, gm.H);
+  if (fillBmp) { paintCover(g, fillBmp, gm.W, gm.H, fill.px, fill.py); fillBmp.close(); }
   if (filter && filter !== 'none') g.filter = filter;
   g.drawImage(bmp, gm.dx, gm.dy, gm.dw, gm.dh);
   bmp.close();

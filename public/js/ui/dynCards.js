@@ -29,7 +29,8 @@ import { data, useData } from '../data.js';
 import { settingsStore } from './settingsStore.js';
 import { touchDevice } from '../render/vfx/tier.js';
 import { screenShortSide, PHONE_MAX_SIDE, reducedMotion } from './device.js';
-import { loadDissolve, dissolveMaskUrl, artPlacement, paintBackgroundStyle, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, BLOOM, GLOW, sweepRange, ANIM_DELAY_S } from './cardEntrance.js';
+import { loadDissolve, dissolveMaskUrl, artPlacement, paintBackgroundStyle, paintCover, scaleFilterPx, drawDissolve, dissolvePicture, freeDissolvePicture, batchDissolve, batchBloom, flushBatch, reserveTiles, BLOOM, GLOW, sweepRange, ANIM_DELAY_S } from './cardEntrance.js';
+import { findDynIllustKey } from '../render/dynillust/key.js';
 import { choiceOf } from './outfits.js';
 import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from './seatArt.js';
 import { whenScreenSettled } from '../loadLater.js';
@@ -186,6 +187,51 @@ export function loadCoverFraming() {
     .then((j) => { coverTable = new Map(Object.entries(j?.cards || {})); }, () => { coverTable = new Map(); });
   return coverLoad;
 }
+/**
+ * A wide room card's home background (the user's pick of 2026-11-23, "how about using the client home screen lobby
+ * backgrounds to fill in the gap? i mean that's how it works in official"): the official home screen shows an
+ * illustration over the player's home background, and a wide card is wider than the card an illustration is drawn for,
+ * so a scene can end inside it. Behind each illustration's card — its 2D art and the live illustration alike — the
+ * background data/dyn-card-background.json picks for it (tools/dyn-card-background.mjs: the user's picks of
+ * 2026-11-23), a 1280 × 720 still of the client's (`homebg` group of data/local-assets.json, tools/local-extract/homebg.py),
+ * cover-fitted at `pos`. Over it the art casts a soft shadow, so a scene's torn edge sits on the background: the
+ * official still art's own edge shadow's colour, near-black rgb(6, 10, 15) [src: official char_1013_chen2 E2 full art,
+ * its semi-transparent dark edge pixels, mean rgb measured 2026-11-23, work/dev-59 shadow.cjs], blurred all round by
+ * `shadow` × the art box's height (the user's pick K of 2026-11-23 over the official offset shadow, which fell under
+ * the art where the gaps are). Only a wide card (room.js `fill`); the solo room's tall card keeps BACKDROP.
+ */
+export const FILL = Object.freeze({ pos: [0.5, 0.55], shadow: 0.012, shadowColor: 'rgba(6, 10, 15, .55)' }); // [ASSUMED: pos, the blur and its strength; user OK 2026-11-23: picked "K soft shadow" on these values]
+let fillTable = null;
+let fillLoad = null;
+/** data/dyn-card-background.json, once a page: illustration key → background id. */
+export function loadCardBackgrounds() {
+  fillLoad ||= fetch('/data/dyn-card-background.json', { cache: 'no-cache' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => { fillTable = new Map(Object.entries(j?.cards || {})); }, () => { fillTable = new Map(); });
+  return fillLoad;
+}
+/** The home background URL of a card's art ({ charId, outfit }), or null: none picked, or the art pack lacks it. */
+export async function cardBackground(art) {
+  if (!art?.charId) return null;
+  // the asset store loads only when it is needed, never with the page's start (test/ui/plugins-client.test.js)
+  const { assets } = await import('../assets.js');
+  const [, m] = await Promise.all([loadCardBackgrounds(), assets.local().catch(() => null)]);
+  const key = findDynIllustKey(m?.groups?.dynillust, art.charId, art.outfit || null);
+  const bg = key ? fillTable?.get(key) : null;
+  return bg ? assets.localUrl('homebg', bg) || null : null;
+}
+/** A decoded image per background URL (the dissolve's picture on the page draws it). */
+const fillImages = new Map();
+function fillImage(url) {
+  let p = fillImages.get(url);
+  if (!p) {
+    const img = typeof Image === 'function' ? Object.assign(new Image(), { src: url }) : null;
+    p = img ? (img.decode ? img.decode() : Promise.resolve()).then(() => img, () => null) : Promise.resolve(null);
+    fillImages.set(url, p);
+  }
+  return p;
+}
+
 /** The framing of illustration `key` on a wide card: { mode: 'card', zoom, fx, fy }, or null (the plain card framing). */
 export function coverFraming(key) {
   const c = coverTable?.get(key);
@@ -965,8 +1011,9 @@ export function leaveGroup(e) {
  *   gate: the result page's entrance gate (makeEntranceGate): the card joins it, settles once live or failed, and at
  *   its give-up keeps its 2D art for good
  *   own: the viewer's own room card: a room page too slow for every card keeps this one (whenSmooth)
+ *   fill: a wide room card: its home background behind the 2D art and the illustration, and their soft shadow (FILL)
  */
-export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = false, framing = null, gate = null, class: cls = '', children }) {
+export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = false, fill = false, framing = null, gate = null, class: cls = '', children }) {
   const on = !!(animate && art);
   const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
@@ -977,6 +1024,17 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
   const preJoin = useRef(null), joinedOnce = useRef(false);
   if (gate && on && !joinedOnce.current) { joinedOnce.current = true; preJoin.current = {}; gate.join(preJoin.current, null); }
   const [state, setState] = useState('off');
+  // the home background (FILL): its URL once known, and the art box's height for the shadow's blur
+  const [fillUrl, setFillUrl] = useState(null);
+  const [fillH, setFillH] = useState(0);
+  const fillKey = fill && art ? `${art.charId}|${art.outfit || ''}` : '';
+  useEffect(() => {
+    setFillUrl(null);
+    if (!fillKey) return undefined;
+    let alive = true;
+    cardBackground(art).then((u) => { if (alive) setFillUrl(u); }, () => {});
+    return () => { alive = false; };
+  }, [fillKey]);
   // the art window's width (px), measured with the page tier below: the backdrop's 9-slice borders
   const [boxW, setBoxW] = useState(0);
   const tier = useStore((s) => s.tier, Object.is, dynTierStore);
@@ -1001,6 +1059,15 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
   // are already in place under it, so the show only starts the dissolve (no DOM switch in that frame)
   const [covered, setCovered] = useState(false);
   const root = useRef(null), dis = useRef(null), wash = useRef(null);
+  useEffect(() => {
+    const box = root.current?.parentElement;
+    if (!fillUrl || !box) return undefined;
+    const measure = () => setFillH(box.clientHeight);
+    measure();
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    ro?.observe(box);
+    return () => ro?.disconnect();
+  }, [fillUrl]);
   useEffect(() => {
     setState(on ? 'loading' : 'off');
     setShown(wait !== 'settled');
@@ -1027,6 +1094,9 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
     // at its object-position, its filter) — composed and put on the GPU while the cards wait, again at the show if the
     // box changed size
     let pic = null, picKey = '';
+    // a wide card's home background (FILL) in the picture too, under the 2D art as on the card: { url, img } or null
+    let fillPic = null;
+    const dpr = () => globalThis.devicePixelRatio || 1;
     // the dissolve Worker's api and this card's id there, when the Worker draws this card (dissolveWorker), else null
     let wapi = null, wid = 0, wEl = null;
     // the picture and tiles freed (the Worker keeps the handed-over canvases until they leave the page)
@@ -1051,7 +1121,7 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
       const [px, py] = objectPosition(cs.objectPosition);
       const at = artPlacement({ placed, r, bx, by, bw, bh, nw: img.naturalWidth, nh: img.naturalHeight, px, py, dpr: globalThis.devicePixelRatio || 1 });
       const src = img.currentSrc || img.src;
-      return { ...at, img, box, cs, src, key: `${at.W}x${at.H}|${src}${placed ? `|${Math.round(r.left - bx)},${Math.round(r.top - by)},${Math.round(r.width)}` : ''}` };
+      return { ...at, img, box, cs, src, key: `${at.W}x${at.H}|${src}${placed ? `|${Math.round(r.left - bx)},${Math.round(r.top - by)},${Math.round(r.width)}` : ''}${fillPic ? `|${fillPic.url}` : ''}` };
     };
     // on the page: the picture composed here and put on the page's GPU context
     const compose = () => {
@@ -1063,7 +1133,9 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
       c.width = W; c.height = H;
       const g = c.getContext('2d');
       paintBackground(g, gm.box, W, H);
-      if (gm.cs.filter && gm.cs.filter !== 'none') g.filter = gm.cs.filter;
+      if (fillPic?.img) paintCover(g, fillPic.img, W, H, FILL.pos[0], FILL.pos[1]);
+      // the art's filter (its shadow's px too) at the canvas's device px
+      if (gm.cs.filter && gm.cs.filter !== 'none') g.filter = scaleFilterPx(gm.cs.filter, dpr());
       g.drawImage(gm.img, gm.crop.x, gm.crop.y, gm.crop.w, gm.crop.h, gm.dx, gm.dy, gm.dw, gm.dh);
       pic = dissolvePicture(c, entry.mask, pic);
       picKey = key;
@@ -1074,7 +1146,9 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
     const prepInWorker = (gm) => {
       const bs = globalThis.getComputedStyle(gm.box);
       return wapi.prep(wid, { url: new URL(gm.src, globalThis.location?.href).href, gm: { W: gm.W, H: gm.H, dx: gm.dx, dy: gm.dy, dw: gm.dw, dh: gm.dh, crop: gm.crop },
-        bg: { backgroundColor: bs.backgroundColor, backgroundImage: bs.backgroundImage }, filter: gm.cs.filter, key: gm.key })
+        bg: { backgroundColor: bs.backgroundColor, backgroundImage: bs.backgroundImage },
+        fill: fillPic ? { url: new URL(fillPic.url, globalThis.location?.href).href, px: FILL.pos[0], py: FILL.pos[1] } : null,
+        filter: scaleFilterPx(gm.cs.filter, dpr()), key: gm.key })
         .then((r) => { if (r?.ok && live) { picKey = r.key; return true; } return false; });
     };
     // a dissolve that cannot be prepared falls back to the fade; it never holds the group
@@ -1212,7 +1286,10 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
     };
     // a 'cover' card waits for its framing tables (two small files, fetched once per page; CardArt places its 2D art with
     // the same values)
-    const go = () => Promise.all([readyStage(tier), framing === 'cover' ? loadCardArtFraming() : null]).then(([{ R, st }]) => {
+    // and a wide card its home background, decoded before the dissolve's picture is composed
+    const fillReady = fill ? cardBackground(art).then((u) => (u ? fillImage(u).then((img) => ({ url: u, img })) : null)).catch(() => null) : null;
+    const go = () => Promise.all([readyStage(tier), framing === 'cover' ? loadCardArtFraming() : null, fillReady]).then(([{ R, st }, , f]) => {
+      fillPic = f || null;
       const key = live ? illustKey(R, art) : null;
       if (!key || !host.current) { if (live) setState('off'); gate?.settle(gateTok); return null; }
       // a result card whose illustration was still loading when the result screen opened at the give-up: its 2D art
@@ -1256,7 +1333,7 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
       if (entry) leaveGroup(entry);
       try { card?.unmount(); card?.canvas?.remove(); } catch (err) { console.warn('[dynillust] unmount', err); }
     };
-  }, [id, on, wait, tier, framing]);
+  }, [id, on, wait, tier, framing, fill]);
   // what the card shows: 'ready' while it runs hidden before its group shows
   const vis = state === 'live' && !shown ? 'ready' : state;
   // in place (under the dissolve's cover, or shown)
@@ -1270,7 +1347,10 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
     return () => box?.classList.remove('has-live-art');
   }, [placed]);
   const bg = backdrop && placed ? uiUrl(data.get('assets'), BACKDROP.sprite) : null;
-  return html`<div ref=${root} class=${`dyn-art${placed ? ' is-live' : ''}${wait === 'settled' ? ' dyn-art--flip' : ''}${reveal === 'dissolve' ? ' dyn-art--dissolve' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${vis}>
+  // the home background (FILL) under everything, and the shadow's blur for this card's height (CSS --dyn-shadow)
+  const fillStyle = fillUrl ? `--dyn-shadow:${(FILL.shadow * fillH).toFixed(1)}px;--dyn-shadow-color:${FILL.shadowColor}` : null;
+  return html`<div ref=${root} class=${`dyn-art${placed ? ' is-live' : ''}${wait === 'settled' ? ' dyn-art--flip' : ''}${reveal === 'dissolve' ? ' dyn-art--dissolve' : ''}${fillUrl ? ' dyn-art--fill' : ''}${cls ? ` ${cls}` : ''}`} data-dyn=${vis} style=${fillStyle}>
+    ${fillUrl ? html`<div class="dyn-art__fill" aria-hidden="true" style=${`background-image:url("${fillUrl}");background-position:${FILL.pos[0] * 100}% ${FILL.pos[1] * 100}%`}></div>` : null}
     <div class="dyn-art__still">${children}</div>
     ${bg ? html`<div class="dyn-art__bg" aria-hidden="true"><i style=${backdropStyle(bg, boxW)}></i></div>` : null}
     ${on ? html`<div class="dyn-art__live" ref=${host} aria-hidden="true"></div>` : null}

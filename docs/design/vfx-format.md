@@ -2142,7 +2142,9 @@ into a render texture [src: official dump.cs DynIllustMgr RT_WIDTH, RT_HEIGHT]. 
 context and a `drawImage` copy into each card's canvas, 0.1 ms median / 0.3 ms p95 a frame for 8 cards [src: Dev 50's
 measurement, 2026-11-22]. One key mounted on several cards is drawn once (spec §4.3); a hidden page or a canvas out of
 view pauses its card and frees its slot. A screen awaits `getDynIllustStage().index()` before it calls
-`dynIllustKey`.
+`dynIllustKey`. (fork) Its lookup, `findDynIllustKey(group, charId, skinId)`, lives in `render/dynillust/key.js`, which
+imports nothing, so a card can find its key from the `dynillust` group without loading the renderer (a wide room
+card's home background, client.md §10).
 
 **Workers** (fork, 2026-11-22): where the browser has `Worker`, `OffscreenCanvas` and
 `transferControlToOffscreen`, `getDynIllustStage()` returns a host (`render/dynillust/host.js`) with the same API, and
