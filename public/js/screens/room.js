@@ -131,7 +131,7 @@ function squadGroups(room, facts, cards) {
       <header class="rs-squad__head">
         <h3 class="rs-squad__k">${t('小队 {name}', { name: sq ? 'B' : 'A' })}</h3>
         <i class="rs-squad__rule" aria-hidden="true"></i>
-        ${humans.length ? html`<span class="rs-squad__ready num"><b>${humans.filter(facts.isReady).length}</b>/${humans.length} ${t('已就绪')}</span>` : null}
+        ${humans.length ? html`<span class="rs-squad__ready num"><b>${humans.filter(facts.isReady).length}</b>/${humans.length} <span class="rs-squad__word">${t('已就绪')}</span></span>` : null}
       </header>
       <div class="rs-squad__cards">${cards.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS)}</div>
     </section>`;
