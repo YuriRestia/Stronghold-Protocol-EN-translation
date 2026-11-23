@@ -16,8 +16,7 @@ let mask = null;
 /** After the next frame of this Worker (its canvases' drawing committed), or a 16 ms timer where Workers have no rAF. */
 const nextFrame = () => new Promise((r) => { if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => r()); else setTimeout(r, 16); });
 
-async function init({ maskUrl, glow }) {
-  if (glow != null) globalThis.__dynGlow = glow;
+async function init({ maskUrl }) {
   if (typeof OffscreenCanvas !== 'function') throw new Error('no OffscreenCanvas');
   if (!(await glReady())) throw new Error('no WebGL2');
   mask = await loadDissolveMask(maskUrl);

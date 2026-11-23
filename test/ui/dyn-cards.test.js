@@ -10,7 +10,7 @@ import {
   FLIP_SWEEP_S, sweepDrive, dynTierStore, setDynQuality,
 } from '../../public/js/ui/dynCards.js';
 import { settingsStore } from '../../public/js/ui/settingsStore.js';
-import { coverUv, edgeOf, sweepRange, GLOW_STYLES, BLOOM } from '../../public/js/ui/cardEntrance.js';
+import { coverUv, edgeOf, sweepRange, GLOW, BLOOM } from '../../public/js/ui/cardEntrance.js';
 
 test('the tier by card size: half up to one device px per official unit of the 232 × 458 window, full above', () => {
   assert.equal(HALF_MAX_SCALE, 1);
@@ -527,8 +527,8 @@ test('the dissolve\'s crop is the 2D art\'s object-fit: cover at its object-posi
 
 test('the border\'s sweep: the user\'s 0.35 s, the whole of it the line crossing the card, ending with the picture gone', () => {
   assert.equal(FLIP_SWEEP_S, 0.35);
-  for (const key of Object.keys(GLOW_STYLES)) {
-    const S = GLOW_STYLES[key], reach = S.reach ?? BLOOM.width;
+  for (const [key, S] of [['the look', GLOW], ['a look without its own reach', { ...GLOW, reach: undefined, dissolveSoft: undefined }]]) {
+    const reach = S.reach ?? BLOOM.width;
     const [a, b] = sweepRange(S);
     assert.equal(sweepDrive(0, S), a, key);
     assert.equal(sweepDrive(-1, S), a, key);
@@ -653,10 +653,11 @@ test('the result page\'s entrance gate: opens once every animating card is live 
   assert.equal(dc.RESULT_MOUNT_MIN_MS, undefined, 'no separate minimum: every result page mounts with the result screen');
 });
 
-test('the cards\' look: the user\'s pick, one thin line on the smoothed mask, no glitter', async () => {
+test('the cards\' look: the user\'s pick, one thin line on the smoothed mask, no glitter, no other looks', async () => {
   const ce = await import('../../public/js/ui/cardEntrance.js');
-  const S = GLOW_STYLES[ce.GLOW_DEFAULT];
-  assert.equal(ce.GLOW_DEFAULT, 5);
+  const S = ce.GLOW;
+  assert.equal(ce.GLOW_STYLES, undefined, 'the other proposals were removed (the user, 2026-11-23: "remove")');
+  assert.equal(ce.glowStyle, undefined, 'one look: no switch');
   assert.ok(S.soft, 'one line: the smoothed mask');
   const core = S.bands[S.bands.length - 1];
   assert.ok(core.hi - core.lo <= 0.02, 'a thin core (the user: "half as thin")');

@@ -532,11 +532,10 @@ away into the live2D"): a bright band on the dissolve's edge (the official `colo
 inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone
 [ASSUMED: the band's width and brightness, the glow and its fade, tuned to the user's descriptions; user OK 2026-11-23: "Look 5 settings is okay, approved."]. No particles: the
 glitter that once fell from the border, on a page-wide layer, was dropped (the user, 2026-11-23: "you may remove the
-glitter particles, it's useless now"). The border's look is one of `GLOW_STYLES` (the user, 2026-11-23: the white glow
-"drowns out any particle effect"; proposals for the user's pick, the review page's `&glow=0…4`, 0 the one above): 1 a
-thin white edge in a teal halo with a short trail and no wash, 2 the old picture dimmed for 0.35 s before a softer white
-sweep, 3 a teal band with a white core and a teal wash, 4 a burning orange edge that chars the picture ahead of it
-[ASSUMED: proposals]. The cards use look 5 (`GLOW_DEFAULT`, the user's pick of 2026-11-23: "1 + 2 + 3, but the color
+glitter particles, it's useless now"). The border's look is one (`ui/cardEntrance.js GLOW`): the white glow above
+"drowns out any particle effect" (the user, 2026-11-23), so five looks were proposed on the review page; the user picked
+the fifth and the others were removed (the user, 2026-11-23: "remove"), with the review page's switch between them. The
+look (the user's pick of 2026-11-23: "1 + 2 + 3, but the color
 matches the theme color", then "the edge should be half as thin … cleaner and more elegant", "why do I see a 2nd
 line?", "good enough for now"): the old picture dims to 75 % over 0.2 s, then one thin white line in a narrow mint
 (`#4ed8af`) rim sweeps it away over a faint mint wash. One line: the bands and the
