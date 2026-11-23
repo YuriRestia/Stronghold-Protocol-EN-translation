@@ -164,6 +164,57 @@ test('at the give-up the result screen opens and the cards still loading keep th
   } finally { endResultLoad(); setDynModule(null); }
 });
 
+test('a hung renderer never holds the black cover past the give-up from `ending`: the pages\' gates get what is left of the same budget', async (t) => {
+  const { makeEntranceGate, gateWaitStore, RESULT_FIRST_FRAMES_MS } = await import('../../public/js/ui/dynCards.js');
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const flush = async () => {
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    await new Promise((r) => { setImmediate(r); });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+  };
+  // the cover is down once the load's wait is over and no page's gate waits (screens/settle.js useResultHold)
+  const n0 = gateWaitStore.get().n;
+  const covered = () => resultWaitMs() > 0 || gateWaitStore.get().n > n0;
+  const fake = fakeModule(['char_a', 'char_b']);
+  setDynModule(fake);
+  try {
+    // the cards load in 2 s; the result screen mounts after the 3 s pause; one card's renderer never gets live
+    startResultLoad(() => [card('char_a', true), card('char_b')]);
+    await flush();
+    t.mock.timers.tick(2000);
+    fake.st.settles[0].res(); fake.st.settles[1].res();
+    await flush();
+    assert.equal(resultWaitMs(), 0, 'all loaded: the load holds nothing');
+    t.mock.timers.tick(1000);
+    const g = makeEntranceGate();
+    assert.equal(g.budget, RESULT_GIVE_UP_MS - 3000, 'the gate gets what is left of the 8 s from `ending`, not 8 s of its own');
+    const lost = [];
+    g.join({}, () => lost.push('hung')); g.open();
+    assert.ok(covered(), 'its card is not live yet: the cover waits');
+    t.mock.timers.tick(RESULT_GIVE_UP_MS - 3000 - 1); await flush();
+    assert.ok(covered(), 'still inside the 8 s');
+    t.mock.timers.tick(1); await flush();
+    assert.ok(!covered(), `${RESULT_GIVE_UP_MS} ms after \`ending\`: the cover goes (it was about twice that)`);
+    assert.deepEqual(lost, ['hung'], 'the hung card keeps its 2D art');
+    g.dispose();
+    endResultLoad();
+    // a load that runs into the give-up: the page mounts then, and its loaded cards still get the floor for their first frames
+    startResultLoad(() => [card('char_a', true), card('char_b')]);
+    await flush();
+    fake.st.settles[2].res();
+    await flush();
+    t.mock.timers.tick(RESULT_GIVE_UP_MS); await flush();
+    assert.equal(resultWaitMs(), 0, 'the give-up: the result screen mounts');
+    const h = makeEntranceGate();
+    assert.equal(h.budget, RESULT_FIRST_FRAMES_MS, 'nothing left of the 8 s: the floor');
+    h.join({}, () => lost.push('hung2')); h.open();
+    t.mock.timers.tick(RESULT_FIRST_FRAMES_MS); await flush();
+    assert.ok(!covered(), `at most ${RESULT_GIVE_UP_MS + RESULT_FIRST_FRAMES_MS} ms after \`ending\``);
+    assert.deepEqual(lost, ['hung', 'hung2']);
+    h.dispose();
+  } finally { endResultLoad(); setDynModule(null); }
+});
+
 test('follow-up A: the result cards\' illustrations are kept through the match, one\'s own first, within the GPU cap', async () => {
   const { pickKept, keptGpuBytes, KEEP_CAP_MB } = await import('../../public/js/ui/dynCards.js');
   const MB = 1048576;
@@ -245,6 +296,39 @@ test('the room\'s group flip: every card waits for the others, all start hidden 
     assert.deepEqual(starts, ['a', 'b', 'd', 'e'], 'a new screen forms a new group');
     leaveGroup(e2);
     assert.equal(F.frames.size, 0, 'a group with no card left stops waiting');
+  } finally { F.restore(); }
+});
+
+test('past GROUP_CAP_MS the ready cards flip and one still loading keeps its 2D art until the screen is opened again', async (t) => {
+  const { GROUP_CAP_MS } = await import('../../public/js/ui/dynCards.js');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const F = fakeFrames();
+  try {
+    const starts = [], shows = [], kept = [];
+    const mk = (n) => ({ card: { start: () => starts.push(n) }, show: () => shows.push(n), giveUp: () => kept.push(n), state: 'loading', alone: false });
+    const a = mk('a'), b = mk('b');
+    joinGroup(a); joinGroup(b);
+    groupState(a, 'ready'); F.tick(); F.tick();
+    assert.deepEqual(starts, [], 'b still loading: a waits for it');
+    t.mock.timers.tick(GROUP_CAP_MS); F.tick();
+    assert.deepEqual(starts, ['a'], 'the cap: the ready card starts');
+    assert.deepEqual(kept, ['b'], 'the one still loading keeps its 2D art at once');
+    for (let i = 0; i < 2 + FLIP_SMOOTH_FRAMES; i++) F.tick();
+    assert.deepEqual(shows, ['a']);
+    groupState(b, 'ready'); F.tick();
+    for (let i = 0; i < 2 + FLIP_SMOOTH_FRAMES; i++) F.tick();
+    assert.deepEqual(starts, ['a'], 'ready later: no switch on its own after the others');
+    assert.deepEqual(shows, ['a']);
+    // a card mounted after the flip is a new card (a player sits down, an outfit changes): it swaps alone
+    const c = mk('c');
+    joinGroup(c); groupState(c, 'ready');
+    assert.deepEqual(starts, ['a', 'c']);
+    for (const e of [a, b, c]) leaveGroup(e);
+    // the screen opened again: a new group, the card that was late switches with it
+    const b2 = mk('b2');
+    joinGroup(b2); groupState(b2, 'ready'); F.tick(); F.tick();
+    assert.deepEqual(starts, ['a', 'c', 'b2']);
+    leaveGroup(b2);
   } finally { F.restore(); }
 });
 
@@ -461,7 +545,7 @@ test('the result page\'s entrance gate: opens once every animating card is live 
   assert.deepEqual(lost, ['c']);
   g.join({}, () => lost.push('late')); g.settle({});
   assert.deepEqual(lost, ['c'], 'a card joining after the give-up is not held');
-  // the guard counts from the page's mount (the load's give-up, from `ending`, is the result load's: resultKeyReady)
+  // without a result load (the review page) the guard counts the whole RESULT_GIVE_UP_MS from the page's mount
   g = makeEntranceGate();
   assert.equal(g.budget, RESULT_GIVE_UP_MS);
   g.dispose();

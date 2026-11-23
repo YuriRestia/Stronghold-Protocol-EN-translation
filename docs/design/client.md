@@ -502,9 +502,13 @@ once"): the team page's cards join one gate (`makeEntranceGate`), each settling 
 unseen frame until then (`useCardEntrance` `gate`). Static art only for a card without an illustration, one that failed,
 or one still loading at the give-up, `RESULT_GIVE_UP_MS` 8 s after m.public `ending` (the user's OK of 2026-11-23); such
 a card keeps its 2D art for good, no switch after its entrance. Every result page mounts with the result screen (a seat's
-同盟 hidden, above), so the same 8 s, counted from the page's mount, only guards the loaded cards' first frames against a
-renderer that never answers (the earlier 2 s minimum for a page opened late, `RESULT_MOUNT_MIN_MS`, went with the
-pre-mount).
+同盟 hidden, above), so its gate only guards the loaded cards' first frames against a renderer that never answers, with
+what is left of the same 8 s from `ending` — one budget, never a second 8 s from the page's mount, which could hold the
+cover black about 16 s (the lead's fix of 2026-11-23) — and at least `RESULT_FIRST_FRAMES_MS` 0.5 s, so a page mounted
+at the give-up still gets its loaded cards live (0.23–0.33 s measured from mount, below) [ASSUMED: the 0.5 s, proposed,
+not yet OK'd]: the cover is down at most 8.5 s after `ending`. Without a result load (the review page) the gate keeps
+the whole 8 s from its mount. (The earlier 2 s minimum for a page opened late, `RESULT_MOUNT_MIN_MS`, went with the
+pre-mount.)
 Measured on the review page (renderer booted, local server, 4 cards, 1440p and 4K): the load 0.70–0.99 s from files not
 yet fetched, 0.45–0.65 s from the HTTP cache, mount to the gate's opening 0.36–0.41 s / 0.27–0.33 s, 0.23–0.25 s with
 the illustrations still in the renderer [src: work/dev-55 rw-1440.json / rw-4k.json, 2026-11-23].
@@ -570,8 +574,10 @@ has no switch from 2D to its illustration; this reuses its reveal. Without WebGL
 the 0.15 s controller fade (`FLIP_FADE_S`). A page not smooth `FLIP_GIVE_UP_MS` 3 s after the start keeps its 2D art and
 stops the illustrations, later cards on it too ("I reject low FPS L2D") [ASSUMED: proposed, not yet OK'd]. A failed card
 keeps its 2D and holds nobody; past `GROUP_CAP_MS` 8 s from the first card's mount [ASSUMED: proposed, not yet OK'd] the
-ready ones flip and a later one swaps alone (its own smooth frames, its own dissolve), as does a card mounted after the
-flip; the result cards do not group (D11). The
+ready ones flip and one still loading keeps its 2D art until the screen is opened again (a new group forms then; the
+user's ask of 2026-11-23, through the lead: the cards switch together, as on the result screen, never one by one after
+the others); a card mounted after the flip — a player who sits down, a changed outfit or portrait — is a new card and
+swaps alone (its own smooth frames, its own dissolve); the result cards do not group (their entrance gate). The
 strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
 the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in

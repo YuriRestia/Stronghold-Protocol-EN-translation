@@ -533,11 +533,17 @@ export function endResultLoad() {
 
 /**
  * How long after the server's `ending` the result cards may wait for their illustrations to load (the settlement pause,
- * then the black cover): a card still loading then keeps its 2D art (resultKeyReady). Also the result pages' gate guard
- * on their loaded cards' first frames (makeEntranceGate), counted from the page's mount: those get live in well under a
- * second (0.23–0.25 s measured [src: work/dev-55 rw-1440.json / rw-4k.json]), so it only ends a renderer that never answers.
+ * then the black cover): a card still loading then keeps its 2D art (resultKeyReady). The same 8 s, from the same
+ * `ending`, also bounds the result pages' gate guard on their loaded cards' first frames (makeEntranceGate), so a
+ * renderer that never answers cannot hold the black cover a second 8 s after the page mounts.
  */
 export const RESULT_GIVE_UP_MS = 8000; // [ASSUMED: proposed on a measured basis (work/dev-55 rw-*.json), user OK 2026-11-23: "alright, 8s and 160mb"]
+/**
+ * The shortest gate guard: a page mounted at (or near) the give-up still gives its loaded cards this long to get live. A
+ * loaded card got live 0.23–0.33 s after its mount [src: work/dev-55 rw-1440.json / rw-4k.json, aKept and bWarm, 2026-11-23],
+ * so the cover can stay at most RESULT_GIVE_UP_MS + this after `ending`, and only when a load ran into the give-up.
+ */
+export const RESULT_FIRST_FRAMES_MS = 500; // [ASSUMED: about 1.5× the measured 0.33 s, proposed to the user 2026-11-23, not yet OK'd]
 
 /**
  * One result page's gate: its animating cards join (IllustArt `gate`), each settles when its illustration is live or
@@ -580,8 +586,11 @@ export function makeEntranceGate() {
     check();
   };
   // every result page mounts with the result screen (a seat's 同盟 hidden), at the load's give-up at the latest: a card
-  // still loading by then has kept its 2D art already (resultKeyReady); this only guards the loaded ones' first frames
-  const budget = RESULT_GIVE_UP_MS;
+  // still loading by then has kept its 2D art already (resultKeyReady); this only guards the loaded ones' first frames,
+  // with what is left of the load's own RESULT_GIVE_UP_MS from `ending` (one budget, not a second one from the mount),
+  // at least RESULT_FIRST_FRAMES_MS; with no result load (the review page) the whole RESULT_GIVE_UP_MS from the mount
+  const s = resultLoad;
+  const budget = s ? Math.max(RESULT_FIRST_FRAMES_MS, s.startedAt + RESULT_GIVE_UP_MS - Date.now()) : RESULT_GIVE_UP_MS;
   const timer = setTimeout(giveUp, budget);
   return {
     ready,
@@ -606,8 +615,9 @@ export const gateWaitStore = createStore({ n: 0 });
  * The room's and the Grand Alliance room's cards keep their 2D art until every card on the screen is ready (or failed),
  * then all start in one animation frame and fade in together over FLIP_FADE_S (CSS `.dyn-art--flip`). A card that
  * fails keeps its 2D and does not hold the others. Past GROUP_CAP_MS from the first card's mount the ready ones flip and
- * a later one swaps alone when ready; so does a card mounted after the flip (a player who joins, a new outfit or
- * portrait). The result screen does not group (D11: at most 3 s after the settlement pause, a late card fades in alone).
+ * one still loading keeps its 2D art until the screen is opened again (`late`; the user, 2026-11-23, through the lead:
+ * as on the result screen); a card mounted after the flip (a player who joins, a new outfit or portrait) is a new card
+ * and swaps alone when ready. The result screen does not group (its entrance gate, makeEntranceGate).
  *
  * Start, then show (the user, 2026-11-22: "Wait until it's ready, then play the animation and switch the live 2d in in
  * the back"): the renderer's first frames with a whole group live are its slow ones (8 Grand Alliance cards: 2–5 frames
@@ -817,9 +827,13 @@ function flipGroup(g) {
   clearTimeout(g.timer);
   g.hold = requestAnimationFrame(() => {
     g.hold = 0;
-    // one frame for all: the ready cards start together (still hidden); one still loading swaps alone when ready
+    // one frame for all: the ready cards start together (still hidden); one still loading keeps its 2D art until the
+    // screen is opened again (`late`: a new group forms then), as a result card still loading at the give-up does (the
+    // user, 2026-11-23, through the lead: the cards switch together, never one by one after the others)
     const held = [];
-    for (const e of g.entries) { if (e.state === 'ready') { startCard(e); held.push(e); } else e.alone = true; }
+    for (const e of g.entries) {
+      if (e.state === 'ready') { startCard(e); held.push(e); } else if (e.state !== 'failed') { e.late = true; giveUpCard(e); }
+    }
     if (held.length) g.wait = whenSmooth(held, () => { g.gaveUp = true; });
   });
 }
@@ -848,7 +862,7 @@ export function groupState(e, s) {
   const was = e.state;
   e.state = s;
   const g = e.group;
-  if (!g) return;
+  if (!g || e.late) return;
   if (e.alone) { if (s === 'ready' && was !== 'ready') startAlone(e); } else checkGroup(g);
 }
 /** The card left (the screen closed, the seat emptied, its art changed): a group with no card left is forgotten. */
