@@ -905,7 +905,7 @@
   --rs-ar: 16 / 9;
   --rs-gap: max(.12rem, 14px);
   --rs-pad: max(.14rem, 14px);
-  --rs-plate: max(.5rem, 36px, calc(.3 * var(--t)));
+  --rs-plate: max(.5rem, 32px, calc(36px * var(--sp-ui, 1)), calc(.3 * var(--t)));
   --rs-plate-gap: 4px;
   --rs-head: max(.28rem, 22px, calc(.22 * var(--t)));
   --rs-head-gap: 10px;
