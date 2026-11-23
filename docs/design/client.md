@@ -616,6 +616,10 @@ keeps its 中 size at 小 and grows half a pixel a step above it (`--t-step`), t
 leaves out the ready word (screen readers still read it), the seat number and the remove button's person / robot, a Grand
 Alliance plate also the ✓ box (the lit ring and the squad's count say it) and the other players' profile icons (one's
 own, the icon picker, stays); a Grand Alliance squad's heading line stands at the left of its row, read bottom to top;
+the 4-seat room's cards stand in one row of tall cards there (the user's pick of 2026-11-23 from the phone mock-ups,
+"yeah one row tall is a good idea"): each a quarter of the seat area's width and as tall as the area allows, about
+0.8 wide : tall, so a phone's sides hold no empty space (every illustration's framing and full art checked at that shape
+on 844 × 390, 2026-11-23), the room chat's button (`rs--chat`) in a 58 px margin at the row's left;
 on a touch screen each plate button takes taps over a `--tap-min` tall strip no wider than itself; the footer puts the
 status line beside the pill (above it when they do not fit) and, from 721 px wide, 搜寻队友 beside the big button; the chat button shows its
 icon and unread count, without the last line. The short-screen rules written for the tall cards stay off the wide ones.
