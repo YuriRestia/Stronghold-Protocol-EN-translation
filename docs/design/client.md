@@ -648,7 +648,7 @@ Review (D12): `public/dev/dyn-review.html` puts every illustration of the server
 screen's team page 4 at a time, the room 4 seats, the Grand Alliance room 8 — with made-up players whose room card is that
 operator in that outfit, 动态立绘 on 所有人; PC or a landscape phone frame (half pages), page by page; review-only buttons
 play the special idle or Start now, replay the entrance, and throttle the connection (`&slow=<MB/s>`) to show the late
-switch; `&tier=half|full` picks the page tier on any device (the half-size comparison); `__review.measure(s)` reports the frame intervals for the §7 gates and `&off` gives the 2D baseline.
+switch; `&tier=half|full` picks the page tier on any device (the half-size comparison); `__review.measure(s)` reports the frame intervals for the §7 gates and `&off` gives the 2D baseline; on the result screen `&ending` (Match end) plays the match's end through the game's own hold — the load from `ending`, the 3 s pause, the black cover, the result screen — with a clock of the time since, and `&hang=<n>` (Hang a card) freezes the n-th card's download to show the 8 s give-up and `RESULT_FIRST_FRAMES_MS`.
 On the room and Grand Alliance pages each wide card can be framed by hand (the user, 2026-11-23: "drag and zoom the
 live2d to a good position and export all of them"): a drag moves it, the wheel zooms about the pointer, a double-click
 resets it to the table's; applied live to the running card (the renderer's `setFraming`, §33.19) and its 2D art, kept
