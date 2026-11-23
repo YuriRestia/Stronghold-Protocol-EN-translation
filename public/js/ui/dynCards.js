@@ -970,6 +970,12 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
   const on = !!(animate && art);
   const id = on ? `${art.charId}|${art.outfit || ''}` : '';
   const host = useRef(null);
+  // the result page's gate: an animating card joins it as it first renders — before any effect runs, the page's
+  // included — so the page can never open its gate before its cards are in it. Joined in the card's effect, the page's
+  // joined() / open() ran first: the gate opened empty, the entrance played with the still art and the illustration came
+  // in mid-fall (the user, 2026-11-23: "each card on the result screen should only be either live 2d or static")
+  const preJoin = useRef(null), joinedOnce = useRef(false);
+  if (gate && on && !joinedOnce.current) { joinedOnce.current = true; preJoin.current = {}; gate.join(preJoin.current, null); }
   const [state, setState] = useState('off');
   // the art window's width (px), measured with the page tier below: the backdrop's 9-slice borders
   const [boxW, setBoxW] = useState(0);
@@ -1000,6 +1006,8 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
     setShown(wait !== 'settled');
     setReveal('fade');
     setCovered(false);
+    // joined while it rendered, but it no longer animates by its first run: it holds nobody
+    if (!on && preJoin.current) { gate?.settle(preJoin.current); preJoin.current = null; }
     if (!on) return undefined;
     let card = null, live = true, kept = false, raf = 0, cur = 'loading', isCovered = false, trans = null;
     const entry = wait === 'settled' ? { card: null, state: 'loading', alone: false, own: !!own, prepared: false, show: (delay) => { if (live) showNow(delay); }, giveUp: () => keep2d() } : null;
@@ -1221,8 +1229,10 @@ export function IllustArt({ art, animate, wait = 'now', own = false, backdrop = 
       return card.ready;
     }).catch((err) => { console.warn('[dynillust] card', err); if (live) setState('off'); gate?.settle(gateTok); });
     // the result page's gate: this card holds the page's entrance until live or failed; at the gate's give-up it keeps
-    // its 2D art for good (the entrance plays once, never a switch after it)
-    const gateTok = {};
+    // its 2D art for good (the entrance plays once, never a switch after it). The token it joined with while it rendered
+    // (preJoin, below), else a new one (a later run: the art or the tier changed); joining again sets its give-up
+    const gateTok = preJoin.current || {};
+    preJoin.current = null;
     gate?.join(gateTok, () => {
       if (!live || kept) return;
       kept = true;

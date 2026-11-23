@@ -572,6 +572,35 @@ test('动态立绘画质 drives the page tier with no reload: Half / Full force 
   }
 });
 
+test('a result card joins its page\'s entrance gate as it renders, so the page can never open the gate before its cards are in it', async () => {
+  const { makeEntranceGate } = await import('../../public/js/ui/dynCards.js');
+  // the page's effects (joined / open) ran before the cards' effects: a gate opened then has nobody to wait for
+  const late = makeEntranceGate();
+  let lateOpen = false; late.ready.then(() => { lateOpen = true; });
+  late.joined(); late.open();
+  late.join({}, null);
+  await new Promise((r) => { setImmediate(r); });
+  assert.equal(lateOpen, true, 'a card joining after joined() / open() is not waited for: why the cards must join first');
+  late.dispose();
+  // so IllustArt joins while it renders (before any effect of the page), then its effect sets its give-up on the same token
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('../../public/js/ui/dynCards.js', import.meta.url), 'utf8');
+  assert.match(src, /if \(gate && on && !joinedOnce\.current\) \{ joinedOnce\.current = true; preJoin\.current = \{\}; gate\.join\(preJoin\.current, null\); \}/);
+  assert.match(src, /const gateTok = preJoin\.current \|\| \{\};/);
+  const g = makeEntranceGate();
+  let open = false; g.ready.then(() => { open = true; });
+  const tok = {};
+  g.join(tok, null); // the render
+  g.joined(); g.open(); // the page's effects
+  g.join(tok, () => {}); // the card's effect: the same token, its give-up
+  await new Promise((r) => { setImmediate(r); });
+  assert.equal(open, false, 'joined first: the entrance waits for the card');
+  g.settle(tok);
+  await new Promise((r) => { setImmediate(r); });
+  assert.equal(open, true, 'and plays once it is live');
+  g.dispose();
+});
+
 test('a team page mounted hidden: its cards go live while hidden (the cover\'s wait ends), its entrance waits for the page to show', async (t) => {
   const { makeEntranceGate, gateWaitStore, RESULT_GIVE_UP_MS } = await import('../../public/js/ui/dynCards.js');
   t.mock.timers.enable({ apis: ['setTimeout'] });
