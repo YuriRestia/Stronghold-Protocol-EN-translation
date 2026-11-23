@@ -2113,6 +2113,11 @@ Stage.preload(keys) → Promise<void>                 D10: download, decode, bui
                                                     battle ends (m.public `ending`) or a room opens; settles when every
                                                     key is ready or failed. A ready key stays cached in the stage.
 Stage.release(keep = [])                            frees every cached key not in `keep` (the match starts: release())
+Stage.netState() → { open, received, moves }        (fork) its downloads (a Promise on the Worker host, summed over
+                                                    the Workers and the fallback): responses whose body is still
+                                                    arriving, bytes so far, progress events (headers, chunks); every
+                                                    fetch goes through render/dynillust/progress.js countingFetch. The
+                                                    room's stall check reads it (client.md §10)
 Stage.mount(key, { onState?, framing?, centre? }) → Card
                                                     framing 'card' (default) | 'home' (official home screen: unityToHome,
                                                     DEFAULT adjust in the 16:9 home window; centre 'home' as there |

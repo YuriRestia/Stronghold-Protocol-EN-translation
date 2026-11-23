@@ -321,6 +321,47 @@ test('a slow card holds the group however long it takes, then all switch togethe
   } finally { F.restore(); }
 });
 
+test('a stalled download (open, no byte for DOWNLOAD_STALL_MS) drops the cards still loading; a slow one or a slow build never does', async (t) => {
+  const { DOWNLOAD_STALL_MS } = await import('../../public/js/ui/dynCards.js');
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const F = fakeFrames();
+  const net = { open: 0, received: 0, moves: 0 };
+  setDynModule({ getDynIllustStage: () => ({ netState: async () => ({ ...net }) }), dynIllustKey: () => null });
+  const step = async (ms) => {
+    for (let left = ms; left > 0; left -= 250) {
+      t.mock.timers.tick(Math.min(250, left));
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    }
+  };
+  try {
+    const starts = [], kept = [];
+    const mk = (n) => ({ card: { start: () => starts.push(n) }, show() {}, giveUp: () => kept.push(n), state: 'loading', alone: false });
+    const a = mk('a'), b = mk('b');
+    joinGroup(a); joinGroup(b);
+    groupState(a, 'ready'); F.tick(); F.tick();
+    // a slow link: one download open for a minute, a chunk every 2 s
+    net.open = 1;
+    for (let s = 0; s < 30; s++) { net.moves++; await step(2000); }
+    F.tick(); F.tick();
+    assert.deepEqual(kept, [], 'bytes keep coming: never a stall');
+    assert.deepEqual(starts, []);
+    // a slow computer: nothing open (b is building) for a long time
+    net.open = 0;
+    await step(DOWNLOAD_STALL_MS * 3); F.tick(); F.tick();
+    assert.deepEqual(kept, [], 'no download open: no stall');
+    // the download stalls: open, nothing arrives
+    net.open = 1;
+    await step(DOWNLOAD_STALL_MS - 1000); F.tick(); F.tick();
+    assert.deepEqual(kept, [], 'not yet');
+    await step(1500); F.tick(); F.tick();
+    assert.deepEqual(kept, ['b'], 'stalled: the card still loading keeps its 2D art');
+    assert.deepEqual(starts, ['a'], 'and the ready ones switch together');
+    groupState(b, 'ready'); F.tick(); F.tick();
+    assert.deepEqual(starts, ['a'], 'its download coming back later switches nothing until the screen opens again');
+    for (const e of [a, b]) leaveGroup(e);
+  } finally { F.restore(); setDynModule(null); }
+});
+
 test('the group shows only after FLIP_SMOOTH_FRAMES smooth frames in a row with its dissolve prepared; a page never smooth keeps its 2D art, later cards too', () => {
   const F = fakeFrames();
   try {

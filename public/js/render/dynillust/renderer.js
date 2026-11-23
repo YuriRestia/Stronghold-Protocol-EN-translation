@@ -33,6 +33,7 @@ import { GpuSkeleton, gpuSkinSupported } from './gpuskin.js';
 import { FxGL } from '../vfx/gl.js';
 import { FrameData } from '../vfx/geom.js';
 import { FxLibrary } from '../vfx/library.js';
+import { newNet, countingFetch } from './progress.js';
 import { resetPixi } from '../vfx/system.js';
 import { setPrewarmSink } from '../vfx/psys.js';
 
@@ -99,7 +100,10 @@ export class DynIllustStage {
     this.slots = new Map();     // `${key}|${quality}|${w}x${h}` → Slot
     this.cache = new Map();     // `${key}|${quality}` → { promise, prep, failed }
     this.texInfo = {};
-    this.lib = new FxLibrary({ list: { groups: { fx: {}, 'fx/prefabs': {}, 'fx/tex': {}, 'fx/mesh': {} } }, fetch: opts.fetch });
+    // (fork) every download counted as it arrives (render/dynillust/progress.js): netState() for the room's stall check
+    this.net = newNet();
+    this._fetch = countingFetch(opts.fetch || ((url, o) => globalThis.fetch(url, o)), this.net);
+    this.lib = new FxLibrary({ list: { groups: { fx: {}, 'fx/prefabs': {}, 'fx/tex': {}, 'fx/mesh': {} } }, fetch: this._fetch });
     this.lib.texInfo = () => Promise.resolve(this.texInfo);
     this.destroyed = false;
     this.frameNo = 0;
@@ -229,7 +233,7 @@ export class DynIllustStage {
       await this._spineFactory();
       // (`effects: false`: the skeleton alone, for checks that compare two renders of it)
       const lib = this.opts.effects === false ? null : this.lib;
-      const prep = await loadIllust(e.path, { P: this.P, fetch: this.opts.fetch, lib, half: this.quality === 'half', texInfo: this.texInfo });
+      const prep = await loadIllust(e.path, { P: this.P, fetch: this._fetch, lib, half: this.quality === 'half', texInfo: this.texInfo });
       prep.data = slotData(prep.entry);
       await this._warm(prep);
       c.prep = prep;
@@ -380,6 +384,12 @@ export class DynIllustStage {
   }
 
   /** D10: get every key ready (or failed) before its cards are shown. Settles when all have. */
+  /**
+   * (fork) Its downloads now (render/dynillust/progress.js): `open` responses still arriving, `received` bytes and
+   * `moves` (headers and chunks) so far. The room's stall check reads it (ui/dynCards.js).
+   */
+  netState() { return { open: this.net.open, received: this.net.received, moves: this.net.moves }; }
+
   async preload(keys) {
     await Promise.allSettled([...new Set(keys || [])].filter(Boolean).map((k) => this._prepare(k)));
   }
