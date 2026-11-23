@@ -20,8 +20,9 @@ import { SHARD_COUNT, shardsOf, testFileList } from './ci-shards.mjs';
  * The arguments `node` is started with: `--test` and the files of the run.
  *
  * `JUNIT=<path>` adds a JUnit report beside the normal output (the reporter that carries `file` and `time` per case, see
- * tools/test-timings.mjs). CI does not ask for one: its matrix is node 22, whose reporter writes no `file` attribute, so
- * the report would weigh nothing. It is how the shard table is re-weighed from a node 24 run (`JUNIT=out.xml npm test`).
+ * tools/test-timings.mjs). (fork) CI's test jobs ask for one (ci.yml JUNIT, uploaded for 3 days) to re-weigh the shard
+ * table from, which works where their node's reporter writes the `file` attribute (node 24 does; the warning below says
+ * when it may not). Locally: `JUNIT=out.xml npm test` on node 24.
  * @param {Record<string, string | undefined>} [env]
  * @param {string} [root]
  * @returns {string[]}

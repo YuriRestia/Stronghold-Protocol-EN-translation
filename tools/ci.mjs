@@ -44,6 +44,9 @@ export const CI_TEST_ENV = { SP_E2E: '0', SP_REAL_E2E: '0', RENDER_E2E: '0', NO_
  */
 export const CI_SHARD_ENV = {
   SHARD: '${{ matrix.shard }}',
+  // (fork) and the shard's JUnit report (tools/test-run.mjs JUNIT), uploaded for 3 days: the per-file times
+  // ci-shards.json is re-weighed from (docs/CI.md). This machine writes none (runStep clears JUNIT).
+  JUNIT: 'junit.xml',
 };
 
 /** The paths the smoke step requests (the curl URLs of ci.yml's smoke step; test/ci.test.js compares them). */
@@ -63,6 +66,7 @@ export const SKIPPED_CI_STEPS = [
   { uses: 'actions/checkout', why: 'GitHub runner: the checkout is this folder' },
   { uses: 'actions/setup-node', why: 'GitHub runner: the Node.js of this machine is used' },
   { name: 'Install (npm ci → postinstall copies public/vendor)', why: 'run `npm ci` yourself; it is not a check' },
+  { job: 'test', uses: 'actions/upload-artifact', why: 'GitHub runner: keeps the shard\'s JUnit report for re-weighing ci-shards.json (docs/CI.md); this machine writes none' },
   { job: 'golden', name: 'Full Golden regression check', run: 'npm run golden', why: 'run `npm run golden` separately for the full corpus' },
 ];
 

@@ -78,6 +78,21 @@ test('the commands match ci.yml: the run lines, the npm scripts ci.yml calls, th
   assert.equal(pkg.scripts.ci, 'node tools/ci.mjs');
 });
 
+test('(fork) each test job writes its JUnit report and keeps it 3 days at most, a failed run\'s too', () => {
+  assert.equal(workflow.jobs.test.env.JUNIT, 'junit.xml');
+  const upload = workflow.jobs.test.steps.find((s) => (s.uses || '').split('@')[0] === 'actions/upload-artifact');
+  assert.ok(upload, 'the test job uploads the report');
+  const tests = workflow.jobs.test.steps.findIndex((s) => s.name === 'Unit & integration tests');
+  assert.ok(workflow.jobs.test.steps.indexOf(upload) > tests, 'after the tests');
+  // the small reader keeps step keys, not their values: read the upload step's block from the text
+  const block = workflowText.match(/- name: Upload JUnit report\n((?: {8}[^\n]*\n)+)/)?.[1] || '';
+  assert.match(block, /^ {8}if: always\(\)$/m);
+  assert.match(block, /^ {10}path: junit\.xml$/m);
+  const days = Number(block.match(/^ {10}retention-days: (\d+)$/m)?.[1]);
+  assert.ok(days >= 1 && days <= 3, `retention-days ${days}`);
+  assert.ok(!workflow.jobs.node24.steps.some((s) => (s.uses || '').startsWith('actions/upload-artifact')), 'only the test jobs upload');
+});
+
 test('the full Golden check runs independently once on Ubuntu / Node 22 and cannot update or hide differences', () => {
   const golden = workflow.jobs.golden;
   assert.ok(golden, 'ci.yml must have a separate golden job');

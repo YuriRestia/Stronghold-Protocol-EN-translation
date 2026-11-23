@@ -36,6 +36,9 @@ jobs:
       NO_COLOR: '1'
       # tools/test-run.mjs runs this shard's files: `npm run test` stays the whole suite everywhere else
       SHARD: ${{ matrix.shard }}
+      # (fork) and writes the shard's JUnit report beside the normal output: the per-file times ci-shards.json is
+      # re-weighed from (docs/CI.md「权重来源与更新」), kept by the upload step below
+      JUNIT: junit.xml
     steps:
       - uses: actions/checkout@v7
 
@@ -54,6 +57,16 @@ jobs:
       # SHARD is unset). A bare `node --test` would also run every helper and fixture under test/.
       - name: Unit & integration tests
         run: npm run test
+
+      # (fork) the JUnit report of this shard, a failed run's too, kept 3 days: tools/test-timings.mjs reads it
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-${{ matrix.os }}-shard${{ matrix.shard }}
+          path: junit.xml
+          retention-days: 3
+          if-no-files-found: warn
 
       - name: Server smoke test (boot, /healthz, index.html, doctor)
         shell: bash

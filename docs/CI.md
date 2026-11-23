@@ -29,13 +29,13 @@ node tools/ci-shards.mjs --run 0
 SHARD=2 npm test
 ```
 
-`npm test` 未设 `SHARD` 时仍跑全量；手动设置才跑指定片。`JUNIT=report.xml npm test` 可额外输出 JUnit，reporter 参数必须位于测试文件之前。CI 没有启用 JUnit 上传。
+`npm test` 未设 `SHARD` 时仍跑全量；手动设置才跑指定片。`JUNIT=report.xml npm test` 可额外输出 JUnit，reporter 参数必须位于测试文件之前。（fork）CI 的 8 个 `test` 任务设 `JUNIT=junit.xml`，测试步骤后的「Upload JUnit report」（失败时也运行）把各片报告上传为 artifact `junit-<os>-shard<n>`，保留 3 天，格式为 node 自带 JUnit reporter 的原样输出；本机 `npm run ci` 清除 `JUNIT`，不写报告（用户 2026-11-23 同意：“Yes, add it”）。
 
 ## 权重来源与更新
 
 采用 #836 的表，不使用 #835 的旧表。来源是作者评论所报的 CI run **39617468541**：`fullmatch-coop.test.js` 中位数 **235132 ms**，Windows 片 0 墙钟 **397 s**。本轮未独立复核 GitHub run；这些是计权出处，不是本机重新测出的性能结论。文件耗时相加是估计工作量，因文件并行而不等于任务墙钟；不要拿本机耗时替换 CI 权重。
 
-新增文件通常无需重新计权；某文件明显变慢后，从可归属到文件的 CI 报告更新：
+新增文件通常无需重新计权；某文件明显变慢后，或未测量文件超过 `test/ci-shards.test.js` 的 10 % 时，从可归属到文件的 CI 报告更新。（fork）报告取自一次 CI 运行上传的 `junit-*` artifact（`gh run download <run id> -R <repo> -p 'junit-*'`）：
 
 ```bash
 node tools/test-timings.mjs report.xml
