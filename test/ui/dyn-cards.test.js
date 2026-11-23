@@ -299,8 +299,9 @@ test('the room\'s group flip: every card waits for the others, all start hidden 
   } finally { F.restore(); }
 });
 
-test('past GROUP_CAP_MS the ready cards flip and one still loading keeps its 2D art until the screen is opened again', async (t) => {
-  const { GROUP_CAP_MS } = await import('../../public/js/ui/dynCards.js');
+test('a slow card holds the group however long it takes, then all switch together (no time limit)', async (t) => {
+  const dc = await import('../../public/js/ui/dynCards.js');
+  assert.equal(dc.GROUP_CAP_MS, undefined, 'no cap: a slow link switches later, never one card at a time');
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const F = fakeFrames();
   try {
@@ -309,26 +310,14 @@ test('past GROUP_CAP_MS the ready cards flip and one still loading keeps its 2D 
     const a = mk('a'), b = mk('b');
     joinGroup(a); joinGroup(b);
     groupState(a, 'ready'); F.tick(); F.tick();
-    assert.deepEqual(starts, [], 'b still loading: a waits for it');
-    t.mock.timers.tick(GROUP_CAP_MS); F.tick();
-    assert.deepEqual(starts, ['a'], 'the cap: the ready card starts');
-    assert.deepEqual(kept, ['b'], 'the one still loading keeps its 2D art at once');
+    t.mock.timers.tick(60000); F.tick(); F.tick();
+    assert.deepEqual(starts, [], 'b still loading a minute later: a still waits, nobody is dropped');
+    assert.deepEqual(kept, []);
+    groupState(b, 'ready'); F.tick(); F.tick();
+    assert.deepEqual(starts, ['a', 'b'], 'the last one in: both start in the same frame');
     for (let i = 0; i < 2 + FLIP_SMOOTH_FRAMES; i++) F.tick();
-    assert.deepEqual(shows, ['a']);
-    groupState(b, 'ready'); F.tick();
-    for (let i = 0; i < 2 + FLIP_SMOOTH_FRAMES; i++) F.tick();
-    assert.deepEqual(starts, ['a'], 'ready later: no switch on its own after the others');
-    assert.deepEqual(shows, ['a']);
-    // a card mounted after the flip is a new card (a player sits down, an outfit changes): it swaps alone
-    const c = mk('c');
-    joinGroup(c); groupState(c, 'ready');
-    assert.deepEqual(starts, ['a', 'c']);
-    for (const e of [a, b, c]) leaveGroup(e);
-    // the screen opened again: a new group, the card that was late switches with it
-    const b2 = mk('b2');
-    joinGroup(b2); groupState(b2, 'ready'); F.tick(); F.tick();
-    assert.deepEqual(starts, ['a', 'c', 'b2']);
-    leaveGroup(b2);
+    assert.deepEqual(shows, ['a', 'b'], 'and show together');
+    for (const e of [a, b]) leaveGroup(e);
   } finally { F.restore(); }
 });
 
