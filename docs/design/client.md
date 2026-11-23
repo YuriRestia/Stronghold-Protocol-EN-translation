@@ -530,7 +530,7 @@ and mask, additive on a canvas with `mix-blend-mode: plus-lighter`; the user's d
 bloom that moves on the boundary between old and new, … leaving the entire card artwork white glow before the glow fades
 away into the live2D"): a bright band on the dissolve's edge (the official `color_mask` layer's band construction: mask ×
 inverted mask) and a glow over what the edge has passed, which fades over `BLOOM.fadeS` once the picture is gone
-[ASSUMED: the band's width and brightness, the glow and its fade, tuned to the user's descriptions]. No particles: the
+[ASSUMED: the band's width and brightness, the glow and its fade, tuned to the user's descriptions; user OK 2026-11-23: "Look 5 settings is okay, approved."]. No particles: the
 glitter that once fell from the border, on a page-wide layer, was dropped (the user, 2026-11-23: "you may remove the
 glitter particles, it's useless now"). The border's look is one of `GLOW_STYLES` (the user, 2026-11-23: the white glow
 "drowns out any particle effect"; proposals for the user's pick, the review page's `&glow=0…4`, 0 the one above): 1 a
@@ -542,7 +542,7 @@ line?", "good enough for now"): the old picture dims to 75 % over 0.2 s, then on
 (`#4ed8af`) rim sweeps it away over a faint mint wash. One line: the bands and the
 dissolve read a smoothed copy of the official mask (box-blurred, 15 % of the raw mask kept, a half-float texture),
 since the raw mask's noise repeats each value in patches and drew stray second lines; the dissolve under it is tight
-(smooth 0.06, the official material's 0.5) [ASSUMED: the widths, the dim, the wash, not yet OK'd as numbers]. The
+(smooth 0.06, the official material's 0.5) [ASSUMED: the widths, the dim, the wash; user OK 2026-11-23: "Look 5 settings is okay, approved."]. The
 show's set-up happens while the cards load, one card a frame: the shared GL canvas is grown for every card
 (`reserveTiles`); at the cover or the show the same work (with the glitter's layer, since dropped) cost the show's
 first frames 60 ms of script and 125–180 ms of rendering. The cards keep their tiles after the show and the shared canvas
