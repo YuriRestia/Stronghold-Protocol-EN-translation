@@ -25,3 +25,9 @@ Server cost:
 
 - Bandwidth, memory and disk from the code (nothing sent or stored); CPU estimated, not measured.
 - Cap: one 5 s cast per gun and call, at most two guns per field [src: server/sim/content/bosses.js kitGun].
+
+Operator notes:
+
+- Golden moved (fields.json, matches.json): `boss-boss_2-solo` and `boss-boss_2-pair` (the attack timer and the landing hit apply to
+  every gun), `hidden-boss_9-solo`, `hidden-boss_9-pair` (timer restart by the opening cast and the call, landing hits, beam
+  step-ins) and `coop2-ABYSS-10-boosted` (its Hidden Core is the gun pair). Nothing else moved.

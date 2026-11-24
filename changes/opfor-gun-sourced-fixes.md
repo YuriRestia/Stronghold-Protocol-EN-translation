@@ -27,6 +27,12 @@ Server cost:
 - Bandwidth, memory and disk from the code (nothing sent or stored); CPU estimated, not measured.
 - Cap: one 5 s cast per gun and call, at most two guns per field [src: server/sim/content/bosses.js kitGun].
 
+Operator notes:
+
+- Golden moved with this change: `hidden-boss_9-solo`, `hidden-boss_9-pair` and `coop2-ABYSS-10-boosted` (the call is a cast, it
+  resets the stacks, its cooldown counts from the cast's end). `boss-boss_2-*` has no call and stays; the refresh itself rides
+  on `feature/opfor-gun-client-behaviours`.
+
 News:
 
 - point: {name:enemy_9017_achunt_2} now stops to call its carts, loses its built-up attack speed and then walks on, so it no longer stays on one target forever
