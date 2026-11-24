@@ -7,13 +7,13 @@
 //   node tools/ci.mjs --list             print the steps and the ci.yml step each one mirrors
 //   npm run ci                           the same as the first line
 //
-// Steps, in the order of ci.yml (job `test`, then job `node24`, then job `tooling`):
+// Steps, in the order of ci.yml (job `test`, then job `node22`, then job `tooling`):
 //   setup      node tools/setup.mjs --check --no-local
 //   test       npm test: node --test over TEST_FILES (package.json "test")
 //   smoke      the server on a free port on 127.0.0.1: GET /healthz, / (must contain <html) and /vendor/pixi.min.js,
 //              then node tools/doctor.mjs (its exit code is ignored, like `|| true` in ci.yml), then the server stops
 //   guards     the CI guards (npm run test:guards): the shard table and the wiring of ci.yml itself; this is what the
-//              node 24 lane runs instead of the whole suite
+//              (temporary) node 22 lane runs instead of the whole suite
 //   lint       eslint .                                   (npm run lint; warnings do not fail it)
 //   imports    node tools/check-imports.mjs               (npm run check:imports)
 //   typecheck  tsc --noEmit --checkJs -p jsconfig.json    (npm run typecheck)
@@ -40,10 +40,13 @@ export const CI_TEST_ENV = { SP_E2E: '0', SP_REAL_E2E: '0', RENDER_E2E: '0', NO_
 /**
  * What ci.yml's job `test` adds on top of CI_TEST_ENV: the shard of the matrix this job runs. tools/test-run.mjs turns
  * SHARD into that shard's test files (unset means the whole suite, which is what this machine runs — tools/ci.mjs sets
- * no shard and clears inherited SHARD/JUNIT, so `npm run ci` still runs everything). The matrix is node 22 only: one CI job per shard, eight together.
+ * no shard and clears inherited SHARD/JUNIT, so `npm run ci` still runs everything). The matrix is node 24 only: one CI job per shard, eight together.
  */
 export const CI_SHARD_ENV = {
   SHARD: '${{ matrix.shard }}',
+  // (fork) and the shard's JUnit report (tools/test-run.mjs JUNIT), uploaded for 3 days: the per-file times
+  // ci-shards.json is re-weighed from (docs/CI.md). This machine writes none (runStep clears JUNIT).
+  JUNIT: 'junit.xml',
 };
 
 /** The paths the smoke step requests (the curl URLs of ci.yml's smoke step; test/ci.test.js compares them). */
@@ -58,12 +61,22 @@ export const SMOKE_PATHS = ['/healthz', '/', '/vendor/pixi.min.js'];
  */
 export const TEST_FILES = ['test/**/*.test.js', 'plugins/_template/**/*.test.js'];
 
+/**
+ * (fork) The test files the temporary node 22 lane runs (ci.yml job `node22`): the plugin sandbox, whose child process
+ * and --permission flags are what differs between node versions on a live server. test/ci.test.js checks they exist.
+ */
+export const NODE22_SANDBOX_TESTS = ['test/plugins/sandbox-host.test.js', 'test/match/plugin-host.test.js', 'test/plugin-package.test.js'];
+
 /** Runner setup / install steps, and the full Golden check run separately (scoped to its job and command). */
 export const SKIPPED_CI_STEPS = [
   { uses: 'actions/checkout', why: 'GitHub runner: the checkout is this folder' },
   { uses: 'actions/setup-node', why: 'GitHub runner: the Node.js of this machine is used' },
   { name: 'Install (npm ci → postinstall copies public/vendor)', why: 'run `npm ci` yourself; it is not a check' },
+  { job: 'test', uses: 'actions/upload-artifact', why: 'GitHub runner: keeps the shard\'s JUnit report for re-weighing ci-shards.json (docs/CI.md); this machine writes none' },
   { job: 'golden', name: 'Full Golden regression check', run: 'npm run golden', why: 'run `npm run golden` separately for the full corpus' },
+  // (fork) these three files are already in the local `test` step; CI repeats them on node 22 for the live servers
+  { job: 'node22', name: 'Plugin sandbox tests (the live servers\' node)', run: `node --test ${NODE22_SANDBOX_TESTS.join(' ')}`,
+    why: 'CI repeats these files on node 22 (the live servers\' version); the local `test` step already ran them' },
 ];
 
 /**
@@ -78,9 +91,10 @@ export const STEPS = [
   { id: 'test', ci: { job: 'test', name: 'Unit & integration tests' }, npm: 'test', describe: 'node tools/test-run.mjs' },
   { id: 'smoke', ci: { job: 'test', name: 'Server smoke test (boot, /healthz, index.html, doctor)' },
     describe: `server on a free port: GET ${SMOKE_PATHS.join(', ')}; node tools/doctor.mjs` },
-  // The node 24 lane runs the CI guards and nothing heavy: the full suite on 24 is exactly the 20-minute job the shards
-  // replaced, and the guards are what would notice a 24-only break in the tooling they run on (node:test, glob, fs).
-  { id: 'guards', ci: { job: 'node24', name: 'CI guard tests (sharding and workflow wiring)' }, npm: 'test:guards',
+  // (fork) The node 22 lane (temporary, while the live servers run 22) runs the CI guards and nothing heavy: a second
+  // full suite is exactly the 20-minute job the shards replaced, and the guards are what would notice a version-only
+  // break in the tooling they run on (node:test, glob, fs).
+  { id: 'guards', ci: { job: 'node22', name: 'CI guard tests (sharding and workflow wiring)' }, npm: 'test:guards',
     describe: 'node --test test/ci.test.js test/ci-shards.test.js test/test-run.test.js' },
   { id: 'lint', ci: { job: 'tooling', name: 'Lint (warnings allowed)' }, npm: 'lint', describe: 'eslint .' },
   { id: 'imports', ci: { job: 'tooling', name: 'Import boundaries' }, npm: 'check:imports', describe: 'node tools/check-imports.mjs' },

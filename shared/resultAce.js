@@ -7,6 +7,8 @@
  * @param {any[]} lineup m.result players[].lineup (board order)
  */
 export function aceOf(lineup) {
+  // typed: the forEach callback assigns it, which tsc does not follow (it would stay `null`, then `never`)
+  /** @type {{ u: any, s: number } | null} */
   let best = null;
   (Array.isArray(lineup) ? lineup : []).forEach((u) => {
     if (!u || u.kind === 'token') return;
