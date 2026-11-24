@@ -139,7 +139,7 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 | `bans[difficulty]` | `{"core":3,"addon":4}` (FUNNY `{0,1}`) + `rule` | per-match disabled-bond draw (research 01 A2) |
 | `bandDraft` | `{"skipsPerPlayer":1,"order":"random","duplicatesAllowed":true,"timeoutBandId":"band_bldsk"}` | |
 | `titles[]` | `{"id":"comment_1","picId":"comment_icon_1","name":"卫戍之星","stat":"bossDamage","rule":"max","onlyOnWin":true,"text":"…"}` | 评语 + [ASSUMED] criteria; `titleRule` explains assignment |
-| `tips[]` | `{"tip":"只有在联合模拟中才能获得奖杯","weight":50}` | gameTipsList |
+| `tips[]` | `{"tip":"只有在联合模拟中才能获得奖杯","weight":50}` | gameTipsList, without `DROPPED_TIPS` (build-data.mjs; fork: the CN act1autochess tip that leaders take no 侵蚀, which they do here) |
 | `broadcasts[]` | `{"id":"comment_boss_hit_1","type":"BOSS_HIT","priority":30,"text":"{0}博士对敌方领袖造成的伤害超过20%!","textRaw":"<@ba.vup>{0}博士</>…","params":["0.2"]}` | `{0}` player, `{1}` operator/level, `{2}` amount |
 | `trophies` | `{"byRoundsPassed":[{"maxRound":4,"FUNNY":0,…},…],"hiddenCore":{…},"multiOnly":true,"medals":[{"count":0,"iconId":"trophy_level1_icon"},…]}` | |
 | `roundScores[]` | `{"round":4,"score":50}` | |
