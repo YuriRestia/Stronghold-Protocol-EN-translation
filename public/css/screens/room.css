@@ -1009,9 +1009,17 @@
   .rs-seats--wide .rseat__num { font-size: calc(.16 * var(--t)); }
   .rs-seats--wide .rseat__acts, .rs-seats--wide .rseat__acts .rseat__state, .rs-seats--wide .rseat:not(.is-lit) .rseat__acts .rseat__state,
   .rs-seats--wide .rseat__acts .rseat__bot, .rs-seats--wide .rseat__acts .rseat__pick, .rs-seats--wide .rseat__acts .rseat__swap,
-  .rs-seats--wide .rseat__acts .rseat__kick { font-size: calc(.18 * var(--t)); }
+  .rs-seats--wide .rseat__acts .rseat__kick { font-size: min(calc(.18 * var(--t)), calc(13px + var(--t-step) / 2)); }
   .rs-squad__k { font-size: calc(.18 * var(--t)); }
   .rs-squad__ready { font-size: calc(.17 * var(--t)); }
+  /* an empty seat's plus, 邀请 and 添加 AI 队友 inside the wide card: the tall card's paddings (.5rem under, .2rem and a
+     46 px plus inside) were a card and a half here, so 添加 AI 队友 was cut off at 大 and 特大 (1100 × 530, 960 × 540) */
+  .rs-seats--wide .rseat--empty .rseat__art { padding-bottom: .06rem; }
+  .rs-seats--wide .rseat__invite { gap: .03rem; padding: .04rem; }
+  .rs-seats--wide .rseat__plus { width: max(.4rem, 16px); height: max(.4rem, 16px); }
+  .rs-seats--wide .rseat__plus::before { width: 4px; }
+  .rs-seats--wide .rseat__plus::after { height: 4px; }
+  .rs-seats--wide .rseat__add { margin-top: .03rem; min-height: 0; padding-block: .02rem; }
 }
 /* (fork) the wide cards on a short landscape phone keep the PC layout, scaled (the user, 2026-11-23: "adapt the room &
    grand alliance UI for mobile, I expect the current layout of PC is fine, just need correct scaling"). 1rem is 40 px
