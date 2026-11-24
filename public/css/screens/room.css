@@ -1009,9 +1009,24 @@
   .rs-seats--wide .rseat__num { font-size: calc(.16 * var(--t)); }
   .rs-seats--wide .rseat__acts, .rs-seats--wide .rseat__acts .rseat__state, .rs-seats--wide .rseat:not(.is-lit) .rseat__acts .rseat__state,
   .rs-seats--wide .rseat__acts .rseat__bot, .rs-seats--wide .rseat__acts .rseat__pick, .rs-seats--wide .rseat__acts .rseat__swap,
-  .rs-seats--wide .rseat__acts .rseat__kick { font-size: calc(.18 * var(--t)); }
+  .rs-seats--wide .rseat__acts .rseat__kick { font-size: min(calc(.18 * var(--t)), calc(13px + var(--t-step) / 2)); }
   .rs-squad__k { font-size: calc(.18 * var(--t)); }
   .rs-squad__ready { font-size: calc(.17 * var(--t)); }
+  /* an empty seat's plus, 邀请 and 添加 AI 队友 inside the wide card: the tall card's paddings (.5rem under, .2rem and a
+     46 px plus inside) were a card and a half here, so 添加 AI 队友 was cut off at 大 and 特大 (1100 × 530, 960 × 540) */
+  .rs-seats--wide .rseat--empty .rseat__art { padding-bottom: .06rem; }
+  .rs-seats--wide .rseat__invite { gap: .03rem; padding: .04rem; }
+  .rs-seats--wide .rseat__plus { width: max(.4rem, 16px); height: max(.4rem, 16px); }
+  .rs-seats--wide .rseat__plus::before { width: 4px; }
+  .rs-seats--wide .rseat__plus::after { height: 4px; }
+  .rs-seats--wide .rseat__add { margin-top: .03rem; min-height: 0; padding-block: .02rem; }
+}
+/* a small window 521–600 px tall: the plate drops the ready word, as on phones (the user, 2026-11-24, "for your questions, as recommended":
+   Dev 62's proposal; the ✓ box and the lit card say it, screen readers still read it) — at 特大 it ran past the plate on 1100 × 530, 960 × 540,
+   1024 × 600 and 800 × 600 [src: work/dev-62 room-fit-wait.out, 2026-11-24] */
+@media (min-height: 521px) and (max-height: 600px) {
+  /* and the AI tag its words: the robot icon stays (the user, 2026-11-24, "7 yes" to the lead's "AI tag icon only"), the words for screen readers */
+  .rs-seats--wide .rseat__acts .rseat__botname, .rs-seats--wide .rseat__acts .rseat__said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 /* (fork) the wide cards on a short landscape phone keep the PC layout, scaled (the user, 2026-11-23: "adapt the room &
    grand alliance UI for mobile, I expect the current layout of PC is fine, just need correct scaling"). 1rem is 40 px
@@ -1283,6 +1298,10 @@
   .clog-mini__btn { padding: 8px 10px; }
   .clog-mini__btn > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .clog-mini__last { display: none; }
+}
+/* (fork) the chat button of a small desktop window (特大 text, ui/chatLog.js LARGE_TEXT_QUERY): below the top bar's tags, which wrap to a second line there */
+@media (min-width: 901px) and (min-height: 521px) {
+  .clog-mini { top: max(112px, 21vh); }
 }
 /* the seat bubbles (match chat's ChatBubble / EmoteBubble) over the card's lower half, and the plate's mute. The bubble
    always fits the portrait, which clips (overflow: hidden): the layer is the portrait less 3 px; a bubble sits with its
