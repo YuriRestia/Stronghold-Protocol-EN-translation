@@ -1,83 +1,69 @@
 // test/ui/card-art-tall.test.js — the tall cards' 2D art (the solo room's, the result screen's: the official 232 × 458
-// window's shape): shared/cardArtFraming.js tallRect ('upper' = the face rule on the tall shape, 'full' = contain) and
-// dynCards.js cardArtRect(…, 'tall'). Every one of data/card-art-framing.json's 538 arts is checked.
+// window's shape): an illustration's linked art keeps its registered box, every other art sits where the client's prefab
+// puts it on the official card (tools/card-art-framing.mjs officialRect, stills[art].official), and an art without that
+// keeps its room framing by height (dynCards.js cardArtRect(…, 'tall')).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { tallRect, WIN_W, WIN_H, TOP_MIN } from '../../shared/cardArtFraming.js';
-import { cardArtRect, setTallArtMode, tallArtMode } from '../../public/js/ui/dynCards.js';
+import { officialRect } from '../../tools/card-art-framing.mjs';
+import { unityToCard } from '../../public/js/render/dynillust/framing.js';
+import { cardArtRect } from '../../public/js/ui/dynCards.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const table = JSON.parse(readFileSync(path.join(ROOT, 'data/card-art-framing.json'), 'utf8'));
-const AR = WIN_W / WIN_H;
-/** A rect in window units → card heights (card height 1, width AR). */
-const inCard = ([L, T, W, H]) => ({ x: L / WIN_H + AR / 2, y: T / WIN_H + 0.5, w: W / WIN_H, h: H / WIN_H });
+const linked = new Set(Object.values(table.registered).map((e) => e.art));
+const near = (a, b, eps = 0.02) => assert.ok(Math.abs(a - b) <= eps, `${a} vs ${b}`);
 
-test("'upper' covers the whole tall card and keeps the head and the face inside, for every art of the table", () => {
+test('officialRect: the prefab through the card\'s own holder, the same mapping the animated illustrations use', () => {
+  // Executor's Elite 2 prefab [src: official chararts/char_279_excu.ab illust_char_279_excu_2 RectTransform]
+  const f = { x: -25.1, y: 58.7, w: 1957, h: 1957, box: [0, 0, 1, 1] };
+  const [L, T, W, H] = officialRect(f);
+  // the renderer's map for a view of that size and offset whose camera spans the whole view
+  const m = unityToCard({ cameraSize: f.h / 2, adjust: [[f.x, f.y, f.w, f.h]] }, 232, 458);
+  near(116 + L, m.x0 - m.scale * (f.w / 2));
+  near(229 + T, m.y0 - m.scale * (f.h / 2));
+  near(W, m.scale * f.w); near(H, m.scale * f.h);
+  // a file that holds only part of the canvas: that part's place
+  const p = officialRect({ ...f, box: [0.25, 0.5, 0.75, 1] });
+  near(p[0], L + W / 4); near(p[1], T + H / 2); near(p[2], W / 2); near(p[3], H / 2);
+});
+
+test('the table: hand-framed (linked) arts have no official box, the others a finite one of their own shape', () => {
   let n = 0;
   for (const [art, e] of Object.entries(table.stills)) {
-    const aspect = e.rect[2] / e.rect[3];
-    const r = inCard(tallRect({ aspect, face: e.face, mode: 'upper', wideH: e.rect[3] / WIN_H }));
-    assert.ok(Math.abs(r.w / r.h - aspect) < 0.005, `${art}: the art's own aspect`);
-    assert.ok(r.x <= 1e-6 && r.x + r.w >= AR - 1e-6, `${art}: covers the card's width`);
-    assert.ok(r.y <= 1e-6 && r.y + r.h >= 1 - 1e-6, `${art}: covers the card's height`);
-    const [fx, fy, top] = e.face;
-    // the head's top keeps TOP_MIN from the card's top, unless the art's own margin above the head is smaller (a cover
-    // cannot move the art down: such an art has the head at its very top edge)
-    assert.ok(r.y + top * r.h >= Math.min(TOP_MIN, top * r.h) - 1e-6, `${art}: the head's top is inside`);
-    assert.ok(r.y + fy * r.h > 0 && r.y + fy * r.h < 1 && r.x + fx * r.w > 0 && r.x + fx * r.w < AR, `${art}: the face is on the card`);
+    if (linked.has(art)) { assert.equal(e.official, undefined, `${art} is linked`); continue; }
+    if (!e.official) continue;
     n++;
+    assert.ok(e.official.length === 4 && e.official.every(Number.isFinite) && e.official[2] > 0 && e.official[3] > 0, art);
+    // the art's own shape; the client stretches one itself (Aak's Elite 2 prefab, 1379 × 1428 for a square picture)
+    const tol = art === 'char_225_haak_default.webp' ? 0.04 : 0.02;
+    assert.ok(Math.abs(e.official[2] / e.official[3] / (e.rect[2] / e.rect[3]) - 1) < tol, `${art}: the art's own shape`);
+    // some of the art shows on the card
+    const [L, T, W, H] = e.official;
+    assert.ok(L < 116 && L + W > -116 && T < 229 && T + H > -229, `${art}: on the card`);
   }
-  assert.equal(n, Object.keys(table.stills).length);
+  assert.ok(n > 300, `${n} official boxes`);
 });
 
-test("'upper' keeps the wide card's scale (the scene's coverage) and never goes below a cover", () => {
-  const wide = tallRect({ aspect: 1, face: [0.5, 0.3, 0.1], mode: 'upper', wideH: 1.8 });
-  assert.ok(Math.abs(wide[3] / WIN_H - 1.8) < 1e-3, 'the wide scale');
-  const small = tallRect({ aspect: 1, face: [0.5, 0.3, 0.1], mode: 'upper', wideH: 0.4 });
-  assert.ok(small[3] / WIN_H >= 1 - 1e-3, 'a cover at least');
-  // a wide art: its width alone covers, the face centred as far as the art allows
-  const w = inCard(tallRect({ aspect: 1.5, face: [0.2, 0.3, 0.1], mode: 'upper' }));
-  assert.ok(w.x <= 0 && w.x + w.w >= AR);
-});
-
-test("'full' puts the whole art inside the card, centred, and is the same for any face", () => {
-  for (const aspect of [0.4, 0.506, 1, 1.5]) {
-    const r = inCard(tallRect({ aspect, mode: 'full' }));
-    assert.ok(r.x >= -1e-6 && r.x + r.w <= AR + 1e-6 && r.y >= -1e-6 && r.y + r.h <= 1 + 1e-6, `aspect ${aspect} inside`);
-    assert.ok(Math.abs(r.x * 2 + r.w - AR) < 0.005 && Math.abs(r.y * 2 + r.h - 1) < 0.005, `aspect ${aspect} centred`);
-    assert.ok(Math.abs(r.w - AR) < 0.005 || Math.abs(r.h - 1) < 0.005, `aspect ${aspect} touches the card on one axis`);
+test('cardArtRect tall: linked, then official, then the room framing by height; the wide shape ignores official', () => {
+  const own = [-300, -200, 600, 700], official = [-200, -229, 400, 458], reg = [-50, -100, 700, 600];
+  // the official window's shape, a wider and a narrower card: contained, centred (u = min(w / 232, h / 458))
+  for (const [w, h] of [[232, 458], [360, 560], [327, 946]]) {
+    const u = Math.min(w / 232, h / 458);
+    for (const [entry, box, k] of [
+      [{ own, official, reg, key: 'k', separate: false }, reg, u],
+      [{ own, official, reg: null, key: null, separate: true }, official, u],
+      [{ own, official: null, reg: null, key: null, separate: true }, own, h / 458],
+    ]) {
+      const p = cardArtRect(entry, w, h, 'tall');
+      near((p.left * w) / 100, w / 2 + k * box[0]); near((p.top * h) / 100, h / 2 + k * box[1]);
+      near((p.width * w) / 100, k * box[2]); near((p.height * h) / 100, k * box[3]);
+    }
   }
-  assert.deepEqual(tallRect({ aspect: 1, mode: 'full', face: [0.1, 0.9, 0.8] }), tallRect({ aspect: 1, mode: 'full' }));
-  assert.equal(tallRect({ aspect: 0, mode: 'upper' }), null);
-});
-
-test('cardArtRect(…, tall): the box in % of the card, from the window units; a linked illustration art keeps its registered box', () => {
-  const e = Object.values(table.stills)[0];
-  const entry = { own: e.rect, face: e.face, key: null };
-  // a card of the window's own shape, and a wider one: the same box, centred (u = min(w / 232, h / 458))
-  for (const [w, h] of [[232, 458], [360, 560]]) {
-    const p = cardArtRect(entry, w, h, 'tall', 'upper');
-    const u = Math.min(w / WIN_W, h / WIN_H);
-    const [L, , , H] = tallRect({ aspect: e.rect[2] / e.rect[3], face: e.face, mode: 'upper', wideH: e.rect[3] / WIN_H });
-    assert.ok(Math.abs(p.left - (100 * (w / 2 + u * L)) / w) < 1e-6 && Math.abs(p.height - (100 * u * H) / h) < 1e-6 && p.width > 0);
-  }
-  const reg = [-50, -100, 700, 600];
-  const linked = cardArtRect({ ...entry, reg, key: 'k', separate: false }, 232, 458, 'tall', 'full');
-  assert.ok(Math.abs(linked.width - (100 * 700) / 232) < 1e-6, 'registered box, whatever the mode');
+  const plain = { own, reg: null, key: null };
+  assert.deepEqual(cardArtRect({ ...plain, official }, 900, 506), cardArtRect(plain, 900, 506));
   assert.equal(cardArtRect(null, 232, 458, 'tall'), null);
-  // the wide shape is untouched: the default shape
-  assert.deepEqual(cardArtRect(entry, 900, 506), cardArtRect(entry, 900, 506, 'wide'));
-});
-
-test('the mode: upper by default, full when set, anything else back to upper', () => {
-  assert.equal(tallArtMode, 'upper');
-  setTallArtMode('full');
-  const entry = { own: Object.values(table.stills)[0].rect, face: null, key: null };
-  assert.notDeepEqual(cardArtRect(entry, 232, 458, 'tall'), cardArtRect(entry, 232, 458, 'tall', 'upper'));
-  setTallArtMode('nonsense');
-  assert.deepEqual(cardArtRect(entry, 232, 458, 'tall'), cardArtRect(entry, 232, 458, 'tall', 'upper'));
 });

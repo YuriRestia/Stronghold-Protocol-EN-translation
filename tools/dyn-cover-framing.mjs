@@ -25,14 +25,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TOP_MIN, BAND, FACE_MAX } from '../shared/cardArtFraming.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 export const ZOOMS = [1, 1.1, 1.2, 1.35];
-// the face rule's values live in shared/cardArtFraming.js (the tall cards use them in the browser)
-export { TOP_MIN, BAND, FACE_MAX };
-export const GOAL = 0.5;
+export const GOAL = 0.5, TOP_MIN = 0.02, BAND = [0.22, 0.38], FACE_MAX = 0.45;
 
 /** The framing at zoom z for a face at (x, y) with the head's top at `top` (card fractions): null when z is 1 and the
  * face must move. Zooming about F keeps F put: the face lands on yt = F + z · (y − F). */

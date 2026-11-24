@@ -682,19 +682,19 @@ window's shape; the user's report: "outfit and e2 static arts of non L2D stuffs 
 solo and likely results screen"): they showed the small portrait picture cut by `object-fit: cover`, so heads, horns and ears
 were off the top, while the animated illustration on the same card shows the figure through the official camera. They now draw
 the same full art as the wide cards, `CardArt shape="tall"` (the solo room through `SeatCard`, the result cards through
-`OperatorImage card="tall"`; the portrait stays the fallback), placed by `shared/cardArtFraming.js tallRect` — a pure
-function the browser and the tool share, from what the table already holds, so `data/card-art-framing.json` does not grow:
-the art's aspect (its wide rect's width ÷ height) and its face and head's top (`stills[art].face`, found from the official
-portrait inside the full art). **'upper'** (default): the art at the scale the wide card's framing found for it (its wide
-rect's height: the scale at which the scene covers a card's height, never below a cover of the tall card), the face on the
-face line (0.22–0.38 of the card's height, at most 0.45, the head's top kept 0.02 from the top, the wide cards' rule), centred
-on the face, the art over the whole card. **'full'**: the whole art inside the card, centred, the card's background around it.
-Which one is the user's pick (`setTallArtMode`, the review page's `&tall=upper|full`, `&tall=portrait` the old picture). An
-illustration's art linked to its illustration keeps the registered box on a tall card too (the tall card draws the card framing
-unzoomed, exactly what the registration was made at), so the dissolve to the live illustration does not jump. No per-art
-number is hand-set: there are no official per-character offsets for a still art in the game data (skin_table and
-character_table carry none; the client's `DynIllustAdjust` is the animated illustrations' only). The values of the face rule
-are the wide cards' design values. The review page's `&solo` shows the solo room (one operator a page).
+`OperatorImage card="tall"`; the portrait stays the fallback), placed as the client places them (the user's pick of
+2026-11-24: "let's go with official. anything i hand framed stays of course"). The official card shows a still by
+instantiating the art's own prefab in the illustration holder [src: official GameAssembly.dll
+UICharacterIllustController._LoadChrStaticIllust 0x1455770, UICharacterIllustLoader.ControllerOnlyLoadChrIllust 0x1497DE0],
+so the prefab root's position and size are its framing [src: official chararts/<charId>.ab and skinpack/<charId>.ab,
+`illust_<portraitId>` RectTransform m_AnchoredPosition, m_SizeDelta]. `tools/local-extract/illust_framing.py` reads them from
+the player's client and finds which part of the official canvas our file holds (some are trimmed): an art counts only when its
+picture matches and is not stretched. `tools/card-art-framing.mjs --official` maps them through the holder's offset and scale —
+the animated illustrations' own (`render/dynillust/framing.js`) — into `stills[art].official`. On a tall card
+(`dynCards.js tallArtRect`): an illustration's art linked to it keeps its registered box (it is hand-framed, and the dissolve to
+the live illustration does not jump), else the official box, else — no official match — the room framing by height, centred as
+there. The wide cards do not use it. No per-art number is hand-set. The review page's `&solo` shows the solo room (one operator
+a page).
 Which pages (the user's choice of 2026-11-22, "automatic by card size"): each card measures its art window and wants half
 pages while it is drawn at most `HALF_MAX_SCALE` 1 device px per unit of the official 232 × 458 window (measured: there half
 kept 74–100 % of full's detail, above it 36–82 %), full above; the page uses full while any card wants full (the renderer's

@@ -23,11 +23,14 @@
 //   node tools/card-art-framing.mjs --capture <dir> --base http://127.0.0.1:3253 [--pages 1,2]   (GPU Chrome: crew lock)
 //     the review page's 4-seat room at framing=card (zoom 1): each live card's box as JPEG + boxes.json
 //   node tools/card-art-framing.mjs --register <dir> --stills --out data/card-art-framing.json
+//   node tools/card-art-framing.mjs --official <frames.json>   (from tools/local-extract/illust_framing.py; after any
+//     --register run, which writes new stills: where the official card puts each still-only art, for the tall cards)
 // Caps: 30 pages, 20 min capture, 200 MB of captures, 25 min matching, log < 200 KB.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GOAL, TOP_MIN, FACE_MAX, ZOOMS } from './dyn-cover-framing.mjs';
+import { HOLDER_SCALE, HOLDER_Y } from '../public/js/render/dynillust/framing.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
@@ -403,8 +406,42 @@ async function reframe() {
   console.log(`${n} stills framed again → ${path.relative(ROOT, OUT)}`);
 }
 
+/**
+ * Where the official card puts a still art: the client's prefab of it (position and size in the illustration holder, y up)
+ * through the holder's own offset and scale (render/dynillust/framing.js, the animated illustrations' values), and the part
+ * of the official canvas our file holds (`box`, canvas fractions). The art's box in card units from the window's centre.
+ */
+export function officialRect(f) {
+  const x0 = HOLDER_SCALE * (f.x - f.w / 2), y0 = -HOLDER_Y - HOLDER_SCALE * (f.y + f.h / 2);
+  const [l, t, r, b] = f.box;
+  return [x0 + HOLDER_SCALE * f.w * l, y0 + HOLDER_SCALE * f.h * t, HOLDER_SCALE * f.w * (r - l), HOLDER_SCALE * f.h * (b - t)].map((v) => +v.toFixed(2));
+}
+
+/** --official <frames.json> (tools/local-extract/illust_framing.py): stills[art].official from the client's prefabs; an
+ * art of an animated illustration gets none (it keeps its registered box). */
+function official() {
+  const OUT = arg('--out', path.join(ROOT, 'data/card-art-framing.json'));
+  const t = JSON.parse(fs.readFileSync(OUT, 'utf8')), frames = JSON.parse(fs.readFileSync(arg('--official'), 'utf8'));
+  const linked = new Set(Object.values(t.registered || {}).map((e) => e.art));
+  let n = 0;
+  const none = [];
+  for (const [art, e] of Object.entries(t.stills || {})) {
+    delete e.official;
+    if (linked.has(art)) continue;
+    if (!frames[art]) { none.push(art); continue; }
+    e.official = officialRect(frames[art]);
+    n++;
+  }
+  const txt = `${JSON.stringify(t, null, 1)}\n`;
+  if (txt.length > 400e3) throw new Error('table size cap');
+  fs.writeFileSync(OUT, txt);
+  console.log(`${n} official, ${none.length} without (room framing), ${linked.size} linked left as they are → ${path.relative(ROOT, OUT)}`);
+  if (none.length) console.log(none.join(' '));
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (has('--reframe')) await reframe();
+  if (arg('--official')) official();
+  else if (has('--reframe')) await reframe();
   else if (arg('--capture')) await capture();
   else if (arg('--register')) await build();
   else console.log('usage: --capture <dir> --base <url> | --register <dir> [--stills] [--out file]');

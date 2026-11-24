@@ -20,7 +20,7 @@ import { SettleFlow, useResultHold } from '/js/screens/settle.js';
 import { useState, useEffect } from '/vendor/hooks.module.js';
 import { startResultLoad, endResultLoad } from '/js/ui/dynCards.js';
 import { RoomScreen } from '/js/screens/room.js';
-import { setTallArtMode, setDynModule, setDynQuality, setDynFraming, setCardArtSeparate, setCardArtAdjust } from '/js/ui/dynCards.js';
+import { setDynModule, setDynQuality, setDynFraming, setCardArtSeparate, setCardArtAdjust } from '/js/ui/dynCards.js';
 import { cardStore, CARD_KEY } from '/js/ui/seatArt.js';
 import { outfitStore } from '/js/ui/outfits.js';
 
@@ -567,8 +567,6 @@ async function boot() {
     setDynFraming(decideFraming);
   } else if (FR.size) setDynFraming((key) => FR.get(key) || FRAMING);
   else if (FRAMING) setDynFraming(FRAMING);
-  // &tall=upper|full: the tall cards' (solo room, result) 2D art framing (shared/cardArtFraming.js)
-  setTallArtMode(P.get('tall'));
   if (TIER) setDynQuality(TIER);
   else if (FRAME) setDynQuality('half');
   // the page's language as the game picks it (?lang=, a stored choice, else English: ui/lang.js START_LANG)
