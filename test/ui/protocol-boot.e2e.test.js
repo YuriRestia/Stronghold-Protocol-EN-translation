@@ -177,9 +177,12 @@ describe('协议启动！ screen (headless Chrome)', { skip: !ENABLED && 'set SP
       }).observe(document, { childList: true, subtree: true });
     });
     // the pre-game sprites held back 2 s (a cold cache on a slow line); everything else at once
+    // Each URL is held only the first time: with interception on, Chrome's HTTP cache is off, so the banner's own <img>
+    // asks for the head again and would be held a second time, longer than the banner shows (a real cold cache loads it once).
+    const held = new Set();
     await page.setRequestInterception(true);
     page.on('request', (r) => {
-      if (/battleReady\/|settle\/common_logo|roundStartDialog\/round_emoji_head/.test(r.url())) setTimeout(() => r.continue().catch(() => {}), 2000);
+      if (/battleReady\/|settle\/common_logo|roundStartDialog\/round_emoji_head/.test(r.url()) && !held.has(r.url())) { held.add(r.url()); setTimeout(() => r.continue().catch(() => {}), 2000); }
       else r.continue().catch(() => {});
     });
     await page.goto(`${base}/dev/game-mock.html?shot=1&render=fallback&phase=BAND_DRAFT&variant=solo`, { waitUntil: 'domcontentloaded', timeout: 60000 });
