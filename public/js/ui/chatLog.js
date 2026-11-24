@@ -21,6 +21,7 @@ import { roomChatAppend, roomChatFor } from '../roomChat.js';
 import { html, Icon, useTicker } from './components.js';
 import { EmoteWheel } from './emotes.js';
 import { useMediaQuery } from './device.js';
+import { settingsStore } from './settingsStore.js';
 
 // what a press on the faded chat leaves to the page under it: real controls, and anything drawn as clickable
 const CONTROL = 'button, a[href], input, select, textarea, label, summary, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="switch"], [contenteditable="true"]';
@@ -32,6 +33,11 @@ const savedSize = (v) => (v && Number.isFinite(v.w) && Number.isFinite(v.h) && v
 const px = (v) => parseFloat(v) || 0;
 /** Where the log is a button + a sheet instead of docked: a narrow or a short screen (room.css hides the dock column there). */
 const SHEET_QUERY = '(max-width: 900px), (max-height: 520px)';
+/** With 大 or 特大 text the dock (at least 21em wide) runs over the difficulty pill in a window this narrow, so the button
+ * shows there too (the user, 2026-11-24). Measured in English [src: work/dev-62 overlap.out, 2026-11-24]: 特大 covers the
+ * pill at every width from 901 to 1100 px and at none from 1180, 大 at 901 and 960 and at none from 1024. */
+const LARGE_TEXT_QUERY = '(max-width: 1020px)';
+const XL_TEXT_QUERY = '(max-width: 1100px)';
 const EMOTE_KEEP = 20;
 const two = (n) => String(n).padStart(2, '0');
 const clock = (at) => { const d = new Date(at); return `${two(d.getHours())}:${two(d.getMinutes())}`; };
@@ -62,7 +68,11 @@ function LineBody({ l }) {
 export function RoomChat({ room, myId, seated, online }) {
   const rc = useStore((s) => s.roomChat);
   const mute = useStore((s) => s.chatMute);
-  const short = useMediaQuery(SHEET_QUERY);
+  const narrow = useMediaQuery(SHEET_QUERY);
+  const largeNarrow = useMediaQuery(LARGE_TEXT_QUERY);
+  const xlNarrow = useMediaQuery(XL_TEXT_QUERY);
+  const textSize = useStore((s) => s.textSize, Object.is, settingsStore);
+  const short = narrow || (textSize === 'xl' && xlNarrow) || (textSize === 'lg' && largeNarrow);
   // (fork) desktop: the size the player dragged it to, folded down to the input row, in use (else faded)
   const [size, setSize] = useState(() => savedSize(loadPref(SIZE_KEY, null)));
   const [folded, setFolded] = useState(() => loadPref(FOLD_KEY, false) === true);
