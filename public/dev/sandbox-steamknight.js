@@ -40,8 +40,10 @@ const FIELDS = [
 ];
 
 /** Music picks: [value, label] (audio.js STEAM_KNIGHT_BGM). */
-const BGM_START = 'A';
-const BGM = Object.freeze([['A', 'A · Chapter 13 battle 1, Victoria (default)'], ['B', 'B · Chapter 13 battle 2, Victoria'], ['C', 'C · Chapter 14 battle 2, Victoria'],
+const BGM_START = 'I';
+const BGM = Object.freeze([['I', 'I · 14-10 mid-battle scene "fightback" (default)'], ['J', 'J · the same, straight to its loud part'], ['C', 'C · 14-10 battle'],
+  ['K', 'K · 14-10 story "frontline"'], ['L', 'L · 14-10 story "batmeeting"'], ['M', 'M · 14-10 story "newhope01"'],
+  ['A', 'A · Chapter 13 battle 1, Victoria'], ['B', 'B · Chapter 13 battle 2, Victoria'],
   ['D', 'D · Hortus de Escapismo'], ['E', 'E · Zwillingstürme im Herbst'], ['F', 'F · Museum event'], ['G', 'G · Crisis Contract'], ['H', 'H · Near Light, Blood Knight'],
   ['2', 'his own second-phase theme'], ['1', 'his own first-phase theme'], ['3', 'Alistair'], ['0', "off: the round's own music"]]);
 

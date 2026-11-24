@@ -371,6 +371,10 @@ const STEAM_KNIGHT_BGM = Object.freeze({
   'steamKnight:A': skTrack('m_bat_act43d0_1'), 'steamKnight:B': skTrack('m_bat_act43d0_2'), 'steamKnight:C': skTrack('m_act1mainss_bat2'),
   'steamKnight:D': skTrack('m_bat_act26side'), 'steamKnight:E': skTrack('m_act29side_bat2', false), 'steamKnight:F': skTrack('m_bat_museum'),
   'steamKnight:G': skTrack('m_bat_ccs_v2_5'), 'steamKnight:H': skTrack('m_bat_bldkgt'),
+  // stage 14-10's music (the user, 2026-11-25) [src: CN client stage_table 14-10 = level main_14-09: its bgm event main14_2
+  // (C above), its mid-battle scene main_14_09_AVG plays fightback, its story level_main_14-09_beg / _end the others]
+  'steamKnight:I': skTrack('m_avg_fightback'), 'steamKnight:J': skTrack('m_avg_fightback', false), 'steamKnight:K': skTrack('m_avg_frontline'),
+  'steamKnight:L': skTrack('m_avg_batmeeting'), 'steamKnight:M': skTrack('m_dia_newhope01'),
 });
 
 /**
