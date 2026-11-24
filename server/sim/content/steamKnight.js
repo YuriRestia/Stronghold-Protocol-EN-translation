@@ -153,8 +153,9 @@ export function steamKnightKit(bb, raw) {
       const endBunker = () => {
         shield(false);
         bunker(false);
-        // he stays where the thrust left him (free position, ownTile)
+        // he stays where the thrust left him (free position)
         clearForm();
+        battle.fx('steamKnight', { id: unit.id, kind: 'bunkerEnd', x: unit.x, y: unit.y });
         setPhase('fight', { dash: null, target: null });
       };
 

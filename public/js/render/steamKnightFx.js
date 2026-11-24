@@ -80,6 +80,14 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           brief('stmkgt_skill_02_hit_02', x, y, 0.7);
           shake?.(0.16, 0.4);
           break;
+        case 'bunkerEnd': {
+          // the pile bunker is over: its official Zantetsuken window closes now (its loops stop with their fade), so his
+          // next normal attack plays its own cast rows (the laser on his weapon) instead of the skill's — the window would
+          // otherwise run to its estimated end, past the first wind-up (the user, 2026-11-24)
+          const S = wiring.skills, U = v ? S?.of?.(v) : null;
+          if (U?.ewin) S._enemyEnd(U, v);
+          break;
+        }
         case 'leapUp': {
           // the official HeroBomb window (slot 2 of his record): FlyToMoon's start effects now, DownToTile's end at its end
           const ok = !!(v && wiring.enemyCast?.(v, 2, 1.2));
