@@ -364,7 +364,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
   const wide = coop;
   // the wide card's full art follows the portrait: the outfit's while its picture shows, the default's once it gave way
   const fullSrc = wide && art ? (art === portrait ? fullArt : fullArtDefault) : null;
-  const botTag = seat.isBot ? html`<span class="rseat__bot"><${Icon} name="robot" />${t('AI 队友')}</span>` : null;
+  const botTag = seat.isBot ? html`<span class="rseat__bot"><${Icon} name="robot" /><span class="rseat__botname">${t('AI 队友')}</span></span>` : null;
   const pickBtn = canPick ? html`<button type="button" class="rseat__pick" data-testid="seat-card-pick" onClick=${onPickCard}
     title=${t('更换名片干员')} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null;
   const stateBox = html`<span class=${`rseat__state seat__state--${state}`}>

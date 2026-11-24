@@ -147,7 +147,7 @@ function harness() {
   const views = new Map([[1, view], [9, foe]]);
   const effects = [];
   const look = createWindUpLookahead({ views, woundUp: new WeakSet(), castStart: (v, t, kind) => effects.push([kind, t?.id ?? null]) });
-  return { queue, interp, calls, effects, look, actor };
+  return { queue, interp, calls, effects, look, actor, views };
 }
 
 test('a cast plays the clip from its first frame when it is rendered, toward its target, with its cast effects', () => {
@@ -192,6 +192,22 @@ test('a cast the sim cut drops to rest when the cut is rendered', () => {
   assert.deepEqual(H.calls.at(-1), ['cancel']);
 });
 
+test('a cast whose hit is not in sight takes the kind the view decides (a fortress), and the hit\'s own kind when it is', () => {
+  const H = harness();
+  H.queue.push([1.0, ['atkCast', 1, 0.4, 9]]);
+  H.views.get(1).castKind = (target) => (target.id === 9 ? 'bomb' : null);
+  H.look.run(H.interp, 0.97);
+  H.look.run(H.interp, 1.0);
+  assert.deepEqual(H.calls, [['cast', 0.4, 0, 'bomb', 9]], 'the first attack, with no earlier attack to take a kind from');
+  assert.deepEqual(H.effects, [['bomb', 9]], 'its cast effects by the same kind');
+  // a kind that is in sight wins over the view's
+  H.actor.wound = false;
+  H.queue.push([2.25, ['atkCast', 1, 0.15, 9]], [2.4, ['atk', 1, 9, 'arrow']]);
+  H.look.run(H.interp, 2.2);
+  H.look.run(H.interp, 2.25);
+  assert.equal(H.calls.at(-1)[3], 'arrow');
+});
+
 // ---- the actor: castAttack -----------------------------------------------------------------------------------------
 
 let fake, UnitView;
@@ -212,6 +228,21 @@ async function view() {
   assert.ok(v.spineReady && v.actor);
   return v;
 }
+
+test('castKind: a fortress bombards a target off its tile, melees one on its tile; other units leave it to the cast', async () => {
+  const v = await view();
+  const at = (x, y) => ({ id: 2, x, y });
+  assert.equal(v.castKind(at(5, 10)), null, 'a guard takes the last attack\'s kind');
+  v.fortress = true;
+  assert.equal(v.castKind(at(8, 10)), 'bomb', 'three tiles in front');
+  assert.equal(v.castKind(at(6, 10)), 'bomb', 'the tile in front: the sim shoots its cannon there');
+  assert.equal(v.castKind(at(5.4, 10.3)), 'none', 'on its own tile: melee');
+  assert.equal(v.castKind(null), null);
+  v._shotKind(v.castKind(at(8, 10)), null);
+  assert.equal(v.shot, 'ranged');
+  v._shotKind('none', null);
+  assert.equal(v.shot, 'melee');
+});
 
 test('castAttack starts the clip at frame 0, its strike frame on the hit; the hit keeps it; a cut drops it to rest', async () => {
   const v = await view();

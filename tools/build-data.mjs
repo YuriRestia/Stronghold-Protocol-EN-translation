@@ -3054,6 +3054,13 @@ function dailyMission(c) {
 }
 
 /**
+ * (fork) Official loading tips (gameTipsList) the game does not follow, so no version's `config.tips` lists them: CN
+ * act1autochess says Final Assault leaders take no 侵蚀, and here they do in every version (content/bosses.js; user
+ * decisions of 2026-11-24). The later lists do not have it.
+ */
+const DROPPED_TIPS = new Set(['最终攻势中，敌方领袖不会受到侵蚀损伤']);
+
+/**
  * Build data/config.json: modes (rounds, timers, shop, enemy scaling), economy, bans, timers,
  * titles, tips, broadcasts, trophies and other global tunables.
  */
@@ -3224,7 +3231,8 @@ function buildConfig(ctx, waves, stages, bands, chess, items) {
     bandDraft: { skipsPerPlayer: 1, order: 'random', duplicatesAllowed: true, timeoutBandId: 'band_bldsk' },
     titles: Object.values(act.playerTitleDataDict || {}).map((t) => ({ id: t.id, picId: t.picId, name: t.txt, ...(titleRules[t.id] || {}) })),
     titleRule: 'each player gets at most one title; each title is used at most once per match; assign by the category where the player ranks best relative to teammates [ASSUMED]',
-    tips: (Array.isArray(ac.gameTipsList) ? ac.gameTipsList : Object.values(ac.gameTipsList || {})).map((t) => ({ tip: String(t.tip).trim(), weight: t.weight })),
+    tips: (Array.isArray(ac.gameTipsList) ? ac.gameTipsList : Object.values(ac.gameTipsList || {}))
+      .map((t) => ({ tip: String(t.tip).trim(), weight: t.weight })).filter((t) => !DROPPED_TIPS.has(t.tip)),
     broadcasts: (Array.isArray(ac.broadcastList) ? ac.broadcastList : Object.values(ac.broadcastList || {})).map((b) => ({
       id: b.id, type: b.type, priority: b.priority, text: stripRich(b.desc), textRaw: b.desc, params: b.paramList || [],
     })),

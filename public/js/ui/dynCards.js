@@ -134,11 +134,22 @@ export function useMatchCards(gd) {
  */
 let mod = null;
 let modPromise = null;
+/** Whether this player has any illustration installed (the manifest's `dynillust` group); false when it cannot be read. */
+async function illustsInstalled() {
+  try {
+    const { assets } = await import('../assets.js');
+    const g = (await assets.local())?.groups?.dynillust;
+    return !!g && typeof g === 'object' && Object.keys(g).length > 0;
+  } catch { return false; }
+}
 function renderer() {
   if (mod) return Promise.resolve(mod);
   if (!modPromise) {
-    modPromise = import('../render/app/pixi.js').then((p) => p.ensurePixi())
-      .then(() => import('../render/dynillust/index.js'))
+    // (fork) a player with no illustrations installed (no `dynillust` group in data/local-assets.json) has nothing to
+    // draw: no PIXI, no renderer, no Workers (their code requests hung the result screen's load); the stand-in keeps
+    // every card 2D at once
+    modPromise = illustsInstalled().then((have) => (have ? import('../render/app/pixi.js').then((p) => p.ensurePixi())
+      .then(() => import('../render/dynillust/index.js')) : stub))
       .then((m) => (mod = m), (err) => { console.warn('[dynillust] renderer unavailable', err); return (mod = stub); });
   }
   return modPromise;

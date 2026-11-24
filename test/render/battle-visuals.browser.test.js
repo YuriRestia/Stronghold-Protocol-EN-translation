@@ -75,7 +75,9 @@ describe('起飞 and 屏障 in headless Chrome', { skip }, () => {
         return { hover: t.hover, barrier: m.barrierFill.visible, share: m.barrierFill.width / m.hpFill.width };
       }, frames, [tippi.id, mint.id]);
       await page.screenshot({ path: path.join(OUT, 'battle-visuals.png') });
-      assert.ok(state.hover > 1, `蒂比 aloft: ${state.hover}`);
+      // (fork) the official 0.8 tiles while S1 / S2 runs, not the old 1.3 guess (skill_table skchr_tippi_1 / _2
+      // `attack@height_offset`; units.js TAKEOFF, pinned in unitview.test.js)
+      assert.ok(Math.abs(state.hover - 0.8) < 0.02, `蒂比 aloft: ${state.hover}`);
       assert.ok(state.barrier && Math.abs(state.share - 0.8) < 0.02, `barrier ${JSON.stringify(state)}`);
       assert.deepEqual(problems, []);
     } finally {

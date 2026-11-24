@@ -89,7 +89,12 @@ describe('掠海漂移体 drops to 爬行模式: its model crawls (headless Chro
       assert.ok(before.every((x) => x.flying && /_01$/.test(x.clip)), `hovering: the *_01 clips (${[...new Set(before.map((x) => x.clip))]})`);
       const after = log.out.filter((x) => x.t > log.stunAt);
       assert.ok(after.some((x) => x.clip === 'Change'), `the drop plays 'Change' (${[...new Set(after.map((x) => x.clip))]})`);
-      const late = after.filter((x) => x.t > log.stunAt + 3);
+      // The sim switches the form at the stun, but the view plays what it was fed at its own pace (the feed runs at speed 2
+      // while the loop steps the sim as fast as frames come), so it shows the drop up to ~3 s of sim time later, by the
+      // frame rate. Measure the crawl from the sim time of the first frame that shows it, not from the stun.
+      const dropAt = after.find((x) => x.form === 'crawl')?.t;
+      assert.ok(dropAt != null, 'the view shows the crawl form');
+      const late = after.filter((x) => x.t > dropAt + 2);   // the 'Change' clip is about 1 s
       assert.ok(late.length > 0 && late.every((x) => !x.flying && x.form === 'crawl' && /_02$/.test(x.clip)), `crawling: the *_02 clips (${[...new Set(late.map((x) => x.clip))]})`);
       assert.ok(late.some((x) => x.blocked), '山 blocks it once it crawls');
       assert.deepEqual(problems, []);
