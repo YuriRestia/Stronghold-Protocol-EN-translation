@@ -2,9 +2,9 @@
 
 ### Hidden Core OpFor: Gun: its attack timing follows the official client
 
-- A hit now counts for its attack speed as its shot lands, not as it is fired. [src: official [uc]projectiles.ab projectile_enemy_achunt AdvancedMovement _speed]
+- A hit now counts for its attack speed as its shot lands, not as it is fired. [src: official uc/projectiles.ab projectile_enemy_achunt AdvancedMovement _speed]
 - An operator stepping into one of its beams to the carts counts as a hit for its attack speed, each time it steps in;
-  the link to the cart itself does not. [src: official [uc]projectiles.ab projectile_enemy_achunt_ray LaserHitBehaviour]
+  the link to the cart itself does not. [src: official uc/projectiles.ab projectile_enemy_achunt_ray LaserHitBehaviour]
 - A cast that is not its normal attack (the opening beams, the cart call) restarts its attack timer for a full period, and
   a change of attack speed keeps the timer's progress instead of restarting it. So its first shot comes later than before.
   [src: official enm_pfb_28.ab enemy_9017_achunt Skills/3]
