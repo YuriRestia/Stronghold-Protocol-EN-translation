@@ -21,14 +21,17 @@ Server cost:
 
 | Measure | Typical | Worst case |
 |---|---|---|
-| Bandwidth out / in, per player | 0 / 0 MB/s [src: no protocol or server code path reads the flag; the sandbox runs the battle in the page] | 0 / 0 MB/s [src: same] |
-| Bandwidth out / in, per room (4 players) | 0 / 0 MB/s [src: same] | 0 / 0 MB/s [src: same] |
-| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 GB/day) [src: same] | 0 / 0 MB/s [src: same] |
+| Bandwidth out / in, per player | 0 / 0 MB/s while playing [src: no protocol or server code path reads the flag]; one download of 1.06 MB only if the host's art pack lists the new files (below) [src: measured, files under public/assets/local] | the same 1.06 MB once, then cached [src: measured] |
+| Bandwidth out / in, per room (4 players) | 4.25 MB once [src: 4 × 1.06 MB, estimated] | 4.25 MB once [src: same] |
+| Bandwidth out / in, 300 players | 319 MB once (0.32 GB, 0 GB/day after) [src: 300 × 1.06 MB, estimated] | 319 MB once, all new [src: same] |
 | Server CPU | 0 % of one core [src: server/sim/content/steamKnight.js runs only when `flags.steamKnight` is set, in the browser] | 0 % [src: same] |
 | Memory | 0 MB [src: same] | 0 MB [src: same] |
 | Disk | 0 MB/day [src: nothing writes at run time] | 0 MB/day |
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
-- All numbers above are estimated from the code paths (nothing was measured: no server code runs for the flag).
+- Measured with ls / stat on this checkout (the traffic meter was not used: nothing new goes over the socket). The change adds 39 files, 1.06 MB, and no audio. [src: measured, public/assets/local/spine/enemy/enemy_1533_stmkgt, public/assets/local/fx/prefabs]
+  - The model: 3 files, 0.41 MB (skel 284 KB, page 125 KB, atlas 4 KB). [src: measured, public/assets/local/spine/enemy/enemy_1533_stmkgt]
+  - The effects: 24 prefab files, 0.59 MB, and 12 new texture files, 0.05 MB (the other 36 textures were in the pack already). [src: measured, public/assets/local/fx]
+  - `data/assets.json` grew by 4.3 KB on 3.95 MB (+0.11 %) and its `files` count did not change (a `spineLocal` entry is not counted). [src: measured, git diff dev-0.2 data/assets.json]
+- Who downloads them: nobody through gameplay, because only the dev sandbox page asks for the files, on demand. They reach a player's preload only if the host's art pack lists them (a local-client model is listed by `data/local-assets.json`, the effects by `data/local-fx.json`: both are written on the machine that extracted them; `tools/package.mjs FULL_ZIP_FX` ships the effects in the full zip). A cheaper design is to leave the knight's model and the stmkgt effects out of those two lists on the production host, so no player downloads them. [src: server/http/assetViews.js, tools/package.mjs FULL_ZIP_FX]
 - Cap: the flag exists only in the dev sandbox page (`public/dev/sandbox.js`); no room, match or bot sets it [src: public/dev/sandbox.js skPanel.cfg()].
-- Assets: a sandbox visitor with the flag on loads the model (0.41 MB: skel 284 KB, page 125 KB, atlas 4 KB) and 11 effect files on demand [src: public/assets/local/spine/enemy/enemy_1533_stmkgt]; a player never does.
