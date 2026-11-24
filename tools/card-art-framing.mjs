@@ -12,7 +12,9 @@
 //     and the live illustration come from one framing value (cardArtRect in public/js/ui/dynCards.js).
 //   stills[art] = { rect }: a full art with no animated illustration, its face from its official portrait (the portrait
 //     found inside the full art: the eyes of the official portraits sit at about a third of their height), framed with
-//     the face rule of tools/dyn-cover-framing.mjs (face line, head inside, the smallest zoom that covers the card).
+//     the face rule of tools/dyn-cover-framing.mjs (face line, head inside, the smallest zoom that covers the card) at
+//     the illustrations' own zoom range — the user's pick of 2026-11-24, "follow the linked arts framing style": a
+//     still shows the figure like a registered art does, not a bust close-up.
 //
 // Registration: plain normalised cross-correlation on small copies (no image library beyond sharp), coarse to fine over
 // scale and offset; the score is kept so a poor match shows in the log and the test.
@@ -25,7 +27,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GOAL, TOP_MIN, BAND, FACE_MAX } from './dyn-cover-framing.mjs';
+import { GOAL, TOP_MIN, BAND, FACE_MAX, ZOOMS } from './dyn-cover-framing.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
@@ -44,10 +46,11 @@ export const RETRY = 0.55, MIN_SCORE = 0.3;
 /** A registration below this keeps the 2D art apart from its illustration by default (Chongyue's E2, 0.41; the next
  * lowest, 0.46–0.54, checked by eye and right). */
 export const SEPARATE_BELOW = 0.45;
-/** A still's zoom steps: past the illustrations' 1.35, since a still full art sits in a wide torn frame (at 1.35, 287 of
- * 381 stills left over 5 % of the card bare, 2026-11-23); 2 keeps the 1024-px art at about 2 device px per art px on a 4K
- * card. Design values. */
-export const STILL_ZOOMS = Object.freeze([1, 1.1, 1.2, 1.35, 1.5, 1.75, 2]);
+/** A still's zoom steps: the illustrations' own range (dyn-cover-framing ZOOMS), so a still is framed like the linked
+ * arts the user approved (2026-11-24: "follow the linked arts framing style, those were done by me"); past 1.35 a tall
+ * full art is a bust close-up (2026-11-23's up-to-2× frames, retired). A still still covers the card — its own torn
+ * edges show the card's background. Design values (user OK 2026-11-24). */
+export const STILL_ZOOMS = Object.freeze([...ZOOMS]);
 
 /** A rect in card px (x, y, w, h) of a w × h card → official card units from the card's centre. */
 export function toUnits(r, w, h) {

@@ -51,7 +51,7 @@ test('a still full art is framed on its face: the line, the head inside, the sma
   assert.ok(p.top >= TOP_MIN - 1e-9, `head ${p.top}`);
   // the art covers the card's sides: x ≤ 0 and x + w ≥ the card's width
   assert.ok(p.rect.x <= 1e-9 && p.rect.x + p.rect.w >= STILL_AR - 1e-9);
-  // an art transparent in its left 60 %: no zoom covers the card (its opaque part is narrower than the card even at 2×),
+  // an art transparent in its left 60 %: no zoom covers the card (its opaque part is narrower than the card at any step),
   // the pick is the best covering one — the largest zoom
   const part = { w: 64, h: 64, A: new Float32Array(64 * 64).map((_, i) => ((i % 64) < 38 ? 0 : 1)) };
   const q = stillFraming({ x: 0.8, y: 0.3, top: 0.2 }, part);

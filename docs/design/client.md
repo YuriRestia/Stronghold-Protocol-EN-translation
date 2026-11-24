@@ -668,10 +668,12 @@ own for the exceptions listed in `separate` (the user, 2026-11-23: "a separate s
 to still link the values since the mismatched ones are the exception"; by default the registrations under
 `SEPARATE_BELOW` 0.45, none today); the dissolve may then move the picture as it reveals the illustration. Every full art
 has that own placement (`stills`): framed with the face rule, its face from the official portrait found inside it (the
-portraits put the eyes at about a third of their height), up to 2× (`STILL_ZOOMS`: a still sits in a wide torn frame; of
-440 stills 168 still leave over 5 % of the card bare at 2×, measured 2026-11-23), plus the user's move / zoom on it
-(`adjust`, `--still-edits`). The full arts are 2048 px (`outfit/art2k/`, the user's pick of 2026-11-23: a wide card draws
-them 1,900–2,650 px wide on a 4K screen).
+portraits put the eyes at about a third of their height) in the illustrations' own zoom range, 1–1.35 (`STILL_ZOOMS`,
+`tools/dyn-cover-framing.mjs` `ZOOMS`) — the user's pick of 2026-11-24, "follow the linked arts framing style, those were
+done by me": a still shows the figure like a registered art, not the bust close-up the earlier up-to-2× steps gave (of 440
+stills 168 still left over 5 % of the card bare at 2×, measured 2026-11-23; median art height 3.36 card heights → 2.40, the
+registered arts' 2.72) — plus the user's move / zoom on it (`adjust`, `--still-edits`). The full arts are 2048 px
+(`outfit/art2k/`, the user's pick of 2026-11-23: a wide card draws them 1,900–2,650 px wide on a 4K screen).
 The dissolve composes a placed art at its own box (`object-fit: fill`) inside the card.
 (fork, 2026-11-24) **The tall cards' 2D art** (the solo room's card and the result screen's team cards, the official 232 × 458
 window's shape; the user's report: "outfit and e2 static arts of non L2D stuffs aren't calibrated for room, grand alliances,
