@@ -617,6 +617,11 @@ export const FORMS = Object.freeze({
     reborn: Object.freeze({ change: 'C1_Die', roles: JAKILL2 }),
     form2: Object.freeze({ change: null, roles: JAKILL2 }),
   }),
+  // (fork) 假想敌：铳's 【末日布道】 cast (bosses.js kitGun: form 'call' with the cast's `dur`, null at its end): its
+  // ThreePartChannelingAnimation's clips [src: CN client battle/enm_pfb_28.ab enemy_9017_achunt Skills/2 `_default`]
+  enemy_9017_achunt: Object.freeze({
+    call: Object.freeze({ change: 'Skill_2_Begin', end: 'Skill_2_End', roles: Object.freeze({ idle: 'Skill_2_Loop', move: loop('Skill_2_Loop'), attack: null, skill: null }) }),
+  }),
   enemy_1172_dugago: STATUE,
   enemy_1172_dugago_2: STATUE,
   enemy_1116_liprr: PRISONER,
