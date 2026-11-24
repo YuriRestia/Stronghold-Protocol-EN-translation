@@ -1091,7 +1091,12 @@ function buildTokens(ctx, chess, tokenOwners, enemies) {
       tokenId: STEAM_KNIGHT_KEY, kind: 'bondSummon', bondId: 'victoriaShip', name: knight.name, appellation: null,
       desc: knight.desc ?? null, descRaw: null, profession: 'TOKEN', subProfessionId: null, position: 'MELEE', motion: knight.stats.motion,
       displayType: null, placeable: false, ownerRange: false, owners: [],
-      stats: { ...enemyAsTokenStats(knight), blockCnt: 1, deployLimit: 1 }, rangeGrid: [[0, 0]], dmgType: knight.stats.dmgType, attackKind: 'melee',
+      // his attack clip from his local-client model (spineLocal: Attack_A 2 s, strike at its OnAttack 1.133 s): the sim
+      // casts each normal attack and lands it at that frame, so the clip and its cast effects start with the arm raise.
+      // rangeGrid: his own tile and the 4 around it, so he fights the enemy next to him where he stands instead of walking
+      // onto a free tile (the user, 2026-11-24: "He should fight where he is"); the official enemy record has no grid
+      ...(attackAnimOf(ctx.manifest?.enemies?.[STEAM_KNIGHT_KEY]?.spineLocal) ? { attackAnim: attackAnimOf(ctx.manifest.enemies[STEAM_KNIGHT_KEY].spineLocal) } : {}),
+      stats: { ...enemyAsTokenStats(knight), blockCnt: 1, deployLimit: 1 }, rangeGrid: [[0, 0], [0, 1], [1, 0], [-1, 0], [0, -1]], dmgType: knight.stats.dmgType, attackKind: 'melee',
       projectile: null, canHitFly: false, skill: null,
       skills: knight.skills, talents: knight.talents, deployLimit: 1, count: 1,
       abnormal: [], variants: {},

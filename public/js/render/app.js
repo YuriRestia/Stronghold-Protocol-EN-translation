@@ -490,9 +490,33 @@ export async function createFieldView(host, options = {}) {
   ctx.ofx = ofx;
   // (fork) the Steam Knight slice's pile bunker look (render/steamKnightFx.js, dev sandbox): its official files load on demand
   const skFx = createSteamKnightFx({
-    fx, ofx, wiring, views, audio: () => ctx.audio,
+    fx, ofx, wiring, views, audio: () => ctx.audio, shake: (amp, dur) => camShake(amp, dur),
     preload: (keys) => { if (ofx.active) ofx.lib.preload(keys, { half: ofx.lite }).then(() => ofx.warm?.(keys), () => {}); },
   });
+  // (fork) a short camera shake (the Steam Knight's impact and landing): the camera's target moves by a decaying random
+  // offset of `amp` tiles for `dur` s (render clock), taken back off at the end; a camera flight that replaces `cam`
+  // meanwhile simply drops it
+  const shakeState = { t: 0, dur: 0, amp: 0, ox: 0, oy: 0, cam: null };
+  let skModelHeld = false;   // (fork) the Steam Knight's model is held loaded (preloadSteamKnightFx)
+  function camShake(amp, dur) {
+    const s = shakeState;
+    const left = s.t > 0 && s.dur > 0 ? s.amp * (s.t / s.dur) : 0;
+    if (!(amp > left) || !(dur > 0)) return;
+    s.amp = amp; s.dur = dur; s.t = dur;
+  }
+  function stepShake(dt) {
+    const s = shakeState;
+    if (s.cam && s.cam !== cam) { s.cam = null; s.ox = 0; s.oy = 0; }
+    let nx = 0, ny = 0;
+    if (s.t > 0) {
+      s.t = Math.max(0, s.t - dt);
+      const k = s.amp * (s.dur > 0 ? s.t / s.dur : 0);
+      nx = (Math.random() * 2 - 1) * k; ny = (Math.random() * 2 - 1) * k * 0.6;
+    }
+    if (nx === s.ox && ny === s.oy) return;
+    cam.tx += nx - s.ox; cam.ty += ny - s.oy; cam.update();
+    s.ox = nx; s.oy = ny; s.cam = cam;
+  }
   // (fork, enemy sound audit) an enemy skill's impact effect starting: that skill's official impact sound
   ofx.onSpawn = (k) => ctx.audio?.fxKey?.(k);
   // (fork) a unit's official skin (index.json skins) for its sort depth (units.js skinPlaneDepth); undefined until the index is in
@@ -2216,6 +2240,7 @@ export async function createFieldView(host, options = {}) {
       if (leader && !leaderHidden) leader.view.update(udt, cam, clock);
       tiles.update(dt);
       skFx.frame(udt);
+      stepShake(udt);
       fx.update(udt);
       stepClipBounds(clipBoundsBudget(workRaw));   // (fork) a larger share of a slow frame (its own sampling not counted)
       sampledMs = clipBoundsSpentMs();
@@ -2373,7 +2398,15 @@ export async function createFieldView(host, options = {}) {
       return pieceAt(p.x, p.y)?.uid ?? null;
     },
     /** (fork) Load the Steam Knight slice's official effect files ahead of the battle (dev sandbox). */
-    preloadSteamKnightFx() { skFx.ensure(); },
+    preloadSteamKnightFx() {
+      skFx.ensure();
+      // (fork) his Spine model too, held for the page's life: loaded at battle start it arrived after his 1.5 s landing
+      // clip (the user, 2026-11-24: "he should start with the landing")
+      if (!skModelHeld && assets?.spineEntry && assets.spine) {
+        const entry = assets.spineEntry('enemy_1533_stmkgt', { back: false });
+        if (entry) { skModelHeld = true; assets.spine.acquire(entry).catch?.(() => { skModelHeld = false; }); }
+      }
+    },
     pieceScreenRect(uid) {
       let v = views.get('p:' + uid);
       if (!v) for (const x of views.values()) if (x.uid === uid || x.info?.uid === uid || x.id === uid) { v = x; break; }

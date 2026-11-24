@@ -17,6 +17,7 @@ export const STEAM_KNIGHT_FX_KEYS = Object.freeze([
   'stmkgt_skill_02_end_01', 'stmkgt_skill_02_begin_01', 'stmkgt_skill_02_begin_02', 'stmkgt_skill_01_start_01',
   'stmkgt_skill_01_start_02', 'stmkgt_skill_01_start_03', 'stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02',
   'stmkgt_skill_01_hit_01', 'stmkgt_presure_buff_01', 'stmkgt_immortal_buff_01', 'stmkgt_attack_hit_01',
+  'stmkgt_reborn_02', 'stmkgt_skill_02_hit_01', 'stmkgt_skill_02_hit_02', 'stmkgt_attack_start_01', 'stmkgt_attack_weapon_01',
 ]);
 
 const WHITE = 0xffffff, HOT = 0xfff1c9, ORANGE = 0xff8a2a, STEAM = 0xcfe6ff;
@@ -24,8 +25,15 @@ const WHITE = 0xffffff, HOT = 0xfff1c9, ORANGE = 0xff8a2a, STEAM = 0xcfe6ff;
 /**
  * @param {{ fx: any, ofx: any, wiring: any, views: Map<any, any>, preload?: (keys: string[]) => void, audio?: () => any }} deps
  */
-export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio }) {
+export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, shake }) {
   const sound = (kind) => { try { audio?.()?.playSteamKnight?.(kind); } catch { /* sound is optional */ } };
+  /** An official effect that is cut after `secs` (a looping or long prefab layered in for weight). */
+  const brief = (key, x, y, secs) => {
+    if (!(ofx?.active && ofx.lib.has(key))) return false;
+    const h = ofx.spawn(key, { pos: [x - 10, y - 9, 0], groundZ: 0 }, { important: true });
+    if (h) setTimeout(() => { try { h.stop?.(); } catch { /* gone */ } }, secs * 1000);
+    return !!h;
+  };
   const leapOk = new Map();    // knight id → his leap's official window started (its end plays the landing)
   const boosted = new Set();   // knight ids with the steam loop running
   let preloaded = false;
@@ -62,6 +70,13 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio }) 
           if (!(d.leap && leapOk.get(id))) {
             if (!official('stmkgt_skill_02_end_01', x, y)) fx.ring(x, y, 0, 0.2, 2.4, STEAM, 0.6, 'shock');
           }
+          // weight (the user, 2026-11-24: "the landing needs more oomph"): his official revive burst and the leap's ground
+          // hit layered in, cut short, and a camera shake as he touches down (the landing clip's last third)
+          setTimeout(() => {
+            brief('stmkgt_reborn_02', x, y, 1.2);
+            brief('stmkgt_skill_02_hit_02', x, y, 0.7);
+            shake?.(0.16, 0.4);
+          }, 900);
           break;
         }
         case 'leapUp': {
@@ -104,6 +119,11 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio }) 
           const tv = d.target != null ? views.get(d.target) : null;
           const a = tv && has('stmkgt_skill_01_hit_01') ? !!wiring.playOn?.('stmkgt_skill_01_hit_01', tv, {}) : official('stmkgt_skill_01_hit_01', x, y);
           const b = official('stmkgt_attack_hit_01', x, y);
+          // weight (the user, 2026-11-24: "the impact needs more oomph"): the leap's bomb hit and the revive burst layered
+          // in at the contact, cut short, and a camera shake that grows with the tiles boosted
+          brief('stmkgt_skill_02_hit_01', x, y, 0.8);
+          brief('stmkgt_reborn_02', x, y, 1.2);
+          shake?.(Math.min(0.3, 0.14 + (Number(d.tiles) || 0) * 0.025), 0.45);
           if (!a && !b) {
             const p = proj(x, y, 0.5);
             fx.particle('glow', p.x, p.y, { tint: WHITE, life: 0.14, s0: (p.s / 128) * 0.5, s1: (p.s / 128) * 1.3, a0: 0.9, a1: 0 });

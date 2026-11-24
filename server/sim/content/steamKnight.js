@@ -146,8 +146,13 @@ export function steamKnightKit(bb, raw) {
       const endBunker = () => {
         shield(false);
         bunker(false);
+        // back onto a tile of his own (the board holds one unit per tile): he walks there instead of snapping
+        const fx0 = unit.x, fy0 = unit.y;
         const spot = freeTileNear(battle, unit.x, unit.y, unit);
-        if (spot) battle.relocate(unit, spot[0], spot[1]);
+        if (spot && battle.relocate(unit, spot[0], spot[1]) && hypot(spot[1] - fx0, spot[0] - fy0) > 0.05) {
+          unit.x = fx0; unit.y = fy0;
+          sk.walk = { fr: fy0, fc: fx0, tr: spot[0], tc: spot[1], t: 0, len: hypot(spot[0] - fy0, spot[1] - fx0), moved: true };
+        }
         clearForm();
         setPhase('fight', { dash: null, target: null });
       };
@@ -259,7 +264,9 @@ export function steamKnightKit(bb, raw) {
           const d = hypot(e.x - unit.x, e.y - unit.y);
           if (d < bd - 1e-9) { bd = d; tgt = e; }
         }
-        if (!tgt || bd <= 1.05) return;
+        // he fights where he stands (the user, 2026-11-24): no step while an enemy is within his range grid's reach (his
+        // tile and the 4 around it: 1 tile + the 0.5 of a tile an enemy's position can sit off its centre)
+        if (!tgt || bd <= 1.5) return;
         const path = battle.grid.findPath(unit.tileR, unit.tileC, Math.round(tgt.y), Math.round(tgt.x));
         if (!path || path.length < 2) return;
         const [tr, tc] = path[1];
@@ -338,7 +345,8 @@ export function steamKnightKit(bb, raw) {
             if (sk.phase === 'none') setPhase('fight');
             if (!unit.canAct || unit.s.flags.noMove) break;
             if (sk.clock >= sk.leapAt - 1e-9 && has(c.dashSpeed) && !sk.walk && startLeap()) break;
-            if (unit.blocking.length) { sk.walk = null; break; }
+            // blocking: he stays (a step already on its new tile finishes its slide)
+            if (unit.blocking.length && !sk.walk?.moved) { sk.walk = null; break; }
             if (!sk.walk) chooseWalk();
             stepWalk(dt);
           }

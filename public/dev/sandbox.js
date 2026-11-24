@@ -682,6 +682,8 @@ async function main() {
   // …and its own battle sounds (js/audio.js unitSfx: sfx.outfits[skinId], when that outfit has official banks of its own)
   setOutfitSfxResolver((info) => (info && info.side !== 'enemy' && (!info.kind || info.kind === 'op') ? skinByUid.get(info.uid) || null : null));
   const view = await createFieldView($('field'), { data, assets, audio, settings: settings(), outfitOf });
+  // (fork) the Steam Knight's model and effects load while the board is set up, so his first landing draws
+  if (skPanel.cfg()) view.preloadSteamKnightFx?.();
   view.setStage(stage);
   const net = { on: () => () => {}, send() {}, request: async () => ({ ok: true }) };
   let runner = null;
