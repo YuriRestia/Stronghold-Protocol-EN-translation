@@ -1601,7 +1601,8 @@ export class AudioManager {
       landing: [H1],
       shove: [{ url: `${E}e_imp/e_imp_stmwpn_n.mp3`, pool: 'battle.ON_ABILITY_HIT.enemy_1533_stmkgt.combat' }],
     };
-    for (const p of PARTS[kind] || []) this._castPart(p);
+    // 3x the bank's own gain: the official bank mix plays these at about 15 % (the user heard nothing, 2026-11-24)
+    for (const p of PARTS[kind] || []) this._playBank(p.url, p.pool, UNIT_BASE_GAIN * 3);
   }
 
   _playParts(e, gain) {
