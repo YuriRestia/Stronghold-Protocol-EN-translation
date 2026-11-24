@@ -746,6 +746,12 @@ export class Effect {
     }
   }
 
+  /** (fork) Placed again after update() (system.js refollow): the matrices, and the local-space systems' frames. */
+  reframe() {
+    this._matrices();
+    for (let i = 0; i < this.def.n; i++) { const s = this.sys[i]; if (s && s.playing && s.def.space !== 1) s.setFrame(this._frame(i)); }
+  }
+
   /** The render frame of system node i: world rotation / position with the scale of its scaling mode. */
   _frame(i) {
     const s = this.sys[i], w = this.world[i];

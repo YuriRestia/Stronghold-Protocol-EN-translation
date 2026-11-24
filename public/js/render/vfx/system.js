@@ -81,6 +81,17 @@ export function unityViewProj(cam, W, H, near, far, out = mat4()) {
 }
 const _vpb = mat4();
 
+const noTest = new WeakMap();
+/**
+ * (fork) A material without its depth test against the board, for an effect spawned with `onBody`: one that lies on its
+ * unit's own drawn body, which the board never hides (the Steam Knight's pile swings back over the raised tiles).
+ */
+function untested(mat) {
+  let m = noTest.get(mat);
+  if (!m) noTest.set(mat, m = { ...mat, state: { ...mat.state, zTest: null } });
+  return m;
+}
+
 /** Board heightfield triangles (tile tops + the walls of raised tiles) for the depth pre-pass. */
 export function heightfield(heightAt, rows = 19, cols = 21, bias = 0.02) {
   const out = [];
@@ -266,6 +277,17 @@ export class OfficialFx {
   }
 
   /** Advance every effect by dt battle seconds. */
+  /**
+   * (fork) Place the `onBody` effects again, once the frame's models are posed (render/app.js): update() runs before
+   * them, so an effect on a fast-moving bone was drawn where that bone was a frame ago.
+   */
+  refollow() {
+    for (const fx of this.effects) {
+      if (!fx.onBody || !fx.track || fx.done) continue;
+      try { fx.track(fx); fx.reframe(); } catch { /* the owner went away: the effect stays where it was */ }
+    }
+  }
+
   update(dt) {
     const d = dt > 0 ? Math.min(dt, 0.25) : 0;
     this.time += d;
@@ -447,6 +469,8 @@ export class OfficialFx {
     let seq = 0, depth = false;
     const sink = (e) => {
       e.seq = seq++;
+      if (e.effect.onBody && e.mat.state.zTest) e.mat = untested(e.mat);
+      if (e.effect.underMesh && e.part === 'mesh') e.ground = true;   // (fork) its flat meshes under the units (a thruster)
       if (e.mat.state.zTest) depth = true;
       (e.unitBack ? this._unitBackground(e.effect.owner) || g : e.ground ? g : o).push(e);
     };
@@ -553,6 +577,8 @@ export class FxHandle {
       fx.ttl = def.isLoop ? LOOP_TTL : Number.isFinite(d) && d > 0 ? Math.min(ONE_SHOT_TTL * 2, d + def.delayToPlay + 0.5) : ONE_SHOT_TTL;
     }
     fx.data = this.opts.data ?? null;
+    fx.onBody = !!this.opts.onBody;
+    fx.underMesh = !!this.opts.underMesh;
     if (this.opts.onFinish) fx.onFinish = this.opts.onFinish;
     // a chained effect of the prefab itself (OnPlayEmitter) starts with the same placement and owner; a looping one
     // stops with it (OnFinishEmitter's start where it finished)

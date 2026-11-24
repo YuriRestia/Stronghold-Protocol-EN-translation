@@ -2241,6 +2241,7 @@ export async function createFieldView(host, options = {}) {
       if (!penHidden) for (const v of penViews.values()) v.update(udt, cam, clock);
       if (leader && !leaderHidden) leader.view.update(udt, cam, clock);
       tiles.update(dt);
+      ofx.refollow();   // (fork) the effects on a unit's body, now that the models are posed
       skFx.frame(udt);
       stepShake(udt);
       fx.update(udt);

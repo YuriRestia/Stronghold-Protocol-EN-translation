@@ -49,8 +49,11 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
   // 1.1 s [src: official stmkgt_skill_02_begin_01 clip material._TintColor.a keys 0.4 / 1.1], so lit that long before the
   // boost they burn at full as he leaves. (The puffs tried before came out 0.4-0.5 s late, after a 0.35 s boost was over.)
   const JET_KEY = 'stmkgt_skill_02_begin_01', JET_LIT = 1.1;
-  // looks, not rules: where the two pairs of nozzles sit — tiles behind his middle and up his body (back, legs)
-  const NOZZLES = [[1.05, 0.95], [1.05, 0.6], [1.05, 0.25]];
+  // One thruster on his back (the user, 2026-11-24: "just one thruster should be enough, but a bit bigger and clearer on
+  // his back"; the prefab's two needle planes, three pairs of them, read as six thin jets). Looks, not rules: its nozzle's
+  // place (tiles behind his middle, up his body), and the two planes (nodes steam_01 / _02) as one flame: [length, width]
+  // scale of the outer flame and of the core. Their front halves lie under his body (underMesh).
+  const NOZZLE = [0.35, 0.85], FLAME = [[3, 3.4, 14], [4, 2.4, 7]], JET_BACK = 0.7;
   // The steam left along the boost: the stance's vent (stmkgt_skill_01_start_01), its 0.4 s start delay skipped [src:
   // official stmkgt_skill_01_start_01 smoke_01 startDelay], one puff every PUFF_EVERY s dropped PUFF_BACK tiles behind him
   // and cut after PUFF_LIFE (looks, not rules). The pile's exhausts blow with it, their 0.5 s `_delayToPlay` skipped.
@@ -72,16 +75,30 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     // the jets point down the model's plane; turned in that plane to point against the boost (dc, dr: board right / up)
     const a = Math.atan2(-j.dc, j.dr) / 2, t = -SKELETON_TILT / 2 * Math.PI / 180;
     const rootRot = [Math.sin(t) * Math.cos(a), -Math.sin(t) * Math.sin(a), Math.cos(t) * Math.sin(a), Math.cos(t) * Math.cos(a)];
-    for (const [back, up] of NOZZLES) {
-      const at = (out) => {
-        const rise = up * Math.cos(SKELETON_TILT * Math.PI / 180), near = up * Math.sin(SKELETON_TILT * Math.PI / 180);
-        out[0] = j.v.x - 10 - j.dc * back; out[1] = j.v.y - 9 - j.dr * back + rise; out[2] = -(j.v.z || 0) - near;
-        return out;
-      };
-      const h = ofx.spawn(JET_KEY, { pos: at([0, 0, 0]), groundZ: -(j.v.z || 0), rootRot },
-        { important: true, loop: true, owner: j.v, skip, track: (e) => { if (j.v && !j.v.destroyed) { at(e.anchor); e.groundZ = -(j.v.z || 0); } } });
-      if (h) j.hs.push(h);
-    }
+    const cos = Math.cos(SKELETON_TILT * Math.PI / 180), sin = Math.sin(SKELETON_TILT * Math.PI / 180);
+    const at = (out, back) => {
+      out[0] = j.v.x - 10 - j.dc * back; out[1] = j.v.y - 9 - j.dr * back + NOZZLE[1] * cos; out[2] = -(j.v.z || 0) - NOZZLE[1] * sin;
+      return out;
+    };
+    // a plane's world matrix: its length against the boost (its drawn end is +x: the dissolve mask eats the other), its
+    // width up the model (a boost along the column: across it)
+    const x = [-j.dc, -j.dr, 0], y = j.dc ? [0, cos, -sin] : [1, 0, 0];
+    const z = [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]];
+    const ov = new Map(FLAME.map(([node]) => [node, new Float64Array(16)])), p = [0, 0, 0];
+    const track = (e) => {
+      if (!j.v || j.v.destroyed) return;
+      at(e.anchor, JET_BACK); e.groundZ = -(j.v.z || 0);
+      at(p, NOZZLE[0]);
+      for (const [node, len, wide] of FLAME) {
+        const m = ov.get(node);
+        for (let i = 0; i < 3; i++) { m[i] = x[i] * len; m[4 + i] = y[i] * wide; m[8 + i] = z[i]; m[12 + i] = p[i]; }
+        m[15] = 1;
+      }
+      e.worldOv = ov;
+    };
+    const h = ofx.spawn(JET_KEY, { pos: at([0, 0, 0], JET_BACK), groundZ: -(j.v.z || 0), rootRot },
+      { important: true, loop: true, owner: j.v, skip, onBody: true, underMesh: true, track });
+    if (h) j.hs.push(h);
   };
   const douse = (id) => {
     const j = jets.get(id);
@@ -99,7 +116,10 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     for (const k of keys) {
       if (e.keys.has(k)) { any = true; continue; }
       if (!has(k)) continue;
-      const h = wiring.playOn?.(k, v, { follow: true, loop: true, important: true });
+      // (onBody: the pile's spike glow is its one layer that tests the board's depth, and the raised tiles behind him cut
+      // it off along a straight edge as the pile swung back; and it lay a frame behind the swinging pile — the user,
+      // 2026-11-24)
+      const h = wiring.playOn?.(k, v, { follow: true, loop: true, important: true, onBody: true });
       if (h) { e.keys.add(k); e.hs.push(h); any = true; }
     }
     return any;

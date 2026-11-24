@@ -72,6 +72,16 @@ async function setup() {
 function walk(ofx, v, dx, frames = 4) { for (let i = 0; i < frames; i++) { v.x += dx / frames; ofx.update(1 / 30); } }
 
 describe('held effects move with their unit (R1)', () => {
+  test('(fork) refollow places an onBody effect again after the models moved, its particles too, and no other', async () => {
+    const { ofx, w, v } = await setup();
+    const on = w.playOn('aura_weapon', v, { follow: true, loop: true, onBody: true }), off = w.playOn('aura_weapon', v, { follow: true, loop: true });
+    ofx.update(1 / 30);
+    v.x += 1;
+    ofx.refollow();
+    near(on.effect.anchor[0], 6 - 10 - 0.3, 1e-9, 'placed again');
+    near(on.effect.sys[1].pos[0], 6 - 10 - 0.3, 1e-9, 'its local-space particles drawn there');
+    near(off.effect.anchor[0], 5 - 10 - 0.3, 1e-9, 'the other waits for the next update');
+  });
   test('(fork) an effect started before the index has loaded takes its mount point once it has', async () => {
     const { ofx, w, v } = await setup();
     const idx = w.idx;
