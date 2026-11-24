@@ -488,12 +488,14 @@ export function steamKnightKit(bb, raw) {
             if (sk.t >= CLIP.blowLen - 1e-9) endBunker();
             break;
           case 'zan': {
+            contactBlock();   // he blocks through the Zantetsuken's charge too (the user, 2026-11-24)
             if (sk.t < CLIP.stanceBeginLen - 1e-9) break;
             setPhase('zanBlow', { target: sk.target, zanHit: false });
             phaseFx('skBlow', { dur: CLIP.blowLen });
             break;
           }
           case 'zanBlow': {
+            contactBlock();   // and through its thrust: the enemies he held take its three hits
             if (!sk.zanHit && sk.t >= CLIP.blowHit - 1e-9) {
               sk.zanHit = true;
               // every enemy he blocks takes the three hits (the user, 2026-11-24); with none blocked, the one in front

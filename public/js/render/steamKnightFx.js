@@ -16,7 +16,7 @@
 
 export const STEAM_KNIGHT_FX_KEYS = Object.freeze([
   'stmkgt_skill_02_end_01', 'stmkgt_skill_02_begin_01', 'stmkgt_skill_02_begin_02', 'stmkgt_skill_01_start_01',
-  'stmkgt_skill_01_start_02', 'stmkgt_skill_01_start_03', 'stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02',
+  'stmkgt_skill_01_start_03', 'stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02',
   'stmkgt_skill_01_hit_01', 'stmkgt_presure_buff_01', 'stmkgt_attack_hit_01',
   'stmkgt_skill_02_hit_01', 'stmkgt_attack_start_01', 'stmkgt_attack_weapon_01',
   'stmkgt_skill_02_marker_01',
@@ -40,12 +40,12 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
   const marks = new Map();     // knight id → the marker loop on the enemy he boosts at
   const steam = new Map();     // knight id → the Boost's steam loop, held on him (follow) until he dies
   const held = new Map();      // knight id → { keys: Set, hs: [] } the Zantetsuken loops on him until its cast ends
-  const jets = new Map();      // knight id → { v, next } boosting: a steam puff left behind him every JET_EVERY s
-  const puffs = [];            // { h, left } puffs cut after JET_LIFE s (the vent is a loop; at most ~JET_LIFE / JET_EVERY live)
-  // looks, not rules: a wake every 0.09 battle s, cut after 0.9 s (its steam needs ~0.4 s to billow out). The wake is the
-  // take-off's ground blast left behind him — two overlapping instances and a procedural puff, because one prefab alone
-  // reads as a thin ring on his own body, not a trail (the user, 2026-11-24)
-  const JET_EVERY = 0.09, JET_LIFE = 0.9;
+  const jets = new Map();      // knight id → { v, next, dr, dc } boosting: an exhaust jet every JET_EVERY s
+  const puffs = [];            // { h, left } the vent bursts on him, cut after their `left` s (the prefab loops)
+  // looks, not rules: the exhaust jet is emitted every 0.03 battle s while he boosts. The pack has no thruster prefab, and
+  // the ground blasts read as a thick low soup (the user, 2026-11-24), so the plume is drawn procedurally: small white
+  // puffs leaving his back vents backwards along the dash, slowing in the air
+  const JET_EVERY = 0.03;
   let preloaded = false;
 
   /** Start official loops on his mount points, held until stopHeld; false when none could play. */
@@ -134,14 +134,13 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         }
         case 'stance': {
           sound('stance');
-          // the official Zantetsuken (index.json units.enemy_1533_stmkgt.skills.zantetsuken, a MultiMeleeAttack): its
-          // ON_CAST_START loops start_01 / _02 now, on his own mount points, until ON_CAST_END (bunkerEnd); start_03
-          // (ON_SPELL_ON) and the weapon glow (ON_SPELL_END) come with the strike (spell). Played here row by row: the
-          // whole window at once (wiring.enemyCast) started all five loops at the stance (the user, 2026-11-24: "the vfx
-          // for it isn't quite correct")
+          // the charge's look: the stance's back vent (start_01) and the pile's two weapon glows (start_weapon_01 / _02),
+          // held on his mount points until the bunker ends. start_02 alone read as one glow stretched over the model
+          // (the user, 2026-11-24); the two weapon glows are the pair the strike and the boost wear, and start_03
+          // (ON_SPELL_ON) still comes with the strike only
           stopHeld(id);
-          if (!holdOn(id, v, ['stmkgt_skill_01_start_01', 'stmkgt_skill_01_start_02'])) {
-            const got = ['01', '02'].map((n) => official(`stmkgt_skill_01_start_${n}`, x, y));
+          if (!holdOn(id, v, ['stmkgt_skill_01_start_01', 'stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02'])) {
+            const got = ['start_01', 'start_weapon_01', 'start_weapon_02'].map((n) => official(`stmkgt_skill_01_${n}`, x, y));
             if (!got.some(Boolean)) fx.ring(x, y, 0, 0.2, 1.2, HOT, 0.4, 'shock');
           }
           break;
@@ -223,19 +222,26 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         j.next -= step;
         if (j.next > 0) continue;
         j.next = JET_EVERY;
-        // the wake: ground blasts left behind him along his path (fixed points, so they trail), two overlapping for body
-        const x = (Number(j.v?.x) || 0) - j.dc * 0.8, y = (Number(j.v?.y) || 0) - j.dr * 0.8;
-        for (const [ox, oy] of [[0, 0], [j.dc * 0.3, j.dr * 0.3]]) {
-          const g = official('stmkgt_skill_02_begin_02', x + ox, y + oy);
-          if (g) puffs.push({ h: g, left: JET_LIFE });
+        // the jet leaves his back vents, backwards along the dash: two projected points give the screen direction
+        const x = Number(j.v?.x) || 0, y = Number(j.v?.y) || 0;
+        const front = proj(x + j.dc * 0.6, y + j.dr * 0.6, 0.45);
+        const back = proj(x - j.dc * 0.35, y - j.dr * 0.35, 0.45);
+        let ux = back.x - front.x, uy = back.y - front.y;
+        const len = Math.hypot(ux, uy) || 1;
+        ux /= len; uy /= len;
+        const sPx = back.s;
+        for (let i = 0; i < 2; i++) {
+          const o = { tint: STEAM, add: false, drag: 2.6, life: 0.45 + i * 0.1, fadeIn: 0.05, s1: sPx * 0.45 };
+          o.vx = ux * sPx * (1.6 + i * 0.5) + (i ? sPx * 0.12 : -sPx * 0.12);
+          o.vy = uy * sPx * (1.6 + i * 0.5) + sPx * (0.15 + i * 0.05);
+          o.s0 = sPx * (0.10 + i * 0.03); o.a0 = 0.5 - i * 0.12;
+          fx.particle('smoke', back.x + (i ? sPx * 0.1 : -sPx * 0.08), back.y, o);
         }
-        // a white procedural puff at the same point: the guarantee that the plume reads at any tier (the prefab's steam is
-        // low and thin at ground level)
-        const p = proj(x - j.dc * 0.1, y - j.dr * 0.1, 0.35);
-        fx.burst(p.x, p.y, p.s, 10, STEAM, { speed: 1.8, up: 0.8, life: 0.8, size: 1.0 });
-        // and the stance's back vent on his own body, a short puff behind the shoulders
-        const h = wiring.playOn?.('stmkgt_skill_01_start_01', j.v, { important: true });
-        if (h) puffs.push({ h, left: JET_LIFE });
+        // the stance's back vent on his own body adds the hot core every second emission
+        if ((j.n = (j.n || 0) + 1) % 2 === 1) {
+          const h = wiring.playOn?.('stmkgt_skill_01_start_01', j.v, { important: true });
+          if (h) puffs.push({ h, left: 0.5 });
+        }
       }
       for (let i = puffs.length - 1; i >= 0; i--) {
         if ((puffs[i].left -= step) > 0) continue;
