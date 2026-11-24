@@ -586,7 +586,9 @@ own dissolve); the result cards do not group (their entrance gate). The
 strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
 the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
-with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a result card's illustration
+with the same API, every card 2D, until the renderer is installed (`setDynModule`), and for good where this player's
+index lists no illustration at all (no `dynillust` group in data/local-assets.json): the renderer, PIXI and the Workers
+are never loaded then, so the result load ends at once and the result screen opens with no cover. How a result card's illustration
 appears — straight into Idle, no intro (the user, 2026-11-22) — is the renderer's; it no longer switches late on screen
 (its entrance waits, above); the room cards' dissolve (above) is the client's.
 An illustration's see-through pixels (its erasers) show the official card background, which both official cards draw
