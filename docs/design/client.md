@@ -586,7 +586,9 @@ own dissolve); the result cards do not group (their entrance gate). The
 strategy draft's name cards and the result cards read the room cards through one hook (`useMatchCards`). The cards reach
 the renderer only through its mount API (vfx-format.md §33.19): one Stage for the whole page, held by the screens with
 cards and by the result load and destroyed when nobody holds it (the match screens never do); `ui/dynStub.js` stands in
-with the same API, every card 2D, until the renderer is installed (`setDynModule`). How a result card's illustration
+with the same API, every card 2D, until the renderer is installed (`setDynModule`), and for good where this player's
+index lists no illustration at all (no `dynillust` group in data/local-assets.json): the renderer, PIXI and the Workers
+are never loaded then, so the result load ends at once and the result screen opens with no cover. How a result card's illustration
 appears — straight into Idle, no intro (the user, 2026-11-22) — is the renderer's; it no longer switches late on screen
 (its entrance waits, above); the room cards' dissolve (above) is the client's.
 An illustration's see-through pixels (its erasers) show the official card background, which both official cards draw
@@ -642,7 +644,9 @@ status line beside the pill (above it when they do not fit) and, from 721 px wid
 icon and unread count, without the last line. The short-screen rules written for the tall cards stay off the wide ones.
 A Grand Alliance squad's count there leaves out the word 已就绪. On tablets and small windows (1rem under about 78 px,
 which 2319 × 1356 is not) the plate's and the heading's text take a larger share of `--t`, so they stay readable and
-still follow 文字大小. The sizes are design values. Portrait phones get the rotate hint (theme.css), not this screen.
+still follow 文字大小, the ready word and its buttons at most 13 px plus half a `--t-step`. An empty seat's plus, 邀请 and
+添加 AI 队友 are smaller there so they fit the wide card. In a window 521–600 px tall the plate leaves out the ready word
+and the AI tag's words (its robot icon stays, the words are for screen readers), as on phones (the user, 2026-11-24). The sizes are design values. Portrait phones get the rotate hint (theme.css), not this screen.
 Each illustration on a wide card is framed on its operator's face (the user's pick of 2026-11-23, "card zoom", after
 "faces cut off … bad photography"): the card framing zoomed about a point of the card (the renderer's `framing: { mode:
 'card', zoom, fx, fy }`), one value per illustration in `data/dyn-card-framing.json` (`IllustArt framing="cover"`,

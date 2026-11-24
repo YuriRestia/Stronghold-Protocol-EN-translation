@@ -1862,6 +1862,19 @@ export class UnitView {
   }
 
   /**
+   * (fork) The kind of an attack cast whose hit is not in sight yet (render/app/windup.js windCasts), or null when the
+   * view cannot tell: a fortress's, as the sim's rule has it (server/sim/ai.js acquireTargets: melee on the enemy it
+   * blocks or one on its own tile, 'none', else its cannon, the 'bomb' of server/sim/professions.js). Its first attack's
+   * cast starts before the hit is in sight and fell back to 'none', so Ashlock's and Horn's first shell was cast on the
+   * melee clip (Ashlock's Attack02, its muzzle at her feet) and left it there. A blocked enemy stands on its blocker's
+   * tile (blocksTarget's assumption, not a new one).
+   */
+  castKind(target) {
+    if (!this.fortress || !target) return null;
+    return Math.abs(target.x - Math.round(this.x)) <= 0.5 && Math.abs(target.y - Math.round(this.y)) <= 0.5 ? 'none' : 'bomb';
+  }
+
+  /**
    * A lord's melee reach, as the sim's lord dmgMul has it: the target blocked by it or on its own tile or the one in
    * front. The view has no blocking state: [ASSUMED] the target within half a tile of either centre stands for both
    * (a blocked enemy stands on its blocker's tile).
