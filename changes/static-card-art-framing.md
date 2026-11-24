@@ -11,7 +11,7 @@
 
 - On the room and Grand Alliance cards, every full art that has no animated illustration (440 of 538) now shows more of the figure and sits higher, like the art of the animated cards. Tall horns or a halo can pass the card's top edge.
 - The 98 arts that belong to an animated illustration stay where they were on those cards.
-- Cards that showed a leg, a bag or a pet instead of the operator now show the operator: Hoederer, Leonhardt, Hoshiguma, Raidian, Misery and the reserve operators among others.
+- Cards that missed the operator's face now show it, such as Hoederer's, Leonhardt's and Hoshiguma's Elite 2 art.
 - Before: these arts were zoomed in to a bust close-up, and a few missed the face.
 
 Kind: player
