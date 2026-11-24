@@ -41,6 +41,10 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
   const immortal = new Map();  // knight id → his invincible loop
   const boosted = new Set();   // knight ids with the steam loop running
   const held = new Map();      // knight id → { keys: Set, hs: [] } the Zantetsuken loops on him until its cast ends
+  const jets = new Map();      // knight id → { v, next } boosting: a steam puff left behind him every JET_EVERY s
+  const puffs = [];            // { h, left } puffs cut after JET_LIFE s (the vent is a loop; at most ~JET_LIFE / JET_EVERY live)
+  // looks, not rules: a puff every 0.05 battle s, each cut after 1.1 s (its steam needs ~0.4 s to billow out)
+  const JET_EVERY = 0.05, JET_LIFE = 1.1;
   let preloaded = false;
 
   /** Start official loops on his mount points, held until stopHeld; false when none could play. */
@@ -111,6 +115,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         case 'bunkerEnd':
           // the pile bunker or Zantetsuken is over (ON_CAST_END): its loops stop with their fade, and the marker
           stopHeld(id);
+          jets.delete(id);
           { const m = marks.get(id); if (m) { try { m.stop?.(); } catch { /* gone */ } marks.delete(id); } }
           break;
         case 'leapUp': {
@@ -146,6 +151,13 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           // until the impact
           const tv = d.target != null ? views.get(d.target) : null;
           if (tv && has('stmkgt_skill_02_marker_01')) { const h = wiring.playOn?.('stmkgt_skill_02_marker_01', tv, { loop: true }); if (h) marks.set(id, h); }
+          // the propulsion (the user, 2026-11-24: "the steam ... blast out behind his back and legs as he's boosting"; "the
+          // glow ... should be playing when he's boosting already"): the pile's glow (Zantetsuken's start_weapon loops) from
+          // the boost on, the take-off's ground blast (HeroBomb's skill_02_begin_02) where he sets off, and the stance's
+          // back vent (start_01: steam out behind him) left along his path while he boosts (frame)
+          holdOn(id, v, ['stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02']);
+          if (v) wiring.playOn?.('stmkgt_skill_02_begin_02', v, { important: true });
+          if (v && id != null) jets.set(id, { v, next: 0 });
           break;
         }
         case 'zanHit': {
@@ -177,6 +189,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         }
         case 'impact': {
           sound('impact');
+          jets.delete(id);
           spell(id, v);
           { const m = marks.get(id); if (m) { try { m.stop?.(); } catch { /* gone */ } marks.delete(id); } }
           // the official hit effects on the target's own hit point, plus the ground twin under him (the blow is the big one)
@@ -200,14 +213,35 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
       }
     },
 
-    /** Every frame (nothing to do: the official windows run in the wiring; kept for the render loop's call). */
-    frame() {},
+    /** Every frame (battle seconds): the boost's steam jets, and cutting the short-lived ones. */
+    frame(dt) {
+      const step = Number(dt) > 0 ? Number(dt) : 0;
+      for (const [id, j] of jets) {
+        j.next -= step;
+        if (j.next > 0) continue;
+        j.next = JET_EVERY;
+        const h = wiring.playOn?.('stmkgt_skill_01_start_01', j.v, { important: true });
+        if (h) puffs.push({ h, left: JET_LIFE });
+        // every third puff, the take-off's ground blast too: the boost's thrust kicking the steam off the ground
+        if ((j.n = (j.n || 0) + 1) % 3 === 1) {
+          const g = wiring.playOn?.('stmkgt_skill_02_begin_02', j.v, { important: true });
+          if (g) puffs.push({ h: g, left: JET_LIFE });
+        }
+      }
+      for (let i = puffs.length - 1; i >= 0; i--) {
+        if ((puffs[i].left -= step) > 0) continue;
+        try { puffs[i].h.stop?.(); } catch { /* gone */ }
+        puffs.splice(i, 1);
+      }
+    },
 
     /** A new battle or the prep board: every handle stopped, every map emptied (a knight of the next battle may get
      * the same id). */
     clear() {
       for (const m of [marks, immortal]) for (const h of m.values()) { try { h.stop?.(); } catch { /* gone */ } }
       for (const id of [...held.keys()]) stopHeld(id);
+      for (const p of puffs.splice(0)) { try { p.h.stop?.(); } catch { /* gone */ } }
+      jets.clear();
       boosted.clear(); leapOk.clear(); marks.clear(); immortal.clear();
     },
   };

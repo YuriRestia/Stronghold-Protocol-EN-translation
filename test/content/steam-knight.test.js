@@ -7,7 +7,7 @@ import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.
 import { spawnSteamKnight, STEAM_KNIGHT_ID } from '../../server/sim/content/steamKnight.js';
 
 // panel values of a test run (the sandbox panel sets them for real: none has an official source)
-const PANEL = { enabled: true, dashSpeed: 6, dmgPerTile: 0.5, sideDamage: 0.5, shoveDist: 1.5, stanceAfterLanding: 1, waitLimit: 3 };
+const PANEL = { enabled: true, dashSpeed: 6, dmgPerTile: 0.5, sideDamage: 0.5, shoveDist: 1.5, waitLimit: 3 };
 const ENEMIES = {
   enemy_elite: enemyRec({ key: 'enemy_elite', rank: 'ELITE', hp: 1e7, speed: 0, def: 0 }),
   enemy_norm: enemyRec({ key: 'enemy_norm', hp: 1e6, speed: 0, def: 0 }),
@@ -58,7 +58,7 @@ test('the side enemies are shoved and hit, a friendly operator never is, and eve
   k.mem.sk.beginLanding(5, 10, [0, 1]);
   const y0 = side.y;
   const phases = [];
-  h.runUntil((b) => { const p = k.mem.sk.phase; if (phases[phases.length - 1] !== p) phases.push(p); return b.time > 31; }, 40);
+  h.runUntil((b) => { const p = k.mem.sk.phase; if (phases[phases.length - 1] !== p) phases.push(p); return b.time > 36; }, 45);   // the leap at 25 s, its landing, then the official 5 s stance
   assert.ok(Math.abs(side.y - y0) > 0.5 || side.hp < side.s.maxHp, 'the side enemy was thrown or hit');
   assert.ok(elite.hp < elite.s.maxHp, 'the elite took the blow');
   const hurt = h.hooksOf('damaged').filter((c) => c.source === k && c.target.side === 'ally');

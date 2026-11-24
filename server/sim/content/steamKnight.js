@@ -184,14 +184,17 @@ export function steamKnightKit(bb, raw) {
 
       const startStance = () => {
         const c = cfg();
-        if (!has(c.dashSpeed) || !(c.dashSpeed > 0) || !has(c.stanceAfterLanding)) { endBunker(); return; }
-        setPhase('stance', { stanceDur: c.stanceAfterLanding });
+        if (!has(c.dashSpeed) || !(c.dashSpeed > 0)) { endBunker(); return; }
+        // the charge is the official stance clip at its own speed, all of it: he boosts only once it is done (the user,
+        // 2026-11-24: "His charge up for the boost should play that animation at the correct speed, and he only boost
+        // forward when he's actually ready") [src: official enm_art_17.ab enemy_1533_stmkgt.skel Skill_1_Begin_A 5 s]
+        const stanceDur = CLIP.stanceBeginLen;
+        setPhase('stance', { stanceDur });
         shield(false);   // the landing's invincibility ends with the landing clip
         bunker(true);
-        phaseFx('skStance', { dur: c.stanceAfterLanding, speed: c.stanceAfterLanding > 0 ? CLIP.stanceBeginLen / c.stanceAfterLanding : 1 });
-        // castDur: the official Zantetsuken window (its loops run from the stance to the end of the thrust clip) in s
-        battle.fx('steamKnight', { id: unit.id, kind: 'stance', x: unit.x, y: unit.y, castDur: c.stanceAfterLanding + CLIP.blowLen + CLIP.blowHit });
-        holdSound(c.stanceAfterLanding);
+        phaseFx('skStance', { dur: stanceDur });
+        battle.fx('steamKnight', { id: unit.id, kind: 'stance', x: unit.x, y: unit.y, castDur: stanceDur + CLIP.blowLen + CLIP.blowHit });
+        holdSound(stanceDur);
       };
       // the stance clip's own sound event: OnPlayAudio(zan_hold) at 2.5 s of the 5 s Skill_1_Begin_A [src: official
       // enm_art_17.ab enemy_1533_stmkgt.skel Skill_1_Begin_A events], at the same share of a faster stance
