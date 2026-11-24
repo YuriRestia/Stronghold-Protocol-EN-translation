@@ -13,7 +13,7 @@ import { startServer } from '../server/index.js';
 import { newsProblems, parseNews, newsEntry, NEWS_MAX_BYTES, NEWS_LINE_MAX } from '../shared/news.js';
 import { S2C } from '../shared/protocol.js';
 import { parseArgs as regionArgs, parseHosts, newsCommand, newsUploadCommand } from '../scripts/deploy-regions.mjs';
-import { updateNewsView, UPDATE_NEWS_ID, UPDATE_NEWS_PREF } from '../public/js/ui/matchSearch.js';
+import { noVersionBreak, updateNewsView, UPDATE_NEWS_ID, UPDATE_NEWS_PREF } from '../public/js/ui/matchSearch.js';
 import { rtClassName } from '../public/js/ui/richText.js';
 import { TestClient } from './helpers/wsClient.js';
 
@@ -73,6 +73,13 @@ describe('shared/news.js', () => {
 });
 
 describe('the banner (ui/matchSearch.js updateNewsView)', () => {
+  test('a version number keeps to one line: a word joiner after a hyphen between digits only', () => {
+    assert.equal(noVersionBreak('Update 0.3.4-2'), 'Update 0.3.4-⁠2');
+    assert.equal(noVersionBreak('0.3.4-2 更新'), '0.3.4-⁠2 更新');
+    assert.equal(noVersionBreak('US-East / 1 - 2 / A-1'), 'US-East / 1 - 2 / A-1');
+    assert.equal(noVersionBreak(null), '');
+  });
+
   test('no live news: the release\'s own announcement and id', () => {
     const v = updateNewsView(null, 'en');
     assert.equal(v.id, UPDATE_NEWS_ID);

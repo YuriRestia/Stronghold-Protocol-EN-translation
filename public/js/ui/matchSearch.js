@@ -56,6 +56,13 @@ export function updateNewsView(live, lang = getLang()) {
   return { id: UPDATE_NEWS_ID, title: t('0.3.4-2 更新'), highlights: UPDATE_HIGHLIGHTS.map((h) => t(h)), points: UPDATE_POINTS.map((p) => t(p)), rich: true };
 }
 
+/**
+ * The title with its version number kept on one line: a line may break after a hyphen, so "Update 0.3.4-2" at 特大 in a
+ * 1024 × 600 window broke inside the number; a word joiner (U+2060) after a hyphen between two digits stops that, and the
+ * line breaks at the space. Display only: the aria-label is the plain title.
+ */
+export const noVersionBreak = (text) => String(text ?? '').replace(/(\d)-(?=\d)/g, '$1-⁠');
+
 export function UpdateNews() {
   const live = useStore((st) => st.liveNews);
   const view = updateNewsView(live);
@@ -69,7 +76,7 @@ export function UpdateNews() {
     <div class="search-news__head">
       <${Icon} name="info" />
       <span class="search-news__tag">NEW</span>
-      <span class="search-news__title">${view.rich ? line(view.title) : view.title}</span>
+      <span class="search-news__title">${line(noVersionBreak(view.title))}</span>
       <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />
     </div>
     <div class="search-news__body" tabindex="0">
