@@ -119,14 +119,14 @@ export function steamKnightKit(bb, raw) {
       }, { owner: unit });
 
       // ---- every landing starts the bunker
-      sk.beginLanding = (x, y, dir) => {
+      sk.beginLanding = (x, y, dir, leap = false) => {
         sk.walk = null;
         battle.releaseBlocked(unit);
         unit.x = x; unit.y = y;
         shield(true);
         phaseFx('skDrop', { dur: CLIP.landLen });
         setPhase('drop', { dir, dur: CLIP.landLen, dash: null, target: null });
-        battle.fx('steamKnight', { id: unit.id, kind: 'landing', x, y });
+        battle.fx('steamKnight', { id: unit.id, kind: 'landing', x, y, leap });
       };
 
       const chooseTarget = (dir) => {
@@ -148,7 +148,8 @@ export function steamKnightKit(bb, raw) {
         if (!has(c.dashSpeed) || !(c.dashSpeed > 0) || !has(c.stanceAfterLanding)) { endBunker(); return; }
         setPhase('stance', { stanceDur: c.stanceAfterLanding });
         phaseFx('skStance', { dur: c.stanceAfterLanding, speed: c.stanceAfterLanding > 0 ? CLIP.stanceBeginLen / c.stanceAfterLanding : 1 });
-        battle.fx('steamKnight', { id: unit.id, kind: 'stance', x: unit.x, y: unit.y });
+        // castDur: the official Zantetsuken window (its loops run from the stance to the end of the thrust clip) in s
+        battle.fx('steamKnight', { id: unit.id, kind: 'stance', x: unit.x, y: unit.y, castDur: c.stanceAfterLanding + CLIP.blowLen + CLIP.blowHit });
       };
 
       const startDash = (target) => {
@@ -222,7 +223,7 @@ export function steamKnightKit(bb, raw) {
           if (!unit.alive || sk.phase !== 'leapUp') return;
           const spot = bestLanding();   // read again at the landing: the field has moved on
           if (!spot) { endBunker(); return; }
-          sk.beginLanding(spot.c, spot.r, spot.d);
+          sk.beginLanding(spot.c, spot.r, spot.d, true);
         }, { owner: unit });
         return true;
       };
