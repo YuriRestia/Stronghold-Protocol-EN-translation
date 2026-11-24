@@ -824,7 +824,7 @@ export class SpineActor {
    * the form's resting clip (予愿安洁莉娜 S2's Skill_2_Takeoff_End, which ends faded out high above her, goes straight on
    * to the chant's `_afterEndAnim` Skill_2_Begin: a resting frame between them showed her for a frame).
    */
-  setForm(roles, change = null, end = null, hold = false) {
+  setForm(roles, change = null, end = null, hold = false, fit = 0) {
     const anims = this._baseRoles();
     this.formRoles = roles || null;   // kept over a later skill slot (_applyRoles)
     this.roles = roles ? { ...anims, ...roles } : anims;
@@ -835,7 +835,7 @@ export class SpineActor {
       this.endAt = this.clock + Math.max(0, end.in - this.dur(end.clip));
       this.endRoles = end.roles || null;
     }
-    if (change && this.has(change)) this._change(change, hold);
+    if (change && this.has(change)) this._change(change, hold, fit);
     else if (this.mode === 'change' && this.changeUntil === Infinity) { this.mode = 'base'; this._play(this._baseName(), true); }
     else if (this.mode === 'base') this._play(this._baseName(), true);
     else if (this.mode === 'stun' && this.has(this.roles.stun?.loop)) this._play(this.roles.stun.loop, true);
@@ -882,12 +882,14 @@ export class SpineActor {
    * Play a form's transition clip once; attacks and the resting state wait for it (mode 'change') — with `hold`, on its
    * last frame until the next setForm.
    */
-  _change(clip, hold = false) {
+  _change(clip, hold = false, fit = 0) {
     if (this.mode !== 'change') this.stunWanted = this.mode === 'stun';
     this.frozen = false;
     this.mode = 'change';
-    this._play(clip, false, { mix: 0.08 });
-    this.changeUntil = hold ? Infinity : this.clock + this.dur(clip);
+    // (fork) `fit` (game s): the clip is played faster or slower so that it ends in `fit` s (the Steam Knight's stance)
+    const ts = fit > 0 ? this.dur(clip) / fit : 1;
+    this._play(clip, false, ts !== 1 ? { mix: 0.08, timeScale: ts } : { mix: 0.08 });
+    this.changeUntil = hold ? Infinity : this.clock + (fit > 0 ? fit : this.dur(clip));
   }
 
   has(name) { return !!name && this.names.has(name); }

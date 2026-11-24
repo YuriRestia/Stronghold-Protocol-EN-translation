@@ -159,6 +159,7 @@ import { FxSystem, ensureDamageFonts, projSpeed } from './fx.js';
 import { OfficialFx } from './vfx/system.js';
 import { FxWiring } from './vfx/wiring.js';
 import { PluginFxPlayer } from './vfx/pluginPlayer.js';
+import { createSteamKnightFx } from './steamKnightFx.js';
 import { resolveOfficialFx, touchDevice } from './vfx/tier.js';
 import { crowdIntervals, IMPOSTOR_BASE, SPRITE_ANIM_MODES, createLoadMeter, startBattleLoad, stepLoad } from './crowd.js';
 import { NoteLayer } from './fx/notes.js';
@@ -487,6 +488,11 @@ export async function createFieldView(host, options = {}) {
     view: (id) => views.get(id) || null,
   });
   ctx.ofx = ofx;
+  // (fork) the Steam Knight slice's pile bunker look (render/steamKnightFx.js, dev sandbox): its official files load on demand
+  const skFx = createSteamKnightFx({
+    fx, ofx, wiring, views, audio: () => ctx.audio,
+    preload: (keys) => { if (ofx.active) ofx.lib.preload(keys, { half: ofx.lite }).then(() => ofx.warm?.(keys), () => {}); },
+  });
   // (fork, enemy sound audit) an enemy skill's impact effect starting: that skill's official impact sound
   ofx.onSpawn = (k) => ctx.audio?.fxKey?.(k);
   // (fork) a unit's official skin (index.json skins) for its sort depth (units.js skinPlaneDepth); undefined until the index is in
@@ -1916,6 +1922,7 @@ export async function createFieldView(host, options = {}) {
         // 推拉: a push / pull (battle/displacement.js) moves the enemy inside one call; its `displace` fx carries the
         // destination ['fx', 'displace', x, y, { id }] and the view slides there (UnitView.slideTo, PR #380) — normally
         // started already by syncBattle's look-ahead, which this repeats harmlessly
+        if (e[1] === 'steamKnight') skFx.play(Number(e[2]), Number(e[3]), e[4]);
         if (e[1] === 'displace') {
           const d = e[4] && typeof e[4] === 'object' ? e[4] : null;
           const v = d && d.id != null ? views.get(d.id) : null;
@@ -2208,6 +2215,7 @@ export async function createFieldView(host, options = {}) {
       if (!penHidden) for (const v of penViews.values()) v.update(udt, cam, clock);
       if (leader && !leaderHidden) leader.view.update(udt, cam, clock);
       tiles.update(dt);
+      skFx.frame();
       fx.update(udt);
       stepClipBounds(clipBoundsBudget(workRaw));   // (fork) a larger share of a slow frame (its own sampling not counted)
       sampledMs = clipBoundsSpentMs();
@@ -2364,6 +2372,8 @@ export async function createFieldView(host, options = {}) {
       const p = canvasPoint({ clientX, clientY });
       return pieceAt(p.x, p.y)?.uid ?? null;
     },
+    /** (fork) Load the Steam Knight slice's official effect files ahead of the battle (dev sandbox). */
+    preloadSteamKnightFx() { skFx.ensure(); },
     pieceScreenRect(uid) {
       let v = views.get('p:' + uid);
       if (!v) for (const x of views.values()) if (x.uid === uid || x.info?.uid === uid || x.id === uid) { v = x; break; }

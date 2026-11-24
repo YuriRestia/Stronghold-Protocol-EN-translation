@@ -1583,6 +1583,27 @@ export class AudioManager {
     if (typeof p?.url === 'string') this._playBank(p.url, p.pool, UNIT_BASE_GAIN);
   }
 
+  /**
+   * (fork) The Steam Knight slice's sounds (dev sandbox, render/steamKnightFx.js), from the files the manifest already
+   * lists for enemy_1533_stmkgt (sfx.units) and its Zantetsuken: the stance's ON_ABILITY_START (e_atk_stmwpn_d1), the hold
+   * of the dash (spine event zan_hold: e_atk_stmwpn_d2), the blow's ON_ABILITY_ON (e_imp_stmwpn_d) and the skill hit
+   * (e_imp_stmkgt_h1), a shove's normal hit (e_imp_stmwpn_n). The official second hit (e_imp_stmkgt_h2) and the death
+   * sound (e_atk_stmkgtdie) are in neither local client: absent.
+   * @param {'stance'|'dash'|'impact'|'landing'|'shove'} kind
+   */
+  playSteamKnight(kind) {
+    const E = '/assets/audio/sfx/enemy/';
+    const H1 = { url: `${E}e_imp/e_imp_stmkgt_h1.mp3`, pool: 'battle.ON_PROJECTILE_HIT.projectile_enemy_vtsk_s' };
+    const PARTS = {
+      stance: [{ url: `${E}e_atk/e_atk_stmwpn_d1.mp3`, pool: 'battle.ON_ABILITY_START.enemy_1533_stmkgt.Zantetsuken' }],
+      dash: [{ url: `${E}e_atk/e_atk_stmwpn_d2.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_10027_vtsk.zan_hold' }],
+      impact: [{ url: `${E}e_imp/e_imp_stmwpn_d.mp3`, pool: 'battle.ON_ABILITY_ON.enemy_1533_stmkgt.Zantetsuken' }, H1],
+      landing: [H1],
+      shove: [{ url: `${E}e_imp/e_imp_stmwpn_n.mp3`, pool: 'battle.ON_ABILITY_HIT.enemy_1533_stmkgt.combat' }],
+    };
+    for (const p of PARTS[kind] || []) this._castPart(p);
+  }
+
   _playParts(e, gain) {
     for (const p of [e, ...(Array.isArray(e?.also) ? e.also : [])]) {
       if (typeof p?.url !== 'string') continue;

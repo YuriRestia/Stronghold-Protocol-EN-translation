@@ -554,6 +554,17 @@ export const FORMS = Object.freeze({
     Melee: Object.freeze({ change: 'Change_A', combat: 'A_Combat', roles: { ...clipSet('A_Idle', null, 'Die', 'A_Attack'), deploy: 'A_Start', stun: loop('A_Stun'), attackDown: null } }),
     Range: Object.freeze({ change: 'Change_B', combat: 'B_Combat', roles: { ...clipSet('B_Idle', null, 'B_Die', 'B_Attack'), deploy: 'B_Start', stun: loop('B_Stun'), attackDown: null } }),
   }),
+  // (fork) the Steam Knight slice (sim content/steamKnight.js, the 'phase' fx forms): the official clips of enm_art_17's
+  // first-form set — the landing Skill_2_End_A (1.5 s), the stance Skill_1_Begin_A (5 s, played to fit the fx `dur`: `fit`)
+  // held until the dash, Boost_A held while he boosts, the blow Skill_1_Attack_A (2.5 s) and the take-off Skill_2_Begin_A
+  // (1.2 s) held while he is away
+  enemy_1533_stmkgt: Object.freeze({
+    skDrop: Object.freeze({ change: 'Skill_2_End_A', roles: Object.freeze({}) }),
+    skStance: Object.freeze({ change: 'Skill_1_Begin_A', hold: true, fit: true, roles: Object.freeze({}) }),
+    skDash: Object.freeze({ change: 'Boost_A', hold: true, roles: Object.freeze({}) }),
+    skBlow: Object.freeze({ change: 'Skill_1_Attack_A', roles: Object.freeze({}) }),
+    skLeapUp: Object.freeze({ change: 'Skill_2_Begin_A', hold: true, roles: Object.freeze({}) }),
+  }),
   enemy_9011_acrefr: Object.freeze({
     stopped: Object.freeze({ change: null, roles: clipSet('B_Idle', 'B_Move', 'B_Die', 'B_Attack') }),
   }),
@@ -1350,7 +1361,7 @@ export class UnitView {
     // an fx handed out late (render/app.js: a stall, a hidden tab) skips a change clip that would already have ended
     const late = fx && Number(fx.late) > 0 ? Number(fx.late) : 0;
     const change = f && f.change && !(late > 0 && late >= (this.actor.dur?.(f.change) ?? Infinity)) ? f.change : null;
-    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold);
+    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold, f.fit && dur > 0 ? dur : 0);
     else if (prev) this.actor.setForm(null, prev.leave && !(late > 0 && late >= (this.actor.dur?.(prev.leave) ?? Infinity)) ? prev.leave : null);
   }
 

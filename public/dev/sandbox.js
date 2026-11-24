@@ -87,6 +87,7 @@ import { isOutfitOf } from '../../shared/outfits.js';
 import { diySlotIds, diySlot, diyPool, diyRecord, isPrototypePick, lockedSelection } from '../../shared/diy.js';
 import * as W from './sandbox-waves.js';
 import * as V from './sandbox-variants.js';
+import { mountSteamKnightPanel } from './sandbox-steamknight.js';
 import { renderOverlay, operatorGroups, itemGroups, HoldControls } from './sandbox-ui.js';
 import { DIRS, EQUIP_SLOTS, parseUnits, parseTokens, unitsParam, battleUnit, skillSpOf, sandboxZoom, leftOutReason, matchUnitsByOperator, holdSkill } from './sandbox-units.js';
 import { MODULE_NONE, chessOptions, pickChoices, defaultPick } from './sandbox-loadout.js';
@@ -312,6 +313,9 @@ async function main() {
   $('impostors').checked = q.get('imp') !== '0';
   $('legacy').checked = q.get('legacy') === '1';
   $('note-ours').checked = q.get('notes') === 'ours';
+  // (fork) the Steam Knight slice: its flag and panel values (sandbox-steamknight.js); off, the battle is the vanilla one
+  const skPanel = mountSteamKnightPanel($('sk-panel'), q, () => sync());
+  if (skPanel.cfg()) $('sk-box').open = true;
 
   const stage = data.lookup('stages', template.spec.stageId);
   // the deploy field of a wave: the normal board, or the own (left) half of the boss field (Final Assault / Hidden Core)
@@ -538,6 +542,7 @@ async function main() {
     if ($('impostors').checked) p.delete('imp'); else p.set('imp', '0');
     if ($('legacy').checked) p.set('legacy', '1'); else p.delete('legacy');
     if ($('note-ours').checked) p.set('notes', 'ours'); else p.delete('notes');
+    skPanel.write(p);
     for (const [k, v] of [['layers', layers], ['bonus', bonus]]) { const s = countsParam(v); if (s) p.set(k, s); else p.delete(k); }
     p.delete('fight');
     history.replaceState(null, '', `${location.pathname}?${p}`);
@@ -1407,6 +1412,9 @@ async function main() {
     spec.spawns = wave.spawns.map((s) => ({ ...JSON.parse(JSON.stringify(s)), ownerPlayerId: owners.has(s.ownerPlayerId) ? s.ownerPlayerId : myId }));
     // a boss field has no time limit (the leader's pool decides); a normal one ends a minute after the last spawn
     spec.timeLimit = onBoss(template) ? template.spec.timeLimit : W.waveTimeLimit(wave);
+    // (fork) the Steam Knight slice: the flag and its panel values ride in the spec's flags (sim content/steamKnight.js)
+    const skCfg = skPanel.cfg();
+    if (skCfg) { spec.flags = { ...(spec.flags || {}), steamKnight: skCfg }; view.preloadSteamKnightFx?.(); }
     const me = spec.players[0];
     skinByUid.clear();
     for (const u of board) if (u.skin) skinByUid.set(uidOf(u), u.skin);
