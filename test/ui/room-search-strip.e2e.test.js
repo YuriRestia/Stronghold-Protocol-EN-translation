@@ -80,7 +80,8 @@ describe('the room\'s 搜寻队友 switch (real server, headless Chrome)', { ski
       painted: Object.fromEntries(['.searchbar__label', '.searchbar__state'].map((s) => [s, painted(s)])),
       above: (() => {
         const a = sw.getBoundingClientRect(), g = document.querySelector('.rs-foot__right .rs-go').getBoundingClientRect();
-        return { column: sw.parentElement === document.querySelector('.rs-foot__right'), gap: Math.round(g.top - a.bottom), left: Math.round(a.left - g.left), right: Math.round(a.right - g.right) };
+        return { column: sw.parentElement === document.querySelector('.rs-foot__right'), gap: Math.round(g.top - a.bottom), left: Math.round(a.left - g.left), right: Math.round(a.right - g.right),
+          beside: Math.round(g.left - a.right), offCentre: Math.round(Math.abs((a.top + a.bottom) / 2 - (g.top + g.bottom) / 2)) };
       })(),
       besides: document.querySelector('.rs-foot__right').children.length,
       unpositioned: [...document.querySelector('.room-screen').children]
@@ -109,8 +110,14 @@ describe('the room\'s 搜寻队友 switch (real server, headless Chrome)', { ski
           assert.equal(s.checked, 'true');
           assert.deepEqual(s.painted, { '.searchbar__label': true, '.searchbar__state': true }, 'the switch\'s text is under .rs__bg');
           assert.equal(s.above.column, true, 'the switch sits in the button\'s column');
-          assert.ok(s.above.gap >= 0 && s.above.gap <= 12, `directly above the button (gap ${s.above.gap} px)`);
-          assert.ok(Math.abs(s.above.left) <= 1 && Math.abs(s.above.right) <= 1, `as wide as the button (${s.above.left}, ${s.above.right})`);
+          if (screen === 'phone') {
+            // (fork) a short landscape phone from 721 px wide: beside the big button, so the cards get the height (design/client.md)
+            assert.ok(s.above.beside >= 0 && s.above.beside <= 12, `beside the button (gap ${s.above.beside} px)`);
+            assert.ok(s.above.offCentre <= 2, `level with the button (${s.above.offCentre} px off centre)`);
+          } else {
+            assert.ok(s.above.gap >= 0 && s.above.gap <= 12, `directly above the button (gap ${s.above.gap} px)`);
+            assert.ok(Math.abs(s.above.left) <= 1 && Math.abs(s.above.right) <= 1, `as wide as the button (${s.above.left}, ${s.above.right})`);
+          }
           assert.equal(s.besides, 2, 'only the switch and the button: no description beside them');
           assert.equal(await page.$('.room-screen > .searchbar, .room-screen .searchbar'), null, 'nothing of the old strip in the room\'s centre');
           assert.deepEqual(s.unpositioned, [], 'a child of the screen .rs__bg paints over');

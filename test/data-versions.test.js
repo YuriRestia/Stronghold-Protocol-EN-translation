@@ -252,6 +252,44 @@ test('data/: today\'s season keeps 丰川祥子 as an owned 自选 pick (only th
   assert.ok(backups.diy.ownedPool.includes('char_4182_oblvns') && !backups.diy.excluded.includes('char_4182_oblvns'));
 });
 
+// (fork, user decisions of 2026-11-24) leaders take 侵蚀 in every version (content/bosses.js): tools/build-data.mjs
+// DROPPED_TIPS leaves the CN act1autochess tip that says otherwise out of config.tips, and nothing else.
+const CORROSION_TIP = '最终攻势中，敌方领袖不会受到侵蚀损伤';
+test('config.tips: no version says leaders take no 侵蚀; 22 tips in both 第一期 versions, 21 in 第二期, the English texts on the right tips', () => {
+  const counts = {};
+  for (const v of VERSIONS) {
+    const dir = join(ROOT, 'data', v.dir);
+    const { tips } = readJson(dir, 'config');
+    counts[v.id] = tips.length;
+    assert.ok(tips.every((x) => x.tip && x.weight > 0), v.id);
+    assert.ok(!tips.some((x) => /侵蚀/.test(x.tip)), `${v.id}: the tip is out`);
+    const en = readJson(join(dir, 'i18n'), 'en').files.config.tips;
+    // the overlay goes by a tip's number: none past the end, and each after the dropped one moved with its tip. 第一期's
+    // 「升至5级后开始售卖装备」 has no English text (the current EN tables dropped it)
+    const missing = tips.map((x, i) => i).filter((i) => !en[i]);
+    assert.deepEqual(missing.map((i) => tips[i].tip), v.season === 'act1autochess' ? ['调度中心会在升至5级后开始售卖装备'] : [], v.id);
+    assert.ok(Object.keys(en).filter((k) => /^\d+$/.test(k)).every((k) => tips[k]), `${v.id}: no English text without its tip`);
+    const at = tips.findIndex((x) => x.tip === '达成特定的条件，可在最终攻势后解锁隐秘核心');
+    assert.equal(at, tips.length - 1, `${v.id}: the Hidden Core tip is the last one`);
+    assert.match(en[at].tip, /Hidden Core/, v.id);
+  }
+  assert.deepEqual(counts, { act2autochess: 21, 'act2autochess@V2_1': 21, act1autochess: 22, 'act1autochess@V1_1': 22 });
+});
+
+test('config.tips: the official gameTipsList without that tip, in its order', { skip: process.env.DATA_DIR && 'DATA_DIR set' }, async (t) => {
+  let seen = 0;
+  for (const v of OTHERS) {
+    const { profile } = await loadProfile(v.id);
+    const raw = join(ROOT, '.cache', `gamedata@${profile.pins.activity ?? profile.pins.default}`, 'excel', 'activity_table.json');
+    if (!existsSync(raw)) continue;
+    seen++;
+    const list = Object.values(JSON.parse(readFileSync(raw, 'utf8')).autoChessData.gameTipsList).map((x) => ({ tip: x.tip.trim(), weight: x.weight }));
+    assert.equal(list.some((x) => x.tip === CORROSION_TIP), v.season === 'act1autochess', `${v.id}: only 第一期 lists it`);
+    assert.deepEqual(readJson(join(ROOT, 'data', v.dir), 'config').tips, list.filter((x) => x.tip !== CORROSION_TIP), v.id);
+  }
+  if (!seen) t.skip('no cached official data');
+});
+
 // 第二期上半's records that keep today's id but differ from today's data (DESIGN §35.22.5 lists each). Today's data is V2_2
 // with the 04-14 level and text fixes (86da4cfa) and the modules added after 03-14, so the list is not only V2_2's. A
 // rebuild that changes one of the compared fields fails here, and the hand-written list is reviewed with the new set.
