@@ -699,7 +699,6 @@ function kitGun(ab, e, b) {
   const step = T(ab, '2.attack_speed') ?? 0, maxN = T(ab, '2.max_stack_cnt') ?? 0;
   const maxValid = T(ab, '2.max_valid_stack_cnt') ?? -1;
   const P = { last: null, n: 0, charge: null, R: 0, p: 0, castEnd: -Infinity, swAt: null, struck: false, aim: null };
-  const range = () => e.base.rangeRadius || 2;
   const setAspd = (b2) => b2.addBuff(e, { key: 'boss:aspd', persist: true, mods: { aspd: step * (maxValid >= 0 ? Math.min(P.n, maxValid) : P.n) } });
   const s1 = ab.sk['1'], s2 = ab.sk['2'], s3 = ab.sk['3'];
   const groundTargets = (b2) => allTargets(b2, e).filter((u) => u.ground);
@@ -746,7 +745,9 @@ function kitGun(ab, e, b) {
     if (e2.swing && P.swAt == null) {
       P.swAt = b2.time; P.struck = false;
       P.R = e2.s.interval; P.castEnd = b2.time + Math.min(e2.s.interval, clipDur);
-      P.aim = targetsNear(b2, e2, range()).sort((p, q) => q.s.def - p.s.def || aggroCmp(p, q))[0] ?? e2.swingTargets?.[0] ?? null; // 优先攻击防御力最高的单位
+      // 优先攻击防御力最高的单位, among everyone in reach (until §37.110 within 2 of its centre only: the reach takes the
+      // allies' colliders too, ai.js attackTargets, so one in the last 0.25 was passed over)
+      P.aim = (e2.swingTargets || []).slice().sort((p, q) => q.s.def - p.s.def || aggroCmp(p, q))[0] ?? null;
     }
     if (e2.swing) return;
     if (P.swAt != null) {

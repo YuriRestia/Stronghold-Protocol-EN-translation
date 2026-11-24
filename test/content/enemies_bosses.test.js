@@ -3349,7 +3349,8 @@ for (const key of ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc'
 }
 
 test('spring count sharing retains acquisition position through defence regeneration [ASSUMED initial grant order]', () => {
-  const { h, b, spring } = springShareArena('enemy_9020_actrpc');
+  const { h, b, gun, spring } = springShareArena('enemy_9020_actrpc');
+  gun.mem.ab.list.find((a) => a && a.fire && a.cd === skb('enemy_9017_achunt_2', '2').cooldown).left = Infinity;   // no call: the spring would be invulnerable while it chases
   const before = b.sharedBoss.hp, count = spring.findBuff('boss:springShield').shieldHits;
   for (let i = 0; i < count; i++) b.dealDamage({ target: spring, amount: 100, type: 'true' });
   assert.equal(b.sharedBoss.hp, before, 'first acquired defence cancels before the assumed later passive');

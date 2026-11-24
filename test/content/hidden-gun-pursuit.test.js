@@ -301,6 +301,19 @@ test('铳: a shot\'s target is the highest DEF as its cast starts; the hit count
   assert.equal(h.b.errorCount, 0);
 });
 
+test('铳: the highest DEF counts over the whole reach, the allies\' colliders included', () => {
+  const { h, gun, wall } = stalled({ speedMul: 0, left: Infinity });
+  const other = h.allies().find((u) => u !== wall);
+  wall.x = wall.tileC = 9; wall.y = wall.tileR = 4;                           // 1 tile away
+  other.base.def += 500; other.markDirty?.();
+  other.x = gun.x - 2.2; other.y = gun.y;                                     // 2.2 away: its 0.25 collider reaches into the range of 2
+  other.tileC = 8; other.tileR = 4;
+  const hit = [];
+  h.b.on('attack', (c) => { if (c.attacker === gun) hit.push(...c.targets); });
+  assert.ok(h.runUntil(() => hit.length, 30));
+  assert.equal(hit[0], other, 'the higher DEF at the edge');
+});
+
 test('隐秘核心铳: losing its target keeps the stacks; nothing but a hit on another one clears them', () => {
   const { h, gun, wall } = stalled({ left: Infinity });
   assert.ok(h.runUntil(() => gun.s.aspd === 20 + 5 * STEP, 60));
