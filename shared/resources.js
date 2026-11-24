@@ -21,6 +21,21 @@ export const CACHE_NAME = 'sp-resources-v1';
 export const PACKS_PATH = '/__sp-resource-packs__';
 /** Files above this are never preloaded (they stream as before). */
 export const MAX_FILE_BYTES = 24 * 1024 * 1024;
+/**
+ * (fork) The most files a manifest may list: the client refuses more (a broken list must not hammer the origin). On
+ * 2026-11-24 the art lists 56 084 files without the Live2D cards (below) and 70 608 with them; a listed file costs about
+ * 19 bytes gzipped and 1 µs of parsing [measured 2026-11-24, Node 24 on the user's PC: 56 084 files are 1.04 MB gzipped and
+ * 54 ms, 70 608 are 1.33 MB and 71 ms], so 100 000 files is at most about 1.9 MB and 0.1 s there, and leaves room for
+ * three more additions the size of the Live2D cards. server/resources.js warns when a list is over it.
+ */
+export const MAX_MANIFEST_FILES = 100_000;
+/**
+ * (fork) The Live2D card illustrations (14 524 files, 616 MB on 2026-11-24), which are never preloaded (the user,
+ * 2026-11-24: raise the limit and keep them out): a card's files load when its card shows, as a match's do.
+ */
+const NOT_PRELOADED = '/assets/local/dynillust/';
+/** Whether a preload manifest lists the file at this site path (its size is the server's own check). */
+export const isPreloadFile = (path) => !String(path || '').startsWith(NOT_PRELOADED);
 /** Hex digits of the SHA-1 prefix every manifest entry carries. */
 export const HASH_LEN = 12;
 
@@ -104,7 +119,8 @@ export function formatBytes(n) {
 export function parseManifest(doc) {
   if (!doc || typeof doc !== 'object' || doc.format !== RESOURCES_FORMAT) throw new Error('unsupported resource manifest');
   if (typeof doc.version !== 'string' || !doc.version) throw new Error('resource manifest has no version');
-  if (!Array.isArray(doc.files) || doc.files.length > 60000) throw new Error('resource manifest has no file list');
+  if (!Array.isArray(doc.files)) throw new Error('resource manifest has no file list');
+  if (doc.files.length > MAX_MANIFEST_FILES) throw new Error(`resource manifest lists too many files: ${doc.files.length}`);
   const hashRe = new RegExp(`^[0-9a-f]{${HASH_LEN}}$`);
   const files = doc.files.map((e) => {
     const [path, size, hash] = Array.isArray(e) ? e : [];
