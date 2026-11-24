@@ -65,20 +65,21 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         case 'landing': {
           // the steam stays on him from the first drop (Boost: always on): the official loop on his own mount point
           if (v && id != null && !boosted.has(id) && has('stmkgt_presure_buff_01')) { boosted.add(id); wiring.playOn?.('stmkgt_presure_buff_01', v, { loop: true }); }
-          sound('landing');
           // a leap's landing is the end of its official window (DownToTile, on his own position); the first drop plays it here
           if (!(d.leap && leapOk.get(id))) {
             if (!official('stmkgt_skill_02_end_01', x, y)) fx.ring(x, y, 0, 0.2, 2.4, STEAM, 0.6, 'shock');
           }
-          // weight (the user, 2026-11-24: "the landing needs more oomph"): his official revive burst and the leap's ground
-          // hit layered in, cut short, and a camera shake as he touches down (the landing clip's last third)
-          setTimeout(() => {
-            brief('stmkgt_reborn_02', x, y, 1.2);
-            brief('stmkgt_skill_02_hit_02', x, y, 0.7);
-            shake?.(0.16, 0.4);
-          }, 900);
           break;
         }
+        case 'touchdown':
+          // his feet hit the ground (the sim times it on the landing clip's touchdown, 0.4 s in): the landing sound, his
+          // official revive burst and the leap's ground hit layered in, cut short, and the camera shake (the user,
+          // 2026-11-24: "the landing needs more oomph"; the shake came late when it was timed on the wall clock)
+          sound('landing');
+          brief('stmkgt_reborn_02', x, y, 1.2);
+          brief('stmkgt_skill_02_hit_02', x, y, 0.7);
+          shake?.(0.16, 0.4);
+          break;
         case 'leapUp': {
           // the official HeroBomb window (slot 2 of his record): FlyToMoon's start effects now, DownToTile's end at its end
           const ok = !!(v && wiring.enemyCast?.(v, 2, 1.2));

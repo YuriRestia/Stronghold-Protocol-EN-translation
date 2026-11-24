@@ -30,6 +30,7 @@ const CLIP = Object.freeze({
   blowHit: 0.7,           // Skill_1_Attack_A strike frame 0.7 s (spineLocal.hits)
   leapUpLen: 1.2,         // FlyToMoon: Skill_2_Begin_A 1.2 s
   landLen: 1.5,           // DownToTile: Skill_2_End_A 1.5 s (the only landing clip)
+  landTouch: 0.4,         // its touchdown: bone Common's translate falls from 4952 to 0 at key 0.400 (skel Skill_2_End_A)
 });
 // Zantetsuken [src: official enemy_database enemy_1533_stmkgt skills Zantetsuken]: times 3, atk_scale 1.25, spCost 4
 const ZAN_TIMES = 3, ZAN_SCALE = 1.25, ZAN_SP = 4;
@@ -139,6 +140,8 @@ export function steamKnightKit(bb, raw) {
         phaseFx('skDrop', { dur: CLIP.landLen });
         setPhase('drop', { dir, dur: CLIP.landLen, dash: null, target: null });
         battle.fx('steamKnight', { id: unit.id, kind: 'landing', x, y, leap });
+        // the moment his feet hit the ground (the clip's touchdown): the impact look and the shake hang on it
+        battle.after(CLIP.landTouch, () => { if (unit.alive) battle.fx('steamKnight', { id: unit.id, kind: 'touchdown', x, y }); }, { owner: unit });
       };
 
       const chooseTarget = (dir) => {
