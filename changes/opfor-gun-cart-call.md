@@ -7,6 +7,7 @@
   [src: official enm_pfb_28.ab enemy_9017_achunt Skills/2]
 - Before: it kept shooting through its own call at full attack speed, and could stand forever on an operator it could not
   kill.
+- The gun now plays its own calling animation during the call.
 - The next call comes 45 s after the last one ended, not 45 s after it began. [src: official level_act1autochess_h08_02.json enemy_9017_achunt_2 skill 2]
 
 Kind: player

@@ -202,12 +202,14 @@ test('隐秘核心铳: the call takes the attack\'s turn — it waits for the sw
   assert.ok(Math.abs(before.at(-1).x - before.at(-60).x) < 1e-9 && Math.abs(before.at(-1).y - before.at(-60).y) < 1e-9, 'stalled on its target');
   const n = gun.stats.attacks, x = gun.x, y = gun.y, t0 = h.b.time;
   assert.equal(gun.swing, false, 'between two attacks');
+  assert.equal(gun.form, 'call', 'the model plays its Skill_2 clips (units.js FORMS)');
   h.run(DOG - h.TICK * 2);
   assert.equal(gun.stats.attacks, n, 'no attack during the cast');
   assert.deepEqual([gun.x, gun.y], [x, y], 'no step during the cast');
   assert.ok(gun.findBuff('ab:channel'));
   h.run(h.TICK * 4);
   assert.ok(!gun.findBuff('ab:channel'), `over after ${DOG} s (from ${t0})`);
+  assert.equal(gun.form, null);
   assert.equal(h.b.errorCount, 0);
 });
 

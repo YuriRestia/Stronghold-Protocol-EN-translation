@@ -79,7 +79,7 @@ import { normalizeRoute } from '../simdata.js';
 import {
   ensureInstalled, abOf, attach, T, elem, hurt, targetsNear, allTargets, byPriority, areaAllies, areaAlliesInTiles, fieldAllies,
   remainingRoute, stayRoute, stepToward, setHits, hitCount, lpLoss, blinkForward, canCast, unbalancedNow, nthOf,
-  castSlot, attackTurnSkill,
+  castSlot, attackTurnSkill, setForm,
 } from './enemies.js';
 import { hypot, powi } from '../detmath.js';
 import { damageAttackType, isHpLoss } from '../attack.js';
@@ -811,7 +811,14 @@ function kitGun(ab, e, b) {
       fire(b2, e2) { // 【末日布道】 springs chase 铳 for the whole 5 s gain, invulnerable, trampling operators (kitSpring)
         e2.swing = false; e2.swingTargets = null;
         if (castTime > 0) b2.addBuff(e2, { key: 'ab:channel', duration: castTime, flags: { disarm: true } });
-        e2.skillAnimUntil = b2.time + castTime;                              // display: Skill_2_Begin / Loop / End for the cast
+        // display: the model's Skill_2_Begin / Loop / End for the cast (units.js FORMS 'call'), ANIM.SKILL for its effects
+        e2.skillAnimUntil = b2.time + castTime;
+        setForm(b2, e2, 'call', 'phase', { dur: castTime });
+        b2.after(castTime, (b3) => {
+          if (!e2.alive || e2.form !== 'call') return;
+          e2.form = null;
+          b3.fx('phase', { x: e2.x, y: e2.y, id: e2.id, kind: 'call', form: null });
+        }, { owner: e2 });
         P.last = b2.enemies.filter((o) => o.alive && isSpring(o)).pop() ?? null; P.n = Math.min(maxN, 1);
         setAspd(b2);
         if (!P.charge) e2.atkCd = e2.s.interval + attackWindup(e2);          // the next swing may start one interval from here
