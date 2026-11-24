@@ -2757,15 +2757,32 @@ test(`${nm('enemy_10144_xdelk_2')}: 角力对决 — blocked ⇒ ${skb('enemy_10
 // ---------------------------------------------------------------------------------------------------------------
 // leaders: shared rules
 
-test('最终攻势: leaders take no 侵蚀 (erosion) damage; other enemies do', () => {
-  const h = bossArena();
-  h.step();
-  const e = put(h, 'enemy_9021_acduml', [3, 10], { tag: 'boss' });
-  const o = put(h, 'enemy_1007_slime', [3, 8]);
-  assert.equal(h.b.dealDamage(null, e, { type: 'element', element: 'erosion', amount: 5000 }), 0);
-  assert.equal(e.elem.erosion, 0);
-  assert.ok(h.b.dealDamage(null, e, { type: 'element', element: 'burn', amount: 100 }) > 0);
-  assert.ok(h.b.dealDamage(null, o, { type: 'element', element: 'erosion', amount: 100 }) > 0);
+// (fork, user decision 2026-11-24) the "领袖不会受到侵蚀损伤" tip is CN act1autochess only (content/bosses.js header)
+test('最终攻势: 侵蚀 (erosion) bursts on every leader at 2000: DEF −120 for good, 5000 元素伤害 to the pool, 8 s lock', () => {
+  const leaders = Object.keys(BOSS_KITS).filter((k) => E[k].rank === 'BOSS');
+  assert.ok(leaders.length >= 10);
+  for (const key of leaders) {
+    const h = bossArena({ hooks: ['elementBurst', 'damaged'], captureNoisy: true });
+    h.step();
+    const e = put(h, key, [3, 10], { tag: 'boss' });
+    h.run(0.5);
+    const def = e.s.def;
+    const fill = (amount) => h.b.dealDamage(null, e, { type: 'element', element: 'erosion', amount });
+    const bursts = () => h.hooksOf('elementBurst').filter((c) => c.target === e && c.element === 'erosion').length;
+    assert.equal(fill(1900), 1900, nm(key));
+    assert.equal(bursts(), 0, `${nm(key)}: 2000, not 1000`);
+    fill(100);
+    assert.equal(bursts(), 1, nm(key));
+    assert.equal(e.s.def, Math.max(0, def - 120), `${nm(key)}: DEF`);
+    const hit = h.hooksOf('damaged').filter((c) => c.target === e && c.dmg.element === 'erosion' && c.type === 'elemental');
+    assert.equal(hit.length, 1, nm(key));
+    assert.equal(hit[0].amount, 5000, nm(key));
+    assert.equal(fill(500), 0, `${nm(key)}: locked during the burst`);
+    h.run(8.2);
+    fill(2000);
+    assert.equal(bursts(), 2, `${nm(key)}: bursts again after the 8 s lock`);
+    assert.equal(e.s.def, Math.max(0, def - 240), `${nm(key)}: the DEF cut stacks`);
+  }
 });
 
 test('template overrides of talents/skills are honoured (卢西恩 evade 0.2 in act2autochess_h07_05)', () => {

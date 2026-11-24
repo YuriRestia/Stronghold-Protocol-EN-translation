@@ -58,7 +58,10 @@
 //                            ×(1−0.6), 2 targets; Doom at 600 s (LP −30). Targets via fairOrder (two players alternate).
 // The huge leaders (SELF_BOUND: 胄 ×2, 管 ×2, 昆图斯, 阿利斯泰尔, 萨米的意志 — the 巨型单位 with a data `hitArea`) are
 // 自缚 + 无法被阻挡 (PRTS 天赋): a persistent noMove + unblockable buff from spawn, so they never walk their route.
-// Every leader (tag boss) ignores 侵蚀 gauge damage ("最终攻势中，敌方领袖不会受到侵蚀损伤").
+// Leaders take 侵蚀 like every other element (fork, user decision 2026-11-24): the loading tip "最终攻势中，敌方领袖不会受到侵蚀损伤"
+// is in the CN act1autochess gameTipsList only, not in act2autochess's nor in Global's act1autochess list (activity_table
+// autoChessData.gameTipsList); the current client's boss prefabs, buff_table autochess_common_boss_buff and enemy_database
+// epResistance hold no such immunity.
 // An airborne (起飞) operator is no selection of a ground leader or part (对地规避: canTargetAlly, the damage pipeline,
 // the area selectors); still reach it (`ignoreSelect`): the 刺胄之弹 / 剑 / 锤 blasts (flying units, 无来源 DoT; 掷剑 /
 // 掷锤 pick their operator "（无视无法选择）"), the 盲信之誓 chains ("无视无法选择"), the 法术护盾 counter on its attacker
@@ -324,8 +327,6 @@ export function install(battle) {
   battle.on('enemySpawn', ({ enemy }) => onSpawn(battle, enemy), { priority: 90 });
   // Next tick, so opts.setup (run after install) has set the template and opts.bossMirror.
   battle.after(0, () => branchAtStart(battle));
-  // "最终攻势中，敌方领袖不会受到侵蚀损伤" (PRTS 卫戍协议：盟约/PRTS盟约记录 规则; research 06 §10.1): leaders ignore erosion gauge damage
-  battle.on('elementHit', (c) => { if (c.target && c.target.isBoss && c.dmg.element === 'erosion') c.dmg.cancel = true; }, { priority: 100 });
 }
 export function registerMeta() {}
 
