@@ -102,9 +102,17 @@ export function steamKnightKit(bb, raw) {
 
       const setPhase = (p, extra = {}) => { sk.phase = p; sk.t = 0; Object.assign(sk, extra); };
       const SHIELD = 'sk:untouchable';
+      // Invincible only in the air and at the landing: the official leap flags him invincible from take-off to landing
+      // [src: official buff stmkgt_invincible[hero_bomb]]. In the bunker (stance, dash, thrust) he can be hit but blocks
+      // nobody (his body is not on the tile his block sits on): `noBlock` alone.
+      const BUNKER = 'sk:bunker';
       const shield = (on) => {
         if (on && !unit.findBuff(SHIELD)) battle.addBuff(unit, { key: SHIELD, persist: true, allowDead: true, flags: { untargetable: true, invulnerable: true, noBlock: true } });
         if (!on && unit.findBuff(SHIELD)) battle.removeBuff(unit, SHIELD);
+      };
+      const bunker = (on) => {
+        if (on && !unit.findBuff(BUNKER)) battle.addBuff(unit, { key: BUNKER, persist: true, allowDead: true, flags: { noBlock: true } });
+        if (!on && unit.findBuff(BUNKER)) battle.removeBuff(unit, BUNKER);
       };
       const phaseFx = (kind, extra = {}) => battle.fx('phase', { x: unit.x, y: unit.y, id: unit.id, kind, form: kind, ...extra });
       const clearForm = () => battle.fx('phase', { x: unit.x, y: unit.y, id: unit.id, kind: 'skFight', form: null });
@@ -137,6 +145,7 @@ export function steamKnightKit(bb, raw) {
 
       const endBunker = () => {
         shield(false);
+        bunker(false);
         const spot = freeTileNear(battle, unit.x, unit.y, unit);
         if (spot) battle.relocate(unit, spot[0], spot[1]);
         clearForm();
@@ -147,6 +156,8 @@ export function steamKnightKit(bb, raw) {
         const c = cfg();
         if (!has(c.dashSpeed) || !(c.dashSpeed > 0) || !has(c.stanceAfterLanding)) { endBunker(); return; }
         setPhase('stance', { stanceDur: c.stanceAfterLanding });
+        shield(false);   // the landing's invincibility ends with the landing clip
+        bunker(true);
         phaseFx('skStance', { dur: c.stanceAfterLanding, speed: c.stanceAfterLanding > 0 ? CLIP.stanceBeginLen / c.stanceAfterLanding : 1 });
         // castDur: the official Zantetsuken window (its loops run from the stance to the end of the thrust clip) in s
         battle.fx('steamKnight', { id: unit.id, kind: 'stance', x: unit.x, y: unit.y, castDur: c.stanceAfterLanding + CLIP.blowLen + CLIP.blowHit });
