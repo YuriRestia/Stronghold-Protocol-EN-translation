@@ -251,6 +251,15 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           if (!(tv && has('stmkgt_skill_01_hit_01') && wiring.playOn?.('stmkgt_skill_01_hit_01', tv, {}))) official('stmkgt_skill_01_hit_01', x, y);
           break;
         }
+        case 'drag':   // he runs into a normal enemy and takes it along
+          sound('shove');
+          break;
+        case 'dragHit': {
+          // the boost's blow on one he dragged: the target's own hit effect (the blow's sound is the impact's)
+          const tv = d.target != null ? views.get(d.target) : null;
+          if (!(tv && has('stmkgt_skill_01_hit_01') && wiring.playOn?.('stmkgt_skill_01_hit_01', tv, {}))) official('stmkgt_skill_01_hit_01', x, y);
+          break;
+        }
         case 'shove': {
           sound('shove');
           const tv = d.target != null ? views.get(d.target) : null;

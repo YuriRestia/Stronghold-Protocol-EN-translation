@@ -19,6 +19,8 @@ const START = Object.freeze({
   shoveDist: 1.5,
   // [ASSUMED] push force 5 on the boost's target: the top of the official scale (特大力; Weedy's Liquid Nitrogen Cannon at mastery 3 is 3), so weight 0-2 goes 3.53 tiles, 3 → 2.96, 4 → 2.14, 5 → 1.7, 6 → 0.44; user OK 2026-11-24 ("come up with a push force number that feels satisfying")
   pushForce: 5,
+  // [ASSUMED] push force 3 on every enemy the Zantetsuken hits, less than the boost's: weight 0 goes 3.53 tiles, 1 → 2.96, 2 → 2.14, 3 → 1.7, 4 → 0.44 (2 moved round 13's weight-4 enemies 0.12, unseen), 5 → 0.12 (PUSH_TILES); user OK 2026-11-25 ("a lesser amount. Probably let me tune that attack push force")
+  zanPushForce: 3,
   // [ASSUMED] he blocks 1 enemy: the minimum that "he blocks" (user, 2026-11-24) can mean; the official enemy record has blockCnt 0; user OK 2026-11-24
   blockCnt: 1,
 });
@@ -30,7 +32,8 @@ const FIELDS = [
   ['sideDamage', 'Side damage', '× ATK', START.sideDamage, 0.05, 'start value, you set it: to each normal enemy the boost passes'],
   ['shoveDist', 'Side shove distance', 'tiles', START.shoveDist, 0.1, 'start value, you set it: how far a normal enemy is thrown aside'],
   ['pushForce', 'Push force on the boost hit', '', START.pushForce, 1, 'start value, you set it: the official force scale (-1 to 5); the distance is this less the enemy\'s weight, and bosses of a boss fight do not move'],
-  ['blockCnt', 'Enemies he blocks at once', '', START.blockCnt, 1, 'start value, you set it (the official enemy record has none)'],
+  ['zanPushForce', 'Push force on the Zantetsuken hit', '', START.zanPushForce, 1, 'start value, you set it: the same force scale as the boost\'s; empty = no push'],
+  ['blockCnt', 'Enemies he blocks at once (and drags along)', '', START.blockCnt, 1, 'start value, you set it (the official enemy record has none)'],
   // his stats (the user, 2026-11-24: "I would like to tune his stats"): these start at the OFFICIAL values
   // [src: official enemy_database enemy_1533_stmkgt level 0 attributes atk / maxHp / def / baseAttackTime]
   ['atk', 'ATK', '', 1600, 50, 'official value (enemy_database atk), yours to change', true],
@@ -57,7 +60,7 @@ export function readSteamKnightQuery(q) {
     const n = raw == null || raw === '' ? NaN : Number(raw);
     values[k] = Number.isFinite(n) && n >= 0 ? n : start;
   }
-  return { on: q.get('sk') === '1', resist: q.get('sk-resist') === '1', values };
+  return { on: q.get('sk') === '1', resist: q.get('sk-resist') === '1', drag: q.get('sk-drag') !== '0', values };
 }
 
 /** Build the panel's inputs into `host` and return { cfg(), write(params) }. */
@@ -72,6 +75,7 @@ export function mountSteamKnightPanel(host, q, onChange, onMusic) {
   };
   const on = mk('input', { type: 'checkbox', id: 'sk-on', checked: st.on });
   const resist = mk('input', { type: 'checkbox', id: 'sk-resist', checked: st.resist });
+  const drag = mk('input', { type: 'checkbox', id: 'sk-drag', checked: st.drag });
   host.append(
     mk('label', { className: 'sb-check' }, [on, ' Steam Knight joins the Victoria bond (6 members: he drops onto Vina Victoria, then fights for you)']),
     mk('p', { className: 'sb-hint', textContent: 'Dev slice, sandbox only. Needs 6 Victoria on the board. Round 13: ?map=act1autochess_m03&enemies=hard-normal-r13. Every number below has no official source: the starting values are yours to change.' }),
@@ -83,18 +87,19 @@ export function mountSteamKnightPanel(host, q, onChange, onMusic) {
     inputs[k] = inp;
     host.append(mk('label', { className: 'sb-check', title: hint }, [`${label} `, inp, unit ? ` ${unit}` : '', official ? ' (official, you can change it)' : ' (start value, you set it)']));
   }
+  host.append(mk('label', { className: 'sb-check' }, [drag, ' The boost drags normal enemies along (up to his block count); off: they are only shoved aside']));
   host.append(mk('label', { className: 'sb-check' }, [resist, " Second form's 30 % damage resistance (official reborn.damage_resistance), off by default"]));
   const music = mk('select', { id: 'sk-bgm' }, BGM.map(([v, label]) => mk('option', { value: v, textContent: label })));
   music.value = BGM.some(([v]) => v === q.get('sk-bgm')) ? q.get('sk-bgm') : BGM_START;
   host.append(mk('label', { className: 'sb-check' }, ['Music while he is on the field ', music]));
   // a pick while he is fighting changes the music at once
   music.addEventListener('change', () => onMusic?.());
-  for (const el of [on, resist, music, ...Object.values(inputs)]) el.addEventListener('change', () => onChange?.());
+  for (const el of [on, resist, drag, music, ...Object.values(inputs)]) el.addEventListener('change', () => onChange?.());
   return {
     /** The flag object for the BattleSpec (`spec.flags.steamKnight`), or null when off. */
     cfg() {
       if (!on.checked) return null;
-      const out = { enabled: true, secondFormResist: resist.checked };
+      const out = { enabled: true, secondFormResist: resist.checked, drag: drag.checked };
       // a cleared field is left out (that part off: the sim reads a missing value as off; Number('') would be 0)
       for (const [k] of FIELDS) {
         const raw = String(inputs[k].value).trim();
@@ -109,6 +114,7 @@ export function mountSteamKnightPanel(host, q, onChange, onMusic) {
       if (on.checked && music.value !== BGM_START) p.set('sk-bgm', music.value); else p.delete('sk-bgm');
       if (on.checked) p.set('sk', '1'); else p.delete('sk');
       if (resist.checked) p.set('sk-resist', '1'); else p.delete('sk-resist');
+      if (on.checked && !drag.checked) p.set('sk-drag', '0'); else p.delete('sk-drag');
       for (const [k, , , start] of FIELDS) {
         const n = Number(inputs[k].value);
         if (on.checked && Number.isFinite(n) && n !== start) p.set(`sk-${k}`, String(n)); else p.delete(`sk-${k}`);

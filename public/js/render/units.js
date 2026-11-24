@@ -1585,7 +1585,8 @@ export class UnitView {
    * (the sample in between is a lerp or a snap towards the destination). From then on it eases from there into the
    * sampled position — the destination, and the walk the enemy resumes from it —, so it lands without a jump. Without
    * `at` the destination counts as shown. A unit that dies on the way finishes the slide: its body lies where the push
-   * put it (the sim's position); a dead one is placed there, a knocked-down one is left to setDown.
+   * put it (the sim's position); a dead one is placed there, a knocked-down one is left to setDown. (fork) `corpse`: a
+   * body a kit pushes on purpose (content/steamKnight.js) slides while it is still falling.
    */
   slideTo(x, y, opts = {}) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
@@ -1594,7 +1595,8 @@ export class UnitView {
     if (this.down) { this.slide = null; return; }
     const dx = x - this.x, dy = y - this.y;
     const D = Math.hypot(dx, dy);
-    if (!this.alive || !(D > 0.05)) { this.x = x; this.y = y; this.slide = null; return; }
+    const slides = this.alive || (opts.corpse === true && this.dying > 0);
+    if (!slides || !(D > 0.05)) { this.x = x; this.y = y; this.slide = null; return; }
     const f = Number.isFinite(opts.friction) && opts.friction > 0 ? opts.friction : SLIDE_FRICTION;
     // the sim's 失衡 time (game s) at the playback rate; a slippery tile (f < 1) slides longer
     const rate = this.ctx.animRate?.() || 1;

@@ -151,6 +151,65 @@ test('the boost hit pushes a survivor by the force rule: a heavy enemy less, no 
   assert.equal(none, 0);
 });
 
+/** One boost along row 10 at an elite, with normal enemies in the lane; the state just before the blow and after the pushes. */
+function boost({ panel, eliteHp = 1e7, normHp = 1e6, lane = [7, 7.4] }) {
+  const h = makeBattle({
+    defs: { enemies: { ...ENEMIES, enemy_elite: enemyRec({ key: 'enemy_elite', rank: 'ELITE', hp: eliteHp, speed: 0, def: 0 }), enemy_norm: enemyRec({ key: 'enemy_norm', hp: normHp, speed: 0, def: 0 }) } },
+    timeLimit: 600, autoFinish: false, seed: 3, flags: { dpPerSec: 0, dpMax: 999, steamKnight: { ...PANEL, pushForce: 5, ...panel } }, units: [], enemies: [],
+  });
+  h.step();
+  const elite = h.spawn('enemy_elite', { pos: [10, 9] });
+  const norms = lane.map((x) => { const e = h.spawn('enemy_norm', { pos: [10, Math.round(x)] }); e.x = x; return e; });
+  const k = spawnSteamKnight(h.b, 'p1');
+  k.mem.sk.beginLanding(5, 10, [0, 1]);
+  h.runUntil(() => k.mem.sk.phase === 'dash', 20);
+  let before = null;
+  h.runUntil(() => { if (k.mem.sk.phase === 'dash') before = { elite: elite.x, norms: norms.map((e) => e.x), y: norms.map((e) => e.y), dragged: k.mem.sk.dash.dragged.length }; return k.mem.sk.phase === 'blow'; }, 5);
+  h.run(0.15);
+  assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+  return { h, k, elite, norms, before };
+}
+
+test('the boost drags normal enemies up to the block count; they take the blow and the push with the target', () => {
+  const { norms, elite, before } = boost({ panel: { blockCnt: 2, sideDamage: 0 } });
+  assert.equal(before.dragged, 2);
+  for (const [i, e] of norms.entries()) {
+    assert.ok(before.norms[i] > 7.5 && Math.abs(before.y[i] - 10) < 0.5, `carried along the lane (${before.norms[i]})`);
+    assert.ok(e.hp < e.s.maxHp, 'took the blow');
+    assert.ok(e.x > before.norms[i] + 0.5, `pushed on (${before.norms[i]} → ${e.x})`);
+  }
+  assert.ok(elite.hp < elite.s.maxHp && elite.x > before.elite + 0.5);
+  assert.equal(boost({ panel: { blockCnt: 1 } }).before.dragged, 1, 'no more than the block count');
+  assert.equal(boost({ panel: { blockCnt: 2, drag: false } }).before.dragged, 0, 'the panel turns it off');
+});
+
+test('the killed are pushed too: the target and the dragged leave bodies that slide along the boost', () => {
+  const { norms, elite, before, h } = boost({ panel: { blockCnt: 2, sideDamage: 0 }, eliteHp: 10, normHp: 10 });
+  assert.ok(!elite.alive && norms.every((e) => !e.alive));
+  assert.ok(elite.x > before.elite + 0.5, `the target's body (${before.elite} → ${elite.x})`);
+  norms.forEach((e, i) => assert.ok(e.x > before.norms[i] + 0.5, `a dragged body (${before.norms[i]} → ${e.x})`));
+  checkInvariants(h.b);
+});
+
+test('the Zantetsuken pushes what it hits by its own force, and not without one', () => {
+  const run = (zanPushForce) => {
+    const h = field({ panel: { ...PANEL, blockCnt: 1, zanPushForce } });
+    const k = spawnSteamKnight(h.b, 'p1');
+    h.run(12);
+    const e = h.spawn('enemy_norm', { pos: [Math.round(k.y), Math.round(k.x) + 1] });
+    e.x = k.x + 0.6; e.y = k.y;
+    k.mem.sk.zanReady = true;
+    h.runUntil(() => k.mem.sk.phase === 'zanBlow' && k.mem.sk.zanHit, 25);
+    const x0 = e.x;
+    h.run(0.15);
+    assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+    return e.x - x0;
+  };
+  const weak = run(0), strong = run(2);
+  assert.ok(strong > weak + 0.3 && weak > 0.3, `force 0 ${weak}, force 2 ${strong}`);
+  assert.equal(run(undefined), 0);
+});
+
 test('he attacks every enemy he blocks (the Centurion rule), not just one', () => {
   const h = field({ panel: { ...PANEL, blockCnt: 2 } });
   const k = spawnSteamKnight(h.b, 'p1');

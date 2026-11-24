@@ -1956,7 +1956,7 @@ export async function createFieldView(host, options = {}) {
           const d = e[4] && typeof e[4] === 'object' ? e[4] : null;
           const v = d && d.id != null ? views.get(d.id) : null;
           if (v && v.slideTo) v.slideTo(Number(e[2]), Number(e[3]), {
-            ...(Number(d.dur) > 0 ? { dur: Number(d.dur) } : {}), keepFacing: d.keepFacing === true,
+            ...(Number(d.dur) > 0 ? { dur: Number(d.dur) } : {}), keepFacing: d.keepFacing === true, corpse: d.corpse === true,
           });
         }
         // (fork) a kit's landing start / take-off for the body's 起飞 height (UnitView.liftLand: 予愿安洁莉娜's 'aglna2Landing'
@@ -2032,7 +2032,7 @@ export async function createFieldView(host, options = {}) {
     const v = extra && extra.id != null ? views.get(extra.id) : null;
     // `dur`: the push / pull's 失衡 time in game seconds (battle/displacement.js) — the slide's length
     if (v && v.slideTo) v.slideTo(Number(e[2]), Number(e[3]), {
-      at: slideAt, ...(Number(extra.dur) > 0 ? { dur: Number(extra.dur) } : {}), keepFacing: extra.keepFacing === true,
+      at: slideAt, ...(Number(extra.dur) > 0 ? { dur: Number(extra.dur) } : {}), keepFacing: extra.keepFacing === true, corpse: extra.corpse === true,
     });
   }
   let renderT0Battle = null;   // game time of the first rendered battle frame (spawn puffs skip the initial wave)

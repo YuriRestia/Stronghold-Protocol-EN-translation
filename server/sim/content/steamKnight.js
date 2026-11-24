@@ -14,6 +14,7 @@
 
 import { COLS, ROWS, MOVE_SCALE, BLOCK_RADIUS_SQ, TICK } from '../constants.js';
 import { canTargetEnemy } from '../targeting.js';
+import { pushTiles, pushUnbalance } from '../battle/displacement.js';
 import { hypot } from '../detmath.js';
 
 export const STEAM_KNIGHT_ID = 'enemy_1533_stmkgt';
@@ -262,14 +263,86 @@ export function steamKnightKit(bb, raw) {
         return best;
       };
 
+      // ---- the pushes of his big blows (the boost's, the standing Zantetsuken's; the force of each is a PANEL VALUE)
+      /** May the body stand at (x, y): the tiles its movement may cross (displacement.js displace). */
+      const bodyOk = (e, x, y) => {
+        const r = Math.round(y), col = Math.round(x);
+        return e.motion === 'FLY' ? battle.grid.inRect(r, col) : battle.grid.groundPassable(r, col);
+      };
+      /**
+       * Before the damage: what a push of `force` will do to `e`, whether it lives or dies of the blow (the user,
+       * 2026-11-25: the push also on the target the attack kills). The returned call pushes it: a survivor by the official
+       * force rule (displacement.js push, PUSH_TILES: force less its weight; leaders and 失衡免疫 stay), a body killed by
+       * the blow the same distance, its slide marked `corpse` for the view (units.js slideTo).
+       */
+      const readyPush = (e, force, dir) => {
+        if (!has(force) || !battle._displaceable(e)) return () => {};
+        const level = battle.forceLevel(e, force);
+        return () => {
+          if (e.hidden) return;
+          if (e.alive) { battle.push(e, force, { from: unit, dir: { x: dir[1], y: dir[0] }, fixed: true }); return; }
+          slideBody(e, dir, pushTiles(level), pushUnbalance(level));
+        };
+      };
+      /** A dead body slides `tiles` along `dir` over the tiles it may cross, in the steps of displacement.js displace. */
+      const slideBody = (e, dir, tiles, dur) => {
+        let left = tiles, moved = 0;
+        while (left > 1e-9) { // loop-cap: a push is at most 3.53 tiles (PUSH_TILES), step 0.1
+          const s = Math.min(0.1, left);
+          const x = e.x + dir[1] * s, y = e.y + dir[0] * s;
+          if (!bodyOk(e, x, y)) break;
+          e.x = x; e.y = y; left -= s; moved += s;
+        }
+        if (moved > 0) battle.fx('displace', { x: e.x, y: e.y, id: e.id, dur, keepFacing: true, corpse: true });
+      };
+      // Two ticks after the blow: the view draws a move up to a tick ahead of that tick's events, and the target was seen
+      // flying before its hit burst (a look, no rule).
+      const pushLater = (pushes) => { battle.after(2 * TICK, () => { for (const p of pushes) p(); }, { owner: unit }); };
+
+      // ---- the drag (the user, 2026-11-25: the boost drags normal enemies along, up to his block count; they take the
+      // blow with the target, and they and their bodies are pushed with it). An enemy is caught where he would block it:
+      // within the official ground block radius of him [src: server/sim/constants.js BLOCK_RADIUS_SQ.ground]
+      const DRAG = 'sk:dragged';
+      const dragging = () => cfg().drag !== false;
+      const canDrag = (e) => dragging() && !isBig(e) && battle._displaceable(e);
+      const dragRoom = (d, e) => d.dragged.reduce((n, x) => n + (x.blockWeight ?? 1), 0) + (e.blockWeight ?? 1) <= Math.floor(num(unit.s.blockCnt, 0));
+      /** It neither walks, attacks nor is blocked while it is carried: the official 失衡 state, held two ticks ahead. */
+      const hold = (e) => {
+        if (!e.alive) return;
+        battle._unblock(e);
+        battle.addBuff(e, { key: DRAG, duration: 2 * TICK, flags: { unblockable: true } });
+        battle._unbalance(e, 2 * TICK);
+        e.moving = false;
+      };
+      const grab = (d, e) => {
+        d.dragged.push(e);
+        d.shoved.add(e);
+        hold(e);
+        battle.fx('steamKnight', { id: unit.id, kind: 'drag', x: e.x, y: e.y, target: e.id });
+      };
+      /** The carried move with him (a body that died on the way too); one that a wall stops is left behind. */
+      const carry = (d, mv) => {
+        for (let i = d.dragged.length - 1; i >= 0; i--) {
+          const e = d.dragged[i];
+          const x = e.x + d.dir[1] * mv, y = e.y + d.dir[0] * mv;
+          if (e.hidden || !bodyOk(e, x, y)) { d.dragged.splice(i, 1); continue; }
+          e.x = x; e.y = y;
+          if (e.route) e.route.pts = null;
+          hold(e);
+        }
+      };
+
       const startDash = (target) => {
         const dir = sk.dir;
         // the charge ends with the boost: its buff gives way to the bunker's (no blocking from a body that is not on the
         // tile any more), and the enemies he held are let go
         charging(false);
         bunker(true);
+        const held = unit.blocking.slice();
         battle.releaseBlocked(unit);
-        const dash = { dir, target, travelled: 0, shoved: new Set(), clipAt: sk.clock };
+        const dash = { dir, target, travelled: 0, shoved: new Set(), dragged: [], clipAt: sk.clock };
+        // the normal enemies he was holding come along
+        for (const e of held) if (e !== target && e.alive && canDrag(e) && dragRoom(dash, e)) grab(dash, e);
         // He boosts at once and the thrust clip runs with it, started this far into its wind-up so that its strike frame
         // (0.7 s) is the moment he reaches the target (the user, 2026-11-24: the pile was fully out while he still stood
         // at the start — never again: the boost and the wind-up share the run, and the extension is the hit). The clip's
@@ -292,14 +365,19 @@ export function steamKnightKit(bb, raw) {
         // 0 tiles = the official 3 hits at 1.25 ATK; the distance boosted adds on top (panel: ATK scale per tile)
         const scale = ZAN_TIMES * ZAN_SCALE + (has(c.dmgPerTile) ? c.dmgPerTile * tiles : 0);
         battle.fx('steamKnight', { id: unit.id, kind: 'impact', x: t.x, y: t.y, tiles, dr: d.dir[0], dc: d.dir[1], target: t.id });
-        if (t.alive) battle.dealDamage(unit, t, { amount: unit.s.atk * scale, type: dmgType, isSkill: true, tags: ['steamKnight', 'bunker'] });
-        // a survivor is pushed along the boost by the official force rule: force less its weight picks the distance
-        // (displacement.js push, PUSH_TILES; leaders and 失衡免疫 stay). The force is the panel's
-        // Two ticks after the blow: the view draws a move up to a tick ahead of that tick's events, and the target was
-        // seen flying before its hit burst (a look, no rule).
-        if (t.alive && has(c.pushForce)) {
-          battle.after(2 * TICK, () => { if (t.alive && !t.hidden) battle.push(t, c.pushForce, { from: unit, dir: { x: d.dir[1], y: d.dir[0] }, fixed: true }); }, { owner: t });
+        // the target and everyone he dragged take the whole blow, and are pushed along the boost, dead or alive
+        const pushes = [];
+        for (const e of [t, ...d.dragged]) {
+          if (!e.alive) {
+            // a body that died on the way: its weight as it was, pushed with the others
+            if (has(c.pushForce)) { const lv = battle.forceLevel(e, c.pushForce); pushes.push(() => slideBody(e, d.dir, pushTiles(lv), pushUnbalance(lv))); }
+            continue;
+          }
+          pushes.push(readyPush(e, c.pushForce, d.dir));
+          if (e !== t) battle.fx('steamKnight', { id: unit.id, kind: 'dragHit', x: e.x, y: e.y, target: e.id });
+          battle.dealDamage(unit, e, { amount: unit.s.atk * scale, type: dmgType, isSkill: true, tags: ['steamKnight', 'bunker'] });
         }
+        pushLater(pushes);
         // the thrust holds its ground: he blocks by contact again (an enemy walked through him during it, and he crept
         // after it when it was over — the user, 2026-11-24)
         bunker(false);
@@ -494,12 +572,17 @@ export function steamKnightKit(bb, raw) {
             const nr = Math.round(unit.y + d.dir[0] * mv), nc = Math.round(unit.x + d.dir[1] * mv);
             if (!battle.grid.inRect(nr, nc) || !battle.grid.groundPassable(nr, nc)) { endBunker(); break; }
             unit.y += d.dir[0] * mv; unit.x += d.dir[1] * mv; d.travelled += mv;
-            // the normal enemies at its sides: damage and shove (panel values)
+            carry(d, mv);
+            // the normal enemies at its sides: damage and shove (panel values); the ones he runs into come along (drag)
             for (const e of groundFoes(battle, unit)) {
               if (e === t || isBig(e) || d.shoved.has(e)) continue;
               const al = (e.y - unit.y) * d.dir[0] + (e.x - unit.x) * d.dir[1];
               const off = (e.y - unit.y) * d.dir[1] - (e.x - unit.x) * d.dir[0];
               if (al < -0.5 || al > 0.8 || Math.abs(off) > 1.0) continue;
+              if (canDrag(e) && dragRoom(d, e) && off * off < BLOCK_RADIUS_SQ.ground) {
+                if (al * al + off * off < BLOCK_RADIUS_SQ.ground) { grab(d, e); continue; }
+                if (al > 0) continue;   // about to be caught
+              }
               d.shoved.add(e);
               if (has(c.sideDamage) && c.sideDamage > 0) battle.dealDamage(unit, e, { amount: unit.s.atk * c.sideDamage, type: dmgType, isSkill: true, tags: ['steamKnight', 'side'] });
               if (has(c.shoveDist) && c.shoveDist > 0 && e.alive) {
@@ -530,10 +613,14 @@ export function steamKnightKit(bb, raw) {
               // every enemy he blocks takes the three hits (the user, 2026-11-24); with none blocked, the one in front
               const blocked = (unit.blocking || []).filter((e) => e.alive);
               const t = blocked.length ? null : zanTarget();
+              // and is pushed the way he faces (his thrust), dead or alive (the user, 2026-11-25), by its own panel force
+              const pushes = [];
               for (const x of blocked.length ? blocked : t ? [t] : []) {
+                pushes.push(readyPush(x, c.zanPushForce, unit.fwd));
                 for (let i = 0; i < ZAN_TIMES; i++) battle.dealDamage(unit, x, { amount: unit.s.atk * ZAN_SCALE, type: dmgType, isSkill: true, tags: ['steamKnight', 'zantetsuken'] });
                 battle.fx('steamKnight', { id: unit.id, kind: 'zanHit', x: x.x, y: x.y, target: x.id });
               }
+              pushLater(pushes);
             }
             if (sk.t >= CLIP.blowLen - 1e-9) {
               zanning(false);
