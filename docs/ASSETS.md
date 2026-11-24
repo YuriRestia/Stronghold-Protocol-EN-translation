@@ -995,7 +995,7 @@ Settings ▸ Preload Assets keeps the assets on the player's disk, so nothing do
   (`assets/local/dynillust/`, 14 524 files, 616 MB on 2026-11-24) are listed too, as the optional pack `live2d`
   (shared/resources.js `LIVE2D_PACK`, off by default, last in the download order): a player who never ticks it
   downloads none of them (their files load when a card shows, as before), and the list stays well under the cap
-  (70 622 of 100 000 files). Settings ▸ Preload Assets shows it as a row of its own with the pack's size and, once
+  (70 608 of 100 000 files). Settings ▸ Preload Assets shows it as a row of its own with the pack's size and, once
   files are saved while it is unticked, its own remove button, as the Outfits pack does (`preloadPref.live2d`,
   stored only while ticked, so a player who preloaded before is not asked for more). Cloudflare caches the files like
   any other `/assets/` file (SERVER-NOTES "Cloudflare settings", the "game assets" Cache Rule, immutable): the

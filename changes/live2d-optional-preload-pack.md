@@ -24,7 +24,7 @@ Server cost:
 | Disk | +1.5 MB once in the hash cache file, 0 MB/day after [unverified] | +1.5 MB [unverified] |
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
-- Cap: the list holds at most 100,000 files, 70,622 with the Live2D files [src: shared/resources.js:31 MAX_MANIFEST_FILES]; each pack is the player's tick; a file over 24 MiB is never listed [src: shared/resources.js:23 MAX_FILE_BYTES].
+- Cap: the list holds at most 100,000 files, 70,608 with the Live2D files [src: shared/resources.js:31 MAX_MANIFEST_FILES]; each pack is the player's tick; a file over 24 MiB is never listed [src: shared/resources.js:23 MAX_FILE_BYTES].
 - Cloudflare: the existing "game assets" Cache Rule (path starts with `/assets/`, use the cache-control header) already covers `/assets/local/dynillust/`, and the server sends `public, max-age=31536000, immutable` for the cards' `/assets/~<hash>/…` URLs and the preload's `?v=` URLs [src: server/http/files.js:270 cacheControlFor, checked on a local server 2026-11-24]. The live site returns `cf-cache-status: HIT` with that header for `.png`, `.skel` and `.atlas` files under `/assets/~<hash>/` [measured 2026-11-24, HEAD requests]. No dashboard change is needed; the Live2D files themselves were not yet on the live site to check.
 - Measured: the sizes and file counts, the response headers, the Cloudflare HIT on other art [src: this fragment's Cloudflare line]. Estimated: the rates, the data-centre count, CPU, memory and disk [unverified].
 
