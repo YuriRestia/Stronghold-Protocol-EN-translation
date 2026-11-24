@@ -27,7 +27,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GOAL, TOP_MIN, BAND, FACE_MAX, ZOOMS } from './dyn-cover-framing.mjs';
+import { GOAL, TOP_MIN, FACE_MAX, ZOOMS } from './dyn-cover-framing.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
@@ -177,18 +177,18 @@ export async function register(sharp, tplSrc, artSrc, { range = [0.3, 4], hang =
 
 // ---- stills: the face rule on a full art ----------------------------------------------------------------------------
 /**
- * The framing of a still full art on a card of aspect `ar` (height 1): its width the card's times z, the face on its line
- * and the head inside (planFraming's rule), the art kept over the card's sides; `alpha` (the art's alpha plane, aw × ah)
- * measures what is left uncovered. face / top in art fractions. Returns the pick { zoom, rect (card px of a 1-high card),
- * faceY, top, uncovered }.
+ * The framing of a still full art on a card of aspect `ar` (height 1): its width the card's times z, the head's top
+ * `TOP_MIN` (+1 %) from the card's top — the linked arts' placement, whose heads sit at 0.03 of the card (median of the
+ * 98 registrations, 2026-11-24), the face below it and never past `FACE_MAX` — the art kept over the card's sides;
+ * `alpha` (the art's alpha plane, aw × ah) measures what is left uncovered. face / top in art fractions. Returns the
+ * pick { zoom, rect (card px of a 1-high card), faceY, top, uncovered }.
  */
 export function stillFraming(face, alpha, ar = STILL_AR, zooms = STILL_ZOOMS) {
   const tries = [];
   for (const z of zooms) {
     const w = ar * z, h = w * alpha.h / alpha.w;
     const fyArt = face.y * h, topArt = face.top * h;
-    const fitHead = (fyArt - topArt) + TOP_MIN + 0.01;
-    const yt = Math.min(FACE_MAX, Math.max(BAND[0], Math.min(BAND[1], fyArt), fitHead));
+    const yt = Math.min(FACE_MAX, (fyArt - topArt) + TOP_MIN + 0.01);
     let y = yt - fyArt;
     // the art's bottom stays at or below the card's bottom when it can
     if (y + h < 1) y = Math.min(0, 1 - h);

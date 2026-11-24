@@ -9,9 +9,9 @@
 
 ### Art without an animated illustration is framed like the animated cards
 
-- Every operator and outfit full art that has no animated illustration (440 of 538) now shows the figure in the card, like the animated cards' art the maintainer framed, instead of the bust close-up the earlier rule gave: median art height 3.36 → 2.40 card heights (the linked arts' 2.72). The face stays on the face line.
+- Every operator and outfit full art that has no animated illustration (440 of 538) now shows the figure in the card, like the animated cards' art the maintainer framed, instead of the bust close-up the earlier rule gave: median art height 3.36 → 2.40 card heights (the linked arts' 2.72), the head's top 0.03 from the card's top (the linked arts' 0.029), the face line 0.38 → 0.157 (the linked arts' 0.159).
 - The room, Grand Alliance, solo room and result cards all read the same framing table, so they change together.
-- The still rule now uses the illustrations' own zoom range (1–1.35) [design values, user OK 2026-11-24: "follow the linked arts framing style"].
+- The still rule now uses the illustrations' own zoom range (1–1.35) and the linked arts' placement [design values, user OK 2026-11-24: "follow the linked arts framing style", "the art should be raised higher"].
 
 Kind: player
 
@@ -28,4 +28,4 @@ Server cost:
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
 - Measured on the shipped files (sizes); the 300-player day figures are estimated arithmetic, file size × players, not a traffic-meter run.
-- Cap: no new traffic channel and no new data file. `data/card-art-framing.json` grows by 590 bytes raw (134,711 → 135,301; 23,919 → 23,396 gzip) [src: data/card-art-framing.json]; the tall framing is computed in the browser from its existing `face` values. The browser code grows once by 7.4 KB raw, 3.4 KB gzip (`shared/cardArtFraming.js` 3,478 bytes raw, 1,618 gzip, plus the lines added in `public/js` 3,954 raw, 1,771 gzip) [src: git diff HEAD, wc -c, gzip -c].
+- Cap: no new traffic channel and no new data file. `data/card-art-framing.json` grows by 539 bytes raw (134,711 → 135,250; 23,919 → 23,364 gzip) [src: data/card-art-framing.json]; the tall framing is computed in the browser from its existing `face` values. The browser code grows once by 7.4 KB raw, 3.4 KB gzip (`shared/cardArtFraming.js` 3,478 bytes raw, 1,618 gzip, plus the lines added in `public/js` 3,954 raw, 1,771 gzip) [src: git diff HEAD, wc -c, gzip -c].
