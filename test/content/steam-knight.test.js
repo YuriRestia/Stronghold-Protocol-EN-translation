@@ -191,6 +191,45 @@ test('the killed are pushed too: the target and the dragged leave bodies that sl
   checkInvariants(h.b);
 });
 
+test('a target killed mid-boost: he goes on at the next best, then the dragged, and ends only with none left', () => {
+  const run = ({ second, norm }) => {
+    const h = field({ panel: { ...PANEL, blockCnt: 2, sideDamage: 0 } });
+    const first = h.spawn('enemy_elite', { pos: [10, 11] });
+    const next = second ? h.spawn('enemy_elite', { pos: [10, 10] }) : null;
+    const n = norm ? h.spawn('enemy_norm', { pos: [10, 6] }) : null;
+    const k = spawnSteamKnight(h.b, 'p1');
+    k.mem.sk.beginLanding(5, 10, [0, 1]);
+    h.runUntil(() => k.mem.sk.phase === 'dash', 20);
+    h.run(0.1);
+    h.b.kill(first);
+    h.step();
+    const phases = new Set([k.mem.sk.phase]);
+    h.runUntil(() => { phases.add(k.mem.sk.phase); return k.mem.sk.phase === 'fight'; }, 6);
+    assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+    return { struck: phases.has('blow'), next, n };
+  };
+  const a = run({ second: true });
+  assert.ok(a.struck && a.next.hp < a.next.s.maxHp, 'the next elite took the blow');
+  const b = run({ norm: true });
+  assert.ok(b.struck && b.n.hp < b.n.s.maxHp, 'the dragged enemy took the blow');
+  assert.ok(!run({}).struck, 'nobody left: no blow');
+});
+
+test('the leap may land on an operator\'s tile: an operator there does not change the landing', () => {
+  const land = (units) => {
+    const h = makeBattle({ defs: { enemies: ENEMIES }, timeLimit: 600, autoFinish: false, seed: 3, flags: { dpPerSec: 0, dpMax: 999, steamKnight: PANEL }, units, enemies: [] });
+    h.step();
+    h.spawn('enemy_elite', { pos: [10, 9] });
+    const k = spawnSteamKnight(h.b, 'p1');
+    h.runUntil(() => k.mem.sk.phase === 'leapUp', 60);
+    h.runUntil(() => k.mem.sk.phase === 'drop', 5);
+    assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+    return [Math.round(k.y), Math.round(k.x)];
+  };
+  const free = land([]);
+  assert.deepEqual(land([{ uid: 1, chessId: 'chess_char_4_07_b', row: free[0], col: free[1] }]), free);
+});
+
 test('the Zantetsuken pushes what it hits by its own force, and not without one', () => {
   const run = (zanPushForce) => {
     const h = field({ panel: { ...PANEL, blockCnt: 1, zanPushForce } });

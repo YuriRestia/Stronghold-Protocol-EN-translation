@@ -251,6 +251,15 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           if (!(tv && has('stmkgt_skill_01_hit_01') && wiring.playOn?.('stmkgt_skill_01_hit_01', tv, {}))) official('stmkgt_skill_01_hit_01', x, y);
           break;
         }
+        case 'retarget': {
+          // the boost's target is gone: the marker moves to the next one
+          const old = marks.get(id);
+          if (old) { try { old.stop?.(); } catch { /* gone */ } marks.delete(id); }
+          const tv = d.target != null ? views.get(d.target) : null;
+          const h = tv && has('stmkgt_skill_02_marker_01') ? wiring.playOn?.('stmkgt_skill_02_marker_01', tv, { loop: true }) : null;
+          if (h) marks.set(id, h);
+          break;
+        }
         case 'drag':   // he runs into a normal enemy and takes it along
           sound('shove');
           break;

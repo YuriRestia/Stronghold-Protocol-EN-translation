@@ -567,6 +567,7 @@ export const FORMS = Object.freeze({
     // event — the local feed plays events 0.2 s behind the sim (render/app.js LOCAL_LOOKAHEAD), which otherwise put the
     // pile's extension after the impact (the user, 2026-11-24)
     skBlow: Object.freeze({ change: 'Skill_1_Attack_A', lead: 0.2, roles: Object.freeze({}) }),
+    skBlowAgain: Object.freeze({ change: 'Skill_1_Attack_A', lead: 0.2, roles: Object.freeze({}) }),   // a boost aimed at its next target
     skLeapUp: Object.freeze({ change: 'Skill_2_Begin_A', hold: true, roles: Object.freeze({}) }),
   }),
   enemy_9011_acrefr: Object.freeze({

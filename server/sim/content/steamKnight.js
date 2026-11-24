@@ -200,8 +200,8 @@ export function steamKnightKit(bb, raw) {
 
       /** The stance's pick, taken at once when the charge ends (the user, 2026-11-24: no waiting): an elite or boss in the
        *  lane first, else the farthest enemy in it — the longest boost does the most damage — and none ends the bunker. */
-      const pickLaneTarget = (dir) => {
-        const { hits } = lane(battle, Math.round(unit.y), Math.round(unit.x), dir, groundFoes(battle, unit));
+      const pickLaneTarget = (dir, skip = []) => {
+        const { hits } = lane(battle, Math.round(unit.y), Math.round(unit.x), dir, groundFoes(battle, unit).filter((e) => !skip.includes(e)));
         if (!hits.length) return null;
         const big = hits.filter((h) => isBig(h.e));
         const pool = big.length ? big : hits;
@@ -340,20 +340,50 @@ export function steamKnightKit(bb, raw) {
         bunker(true);
         const held = unit.blocking.slice();
         battle.releaseBlocked(unit);
-        const dash = { dir, target, travelled: 0, shoved: new Set(), dragged: [], clipAt: sk.clock };
+        const dash = { dir, target, travelled: 0, shoved: new Set(), dragged: [], clipAt: sk.clock, lead: 0, form: 'skBlow' };
         // the normal enemies he was holding come along
         for (const e of held) if (e !== target && e.alive && canDrag(e) && dragRoom(dash, e)) grab(dash, e);
         // He boosts at once and the thrust clip runs with it, started this far into its wind-up so that its strike frame
         // (0.7 s) is the moment he reaches the target (the user, 2026-11-24: the pile was fully out while he still stood
         // at the start — never again: the boost and the wind-up share the run, and the extension is the hit). The clip's
         // OnAttack frame at the hit holds for any run: the lead is the strike frame less the run.
-        const along0 = (target.y - unit.y) * dir[0] + (target.x - unit.x) * dir[1];
-        const run = Math.max(0, along0 - 1.0) / c0().dashSpeed;
-        phaseFx('skBlow', { dur: CLIP.blowLen, lead: Math.max(0, CLIP.blowHit - run) });
+        dash.lead = Math.max(0, CLIP.blowHit - runTo(dir, target));
+        phaseFx('skBlow', { dur: CLIP.blowLen, lead: dash.lead });
         battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: dir[0], dc: dir[1], target: target.id });
         setPhase('dash', { dash });
       };
       const c0 = () => cfg();
+      /** Seconds of boost until the target is in the pile's reach (1 tile). */
+      const runTo = (dir, t) => Math.max(0, (t.y - unit.y) * dir[0] + (t.x - unit.x) * dir[1] - 1.0) / c0().dashSpeed;
+      const lostTarget = (d) => {
+        const t = d.target;
+        if (!t || !t.alive || t.hidden || !canTargetEnemy(unit, t, PROFILE)) return true;
+        const al = (t.y - unit.y) * d.dir[0] + (t.x - unit.x) * d.dir[1];
+        const off = (t.y - unit.y) * d.dir[1] - (t.x - unit.x) * d.dir[0];
+        return al < -0.5 || Math.abs(off) > 1.0;
+      };
+      /** The next best target of a boost under way: the charge's own pick in the lane ahead, else the foremost he drags. */
+      const retarget = (d) => {
+        let t = pickLaneTarget(d.dir, [...d.dragged, d.target]);
+        if (!t) {
+          const al = (e) => (e.y - unit.y) * d.dir[0] + (e.x - unit.x) * d.dir[1];
+          for (const e of d.dragged) if (e.alive && !e.hidden && canTargetEnemy(unit, e, PROFILE) && (!t || al(e) > al(t) + 1e-9)) t = e;
+        }
+        if (!t) return false;
+        d.dragged = d.dragged.filter((e) => e !== t);
+        d.target = t;
+        sk.target = t;
+        // the thrust is aimed again, so that its strike frame stays the hit; two names of one form, since a form already
+        // on is not started again (units.js setForm)
+        const lead = Math.max(0, CLIP.blowHit - runTo(d.dir, t));
+        if (Math.abs(lead - (sk.clock - d.clipAt + d.lead)) > 0.05) {
+          d.form = d.form === 'skBlow' ? 'skBlowAgain' : 'skBlow';
+          d.lead = lead; d.clipAt = sk.clock;
+          phaseFx(d.form, { dur: CLIP.blowLen, lead });
+        }
+        battle.fx('steamKnight', { id: unit.id, kind: 'retarget', x: t.x, y: t.y, target: t.id });
+        return true;
+      };
 
       // The blow clip (Skill_1_Attack_A) starts on the flight path, so that its strike frame (0.7 s) is the moment he
       // reaches the target: the pile is already forward on impact (the user, 2026-11-24). `d.clipAt` = when it started.
@@ -401,8 +431,8 @@ export function steamKnightKit(bb, raw) {
           for (let c = R.c0; c <= R.c1; c++) {
             if (!battle.grid.groundPassable(r, c) || !battle.grid.isLow(r, c)) continue;
             if (ends.some(([er, ec]) => er === r && ec === c)) continue;   // in front of the box, not on it
-            const o = battle._occ[r * COLS + c];
-            if ((o && o.alive && o !== unit) || battle.downOn(r, c)) continue;
+            // a tile an operator stands on is as good (his position is free, as at the first drop onto Vina; the user,
+            // 2026-11-25: "why not land where horn is for more boost distance?")
             let home = 0;
             if (ends.length) { home = Infinity; for (const [er, ec] of ends) home = Math.min(home, hypot(r - er, c - ec)); }
             for (const d of CARDINAL) {
@@ -551,15 +581,11 @@ export function steamKnightKit(bb, raw) {
             break;
           }
           case 'dash': {
-            const d = sk.dash, t = d.target;
-            if (!t || !t.alive || t.hidden || !canTargetEnemy(unit, t, PROFILE)) { endBunker(); break; }
-            {
-              // the target left his line (pushed aside, or behind him): no blow from a distance — the bunker ends. The
-              // band is the shove's own (1 tile to a side, 0.5 behind)
-              const al = (t.y - unit.y) * d.dir[0] + (t.x - unit.x) * d.dir[1];
-              const off = (t.y - unit.y) * d.dir[1] - (t.x - unit.x) * d.dir[0];
-              if (al < -0.5 || Math.abs(off) > 1.0) { endBunker(); break; }
-            }
+            const d = sk.dash;
+            // the target died, hid or left his line (pushed aside, or behind him; the band is the shove's own: 1 tile to a
+            // side, 0.5 behind): he goes on at the next best one (the user, 2026-11-25), and only with none left it ends
+            if (lostTarget(d) && !retarget(d)) { endBunker(); break; }
+            const t = d.target;
             const along = (t.y - unit.y) * d.dir[0] + (t.x - unit.x) * d.dir[1];
             const remain = Math.max(0, along - 1.0);
             // he reaches the pile's reach: the blow lands now — the thrust clip was started (with its lead) so that its
