@@ -644,7 +644,7 @@ A Grand Alliance squad's count there leaves out the word 已就绪. On tablets a
 which 2319 × 1356 is not) the plate's and the heading's text take a larger share of `--t`, so they stay readable and
 still follow 文字大小, the ready word and its buttons at most 13 px plus half a `--t-step`. An empty seat's plus, 邀请 and
 添加 AI 队友 are smaller there so they fit the wide card. In a window 521–600 px tall the plate leaves out the ready word
-as on phones (the user, 2026-11-24). The sizes are design values. Portrait phones get the rotate hint (theme.css), not this screen.
+and the AI tag's words (its robot icon stays, the words are for screen readers), as on phones (the user, 2026-11-24). The sizes are design values. Portrait phones get the rotate hint (theme.css), not this screen.
 Each illustration on a wide card is framed on its operator's face (the user's pick of 2026-11-23, "card zoom", after
 "faces cut off … bad photography"): the card framing zoomed about a point of the card (the renderer's `framing: { mode:
 'card', zoom, fx, fy }`), one value per illustration in `data/dyn-card-framing.json` (`IllustArt framing="cover"`,
