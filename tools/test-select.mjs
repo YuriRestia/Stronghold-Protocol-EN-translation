@@ -18,7 +18,12 @@
 //     a new rule) → the tests whose pages loaded the sheet;
 //   * no coverage of a test file yet, or recorded at another version of the changed file, or the file runs code the
 //     map cannot see (a separate server process, scripts that do not map to repository files) → the whole file;
-//   * a changed file nothing maps (tools, data, package files) → every test file (the caller says so and runs nothing).
+//   * (fork) tools/ and scripts/ JS are placed by line like the app (the test process's coverage records them);
+//   * (fork) a data file, language pack or dev page (changeKind 'page' / 'gameplay') → the tests whose pages requested
+//     it; whole when the record predates logged requests, the file's setup requested it, or (game data) an in-process
+//     server read it at start;
+//   * docs, tables of measured times, the extractor's Python → nothing (changeKind 'ignored');
+//   * any other changed file (package files, vendored code) → every test file runs whole (the caller says why).
 
 import * as acorn from 'acorn';
 
@@ -216,8 +221,34 @@ export function cssRules(text) {
 const isJs = (f) => /\.(m?js|cjs)$/.test(f);
 const isCss = (f) => /\.css$/.test(f);
 const isTestFile = (f) => /^(test|plugins)\/.*(\.test\.js|\.e2e\.mjs)$/.test(f);
-/** Files whose changes the coverage map can place: the app (browser and server), shared code and test code. */
-export const MAPPED = (f) => /^(public\/(js|css|dev)\/|server\/|shared\/|test\/|plugins\/)/.test(f) && (isJs(f) || isCss(f));
+/**
+ * Files whose changes the coverage map can place by line: the app (browser and server), shared code, test code, and
+ * (fork) the repository's tools and scripts — the test process's coverage records every repository file it runs
+ * (tools/test-repro-hook.mjs), so a tool a test imports is placed like a helper, and one no test ran affects none.
+ */
+export const MAPPED = (f) => /^(public\/(js|css|dev)\/|server\/|shared\/|test\/|plugins\/|tools\/|scripts\/)/.test(f) && (isJs(f) || isCss(f));
+
+/**
+ * (fork) What kind of change a file is to the browser tests (tools/test-repro.mjs planChanged):
+ *   'ignored'  — no test runs it: docs, changelog fragments, tables of measured times, the extractor's Python, lint and
+ *                git settings;
+ *   'code'     — placed by line (MAPPED);
+ *   'page'     — a file the pages request (a presentation data file, a language pack, a dev page): the tests whose pages
+ *                requested it (the map's `loaded`, recorded since requests are logged);
+ *   'gameplay' — game data (data/*.json but the presentation files): also read by an in-process server at its start;
+ *   'unknown'  — anything else (package files, vendored code): every candidate file runs whole.
+ * @param {string} f @param {{ presentation?: readonly string[] }} [o] presentation: server/plugins/identity.js PRESENTATION_DATA
+ */
+export function changeKind(f, { presentation = [] } = {}) {
+  if (/\.(md|txt)$/i.test(f) || /^(docs|\.github|\.claude|changes|crew-docs)\//.test(f) || /^(LICENSE|NOTICE)/.test(f)) return 'ignored';
+  if (MAPPED(f)) return 'code';
+  // tools/ data (asset plans, timing tables, the extractor): never served to a page or read by the server
+  if (/^(ci-shards\.json$|tools\/.*\.(json|py|txt)$|tools\/local-extract\/|\.eslint|eslint\.config|\.editorconfig$|\.gitignore$|\.gitattributes$)/.test(f)) return 'ignored';
+  const data = /^data\/([^/]+)\.json$/.exec(f);
+  if (data) return presentation.includes(data[1]) ? 'page' : 'gameplay';
+  if (/^public\/(?!(js|css)\/).+\.(json|html|svg|txt|webmanifest)$/.test(f)) return 'page';
+  return 'unknown';
+}
 
 /**
  * The tests of one test file a change can affect.
@@ -242,6 +273,15 @@ export function selectInFile({ testFile, tests, coverage, changes }) {
     const f = ch.file;
     const own = f === testFile;
     if (!own && !coverage) continue; // no record of what this file ran: the caller lists it as unknown
+    // (fork) a file the pages request, or game data: the tests whose pages requested it; whole when the record predates
+    // logged requests, when the file's setup loaded it, or for game data an in-process server read at its start
+    if (ch.kind === 'page' || ch.kind === 'gameplay') {
+      if (allCov.some(([, c]) => !c.req) || (coverage.setup && !coverage.setup.req)) { whole(`${f}: recorded before page requests were logged`); continue; }
+      if (coverage.setup?.loaded?.includes(f)) { whole(`${f}: the file's setup requested it`); continue; }
+      if (ch.kind === 'gameplay' && (coverage.setup?.used?.['server/data.js'] || allCov.some(([, c]) => c.used?.['server/data.js']))) { whole(`${f}: game data, which its in-process server reads at start`); continue; }
+      for (const [name, c] of allCov) if (c.loaded?.includes(f)) add(name, `${f}: its pages requested it`);
+      continue;
+    }
     if (!own && coverage && !MAPPED(f)) continue;
     const runsIt = own || allCov.some(([, c]) => c.used?.[f]?.length || c.loaded?.includes(f)) || !!coverage?.setup?.used?.[f]?.length || !!coverage?.setup?.loaded?.includes(f);
     // server code a separate server process ran is invisible to the map
