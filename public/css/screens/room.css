@@ -1298,6 +1298,10 @@
   .clog-mini__btn > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .clog-mini__last { display: none; }
 }
+/* (fork) the chat button of a small desktop window (特大 text, ui/chatLog.js LARGE_TEXT_QUERY): below the top bar's tags, which wrap to a second line there */
+@media (min-width: 901px) and (min-height: 521px) {
+  .clog-mini { top: max(112px, 21vh); }
+}
 /* the seat bubbles (match chat's ChatBubble / EmoteBubble) over the card's lower half, and the plate's mute. The bubble
    always fits the portrait, which clips (overflow: hidden): the layer is the portrait less 3 px; a bubble sits with its
    foot 30 % up as before, a taller one slides down to the bottom (the spacer under it gives way), and it is never taller
