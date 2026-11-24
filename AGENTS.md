@@ -6,8 +6,8 @@ Human contributors: [CONTRIBUTING.md](CONTRIBUTING.md) is the same material in f
 
 ## What this is
 
-A non-commercial fan remake of Arknights「卫戍协议：盟约」 that runs in the browser: a Node.js server (economy, rounds,
-rooms) and a deterministic battle sim shared by the server and the browser. It aims to be faithful to the official mode.
+Stronghold Protocol game that runs in the browser: a Node.js server (economy, rounds,
+rooms) with a deterministic battle sim shared by the server and the browser.
 
 ## Read first
 
