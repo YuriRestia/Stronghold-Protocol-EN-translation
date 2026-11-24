@@ -193,11 +193,12 @@ export function stillFraming(face, alpha, ar = STILL_AR, zooms = STILL_ZOOMS) {
     const w = ar * z, h = w * alpha.h / alpha.w;
     const fyArt = face.y * h, topArt = face.top * h;
     const yt = Math.min(FACE_MAX, (fyArt - topArt) + TOP_MIN + 0.01);
-    let y = yt - fyArt;
+    // an upside-down operator (`focus`: the portrait's area, its centre): that area in the card's middle
+    let y = face.focus ? 0.5 - face.focus[1] * h : yt - fyArt;
     // the art's bottom stays at or below the card's bottom when it can
     if (y + h < 1) y = Math.min(0, 1 - h);
     // the face centred, the art kept over both sides
-    let x = ar / 2 - face.x * w;
+    let x = ar / 2 - (face.focus ? face.focus[0] : face.x) * w;
     x = Math.min(0, Math.max(ar - w, x));
     const top = y + topArt;
     // uncovered: the card's pixels where the art is transparent or absent (a 64-high grid)
@@ -399,7 +400,7 @@ async function reframe() {
     if (!fs.existsSync(f)) continue;
     const am = await sharp(f).metadata();
     const alpha = await planes(sharp, f, 128, Math.max(8, Math.round(128 * am.height / am.width)));
-    const pick = stillFraming({ x: e.face[0], y: e.face[1], top: e.face[2] }, alpha);
+    const pick = stillFraming({ x: e.face[0], y: e.face[1], top: e.face[2], ...(e.focus ? { focus: e.focus } : {}) }, alpha);
     Object.assign(e, { rect: toUnits({ x: pick.rect.x * H, y: pick.rect.y * H, w: pick.rect.w * H, h: pick.rect.h * H }, W, H), zoom: pick.zoom, uncovered: pick.uncovered });
     n++;
   }
@@ -476,14 +477,18 @@ async function reface() {
     }
     if (!best || best.r.score < REFACE_MIN || best.r.score <= e.score) { console.log(`${art}: kept (${e.score}, best ${best?.r.score})`); continue; }
     const q = (x1 - x0) / best.r.w;
-    const p = turnedFace(x0 + (best.rm.width / 2 - best.r.x) * q, y0 + (best.rm.height / 2 - best.r.y) * q, best.pm.height * q, best.rot);
+    const cx = x0 + (best.rm.width / 2 - best.r.x) * q, cy = y0 + (best.rm.height / 2 - best.r.y) * q;
+    const p = turnedFace(cx, cy, best.pm.height * q, best.rot);
+    // drawn upside down on purpose: the body is above the head, so the card frames the portrait's whole area (the user,
+    // 2026-11-25, on Leonhardt: "his art is upside down, which is artist intention. and it should be framed around that area")
+    const focus = best.rot > 90 && best.rot < 270 ? [+(cx / m.width).toFixed(4), +(cy / m.height).toFixed(4)] : null;
     // rounded as stored, so --reframe gives the same box
     const face = { x: +(p.x / m.width).toFixed(4), y: +(p.y / m.height).toFixed(4), top: +(p.top / m.height).toFixed(4) };
     const alpha = await planes(sharp, file, 128, Math.max(8, Math.round((128 * m.height) / m.width)));
-    const pick = stillFraming(face, alpha);
+    const pick = stillFraming(focus ? { ...face, focus } : face, alpha);
     console.log(`${art}: ${e.score} → ${best.r.score}${best.rot ? ` turned ${best.rot}°` : ''} z${pick.zoom}`);
     Object.assign(e, { rect: toUnits({ x: pick.rect.x * H, y: pick.rect.y * H, w: pick.rect.w * H, h: pick.rect.h * H }, W, H), score: best.r.score, zoom: pick.zoom, uncovered: pick.uncovered,
-      face: [face.x, face.y, face.top] });
+      face: [face.x, face.y, face.top], ...(focus ? { focus } : {}) });
   }
   const txt = `${JSON.stringify(t, null, 1)}\n`;
   if (txt.length > 400e3) throw new Error('table size cap');

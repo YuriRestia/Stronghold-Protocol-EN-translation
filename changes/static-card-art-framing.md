@@ -29,4 +29,4 @@ Server cost:
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
 - File sizes measured on the files `data/assets.json` lists today (`outfit/art`); the room and 300-player figures are estimated arithmetic, not a traffic-meter run, and do not count the CDN cache. With the 2048-px set (`outfit/art2k`) listed instead, the art would be about 2 to 3 times larger [src: public/assets/outfit/art2k, median 402,830 and largest 1,247,986 bytes].
-- Cap: one static file per art, cached by the browser; at most eight cards on a screen. `data/card-art-framing.json` grows from 134,711 to 167,248 bytes raw, 23,919 to 31,130 gzip [src: data/card-art-framing.json]. The browser code grows once by under 4 KB raw [src: git diff dev-0.2, public/js, public/css].
+- Cap: one static file per art, cached by the browser; at most eight cards on a screen. `data/card-art-framing.json` grows from 134,711 to 167,292 bytes raw, 23,919 to 31,144 gzip [src: data/card-art-framing.json]. The browser code grows once by under 4 KB raw [src: git diff dev-0.2, public/js, public/css].

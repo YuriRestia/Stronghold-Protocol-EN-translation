@@ -679,7 +679,9 @@ registered arts' 0.159) — plus the user's move / zoom on it (`adjust`, `--stil
 The dissolve composes a placed art at its own box (`object-fit: fill`) inside the card.
 (fork, 2026-11-25) A face matched wrongly — a leg, a bag, a pet on the card — is searched again (`--reface`; the user: "Yes, fix
 them"): only inside the official card's window and at the size an official portrait has in the official picture
-(`PORTRAIT_UI`), the portrait turned in 15° steps for an operator drawn falling or leaning. 28 still-only arts were framed
+(`PORTRAIT_UI`), the portrait turned in 15° steps for an operator drawn falling or leaning. One drawn upside down (turned past 90°:
+Leonhardt's Elite 2) is centred on the portrait's whole area (`focus`), not raised to its head (the user: "his art is upside
+down, which is artist intention. and it should be framed around that area"). 28 still-only arts were framed
 again; W's chibi outfit, whose portrait is no face crop, keeps its placement.
 (fork, 2026-11-24) **The tall cards' 2D art** (the solo room's card and the result screen's team cards, the official 232 × 458
 window's shape; the user's report: "outfit and e2 static arts of non L2D stuffs aren't calibrated for room, grand alliances,

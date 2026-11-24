@@ -57,6 +57,13 @@ test('turnedFace: the face of a portrait turned clockwise; the head\'s top above
   near(down.x, 100); near(down.y, 218);
 });
 
+test('an upside-down operator: the portrait\'s area in the middle of the card (Leonhardt\'s Elite 2)', () => {
+  const turned = Object.entries(table.stills).filter(([, e]) => e.focus);
+  assert.deepEqual(turned.map(([a]) => a), ['char_373_lionhd_default.webp']);
+  const { rect, focus } = turned[0][1];
+  near(rect[0] + focus[0] * rect[2], 0, 0.1); near(rect[1] + focus[1] * rect[3], 0, 0.1);
+});
+
 test('the still-only arts\' faces: at a size the official portraits have, inside the official card\'s window', () => {
   // W's chibi outfit: no face crop in the portrait, kept as it was
   const none = new Set(['char_1035_wisdel_game_9.webp']);
