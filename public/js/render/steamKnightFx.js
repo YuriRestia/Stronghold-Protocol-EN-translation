@@ -7,10 +7,11 @@
 // or not loaded (设置「官方特效」). By `kind`:
 //   landing   stmkgt_skill_02_end_01 where he comes down; the steam (stmkgt_presure_buff_01, the Boost) stays on him
 //   leapUp    stmkgt_skill_02_begin_01 / _02 at the take-off
-//   stance    the Zantetsuken start: stmkgt_skill_01_start_01 .. _03 on him
-//   dashStart stmkgt_skill_01_start_weapon_01 / _02 on the pile while he boosts (re-spawned every 0.3 s)
+//   stance    the Zantetsuken cast start: stmkgt_skill_01_start_01 / _02 loops on him (ON_CAST_START)
+//   dashStart the leap marker stmkgt_skill_02_marker_01 on the enemy he boosts at
 //   shove     stmkgt_attack_hit_01 on a normal enemy he throws aside
-//   impact    stmkgt_skill_01_hit_01 + stmkgt_attack_hit_01 on the target
+//   impact /  the strike: start_03 (ON_SPELL_ON) and start_weapon_01 / _02 (ON_SPELL_END) loops on him,
+//   zanHit    stmkgt_skill_01_hit_01 on the target; every loop stops at bunkerEnd (ON_CAST_END)
 // Every number here is a look, not a rule: nothing in it reaches the sim.
 
 export const STEAM_KNIGHT_FX_KEYS = Object.freeze([
@@ -39,7 +40,31 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
   const marks = new Map();     // knight id → the marker loop on the enemy he boosts at
   const immortal = new Map();  // knight id → his invincible loop
   const boosted = new Set();   // knight ids with the steam loop running
+  const held = new Map();      // knight id → { keys: Set, hs: [] } the Zantetsuken loops on him until its cast ends
   let preloaded = false;
+
+  /** Start official loops on his mount points, held until stopHeld; false when none could play. */
+  const holdOn = (id, v, keys) => {
+    if (!v || id == null) return false;
+    const e = held.get(id) || { keys: new Set(), hs: [] };
+    held.set(id, e);
+    let any = false;
+    for (const k of keys) {
+      if (e.keys.has(k)) { any = true; continue; }
+      if (!has(k)) continue;
+      const h = wiring.playOn?.(k, v, { follow: true, loop: true, important: true });
+      if (h) { e.keys.add(k); e.hs.push(h); any = true; }
+    }
+    return any;
+  };
+  const stopHeld = (id) => {
+    const e = held.get(id);
+    if (!e) return;
+    for (const h of e.hs) { try { h.stop?.(); } catch { /* gone */ } }
+    held.delete(id);
+  };
+  /** The strike (Zantetsuken's ON_SPELL_ON start_03, then ON_SPELL_END's weapon glow: his hits all land in one frame). */
+  const spell = (id, v) => holdOn(id, v, ['stmkgt_skill_01_start_03', 'stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02']);
 
   const ensure = () => {
     if (preloaded) return;
@@ -83,15 +108,11 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           brief('stmkgt_skill_02_hit_02', x, y, 0.7);
           shake?.(0.16, 0.4);
           break;
-        case 'bunkerEnd': {
-          // the pile bunker is over: its official Zantetsuken window closes now (its loops stop with their fade), so his
-          // next normal attack plays its own cast rows (the laser on his weapon) instead of the skill's — the window would
-          // otherwise run to its estimated end, past the first wind-up (the user, 2026-11-24)
-          const S = wiring.skills, U = v ? S?.of?.(v) : null;
-          if (U?.ewin) S._enemyEnd(U, v);
+        case 'bunkerEnd':
+          // the pile bunker or Zantetsuken is over (ON_CAST_END): its loops stop with their fade, and the marker
+          stopHeld(id);
           { const m = marks.get(id); if (m) { try { m.stop?.(); } catch { /* gone */ } marks.delete(id); } }
           break;
-        }
         case 'leapUp': {
           // the official HeroBomb window (slot 2 of his record): FlyToMoon's start effects now, DownToTile's end at its end
           const ok = !!(v && wiring.enemyCast?.(v, 2, 1.2));
@@ -104,11 +125,14 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         }
         case 'stance': {
           sound('stance');
-          // the official Zantetsuken window (slot 1 of his record): its start loops and, later, its weapon glow, on his
-          // own mount points, held for the whole bunker (castDur)
-          const ok = !!(v && wiring.enemyCast?.(v, 1, Number(d.castDur) || 4));
-          if (!ok) {
-            const got = ['01', '02', '03'].map((n) => official(`stmkgt_skill_01_start_${n}`, x, y));
+          // the official Zantetsuken (index.json units.enemy_1533_stmkgt.skills.zantetsuken, a MultiMeleeAttack): its
+          // ON_CAST_START loops start_01 / _02 now, on his own mount points, until ON_CAST_END (bunkerEnd); start_03
+          // (ON_SPELL_ON) and the weapon glow (ON_SPELL_END) come with the strike (spell). Played here row by row: the
+          // whole window at once (wiring.enemyCast) started all five loops at the stance (the user, 2026-11-24: "the vfx
+          // for it isn't quite correct")
+          stopHeld(id);
+          if (!holdOn(id, v, ['stmkgt_skill_01_start_01', 'stmkgt_skill_01_start_02'])) {
+            const got = ['01', '02'].map((n) => official(`stmkgt_skill_01_start_${n}`, x, y));
             if (!got.some(Boolean)) fx.ring(x, y, 0, 0.2, 1.2, HOT, 0.4, 'shock');
           }
           break;
@@ -125,11 +149,13 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           break;
         }
         case 'zanHit': {
-          // the standing Zantetsuken's strike: its official hit on the target (the window's own hit row may also draw it)
+          // the standing Zantetsuken's strike: its spell rows on him and its official hit on the target. No camera shake:
+          // the client gives this skill none (the user, 2026-11-24: "his zantetsuken ... doing the screenshake, which I
+          // dont think it should happen")
           sound('impact');
+          spell(id, v);
           const tv = d.target != null ? views.get(d.target) : null;
           if (!(tv && has('stmkgt_skill_01_hit_01') && wiring.playOn?.('stmkgt_skill_01_hit_01', tv, {}))) official('stmkgt_skill_01_hit_01', x, y);
-          shake?.(0.1, 0.3);
           break;
         }
         case 'invincible': {
@@ -151,6 +177,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         }
         case 'impact': {
           sound('impact');
+          spell(id, v);
           { const m = marks.get(id); if (m) { try { m.stop?.(); } catch { /* gone */ } marks.delete(id); } }
           // the official hit effects on the target's own hit point, plus the ground twin under him (the blow is the big one)
           const tv = d.target != null ? views.get(d.target) : null;
@@ -176,6 +203,12 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     /** Every frame (nothing to do: the official windows run in the wiring; kept for the render loop's call). */
     frame() {},
 
-    clear() { boosted.clear(); leapOk.clear(); marks.clear(); immortal.clear(); },
+    /** A new battle or the prep board: every handle stopped, every map emptied (a knight of the next battle may get
+     * the same id). */
+    clear() {
+      for (const m of [marks, immortal]) for (const h of m.values()) { try { h.stop?.(); } catch { /* gone */ } }
+      for (const id of [...held.keys()]) stopHeld(id);
+      boosted.clear(); leapOk.clear(); marks.clear(); immortal.clear();
+    },
   };
 }

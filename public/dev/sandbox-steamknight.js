@@ -85,7 +85,12 @@ export function mountSteamKnightPanel(host, q, onChange) {
     cfg() {
       if (!on.checked) return null;
       const out = { enabled: true, secondFormResist: resist.checked };
-      for (const [k] of FIELDS) { const n = Number(inputs[k].value); out[k] = Number.isFinite(n) && n >= 0 ? n : 0; }
+      // a cleared field is left out (that part off: the sim reads a missing value as off; Number('') would be 0)
+      for (const [k] of FIELDS) {
+        const raw = String(inputs[k].value).trim();
+        const n = Number(raw);
+        if (raw !== '' && Number.isFinite(n) && n >= 0) out[k] = n;
+      }
       return out;
     },
     write(p) {

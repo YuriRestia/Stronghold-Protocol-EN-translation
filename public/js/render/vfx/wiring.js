@@ -947,7 +947,9 @@ export class FxWiring {
   _attackSet(u, m, src, tgt, kind, nth, only = null) {
     if (!m) return null;
     let a = m.attack || null;
-    if (m.combat && (!a || (kind === 'none' && ((src.flags | 0) & UF.BLOCKED)))) a = m.combat;
+    // (fork) `opts.alwaysCombat(src)`: a unit whose every blow is its combat (the Steam Knight slice: his `attack` has no
+    // rows, and he also strikes enemies his neighbours block while he blocks nobody — no laser then)
+    if (m.combat && (!a || this.opts?.alwaysCombat?.(src) || (kind === 'none' && ((src.flags | 0) & UF.BLOCKED)))) a = m.combat;
     if (!a) return null;
     const heal = !!tgt && !tgt.isEnemy && !src.isEnemy;
     const id = src.id ?? src.info?.id;

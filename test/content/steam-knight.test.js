@@ -79,3 +79,30 @@ test('a cleared panel value switches that part off: no dash without a dash speed
   assert.notEqual(k.mem.sk.phase, 'dash');
   assert.equal(h.enemy('enemy_elite').hp, hp0, 'no bunker blow without a dash');
 });
+
+test('a stun in the stance ends the bunker: no blow from a stunned knight', () => {
+  const h = field();
+  const e = h.spawn('enemy_elite', { pos: [10, 9] });
+  const k = spawnSteamKnight(h.b, 'p1');
+  k.mem.sk.beginLanding(5, 10, [0, 1]);
+  h.runUntil(() => k.mem.sk.phase === 'stance', 10);
+  const hp0 = e.hp;
+  h.b.addBuff(k, { key: 'test:stun', duration: 2, flags: { stun: true } });
+  h.step();
+  assert.equal(k.mem.sk.phase, 'fight');
+  h.run(1.5);
+  assert.equal(e.hp, hp0, 'no blow while stunned');
+  assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+});
+
+test('a normal enemy within reach that nobody blocks: he steps into contact and blocks it', () => {
+  const h = field();
+  const k = spawnSteamKnight(h.b, 'p1');
+  h.run(12);   // the landing and its bunker (no target: it ends) are over
+  assert.equal(k.mem.sk.phase, 'fight');
+  const e = h.spawn('enemy_norm', { pos: [Math.round(k.y), Math.round(k.x) + 1] });
+  e.x = k.x + 1.2; e.y = k.y;   // inside his reach, outside the block radius
+  h.runUntil(() => e.blockedBy === k, 8);   // he walks slowly (his Boost's 0.3 move speed)
+  assert.equal(e.blockedBy, k, `blocked by contact (gap ${Math.hypot(e.x - k.x, e.y - k.y).toFixed(2)}, phase ${k.mem.sk.phase}, e at ${e.x},${e.y} alive ${e.alive})`);
+  assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+});

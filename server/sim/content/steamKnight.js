@@ -49,6 +49,16 @@ const cfgOf = (battle) => {
 };
 
 const isBig = (e) => e.isBoss || e.def?.rank === 'ELITE' || e.def?.rank === 'BOSS';
+/** The ally blue box: the end tiles of the field's ground routes (simdata normalizeRoute `end`, [r, c]), inside the rect. */
+const homeEnds = (battle) => {
+  const R = battle.rect, out = [];
+  for (const rt of battle.routes || []) {
+    if (!rt || rt.motion !== 'WALK' || !Array.isArray(rt.end)) continue;
+    const r = Math.max(R.r0, Math.min(R.r1, rt.end[0])), c = Math.max(R.c0, Math.min(R.c1, rt.end[1]));
+    if (!out.some(([a, b]) => a === r && b === c)) out.push([r, c]);
+  }
+  return out;
+};
 const groundFoes = (battle, u) => battle.enemies.filter((e) => e.alive && !e.hidden && !e.isFlying && canTargetEnemy(u, e, PROFILE));
 
 /** Straight lane from tile (r, c) along `d`: the clear tile count and the enemies on it (offset < 0.5), nearest first. */
@@ -250,18 +260,25 @@ export function steamKnightKit(bb, raw) {
         const big = foes.filter(isBig);
         const pool = big.length ? big : foes;
         if (!pool.length) return null;
+        // He lands in front of the ally blue box, the ground routes' end (the user, 2026-11-24: with no ground operator
+        // left the longest lane put him in front of the enemy red box): of the tiles with a clear lane to the target,
+        // those nearest a route's end; then the longest lane. A field with no ground route end: the longest lane alone.
+        const ends = homeEnds(battle);
         let best = null;
         const R = battle.rect;
         for (let r = R.r0; r <= R.r1; r++) {
           for (let c = R.c0; c <= R.c1; c++) {
             if (!battle.grid.groundPassable(r, c) || !battle.grid.isLow(r, c)) continue;
+            if (ends.some(([er, ec]) => er === r && ec === c)) continue;   // in front of the box, not on it
             const o = battle._occ[r * COLS + c];
             if ((o && o.alive && o !== unit) || battle.downOn(r, c)) continue;
+            let home = 0;
+            if (ends.length) { home = Infinity; for (const [er, ec] of ends) home = Math.min(home, hypot(r - er, c - ec)); }
             for (const d of CARDINAL) {
               const { hits } = lane(battle, r, c, d, pool);
               if (!hits.length) continue;
               const len = hits[0].along;
-              if (!best || len > best.len + 1e-9) best = { r, c, d, len };
+              if (!best || home < best.home - 1e-9 || (home <= best.home + 1e-9 && len > best.len + 1e-9)) best = { r, c, d, len, home };
             }
           }
         }
@@ -302,6 +319,12 @@ export function steamKnightKit(bb, raw) {
         for (const [dr, dc] of RANGE) { const rr = r + dr, cc = c + dc; if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS) keys.push(rr * COLS + cc); }
         unit.rangeKeys = keys; unit.rangeKeySet = new Set(keys); unit.baseRangeKeys = keys;
       };
+      /** An enemy he may block now: on the ground, seen, not blocked by anyone, no flag that keeps it out of a block. */
+      const blockable = (e) => {
+        if (!e.alive || e.hidden || e.isFlying || e.blockedBy) return false;
+        const f = e.s.flags;
+        return !(f.unblockable || f.levitate || f.fear || f.sleep);
+      };
       const contactBlock = () => {
         const R2 = BLOCK_RADIUS_SQ.ground;
         // (a blocked enemy stands still; a push or pull unblocks it itself: displacement.js _unblock)
@@ -311,9 +334,7 @@ export function steamKnightKit(bb, raw) {
         for (const e of unit.blocking) used += e.blockWeight ?? 1;
         for (const e of battle.enemies) {
           if (used >= cap) break;
-          if (!e.alive || e.hidden || e.isFlying || e.blockedBy) continue;
-          const f = e.s.flags;
-          if (f.unblockable || f.levitate || f.fear || f.sleep) continue;
+          if (!blockable(e)) continue;
           const w = e.blockWeight ?? 1;
           if (used + w > cap) continue;
           if ((e.x - unit.x) * (e.x - unit.x) + (e.y - unit.y) * (e.y - unit.y) >= R2) continue;
@@ -326,14 +347,29 @@ export function steamKnightKit(bb, raw) {
       };
       const walkSpeed = () => Math.max(0.05, unit.s.moveSpeed * MOVE_SCALE);
       /** One step toward the nearest enemy, along the ground path, unless one is within reach (he fights where he stands). */
+      // An enemy that walks past him unblocked (none blocks it, he has room) is met: he steps into contact and blocks it,
+      // instead of hitting it from 1.5 tiles while it walks on and then following it (the user, 2026-11-24: "he seems to
+      // get dragged along by an enemy behind him. He should be blocking that enemy, stand there and fight it").
       const stepToward = (dt) => {
-        let tgt = null, bd = Infinity;
+        const room = unit.blocking.reduce((n, e) => n + (e.blockWeight ?? 1), 0) < Math.floor(num(unit.s.blockCnt, 1));
+        // He walks only to an enemy that stands (blocked, waiting): one walking on toward the blue box outpaces him, and
+        // following it was the drag the user saw.
+        let tgt = null, bd = Infinity, near = Infinity, free = null, fd = Infinity;
         for (const e of groundFoes(battle, unit)) {
           const d = hypot(e.x - unit.x, e.y - unit.y);
-          if (d < bd - 1e-9) { bd = d; tgt = e; }
+          if (d < near) near = d;
+          if (!e.moving && d < bd - 1e-9) { bd = d; tgt = e; }
+          if (room && blockable(e) && d < fd - 1e-9) { fd = d; free = e; }
+        }
+        if (free && fd <= 1.5) {
+          // straight at it, to inside the official block radius (0.707 tiles [src: server/sim/constants.js
+          // BLOCK_RADIUS_SQ.ground]); contactBlock takes it on the next tick
+          const s = Math.min(walkSpeed() * dt, Math.max(0, fd - 0.5));
+          if (s > 1e-6) { unit.x += ((free.x - unit.x) / fd) * s; unit.y += ((free.y - unit.y) / fd) * s; }
+          return;
         }
         // no step while an enemy is within his range's reach (1 tile + the 0.5 an enemy can sit off a tile's centre)
-        if (!tgt || bd <= 1.5) return;
+        if (!tgt || near <= 1.5) return;
         const path = battle.grid.findPath(Math.round(unit.y), Math.round(unit.x), Math.round(tgt.y), Math.round(tgt.x));
         const next = path && path.length >= 2 ? path[1] : null;
         if (!next) return;
@@ -343,11 +379,26 @@ export function steamKnightKit(bb, raw) {
         unit.x += (dx / d) * s; unit.y += (dy / d) * s;
       };
 
+      // his death mid-bunker: the view's held loops (the Zantetsuken's, the marker on his target) end with him (the code
+      // review, 2026-11-24: they ran on until the target died). Display only.
+      battle.on('death', (c) => {
+        if (c.unit !== unit) return;
+        battle.fx('steamKnight', { id: unit.id, kind: 'bunkerEnd', x: unit.x, y: unit.y });
+        battle.fx('steamKnight', { id: unit.id, kind: 'invincible', on: false, x: unit.x, y: unit.y });
+      });
+
       // ---- the state machine
       battle.on('tick', ({ dt }) => {
         if (!unit.alive || !unit.deployed) return;
         const c = cfg();
         sk.clock += dt; sk.t += dt;
+        // a stun (unit.canAct: units.js) cuts the stance, the boost or the Zantetsuken before its strike: no blow
+        // lands from a stunned knight (the code review, 2026-11-24)
+        if (!unit.canAct && (sk.phase === 'stance' || sk.phase === 'dash' || sk.phase === 'zan' || (sk.phase === 'zanBlow' && !sk.zanHit))) {
+          zanning(false);
+          endBunker();
+          return;
+        }
         switch (sk.phase) {
           case 'drop':
             if (sk.t >= sk.dur - 1e-9) startStance();
@@ -355,7 +406,8 @@ export function steamKnightKit(bb, raw) {
           case 'stance': {
             if (sk.t < sk.stanceDur - 1e-9) break;
             let tgt = sk.target && sk.target.alive ? sk.target : chooseTarget(sk.dir);
-            if (!tgt && has(c.waitLimit) && sk.t >= sk.stanceDur + c.waitLimit) {
+            // no wait limit set (cleared in the panel) = no wait: the fallback at once, so the stance cannot hang
+            if (!tgt && (!has(c.waitLimit) || sk.t >= sk.stanceDur + c.waitLimit)) {
               // nobody big came in time: the normal enemy with the most HP in the lane
               const { hits } = lane(battle, Math.round(unit.y), Math.round(unit.x), sk.dir, groundFoes(battle, unit));
               hits.sort((a, b) => b.e.hp - a.e.hp || a.along - b.along);
@@ -367,7 +419,14 @@ export function steamKnightKit(bb, raw) {
           }
           case 'dash': {
             const d = sk.dash, t = d.target;
-            if (!t || !t.alive) { endBunker(); break; }
+            if (!t || !t.alive || t.hidden || !canTargetEnemy(unit, t, PROFILE)) { endBunker(); break; }
+            {
+              // the target left his line (pushed aside, or behind him): no blow from a distance — the bunker ends. The
+              // band is the shove's own (1 tile to a side, 0.5 behind)
+              const al = (t.y - unit.y) * d.dir[0] + (t.x - unit.x) * d.dir[1];
+              const off = (t.y - unit.y) * d.dir[1] - (t.x - unit.x) * d.dir[0];
+              if (al < -0.5 || Math.abs(off) > 1.0) { endBunker(); break; }
+            }
             if (sk.clock < d.moveAt - 1e-9) break;   // still winding up: the boost starts when the thrust is 'run' s from its strike
             if (!d.started) {
               d.started = true;
@@ -440,7 +499,7 @@ export function steamKnightKit(bb, raw) {
             bunker(false);
             if (!unit.findBuff('sk:contact')) battle.addBuff(unit, { key: 'sk:contact', persist: true, allowDead: true, flags: { noNewBlock: true } });
             refreshKeys();
-            if (sk.clock >= sk.leapAt - 1e-9 && has(c.dashSpeed) && startLeap()) break;
+            if (sk.clock >= sk.leapAt - 1e-9 && has(c.dashSpeed) && c.dashSpeed > 0 && startLeap()) break;
             contactBlock();
             // 4 SP: the standing Zantetsuken on the enemy in front of him (blocked, else the nearest in reach)
             if (sk.zanReady && !unit.cast) { const t = zanTarget(); if (t) { sk.target = t; startZan(t); break; } }
@@ -466,8 +525,10 @@ export function spawnSteamKnight(battle, playerId) {
   const dir = DIRS[dirName] ?? DIRS.RIGHT;
   const ops = battle.allyUnits.filter((a) => a.kind === 'op' && a.alive && a.deployed && a.ownerId === playerId);
   const vina = ops.find(isVina) ?? ops.find((a) => a.ground) ?? ops[0] ?? null;
-  const ax = vina ? vina.x : (battle.rect.c0 + battle.rect.c1) / 2;
-  const ay = vina ? vina.y : (battle.rect.r0 + battle.rect.r1) / 2;
+  // no operator of his player: in front of the ally blue box (a route's end), else the field's centre
+  const home = vina ? null : homeEnds(battle)[0] ?? null;
+  const ax = vina ? vina.x : home ? home[1] : (battle.rect.c0 + battle.rect.c1) / 2;
+  const ay = vina ? vina.y : home ? home[0] : (battle.rect.r0 + battle.rect.r1) / 2;
   const spot = freeTileNear(battle, ax, ay, null);
   if (!spot) return null;
   const u = battle.spawnToken(playerId, STEAM_KNIGHT_ID, spot[0], spot[1], { dir: dirName });

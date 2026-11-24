@@ -484,6 +484,8 @@ export async function createFieldView(host, options = {}) {
     },
     // the unit's data record (its skill: render/vfx/skills.js resolves the official skill and its plan from it)
     record: (info) => (info ? ctx.lookupDef(info) : null),
+    // (fork) the Steam Knight slice: every blow of his plays his mode's combat rows (the laser on his weapon)
+    alwaysCombat: (v) => v?.info?.defId === 'enemy_1533_stmkgt',
     // a battle view by id (the skill effects a kit fx stands for may land on its target)
     view: (id) => views.get(id) || null,
   });
@@ -1180,7 +1182,7 @@ export async function createFieldView(host, options = {}) {
     interp.reset();
     fx.clear();
     noteLayer.clear();
-    ofx.clear(); wiring.clear(); pluginFx.clear(); ofxPrevT = null;
+    ofx.clear(); wiring.clear(); pluginFx.clear(); skFx.clear(); ofxPrevT = null;
     meleePending.clear();
     notePending.clear();
     consumedIds.clear();
@@ -1636,7 +1638,7 @@ export async function createFieldView(host, options = {}) {
     interp.reset();
     fx.clear();
     noteLayer.clear();
-    ofx.clear(); wiring.clear(); pluginFx.clear(); ofxPrevT = null;
+    ofx.clear(); wiring.clear(); pluginFx.clear(); skFx.clear(); ofxPrevT = null;
     meleePending.clear();
     notePending.clear();
     consumedIds.clear();

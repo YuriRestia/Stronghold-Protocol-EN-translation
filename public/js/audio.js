@@ -353,6 +353,10 @@ export function normalAttackSfx(defId, url) {
  * group of its bank sets its level against the rest (was attack / hit 0.55, the others 0.8, before the mixer).
  */
 export const UNIT_BASE_GAIN = 1;
+/** (fork) The Steam Knight slice (dev sandbox): his model id, and the one gain every sound of his plays at — a mix by
+ * the user's ear (2026-11-24: his boss banks at their own volume were barely heard), not an official value. */
+const STEAM_KNIGHT_ID = 'enemy_1533_stmkgt';
+const STEAM_KNIGHT_GAIN = 2;
 
 /**
  * Gain of a unit's own sound with its manifest mix (sfx.units[id].mix[role]: the official bank's volume): `base` × `vol`,
@@ -1596,17 +1600,19 @@ export class AudioManager {
     const H1 = { url: `${E}e_imp/e_imp_stmkgt_h1.mp3`, pool: 'battle.ON_PROJECTILE_HIT.projectile_enemy_vtsk_s' };
     const PARTS = {
       stance: [{ url: `${E}e_atk/e_atk_stmwpn_d1.mp3`, pool: 'battle.ON_ABILITY_START.enemy_1533_stmkgt.Zantetsuken' }],
-      // the stance clip's OnPlayAudio(zan_hold) event (bank battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.zan_hold)
-      hold: [{ url: `${E}e_atk/e_atk_stmwpn_d2.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.zan_hold' }],
+      // the stance clip's OnPlayAudio(zan_hold) event (bank battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.zan_hold).
+      // These two spine-event banks are not in the manifest's pools, so they would play on FX_Battle_Normal; they take
+      // his own banks' group instead (Battle_BE_NAtk, like ON_ABILITY_START.enemy_1533_stmkgt.combat), so they are not
+      // louder than the rest of him (the user, 2026-11-24: "other sounds are kinda too loud")
+      hold: [{ url: `${E}e_atk/e_atk_stmwpn_d2.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.zan_hold', group: 'Battle_BE_NAtk' }],
       // the boost: his own steam-boost burst (bank battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.second_boost, the Die_A
       // clip's OnPlayAudio(second_boost) as he boosts back up), borrowed for the pile bunker's boost
-      dash: [{ url: `${E}e_atk/e_atk_chargeboost.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.second_boost' }],
+      dash: [{ url: `${E}e_atk/e_atk_chargeboost.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.second_boost', group: 'Battle_BE_NAtk' }],
       impact: [{ url: `${E}e_imp/e_imp_stmwpn_d.mp3`, pool: 'battle.ON_ABILITY_ON.enemy_1533_stmkgt.Zantetsuken' }, H1],
       landing: [H1],
       shove: [{ url: `${E}e_imp/e_imp_stmwpn_n.mp3`, pool: 'battle.ON_ABILITY_HIT.enemy_1533_stmkgt.combat' }],
     };
-    // 3x the bank's own gain: the official bank mix plays these at about 15 % (the user heard nothing, 2026-11-24)
-    for (const p of PARTS[kind] || []) this._playBank(p.url, p.pool, UNIT_BASE_GAIN * 3);
+    for (const p of PARTS[kind] || []) this._playBank(p.url, p.pool, UNIT_BASE_GAIN * STEAM_KNIGHT_GAIN, p.group);
   }
 
   _playParts(e, gain) {
@@ -1702,10 +1708,11 @@ export class AudioManager {
    * played file's pitch is drawn in its minPitch–maxPitch; it starts after its official `delay`. A field change drops a
    * decode or a delay still in flight (stingField). Enemy cast parts, moments and timed impacts play here too.
    */
-  _playBank(url, poolId, volume) {
+  _playBank(url, poolId, volume, group = null) {
     const ctx = this.ctx;
     if (!ctx || this.volumes.muted || this.volumes.sfx <= 0) return;
-    const params = this.getManifest()?.audio?.sfx?.pools?.[poolId] ?? null;
+    // (fork) `group`: the mixer group of a bank the manifest has no pool for (the Steam Knight's spine-event banks)
+    const params = this.getManifest()?.audio?.sfx?.pools?.[poolId] ?? (group ? { group, spatial: true } : null);
     const field = this.stingField;
     this._buffer(url).then((buf) => {
       if (!buf || ctx !== this.ctx || field !== this.stingField || this.volumes.muted) return;
@@ -2267,10 +2274,11 @@ export class AudioManager {
       const group = kind === 'skill' && typeof own === 'string' ? u?.skillGroups?.[skillIndex] : u?.groups?.[kind];
       // (fork) a singing skill (SONG_SKILLS): the battle sounds step back while its song plays
       const song = kind === 'skill' && typeof own === 'string' && SONG_SKILLS[defId]?.includes(skillIndex);
-      // (fork) the Steam Knight slice's normal attacks at 3x, like his other sounds (playSteamKnight: the official boss
-      // bank mix plays them at about 15 %, the user heard none, 2026-11-24)
-      const knightGain = defId === 'enemy_1533_stmkgt' ? 3 : 1;
-      this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix) * knightGain, limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
+      // (fork) the Steam Knight slice's normal attacks at the same gain as his other sounds (playSteamKnight)
+      // They play as his bank sounds (_playBank, like an enemy's): through _play they were held to its 1.5 ceiling and
+      // the battle's 8-voice budget dropped them in a crowd (the user, 2026-11-24: "I can vaguely hear his laser sword")
+      if (defId === STEAM_KNIGHT_ID) { this._playBank(url, poolId, unitGain(UNIT_BASE_GAIN, mix) * STEAM_KNIGHT_GAIN); return true; }
+      this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix), limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
       // (fork) the running skill's attack may sound again after its swing (attackAlso: 圣约送葬人's Sanrio S2 shot)
       // — once per swing: an attack on several targets is one 'atk' per target, so it keeps the unit cooldown the swing has.
       // (fork) An enemy's normal attack: the fire / release banks of the same attack (`attackNext`: 假想敌：铳's shot
