@@ -29,7 +29,7 @@
 - Round 14 (the user's review): the laser blade's sound plays as his arm rises, as its bank says (it was played at the strike) [src: official audio_data soundFXBanks battle.ON_ABILITY_START.enemy_1533_stmkgt.combat]; eight brighter battle tracks to pick from (Chapter 13's first is the start), a pick changes the music at once.
 - Round 15 (the user's pick list): stage 14-10's five tracks join the picks, its mid-battle `fightback` without the intro is the start (the user's pick) [src: official CN client level main_14-09 bgm event, main_14_09_AVG, story_variables].
 - Round 16 (the user's review): the boost drags the normal enemies it runs into along, up to his block count (panel switch, on); they take the blow with the target, and all of them are pushed, the killed ones' bodies too (`displace` fx `corpse`, `units.js slideTo`); the Zantetsuken pushes what it hits the way he faces, by its own panel force. [src: server/sim/constants.js BLOCK_RADIUS_SQ.ground (contact), PUSH_TILES]
-- Round 17 (the user's review): a boost whose target dies or leaves the lane goes on at the next best one (the charge's own pick, else the foremost it drags); the leap may land on a tile an operator stands on.
+- Round 17 (the user's review): a boost whose target dies or leaves the lane goes on at the next best one (the charge's own pick, else the foremost it drags); the leap may land on a tile an operator stands on; elites other than the target are dragged and shoved too, not what no push moves (leaders of a boss fight, immovable bodies).
   - push force on the Zantetsuken hit 3 (round 16), [ASSUMED] less than the boost's 5; user OK 2026-11-25 ("a lesser amount. Probably let me tune that attack push force")
 
 Kind: internal

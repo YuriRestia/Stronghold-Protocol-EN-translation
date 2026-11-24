@@ -215,6 +215,25 @@ test('a target killed mid-boost: he goes on at the next best, then the dragged, 
   assert.ok(!run({}).struck, 'nobody left: no blow');
 });
 
+test('an elite that is not the target is dragged too; a leader no push moves is left where it is', () => {
+  const run = (immovable) => {
+    const h = field({ panel: { ...PANEL, blockCnt: 2, pushForce: 5 } });
+    const far = h.spawn('enemy_elite', { pos: [10, 9] }), near = h.spawn('enemy_elite', { pos: [10, 7] });
+    if (immovable) near.isBoss = true;
+    const k = spawnSteamKnight(h.b, 'p1');
+    k.mem.sk.beginLanding(5, 10, [0, 1]);
+    h.runUntil(() => k.mem.sk.phase === 'dash', 20);
+    assert.equal(k.mem.sk.dash.target, far);
+    h.runUntil(() => k.mem.sk.phase === 'blow', 5);
+    h.run(0.15);
+    assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+    return { x: near.x, hurt: near.hp < near.s.maxHp };
+  };
+  const a = run(false), b = run(true);
+  assert.ok(a.x > 8 && a.hurt, `the near elite came along and took the blow (${a.x})`);
+  assert.ok(Math.abs(b.x - 7) < 1e-9 && !b.hurt, `the immovable one stayed (${b.x})`);
+});
+
 test('the leap may land on an operator\'s tile: an operator there does not change the landing', () => {
   const land = (units) => {
     const h = makeBattle({ defs: { enemies: ENEMIES }, timeLimit: 600, autoFinish: false, seed: 3, flags: { dpPerSec: 0, dpMax: 999, steamKnight: PANEL }, units, enemies: [] });

@@ -299,12 +299,14 @@ export function steamKnightKit(bb, raw) {
       // flying before its hit burst (a look, no rule).
       const pushLater = (pushes) => { battle.after(2 * TICK, () => { for (const p of pushes) p(); }, { owner: unit }); };
 
-      // ---- the drag (the user, 2026-11-25: the boost drags normal enemies along, up to his block count; they take the
+      // ---- the drag (the user, 2026-11-25: the boost drags enemies along, up to his block count; they take the
       // blow with the target, and they and their bodies are pushed with it). An enemy is caught where he would block it:
       // within the official ground block radius of him [src: server/sim/constants.js BLOCK_RADIUS_SQ.ground]
       const DRAG = 'sk:dragged';
       const dragging = () => cfg().drag !== false;
-      const canDrag = (e) => dragging() && !isBig(e) && battle._displaceable(e);
+      // elites too (the user, 2026-11-25); not what no push moves: leaders of the boss pool, 失衡免疫, 静态刚体
+      // [src: server/sim/battle/displacement.js _displaceable]
+      const canDrag = (e) => dragging() && battle._displaceable(e);
       const dragRoom = (d, e) => d.dragged.reduce((n, x) => n + (x.blockWeight ?? 1), 0) + (e.blockWeight ?? 1) <= Math.floor(num(unit.s.blockCnt, 0));
       /** It neither walks, attacks nor is blocked while it is carried: the official 失衡 state, held two ticks ahead. */
       const hold = (e) => {
@@ -324,7 +326,12 @@ export function steamKnightKit(bb, raw) {
       const carry = (d, mv) => {
         for (let i = d.dragged.length - 1; i >= 0; i--) {
           const e = d.dragged[i];
-          const x = e.x + d.dir[1] * mv, y = e.y + d.dir[0] * mv;
+          let x = e.x + d.dir[1] * mv, y = e.y + d.dir[0] * mv;
+          // half off the lane at a raised tile's edge: pulled in to the lane's own tile (he passes it himself)
+          if (!bodyOk(e, x, y)) {
+            if (d.dir[0] === 0) y = Math.max(unit.y - 0.45, Math.min(unit.y + 0.45, y));
+            else x = Math.max(unit.x - 0.45, Math.min(unit.x + 0.45, x));
+          }
           if (e.hidden || !bodyOk(e, x, y)) { d.dragged.splice(i, 1); continue; }
           e.x = x; e.y = y;
           if (e.route) e.route.pts = null;
@@ -341,7 +348,7 @@ export function steamKnightKit(bb, raw) {
         const held = unit.blocking.slice();
         battle.releaseBlocked(unit);
         const dash = { dir, target, travelled: 0, shoved: new Set(), dragged: [], clipAt: sk.clock, lead: 0, form: 'skBlow' };
-        // the normal enemies he was holding come along
+        // the enemies he was holding come along
         for (const e of held) if (e !== target && e.alive && canDrag(e) && dragRoom(dash, e)) grab(dash, e);
         // He boosts at once and the thrust clip runs with it, started this far into its wind-up so that its strike frame
         // (0.7 s) is the moment he reaches the target (the user, 2026-11-24: the pile was fully out while he still stood
@@ -599,9 +606,9 @@ export function steamKnightKit(bb, raw) {
             if (!battle.grid.inRect(nr, nc) || !battle.grid.groundPassable(nr, nc)) { endBunker(); break; }
             unit.y += d.dir[0] * mv; unit.x += d.dir[1] * mv; d.travelled += mv;
             carry(d, mv);
-            // the normal enemies at its sides: damage and shove (panel values); the ones he runs into come along (drag)
+            // the enemies at its sides (elites that no push moves left out): damage and shove (panel values); the ones he runs into come along (drag)
             for (const e of groundFoes(battle, unit)) {
-              if (e === t || isBig(e) || d.shoved.has(e)) continue;
+              if (e === t || d.shoved.has(e) || (isBig(e) && !battle._displaceable(e))) continue;
               const al = (e.y - unit.y) * d.dir[0] + (e.x - unit.x) * d.dir[1];
               const off = (e.y - unit.y) * d.dir[1] - (e.x - unit.x) * d.dir[0];
               if (al < -0.5 || al > 0.8 || Math.abs(off) > 1.0) continue;

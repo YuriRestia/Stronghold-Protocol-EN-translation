@@ -29,8 +29,8 @@ const START = Object.freeze({
 const FIELDS = [
   ['dashSpeed', 'Dash speed', 'tiles/s', START.dashSpeed, 0.5, 'start value, you set it: how fast the pile bunker boosts along its lane'],
   ['dmgPerTile', 'Blow damage per tile boosted', '× ATK', START.dmgPerTile, 0.05, 'start value, you set it: added on top of the official 3 hits at 1.25 ATK'],
-  ['sideDamage', 'Side damage', '× ATK', START.sideDamage, 0.05, 'start value, you set it: to each normal enemy the boost passes'],
-  ['shoveDist', 'Side shove distance', 'tiles', START.shoveDist, 0.1, 'start value, you set it: how far a normal enemy is thrown aside'],
+  ['sideDamage', 'Side damage', '× ATK', START.sideDamage, 0.05, 'start value, you set it: to each enemy the boost throws aside'],
+  ['shoveDist', 'Side shove distance', 'tiles', START.shoveDist, 0.1, 'start value, you set it: how far an enemy is thrown aside'],
   ['pushForce', 'Push force on the boost hit', '', START.pushForce, 1, 'start value, you set it: the official force scale (-1 to 5); the distance is this less the enemy\'s weight, and bosses of a boss fight do not move'],
   ['zanPushForce', 'Push force on the Zantetsuken hit', '', START.zanPushForce, 1, 'start value, you set it: the same force scale as the boost\'s; empty = no push'],
   ['blockCnt', 'Enemies he blocks at once (and drags along)', '', START.blockCnt, 1, 'start value, you set it (the official enemy record has none)'],
@@ -87,7 +87,7 @@ export function mountSteamKnightPanel(host, q, onChange, onMusic) {
     inputs[k] = inp;
     host.append(mk('label', { className: 'sb-check', title: hint }, [`${label} `, inp, unit ? ` ${unit}` : '', official ? ' (official, you can change it)' : ' (start value, you set it)']));
   }
-  host.append(mk('label', { className: 'sb-check' }, [drag, ' The boost drags normal enemies along (up to his block count); off: they are only shoved aside']));
+  host.append(mk('label', { className: 'sb-check' }, [drag, ' The boost drags the enemies it runs into along, elites too, not what cannot be pushed (up to his block count); off: they are only shoved aside']));
   host.append(mk('label', { className: 'sb-check' }, [resist, " Second form's 30 % damage resistance (official reborn.damage_resistance), off by default"]));
   const music = mk('select', { id: 'sk-bgm' }, BGM.map(([v, label]) => mk('option', { value: v, textContent: label })));
   music.value = BGM.some(([v]) => v === q.get('sk-bgm')) ? q.get('sk-bgm') : BGM_START;
