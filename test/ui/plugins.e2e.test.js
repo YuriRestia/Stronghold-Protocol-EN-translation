@@ -186,9 +186,9 @@ describe('cosmetic plugins in the browser (P1a)', { skip: !ENABLED && 'set SP_E2
       assert.deepEqual(seen.filter((u) => /^\/(plugins|vs|p)\//.test(u)), [], 'no catalogue, no visual set, no plugin file');
       assert.equal(loaded('/js/ui/pluginPanel.js'), true, 'the panel\'s code once it opened');
       assert.equal(loaded('/shared/plugins/visual.js'), false, 'never what composes a set');
-      // (fork) the room warms the field's code for the match ahead (main.js warmGameData, first-visit load order): the
-      // asset store comes with it (render/app.js → render/app/host.js imports it), never on its own
-      if (loaded('/js/assets.js')) assert.equal(loaded('/js/render/app.js'), true, 'the asset store only with the code of the field');
+      // (fork) the room's cards read the asset store for their home background (ui/dynCards.js cardBackground), before the
+      // field's code (the user, 2026-11-24: room cards may load it); the title page's check above and
+      // plugins-client.test.js stay: it is never loaded with the page's start
       const art = fs.existsSync(path.join(ROOT, 'public/assets'));
       assert.deepEqual(problemsOf([c]).filter((p) => art || !/\/assets\//.test(p)), []);
     } finally {
