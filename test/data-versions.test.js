@@ -292,7 +292,8 @@ test('config.tips: the official gameTipsList without that tip, in its order', { 
 
 // 第二期上半's records that keep today's id but differ from today's data (DESIGN §35.22.5 lists each). Today's data is V2_2
 // with the 04-14 level and text fixes (86da4cfa) and the modules added after 03-14, so the list is not only V2_2's. A
-// rebuild that changes one of the compared fields fails here, and the hand-written list is reviewed with the new set.// Compared: every field of bands, effects, enemies and tokens; the waves' routes; the chess records' whole modules (ids,
+// rebuild that changes one of the compared fields fails here, and the hand-written list is reviewed with the new set.
+// Compared: every field of bands, effects, enemies and tokens; the waves' routes; the chess records' whole modules (ids,
 // attr, traitOverride, talentChanges with their blackboards and texts) and their skill / talent texts; the 自选 operators'
 // powers and bonds, the 自选 forms' module ids and the 自选 operators / ownedPool / excluded sets against today's
 // (backups.json). Not compared: the chess fields the shop changes rewrite
