@@ -4,6 +4,9 @@
 // own data timer (initCooldown 20, cooldown 45 — no lock while a chase runs: the data has none, and the handbook's
 // 「向自身」 means the later call takes the springs). The pair's stagger is the spawn times: the branch gun at 0.1 s,
 // the leader at 10 s (official level_act1autochess_h08_02.json; §37.109 — until then both came at 10 s).
+// §37.110: the call is the gun's own cast for the gain's 5 s — the attack's turn, no attack and no step meanwhile, the
+// attack-speed stacks down to the one its spell on the springs adds, the attack cooldown restarted, its own cooldown from
+// the cast's end (CN client enm_pfb_28.ab Skills/2, GameAssembly.dll; sources at bosses.js kitGun).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -18,7 +21,7 @@ const SPRING = 'enemy_9020_actrpc';
 const wall = chessRec({ id: 'pursuit_wall', profession: 'TANK', stats: { maxHp: 1e9, atk: 0, def: 1000, blockCnt: 3 }, rangeGrid: [[0, 0]], skill: null });
 
 /** The real h08_02(_s) template (leader + parts only, or no spawns with `manual`), one non-attacking wall per side. */
-function arena({ solo = false, manual = false, cooldown = null } = {}) {
+function arena({ solo = false, manual = false, cooldown = null, extra = [] } = {}) {
   const tpl = structuredClone(W[solo ? 'act1autochess_h08_02_s' : 'act1autochess_h08_02']);
   tpl.spawns = manual ? [] : tpl.spawns.filter((s) => s.tag === 'boss' || s.tag === 'part');
   if (cooldown != null) {
@@ -33,12 +36,16 @@ function arena({ solo = false, manual = false, cooldown = null } = {}) {
     defs: { chess: { pursuit_wall: wall } }, kits: { pursuit_wall: () => ({ trait: { noAttack: true } }) },
     sharedBoss: { hp: 1e12, maxHp: 1e12, damage(pid, n) { this.hp -= n; } },
     players: [
-      { playerId: 'p1', seat: 0, side: 'L', colOffset: 0, units: [{ uid: 1, chessId: 'pursuit_wall', row: 3, col: 5, abs: true }] },
+      { playerId: 'p1', seat: 0, side: 'L', colOffset: 0, units: [{ uid: 1, chessId: 'pursuit_wall', row: 3, col: 5, abs: true }, ...extra] },
       ...solo ? [] : [{ playerId: 'p2', seat: 1, side: 'R', colOffset: 8, units: [{ uid: 2, chessId: 'pursuit_wall', row: 3, col: 15, abs: true }] }],
     ],
     setup(b) { b.enemyOverrides = tpl.overrides; b.opts.waveTemplate = tpl; b.opts.bossMirror = !manual; },
   });
 }
+
+/** The guns of `h` make no normal attack: their calls never wait for one under way (the timing tests below). */
+const noAttacks = (h) => h.b.on('enemySpawn', (c) => { if (c.enemy.defId === GUN) c.enemy.profile.noAttack = true; });
+const DOG = E[GUN].skills.find((s) => s.prefabKey === '2').bb.dog_duration;
 
 /** Every 【末日布道】 call (a new chase object on the spring): { time, gun }. */
 function recordCalls(h) {
@@ -55,6 +62,7 @@ function recordCalls(h) {
 
 test('隐秘核心铳 pair: the branch gun starts with the battle, the leader after its preDelay; their calls alternate, so the springs chase to both halves', () => {
   const h = arena();
+  noAttacks(h);
   const spawned = new Map();
   h.b.on('enemySpawn', (c) => { if (c.enemy.defId === GUN) spawned.set(c.enemy, { t: h.b.time }); });
   const calls = recordCalls(h);
@@ -74,7 +82,7 @@ test('隐秘核心铳 pair: the branch gun starts with the battle, the leader af
     const own = calls.filter((c) => c.gun === gun).map((c) => c.time);
     assert.equal(own.length, 3, 'three calls each in 150 s');
     assert.ok(Math.abs(own[0] - t0 - skill.initCooldown) < h.TICK * 2, `first call ${skill.initCooldown} s after its spawn`);
-    for (let i = 1; i < own.length; i++) assert.ok(Math.abs(own[i] - own[i - 1] - skill.cooldown) < h.TICK * 2, `then every ${skill.cooldown} s`);
+    for (let i = 1; i < own.length; i++) assert.ok(Math.abs(own[i] - own[i - 1] - skill.cooldown - DOG) < h.TICK * 2, `then every ${skill.cooldown} s, from the end of the ${DOG} s cast`);
   }
   // the calls alternate between the two guns, the leader's one (preDelay − branch time) after the branch gun's: the
   // springs go to each gun in turn, not always to the one that calls a tick later
@@ -111,6 +119,7 @@ test('隐秘核心铳: reaching a moving gun keeps pursuit, invulnerability and 
 
 test('隐秘核心铳: the other gun\'s call during a chase retargets every spring to that gun for a new 5 s', () => {
   const h = arena({ manual: true, cooldown: 45 });
+  noAttacks(h);
   h.step();
   const left = h.spawn(GUN, { pos: [3, 5], tag: 'boss', mods: { speedMul: 0 } });
   const right = h.spawn(GUN, { pos: [3, 15], tag: 'boss', mods: { speedMul: 0 } });
@@ -157,6 +166,7 @@ test('隐秘核心铳: with no gun left on the field the spring holds still, inv
 
 test('隐秘核心铳: solo keeps the template initial cooldown and repeated call timing', () => {
   const h = arena({ solo: true });
+  noAttacks(h);
   const calls = recordCalls(h);
   h.run(100);
   assert.equal(calls.length, 2);
@@ -164,6 +174,94 @@ test('隐秘核心铳: solo keeps the template initial cooldown and repeated cal
   const spawnTime = tpl.spawns.find((s) => s.tag === 'boss').time;
   const skill = (tpl.overrides[GUN]?.skills ?? E[GUN].skills).find((s) => s.prefabKey === '2');
   assert.ok(Math.abs(calls[0].time - spawnTime - skill.initCooldown) < h.TICK * 2);
-  assert.ok(Math.abs(calls[1].time - calls[0].time - skill.cooldown) < h.TICK * 2);
+  assert.ok(Math.abs(calls[1].time - calls[0].time - skill.cooldown - DOG) < h.TICK * 2);
+  assert.equal(h.b.errorCount, 0);
+});
+
+/** The solo gun on its real route, a wall in its reach, its charge off; stops on the tick of its first call. */
+function toFirstCall(extra = [{ uid: 2, chessId: 'pursuit_wall', row: 4, col: 8, abs: true }]) {
+  const h = arena({ solo: true, extra });
+  let gun = null;
+  h.b.on('enemySpawn', (c) => { if (c.enemy.defId === GUN) gun = c.enemy; });
+  h.runUntil(() => gun && gun.mem.ab, 12);
+  gun.mem.ab.list.find((a) => a && a.cd === E[GUN].skills.find((s) => s.prefabKey === '1').cooldown).left = Infinity;
+  const spring = h.enemies().find((e) => e.defId === SPRING);
+  const at = [];
+  h.b.on('tick', () => { at.push({ t: h.b.time, x: gun.x, y: gun.y, n: gun.stats.attacks, aspd: gun.s.aspd, calling: !!gun.findBuff('ab:channel') }); });
+  assert.ok(h.runUntil(() => spring.mem.ab.dash, 60), 'the first call');
+  return { h, gun, spring, at };
+}
+
+test('隐秘核心铳: the call takes the attack\'s turn — it waits for the swing under way, then the gun neither attacks nor walks for the 5 s cast', () => {
+  const { h, gun, at } = toFirstCall();
+  const s2 = E[GUN].skills.find((s) => s.prefabKey === '2');
+  const before = at.filter((p) => !p.calling);
+  // standing shot after shot on one target: at 420 ASPD the interval (1.07 s) is shorter than its attack clip
+  assert.equal(gun.mem.ab.list.some((a) => a && a.cd === s2.cooldown && a.casts === 1), true);
+  assert.equal(before.at(-2).aspd, 20 + 5 * E[GUN].talents.bb['2.attack_speed'], 'at its top attack speed when the call came due');
+  assert.ok(Math.abs(before.at(-1).x - before.at(-60).x) < 1e-9 && Math.abs(before.at(-1).y - before.at(-60).y) < 1e-9, 'stalled on its target');
+  const n = gun.stats.attacks, x = gun.x, y = gun.y, t0 = h.b.time;
+  assert.equal(gun.swing, false, 'between two attacks');
+  h.run(DOG - h.TICK * 2);
+  assert.equal(gun.stats.attacks, n, 'no attack during the cast');
+  assert.deepEqual([gun.x, gun.y], [x, y], 'no step during the cast');
+  assert.ok(gun.findBuff('ab:channel'));
+  h.run(h.TICK * 4);
+  assert.ok(!gun.findBuff('ab:channel'), `over after ${DOG} s (from ${t0})`);
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('隐秘核心铳: the call clears the attack-speed stacks (its spell hits the springs: one stack left), restarts the attack cooldown, and the gun walks on between its next shots', () => {
+  const { h, gun } = toFirstCall();
+  const step = E[GUN].talents.bb['2.attack_speed'];
+  assert.equal(gun.s.aspd, 20 + step, 'one stack: 100, not 420');
+  assert.ok(Math.abs(gun.s.interval - 4.5) < 1e-9);
+  h.run(DOG);
+  const n = gun.stats.attacks, x = gun.x, y = gun.y;
+  assert.ok(h.runUntil(() => gun.stats.attacks === n + 1, 3), 'the cooldown ran out during the cast (4.5 s < 5 s): it shoots at once');
+  assert.equal(gun.s.aspd, 20 + step, 'another target than the spring: cleared again, then one stack');
+  const t1 = h.b.time;
+  assert.ok(h.runUntil(() => gun.stats.attacks === n + 2, 10));
+  assert.ok(Math.abs(h.b.time - t1 - 4.5) < h.TICK * 2, 'a 4.5 s interval, not 1.07 s');
+  assert.ok(Math.hypot(gun.x - x, gun.y - y) > 0.3, 'it walked on between them');
+  assert.equal(gun.s.aspd, 20 + 2 * step, 'and ramps anew');
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('隐秘核心铳: after the call it takes a new target when a higher-DEF operator came into reach', () => {
+  const { h, gun } = toFirstCall();
+  assert.equal(h.allies().filter((u) => u.stats.taken > 0).length, 1, 'one target so far');
+  // walk the gun's other wall into reach: the next shot is at the highest DEF in range
+  const other = h.allies().find((u) => u.stats.taken === 0);
+  other.base.def += 500; other.markDirty?.();
+  other.x = other.tileC = Math.round(gun.x); other.y = other.tileR = Math.round(gun.y) + 1;
+  const n = gun.stats.attacks;
+  h.runUntil(() => gun.stats.attacks === n + 1, DOG + 3);
+  assert.ok(h.runUntil(() => other.stats.taken > 0, 3), 'the new target was shot');
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('隐秘核心铳: no charge starts during the call; a call during a charge holds it and leaves the attack cooldown alone', () => {
+  const h = arena({ solo: true, manual: true, cooldown: 45 });
+  h.step();
+  const gun = h.spawn(GUN, { pos: [3, 8], tag: 'boss' });
+  gun.profile.noAttack = true;
+  h.spawn(SPRING, { pos: [3, 12], tag: 'part' });
+  const charge = gun.mem.ab.list.find((a) => a && a.cd === 30), call = gun.mem.ab.list.find((a) => a && a.cd === 45 && a.fire);
+  charge.left = 0.5;
+  h.step(2);
+  assert.ok(gun.findBuff('ab:channel'));
+  h.run(DOG - 0.2);
+  assert.ok(!gun.findBuff('boss:charge'), 'the charge waits for the cast');
+  h.run(0.4);
+  assert.ok(gun.findBuff('boss:charge'), 'then it starts');
+  gun.atkCd = 3;
+  call.left = 0;
+  h.step();
+  assert.ok(gun.findBuff('ab:channel'));
+  assert.ok(gun.atkCd <= 3, 'the charge\'s mode has its own (empty) main attack');
+  const x = gun.x;
+  h.run(1);
+  assert.equal(gun.x, x, 'it stands while it calls');
   assert.equal(h.b.errorCount, 0);
 });
