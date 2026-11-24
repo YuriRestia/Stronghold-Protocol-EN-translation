@@ -7,6 +7,11 @@
   [src: official enm_pfb_28.ab enemy_9017_achunt Skills/2]
 - Before: it kept shooting through its own call at full attack speed, and could stand forever on an operator it could not
   kill.
+- The gun's attack speed now follows the official timing between shots, and an operator entering one of its beams to the
+  carts counts as a hit for it: a beam that crosses someone else also resets its attack speed.
+  [src: official [uc]projectiles.ab projectile_enemy_achunt_ray]
+- It opens the Hidden Core fight with its beams instead of a shot, and its charge waits for the shot under way.
+  [src: official enm_pfb_28.ab enemy_9017_achunt Skills/3, Skills/1]
 - The gun now plays its own calling animation during the call.
 - The next call comes 45 s after the last one ended, not 45 s after it began. [src: official level_act1autochess_h08_02.json enemy_9017_achunt_2 skill 2]
 
@@ -19,8 +24,8 @@ Server cost:
 | Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day) [src: no network or protocol code changed] | 0 / 0 MB/s [src: no network or protocol code changed] |
 | Bandwidth out / in, per room (8 players) | 0 / 0 MB/s [src: no network or protocol code changed] | 0 / 0 MB/s [src: no network or protocol code changed] |
 | Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day) [src: no network or protocol code changed] | 0 / 0 MB/s [src: no network or protocol code changed] |
-| Server CPU | 0 % of one core: a few comparisons per gun and tick, only in a server-run Hidden Core field [unverified] | under 0.1 % [unverified] |
-| Memory | 0 MB [src: server/sim/content/bosses.js kitGun keeps no new state] | 0 MB |
+| Server CPU | 0 % of one core: per gun and tick a few comparisons and one distance per beam and operator, only in a server-run Hidden Core field [unverified] | under 0.1 % [unverified] |
+| Memory | 0 MB [src: server/sim/content/bosses.js kitGun keeps a handful of numbers and one small set per beam] | 0 MB |
 | Disk | 0 MB/day [src: server/sim/content/bosses.js writes nothing] | 0 MB/day |
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 

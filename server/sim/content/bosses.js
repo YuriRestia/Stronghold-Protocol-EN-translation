@@ -72,7 +72,7 @@
 // fx kinds: 'beam' 'shell' 'explode' 'telegraph' 'charge' 'link' 'dash' 'column' 'tide' 'rockfall' 'tentacle' 'equip'
 //   'sword' 'vest' 'blink' 'summon' 'grow' 'phase' 'lpLoss' (x, y + extra {id, r, tiles, kind, tx, ty …}).
 
-import { MOVE_SCALE, MAX_ALIVE_ENEMIES, ASPD_MIN } from '../constants.js';
+import { MOVE_SCALE, MAX_ALIVE_ENEMIES, ASPD_MIN, PROJECTILE_SPEEDS } from '../constants.js';
 import { aggroCmp, areaSelectable } from '../targeting.js';
 import { compileRoute, attackWindup } from '../ai.js';
 import { normalizeRoute } from '../simdata.js';
@@ -689,32 +689,127 @@ function kitGun(ab, e, b) {
   // the stack group (OverrideGroup.Clear) and becomes the last one; then one stack is added — so the first hit on a
   // target already counts. The group holds `max_stack_cnt` stacks and `max_valid_stack_cnt` of them count
   // [src: OverrideGroup.ResetWithBuff RVA 0x6e0760, Blackboard.GetIntOrDefault "max_stack_cnt" / "max_valid_stack_cnt"].
-  // No timer clears them (life INFINITY). The talent registers for every ability family (`_targetFamilyMask` 31 =
-  // FamilyGroupMask.ALL), so a skill cast on targets reaches Apply too (【末日布道】 below); 【最终之罚】 does not: its
-  // ActiveBuffAbility adds its buff in OnSpellStart, without OnCastOnTarget [src: RVA 0xf57530]. The ASPD adds onto the
-  // clamped base 20 (officialBaseAspd).
+  // No timer clears them (life INFINITY), nor does losing the target. The talent registers for every ability family
+  // (`_targetFamilyMask` 31 = FamilyGroupMask.ALL), and Apply has two callers: AbilityStandard.OnCastOnTarget and
+  // Projectile.ActionController.OnHitTarget [src: RVA 0x5fb0e0's direct calls]. So what reaches it is the attack's
+  // projectile as it lands, 【末日布道】's spell on the springs, and 【盲信之誓】's lasers on each operator that enters one
+  // (below). 【最终之罚】 does not: its ActiveBuffAbility adds its buff in OnSpellStart [src: RVA 0xf57530], its trace ability
+  // overrides OnCastOnTarget without the attachments [src: RVA 0xff81a0] and its AuraAbility has no such call. The ASPD
+  // adds onto the clamped base 20 (officialBaseAspd).
   const step = T(ab, '2.attack_speed') ?? 0, maxN = T(ab, '2.max_stack_cnt') ?? 0;
   const maxValid = T(ab, '2.max_valid_stack_cnt') ?? -1;
-  const P = { last: null, n: 0, charge: null };
+  const P = { last: null, n: 0, charge: null, R: 0, p: 0, castEnd: -Infinity, swAt: null, struck: false, aim: null };
   const range = () => e.base.rangeRadius || 2;
   const setAspd = (b2) => b2.addBuff(e, { key: 'boss:aspd', persist: true, mods: { aspd: step * (maxValid >= 0 ? Math.min(P.n, maxValid) : P.n) } });
   const s1 = ab.sk['1'], s2 = ab.sk['2'], s3 = ab.sk['3'];
   const groundTargets = (b2) => allTargets(b2, e).filter((u) => u.ground);
   const calling = (e2) => !!e2.findBuff('ab:channel');                      // casting 【末日布道】
+  // The attack's official cooldown timer (§37.110), which the engine's strike-to-strike `atkCd` cannot express while the
+  // attack speed changes between two shots:
+  // · it restarts as the attack's cast starts (AbilityStandard.CastToTarget: PeriodicTimer.Reset(true) [src: CN client
+  //   GameAssembly.dll RVA 0x5fbe40, 0x5fc121]), P.R is what it has left, P.p its period;
+  // · the cast lasts min(interval, clip) as the cast starts: Body/Attack is `_timeMode` FROM_ATTACK_SPEED with
+  //   `_maxAnimScale` 1 [src: battle/enm_pfb_28.ab enemy_9017_achunt Modes/Default/Body/Attack], so UpdatePlaybackSpeed's
+  //   m_attackTime = min(max(attackTime / clip, 0.1), 1) × clip [src: RVA 0xf91530, 0xf917d0–0xf91890], cached by
+  //   OnCastStart [src: RVA 0xf9bea0] and waited out by the post delay [src: RVA 0xf9c600] (P.castEnd);
+  // · a changed attack speed rescales what is left, keeping the progress (OnAttackTimeChanged → ResetButKeepProgress
+  //   [src: RVA 0xf90d80, 0x1e4ae20]), never the cast under way;
+  // · the next cast starts once both are over, with the target chosen then (SearchTarget [src: RVA 0xad3d50]; the
+  //   highest DEF in range), and only those walk it.
+  const clipDur = e.def && e.def.attackAnim && e.def.attackAnim.dur > 0 ? e.def.attackAnim.dur : 0;
+  const syncTimer = () => {
+    const p = e.s.interval;
+    if (P.p > 0 && p !== P.p) {
+      P.R *= p / P.p;
+      if (e.swing) e.atkCd = Math.min(e.atkCd, attackWindup(e));              // a shorter wind-up never cuts the swing
+    }
+    P.p = p;
+  };
+  /** BrownbTalent_1.Apply: another target than the last clears the stacks, then one is added. */
+  const applyStack = (b2, t) => {
+    if (t !== P.last) { P.last = t; P.n = 0; }
+    P.n = Math.min(maxN, P.n + 1);
+    setAspd(b2);
+    syncTimer();
+  };
+  /** A skill is cast in the attack's turn: the swing it replaces is gone and the main attack's cooldown restarts, unless the
+   *  charge's own one is in force (AttackWrapper.Cast: ResetCooldown(true) [src: RVA 0xad3930]). */
+  const takeTurn = (b2, e2) => {
+    e2.swing = false; e2.swingTargets = null; P.swAt = null; P.castEnd = b2.time;
+    if (!P.charge) P.R = e2.s.interval;
+    e2.atkCd = P.R + attackWindup(e2);
+  };
+  const driveAttack = (b2, e2, dt) => {
+    syncTimer();
+    P.R = P.R - dt > 1e-9 ? P.R - dt : 0;
+    if (!(clipDur > 0)) return;
+    if (e2.swing && P.swAt == null) {
+      P.swAt = b2.time; P.struck = false;
+      P.R = e2.s.interval; P.castEnd = b2.time + Math.min(e2.s.interval, clipDur);
+      P.aim = targetsNear(b2, e2, range()).sort((p, q) => q.s.def - p.s.def || aggroCmp(p, q))[0] ?? e2.swingTargets?.[0] ?? null; // 优先攻击防御力最高的单位
+    }
+    if (e2.swing) return;
+    if (P.swAt != null) {
+      P.swAt = null;
+      if (!P.struck) { P.R = 0; P.castEnd = b2.time; }                        // cut short of its damage frame: ready again (ai.js)
+      else e2.atkStandUntil = P.castEnd;
+    }
+    const wait = Math.max(P.R, P.castEnd - b2.time);
+    e2.atkCd = wait > 1e-9 ? wait + attackWindup(e2) : 0;
+  };
+  // Enemy skills replace an attack: AttackWrapper.SearchTarget refuses every skill while the main attack is not ready, and
+  // MoveState asks it before anything else [src: RVA 0xad3d50, 0x605590, 0xae5350]; equal priorities are picked at random
+  // [src: RVA 0xad3d50, the randomImp pick]. During the charge the main attack is Modes/S1/Body/Attack, an
+  // EmptyActiveAbility that is always ready.
+  const attackDue = (b2, e2) => {
+    if (P.charge) return true;
+    return e2.swing ? P.swAt === b2.time : P.R <= b2.dt + 1e-9 && P.castEnd <= b2.time + b2.dt + 1e-9;
+  };
+  let call = null;
+  const callReady = (b2, e2) => !!call && call.left - b2.dt <= 1e-9 && !calling(e2) && b2.enemies.some((o) => o.alive && isSpring(o));
+  /** The charge is over: the mode switch re-attaches the attack, its timer ready (UnitMode / Ability.Reset [src: RVA
+   *  0xb13d60, 0x602450, 0x603fa0]: PeriodicTimer.Reset(cooldown, false)); the stacks stay. */
+  const endCharge = (b2, e2) => {
+    P.charge = null; P.R = 0; P.castEnd = b2.time;
+    b2.removeBuff(e2, 'boss:charge');
+    if (e2.route) e2.route.pts = null;
+  };
+  const endCall = (b2, e2) => {
+    if (e2.form === 'call') { e2.form = null; b2.fx('phase', { x: e2.x, y: e2.y, id: e2.id, kind: 'call', form: null }); }
+  };
   const list = [
     {
-      spawn(b2, e2) { b2.addBuff(e2, { key: 'boss:unblockable', persist: true, flags: { unblockable: true } }); officialBaseAspd(e2); },
-      before(c, b2, e2) { const l = targetsNear(b2, e2, range()); if (l.length) c.targets = [l.sort((p, q) => q.s.def - p.s.def || aggroCmp(p, q))[0]]; }, // 优先攻击防御力最高的单位
-      attack(c, b2) {
+      spawn(b2, e2) { b2.addBuff(e2, { key: 'boss:unblockable', persist: true, flags: { unblockable: true } }); officialBaseAspd(e2);
+        // the skill comes before the attack: no swing until 【盲信之誓】's cast had its chance (below)
+        if (hidden && s3) { P.R = Infinity; e2.atkCd = Infinity; }
+      },
+      before(c) { P.struck = true; if (P.aim) c.targets = [P.aim]; },          // the target of the cast's start (a dead one: no shot)
+      attack(c, b2, e2) {
         const t = c.targets[0];
-        if (t !== P.last) { P.last = t; P.n = 0; }                         // a new target clears the stacks…
-        P.n = Math.min(maxN, P.n + 1);                                     // …then this hit adds one (BrownbTalent_1.Apply)
-        setAspd(b2);                                                       // before ai.js sets atkCd: the next shot is faster
+        if (!t) return;
+        // Apply runs as the projectile lands (projectile_enemy_achunt `_speed` 10 [src: CN client battle/prefabs/
+        // [uc]projectiles.ab AdvancedMovement], the engine's 'enemy' shot)
+        const d = hypot(t.x - e2.x, t.y - e2.y);
+        if (d > 0.75) b2.after(d / PROJECTILE_SPEEDS.enemy, (b3) => { if (t.alive) applyStack(b3, t); }, { owner: e2 });
+        else applyStack(b2, t);
       },
       dealt(c, b2, e2) { elem(b2, e2, c.target, 'erosion', e2.s.atk * (T(ab, '1.ep_damage_ratio') ?? 0)); }, // 攻击时附带侵蚀损伤
       tick(b2, e2, a, dt) {
+        driveAttack(b2, e2, dt);
         const ch = P.charge;
-        if (!ch || unbalancedNow(b2, e2) || calling(e2)) return;               // (失衡, a call's cast: no scripted move meanwhile)
+        if (!ch) return;
+        if (calling(e2) && b2.time >= ch.until) {
+          // the charge's time runs on through a call; its end switches the mode and restarts the state machine, which cuts
+          // the call's cast (achunt_s_1[speed] ON_BUFF_FINISH: SwitchMode, _restartFSM [src: config/buff_template_holder.ab];
+          // AttackState.OnExit interrupts it [src: RVA 0xad33c0]); the springs keep their own 5 s
+          b2.removeBuff(e2, 'ab:channel');
+          e2.skillAnimUntil = -1;
+          endCall(b2, e2);
+          if (call) call.left = call.cd;
+          endCharge(b2, e2);
+          return;
+        }
+        if (unbalancedNow(b2, e2) || calling(e2)) return;                      // (失衡, a call's cast: no scripted move meanwhile)
         const t = ch.target;
         const sp = (e2.s.moveSpeed + (T(ab, '3.move_speed') ?? 0)) * MOVE_SCALE * dt;
         const nx = e2.x, ny = e2.y;
@@ -728,18 +823,16 @@ function kitGun(ab, e, b) {
           b2.fxState(u, 'achunt_s_1[damage]', true, { src: e2, dur: HIT_ROW_S });
           hurt(b2, e2, u, e2.s.atk * (T(ab, '3.atk_scale') ?? 1), 'phys');
         }
-        if (arrived || b2.time >= ch.until || (e2.x === nx && e2.y === ny)) {
-          P.charge = null;
-          b2.removeBuff(e2, 'boss:charge');
-          if (e2.route) e2.route.pts = null;
-        }
+        if (arrived || b2.time >= ch.until || (e2.x === nx && e2.y === ny)) endCharge(b2, e2);
       },
     },
     s1 && {
-      cd: s1.cd, icd: s1.icd, sk: s1, cond: (b2, e2) => groundTargets(b2).length > 0 && !P.charge && !calling(e2),
-      fire(b2, e2) { // 【最终之罚】 charge at the highest-DEF ground unit
+      cd: s1.cd, icd: s1.icd, sk: s1,
+      cond: (b2, e2) => groundTargets(b2).length > 0 && !P.charge && !calling(e2) && attackDue(b2, e2) && !(callReady(b2, e2) && b2.rng.pick(['1', '2']) === '2'),
+      fire(b2, e2) { // 【最终之罚】 charge at the highest-DEF ground unit, in the attack's turn
         const t = groundTargets(b2).sort((p, q) => q.s.def - p.s.def || aggroCmp(p, q))[0];
         if (!t) return;
+        takeTurn(b2, e2);
         const dur = T(ab, '3.duration') ?? 0;
         P.charge = { target: { x: t.x, y: t.y }, until: b2.time + dur, hit: new Set() };
         b2.addBuff(e2, { key: 'boss:charge', duration: dur, visible: true, flags: { noMove: true, disarm: true } });
@@ -760,9 +853,38 @@ function kitGun(ab, e, b) {
     // any other gun or spring on the field counted, whenever it came. Refresh on hit as well so a hit right after the
     // last marked unit dies sees the current condition, not a stale polling result.
     let marked = null;
+    // 【盲信之誓】's one cast (initCooldown 0 [src: official level_act1autochess_h08_02.json enemy_9017_achunt_2 skill 3]) is a
+    // RangedAttack on every unit holding achunt_mark, its laser projectile linked to each spring [src: battle/enm_pfb_28.ab
+    // Skills/3 and its Selector; battle/prefabs/[uc]projectiles.ab projectile_enemy_achunt_ray]. It takes the attack's turn
+    // like every skill: no animation (`_timeMode` SPECIFIED, `_cooldown` 0), but the main attack's cooldown restarts, 22.5 s at
+    // ASPD 20 (AttackWrapper.Cast [src: RVA 0xad3930]). Linking to a spring is no hit (LaserProjectile.OnHitTarget starts DoLink
+    // instead [src: RVA 0x906c30]); once linked — at the beam's speed 10 (HarpoonMovement `_speed`) — every operator that
+    // ENTERS the beam is one (LaserHitBehaviour._DoTargetEnter → Projectile.DealHitTarget → ActionController.OnHitTarget →
+    // AbilityAttachment.Apply, `_unlimitedAlreadyHit`, `_excludeAttachments` 0 [src: RVA 0xdc21c0, 0x915680, 0x9207b0, 0x5fb0e0]):
+    // the attack-speed stacks take it as a hit on that operator.
+    const links = new Map();                                                 // spring → { at, inside: the allies in its beam }
     b.after(0.03, (b2) => {
-      if (e.alive) marked = b2.enemies.filter((o) => o !== e && o.alive && (isGun(o) || isSpring(o)));
+      if (!e.alive) return;
+      P.R = 0;
+      marked = b2.enemies.filter((o) => o !== e && o.alive && (isGun(o) || isSpring(o)));
+      const springs = s3 ? marked.filter(isSpring) : [];
+      if (!springs.length) return;
+      for (const sp of springs) links.set(sp, { at: b2.time + hypot(sp.x - e.x, sp.y - e.y) / PROJECTILE_SPEEDS.enemy, inside: new Set() });
+      if (!calling(e)) takeTurn(b2, e);
     }, { owner: e });
+    list.push({
+      tick(b2, e2) {
+        for (const [sp, l] of links) {
+          if (!sp.alive) { links.delete(sp); continue; }
+          if (b2.time < l.at - 1e-9) continue;
+          for (const u of b2.allies()) {
+            const on = u.alive && segDist(u.x, u.y, e2.x, e2.y, sp.x, sp.y) <= LINK_WIDTH;
+            if (on && !l.inside.has(u)) { l.inside.add(u); applyStack(b2, u); } else if (!on) l.inside.delete(u);
+          }
+          for (const u of l.inside) if (!u.alive || !u.deployed) l.inside.delete(u);
+        }
+      },
+    });
     const confession = (b2, e2) => {
       const other = !!marked && marked.some((o) => o.alive);
       if (other) {
@@ -785,9 +907,8 @@ function kitGun(ab, e, b) {
     // AnimatedActionToTargetAbility whose `_timeMode` LOAD_FROM_BLACKBOARD / `_cooldownKey` dog_duration makes the cast as
     // long as the gain, and its ThreePartChannelingAnimation fills it (the loop = that time − begin − end) [src: CN client
     // GameAssembly.dll RVA 0xf91d60, 0x1012030]. Until §37.110 our gun shot on through its call.
-    // · It takes the attack's turn: AttackWrapper.SearchTarget refuses every skill while the main attack is not ready, and
-    //   the call's AttackState ends only when the cast does [src: RVA 0xad3d50, 0xad3500] — so it waits for the attack under
-    //   way (`attackDue`), and the gun neither walks nor attacks for the cast (the `ab:channel` buff).
+    // · It takes the attack's turn (`attackDue`), and its AttackState ends only when the cast does [src: RVA 0xad3500]: the
+    //   gun neither walks nor attacks for the cast (the `ab:channel` buff).
     // · Its spell hits every spring (AbilityStandard.OnCastOnTarget → AbilityAttachment.Apply → BrownbTalent_1.Apply [src:
     //   RVA 0x5fe8b0, 0x5fb0e0, 0xfdc1b0]): a spring is another target than the operator shot so far, so the stacks clear and
     //   one is added. `_preDelay` 0, so at the cast's start.
@@ -795,33 +916,20 @@ function kitGun(ab, e, b) {
     //   and follows the new attack speed (OnAttackTimeChanged: ResetButKeepProgress [src: RVA 0xf90d80]).
     // · Then it is back in MoveState: it walks on and takes a new target with its next attack.
     // · The cooldown runs from the cast's end (EnemySkill._OnCastFinish: PeriodicTimer.Reset(true) [src: RVA 0x70fe70]): `clip`.
-    // A call during 【最终之罚】 leaves the attack's cooldown alone: the charge's mode has another main attack
-    // (Modes/S1/Body/Attack, an EmptyActiveAbility with no cooldown).
+    // A call during 【最终之罚】 is cast there and then — the root skills stay attached in every mode (Enemy.OnSwitchMode [src:
+    // RVA 0xac0530]) —, holds the charge, which goes on after it, and leaves the attack's cooldown alone.
     const castTime = (s2 && s2.bb.dog_duration) ?? 0;
-    const attackDue = (b2, e2) => {
-      if (P.charge) return true;
-      const wind = attackWindup(e2);
-      // the swing of the next tick, or the one this tick's updateEnemy just started (the skill comes first officially)
-      return e2.swing ? e2.atkCd > wind - b2.dt + 1e-9
-        : e2.atkCd - b2.dt <= wind + 1e-9 && b2.time + b2.dt >= e2.atkStandUntil - 1e-9;
-    };
-    if (s2) list.push({
+    if (s2) list.push(call = {
       cd: s2.cd, icd: s2.icd, sk: s2, clip: castTime,
       cond: (b2, e2) => !calling(e2) && b2.enemies.some((o) => o.alive && isSpring(o)) && attackDue(b2, e2),
       fire(b2, e2) { // 【末日布道】 springs chase 铳 for the whole 5 s gain, invulnerable, trampling operators (kitSpring)
-        e2.swing = false; e2.swingTargets = null;
+        takeTurn(b2, e2);
         if (castTime > 0) b2.addBuff(e2, { key: 'ab:channel', duration: castTime, flags: { disarm: true } });
         // display: the model's Skill_2_Begin / Loop / End for the cast (units.js FORMS 'call'), ANIM.SKILL for its effects
         e2.skillAnimUntil = b2.time + castTime;
         setForm(b2, e2, 'call', 'phase', { dur: castTime });
-        b2.after(castTime, (b3) => {
-          if (!e2.alive || e2.form !== 'call') return;
-          e2.form = null;
-          b3.fx('phase', { x: e2.x, y: e2.y, id: e2.id, kind: 'call', form: null });
-        }, { owner: e2 });
-        P.last = b2.enemies.filter((o) => o.alive && isSpring(o)).pop() ?? null; P.n = Math.min(maxN, 1);
-        setAspd(b2);
-        if (!P.charge) e2.atkCd = e2.s.interval + attackWindup(e2);          // the next swing may start one interval from here
+        b2.after(castTime, (b3) => { if (e2.alive) endCall(b3, e2); }, { owner: e2 });
+        for (const sp of b2.enemies) if (sp.alive && isSpring(sp)) applyStack(b2, sp);
         // PRTS “碎铳之簧” 追逐模式 "不进行普通攻击": `disarm` for the dash (until 0.1.3 it kept shooting while it ran).
         // Each gun casts on its own data timer, and a cast takes every spring — on a pair field the later of the two
         // calls retargets them all to its gun (handbook 「持续召唤场上所有“碎铳之簧”向自身移动」; no stagger, no lock while

@@ -46,6 +46,20 @@ function arena({ solo = false, manual = false, cooldown = null, extra = [] } = {
 /** The guns of `h` make no normal attack: their calls never wait for one under way (the timing tests below). */
 const noAttacks = (h) => h.b.on('enemySpawn', (c) => { if (c.enemy.defId === GUN) c.enemy.profile.noAttack = true; });
 const DOG = E[GUN].skills.find((s) => s.prefabKey === '2').bb.dog_duration;
+const BAT = E[GUN].stats.bat, CLIP = E[GUN].attackAnim.dur, HIT = E[GUN].attackAnim.hit, STEP = E[GUN].talents.bb['2.attack_speed'];
+/** The attack's interval at ASPD `a`, and the cooldown 【盲信之誓】's cast restarts as the gun appears (ASPD 20). */
+const ivAt = (a) => BAT * 100 / a;
+const OPENING = ivAt(20);
+/** Keep the springs on the (first) gun: no beam meets an operator. */
+const tuck = (h) => h.b.on('tick', () => {
+  const g = h.enemies().find((e) => e.defId === GUN);
+  if (g) for (const s of h.enemies()) if (/enemy_90(18|19|20)_actrp/.test(s.defId)) { s.x = g.x; s.y = g.y; }
+});
+
+/** The guns of `h` never use 【最终之罚】 (as on the pair field: h08_02's cooldown 999). */
+const noCharges = (h) => h.b.on('tick', () => {
+  for (const g of h.enemies()) if (g.defId === GUN && g.mem.ab) g.mem.ab.list.find((a) => a && a.sk && a.fire && a.cd === 30 || a && a.cd === 999).left = Infinity;
+});
 
 /** Every 【末日布道】 call (a new chase object on the spring): { time, gun }. */
 function recordCalls(h) {
@@ -81,14 +95,16 @@ test('隐秘核心铳 pair: the branch gun starts with the battle, the leader af
   for (const [gun, { t: t0 }] of spawned) {
     const own = calls.filter((c) => c.gun === gun).map((c) => c.time);
     assert.equal(own.length, 3, 'three calls each in 150 s');
-    assert.ok(Math.abs(own[0] - t0 - skill.initCooldown) < h.TICK * 2, `first call ${skill.initCooldown} s after its spawn`);
+    // 【盲信之誓】's cast at its spawn took the attack's turn, so the call waits for the attack's cooldown (22.5 s at ASPD 20, sooner
+    // when a beam met an operator)
+    assert.ok(own[0] - t0 > skill.initCooldown - h.TICK * 2 && own[0] - t0 < OPENING + 0.2, `first call ${skill.initCooldown}–${OPENING} s after its spawn, got ${own[0] - t0}`);
     for (let i = 1; i < own.length; i++) assert.ok(Math.abs(own[i] - own[i - 1] - skill.cooldown - DOG) < h.TICK * 2, `then every ${skill.cooldown} s, from the end of the ${DOG} s cast`);
   }
   // the calls alternate between the two guns, the leader's one (preDelay − branch time) after the branch gun's: the
   // springs go to each gun in turn, not always to the one that calls a tick later
   assert.equal(calls.length, 6);
   for (let i = 1; i < calls.length; i++) assert.notEqual(calls[i].gun, calls[i - 1].gun, 'the guns take turns');
-  for (let i = 1; i < calls.length; i += 2) assert.ok(Math.abs(calls[i].time - calls[i - 1].time - (leadAt - branchAt)) < h.TICK * 3, 'staggered by the preDelay');
+  for (let i = 1; i < calls.length; i += 2) assert.ok(Math.abs(calls[i].time - calls[i - 1].time - (leadAt - branchAt)) < OPENING - skill.initCooldown + 0.2, 'staggered by the preDelay');
   assert.equal(h.b.errorCount, 0);
   checkInvariants(h.b);
 });
@@ -98,7 +114,7 @@ test('隐秘核心铳: reaching a moving gun keeps pursuit, invulnerability and 
   h.step();
   const gun = h.spawn(GUN, { pos: [3, 5], tag: 'boss', mods: { speedMul: 0 } });
   const spring = h.spawn(SPRING, { pos: [3, 4.8], tag: 'part' });
-  h.step(2);
+  h.runUntil(() => spring.mem.ab.dash, OPENING + 1);
   const d = spring.mem.ab.dash;
   assert.ok(d, 'arriving next to the gun does not end the chase');
   h.run(1);
@@ -123,9 +139,12 @@ test('隐秘核心铳: the other gun\'s call during a chase retargets every spri
   h.step();
   const left = h.spawn(GUN, { pos: [3, 5], tag: 'boss', mods: { speedMul: 0 } });
   const right = h.spawn(GUN, { pos: [3, 15], tag: 'boss', mods: { speedMul: 0 } });
-  const call = right.mem.ab.list.find((a) => a.cd === 45 && a.fire);
+  const callOf = (g) => g.mem.ab.list.find((a) => a.cd === 45 && a.fire), call = callOf(right);
   call.left = 999;   // the right gun's call is not ready yet
+  callOf(left).left = OPENING + 1;   // past the cooldown of 【盲信之誓】's cast (both guns' attacks are ready by then)
   const spring = h.spawn(SPRING, { pos: [3, 10], tag: 'part' });
+  h.run(OPENING + 1);
+  spring.x = 10; spring.y = 3;
   h.step(2);
   const first = spring.mem.ab.dash;
   assert.ok(first && first.gun === left, 'the first call takes the spring to the left gun');
@@ -148,7 +167,7 @@ test('隐秘核心铳: with no gun left on the field the spring holds still, inv
   h.step();
   const gun = h.spawn(GUN, { pos: [3, 5], tag: 'boss', mods: { speedMul: 0 } });
   const spring = h.spawn(SPRING, { pos: [3, 1], tag: 'part' });
-  h.step(2);
+  h.runUntil(() => spring.mem.ab.dash, OPENING + 1);
   const d = spring.mem.ab.dash;
   assert.ok(d, 'chasing');
   h.b.kill(gun, null);
@@ -166,26 +185,56 @@ test('隐秘核心铳: with no gun left on the field the spring holds still, inv
 
 test('隐秘核心铳: solo keeps the template initial cooldown and repeated call timing', () => {
   const h = arena({ solo: true });
-  noAttacks(h);
+  noAttacks(h); noCharges(h); tuck(h);
   const calls = recordCalls(h);
   h.run(100);
   assert.equal(calls.length, 2);
   const tpl = W.act1autochess_h08_02_s;
   const spawnTime = tpl.spawns.find((s) => s.tag === 'boss').time;
   const skill = (tpl.overrides[GUN]?.skills ?? E[GUN].skills).find((s) => s.prefabKey === '2');
-  assert.ok(Math.abs(calls[0].time - spawnTime - skill.initCooldown) < h.TICK * 2);
+  assert.ok(OPENING > skill.initCooldown);
+  assert.ok(Math.abs(calls[0].time - spawnTime - OPENING) < 0.03 + h.TICK * 3, `the attack's cooldown since 【盲信之誓】's cast: ${calls[0].time - spawnTime}`);
   assert.ok(Math.abs(calls[1].time - calls[0].time - skill.cooldown - DOG) < h.TICK * 2);
   assert.equal(h.b.errorCount, 0);
 });
 
-/** The solo gun on its real route, a wall in its reach, its charge off; stops on the tick of its first call. */
-function toFirstCall(extra = [{ uid: 2, chessId: 'pursuit_wall', row: 4, col: 8, abs: true }]) {
-  const h = arena({ solo: true, extra });
-  let gun = null;
-  h.b.on('enemySpawn', (c) => { if (c.enemy.defId === GUN) gun = c.enemy; });
-  h.runUntil(() => gun && gun.mem.ab, 12);
-  gun.mem.ab.list.find((a) => a && a.cd === E[GUN].skills.find((s) => s.prefabKey === '1').cooldown).left = Infinity;
-  const spring = h.enemies().find((e) => e.defId === SPRING);
+const skillOf = (g, key) => g.mem.ab.list.find((a) => a && a.fire && a.cd === E[GUN].skills.find((s) => s.prefabKey === key).cooldown);
+
+/** The solo gun on its real route, a wall it cannot kill in its reach, its charge off, its beams on nobody; the battle. */
+function stalled({ left = 45, speedMul = 1 } = {}) {
+  const h = arena({ solo: true, manual: true, extra: [{ uid: 2, chessId: 'pursuit_wall', row: 4, col: 8, abs: true }] });
+  h.step();
+  const spring = h.spawn(SPRING, { pos: [4, 10], tag: 'part', routeIndex: 1, mods: { speedMul: 0 } });
+  const gun = h.spawn(GUN, { pos: [4, 10], tag: 'boss', routeIndex: 0, mods: { speedMul } });
+  tuck(h);
+  h.b.addBuff(gun, { key: 'test:hold', duration: OPENING + 1, flags: { noMove: true } });   // in reach until its attack is ready
+  skillOf(gun, '1').left = Infinity;
+  skillOf(gun, '2').left = left;
+  return { h, gun, spring, wall: h.allies().find((u) => u.tileC === 8) };
+}
+
+/** Every shot from now: { t (from now), aspd at the strike, d to its target, wind, walked (s, since the shot before) }. */
+function shots(h, gun) {
+  const out = [], t0 = h.b.time;
+  let n = gun.stats.attacks, x = gun.x, y = gun.y, walked = 0, aspd = gun.s.aspd, u = null;
+  h.b.on('attack', (c) => { if (c.attacker === gun) u = c.targets[0]; });
+  h.b.on('tick', () => {
+    if (Math.hypot(gun.x - x, gun.y - y) > 1e-9) walked += h.TICK;
+    x = gun.x; y = gun.y;
+    if (gun.stats.attacks !== n) {
+      n = gun.stats.attacks;
+      out.push({ t: h.b.time - t0, aspd, d: Math.hypot(u.x - gun.x, u.y - gun.y), wind: HIT * Math.min(1, ivAt(aspd) / CLIP), walked });
+      walked = 0;
+    }
+    aspd = gun.s.aspd;
+  });
+  return out;
+}
+const near = (h, a, b, msg) => assert.ok(Math.abs(a - b) < h.TICK * 3, `${msg}: ${a} ≈ ${b}`);
+
+/** …until its first call. */
+function toFirstCall() {
+  const { h, gun, spring } = stalled();
   const at = [];
   h.b.on('tick', () => { at.push({ t: h.b.time, x: gun.x, y: gun.y, n: gun.stats.attacks, aspd: gun.s.aspd, calling: !!gun.findBuff('ab:channel') }); });
   assert.ok(h.runUntil(() => spring.mem.ab.dash, 60), 'the first call');
@@ -215,18 +264,114 @@ test('隐秘核心铳: the call takes the attack\'s turn — it waits for the sw
 
 test('隐秘核心铳: the call clears the attack-speed stacks (its spell hits the springs: one stack left), restarts the attack cooldown, and the gun walks on between its next shots', () => {
   const { h, gun } = toFirstCall();
-  const step = E[GUN].talents.bb['2.attack_speed'];
-  assert.equal(gun.s.aspd, 20 + step, 'one stack: 100, not 420');
-  assert.ok(Math.abs(gun.s.interval - 4.5) < 1e-9);
+  assert.equal(gun.s.aspd, 20 + STEP, 'one stack: 100, not 420');
   h.run(DOG);
-  const n = gun.stats.attacks, x = gun.x, y = gun.y;
-  assert.ok(h.runUntil(() => gun.stats.attacks === n + 1, 3), 'the cooldown ran out during the cast (4.5 s < 5 s): it shoots at once');
-  assert.equal(gun.s.aspd, 20 + step, 'another target than the spring: cleared again, then one stack');
-  const t1 = h.b.time;
-  assert.ok(h.runUntil(() => gun.stats.attacks === n + 2, 10));
-  assert.ok(Math.abs(h.b.time - t1 - 4.5) < h.TICK * 2, 'a 4.5 s interval, not 1.07 s');
-  assert.ok(Math.hypot(gun.x - x, gun.y - y) > 0.3, 'it walked on between them');
-  assert.equal(gun.s.aspd, 20 + 2 * step, 'and ramps anew');
+  const walk = shots(h, gun);
+  h.run(14);
+  // the cooldown ran out during the cast (4.5 s < 5 s): it shoots at once, at ASPD 100, the stacks cleared again by the
+  // operator (another target than the spring) as the shot lands
+  assert.ok(walk[0].t < 0.2 + HIT, `shoots at once: ${walk[0].t}`);
+  assert.equal(walk[0].aspd, 20 + STEP);
+  near(h, walk[1].t - walk[0].t, ivAt(100), '4.5 s, not 1.07 s');
+  near(h, walk[1].walked, ivAt(100) - CLIP, 'it walks while the 4.5 s interval outlasts the 2.5 s clip (the time walked)');
+  // the second shot lands HIT + its flight into a 4.5 s cooldown: what is left is rescaled to ASPD 180's 2.5 s
+  const hitAt = HIT + walk[1].d / 10;
+  const second = hitAt + (1 - hitAt / ivAt(100)) * ivAt(180);
+  near(h, walk[2].t - walk[1].t, second, 'the cooldown keeps its progress when the attack speed rises');
+  near(h, walk[2].walked, second - CLIP, 'a second, short walk');
+  // the third shot's cast lasts the clip, longer than what its cooldown has left: no step any more
+  near(h, walk[3].t - walk[2].t, CLIP + (walk[3].wind - HIT), 'the cast outlasts the cooldown');
+  assert.ok(walk.slice(3).every((s) => s.walked === 0), 'it stands from ASPD 180 on');
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('铳: a shot\'s target is the highest DEF as its cast starts; the hit counts as the projectile lands', () => {
+  const { h, gun, wall } = stalled({ speedMul: 0 });
+  assert.ok(h.runUntil(() => gun.swing, 30));
+  assert.ok(h.b.time > OPENING - 0.2, '【盲信之誓】\'s cast at the start took the attack\'s turn');
+  const other = h.allies().find((u) => u !== wall);
+  other.base.def += 500; other.markDirty?.();
+  other.x = other.tileC = 10; other.y = other.tileR = 5;
+  assert.ok(h.runUntil(() => gun.stats.attacks === 1, 3));
+  assert.equal(gun.s.aspd, 20, 'not yet landed');
+  h.run(Math.hypot(wall.x - gun.x, wall.y - gun.y) / 10 + h.TICK * 2);
+  assert.equal(gun.s.aspd, 20 + STEP);
+  assert.ok(wall.stats.taken > 0 && other.stats.taken === 0, 'the swing under way keeps its target');
+  assert.ok(h.runUntil(() => other.stats.taken > 0, 8), 'the next one takes the higher DEF');
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('隐秘核心铳: losing its target keeps the stacks; nothing but a hit on another one clears them', () => {
+  const { h, gun, wall } = stalled({ left: Infinity });
+  assert.ok(h.runUntil(() => gun.s.aspd === 20 + 5 * STEP, 60));
+  const n = gun.stats.attacks, x = gun.x;
+  h.b.retreat(wall, { permanent: true });
+  h.run(6);
+  assert.ok(gun.stats.attacks <= n + 1);
+  assert.ok(Math.abs(gun.x - x) > 0.5, 'free: it walks on');
+  assert.equal(gun.s.aspd, 20 + 5 * STEP, 'the stacks stay');
+});
+
+test('隐秘核心铳: an operator that enters a 盲信之誓 beam counts as a hit for the attack-speed stacks, each time it enters', () => {
+  const h = arena({ solo: true, manual: true });
+  h.step();
+  const gun = h.spawn(GUN, { pos: [3, 8], tag: 'boss', mods: { speedMul: 0 } });
+  const spring = h.spawn(SPRING, { pos: [5, 12], tag: 'part', mods: { speedMul: 0 } });
+  for (const o of [gun, spring]) o.profile.noAttack = true;
+  for (const k of ['1', '2']) skillOf(gun, k).left = Infinity;
+  const other = h.allies()[0];
+  h.run(1);
+  assert.equal(gun.s.aspd, 20, 'the beam is linked, nobody in it: linking to the spring itself is no hit');
+  other.x = 10; other.y = 4;
+  h.step(2);
+  assert.equal(gun.s.aspd, 20 + STEP, 'it entered');
+  h.run(2);
+  assert.equal(gun.s.aspd, 20 + STEP, 'standing in it adds nothing');
+  other.y = 8; h.step(2);
+  other.y = 4; h.step(2);
+  assert.equal(gun.s.aspd, 20 + 2 * STEP, 'entered again: the same operator, one more');
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('隐秘核心铳: 最终之罚 takes the attack\'s turn, keeps the stacks, and the attack is ready again as it ends', () => {
+  const { h, gun, spring, wall } = stalled({ left: Infinity });
+  const charge = skillOf(gun, '1');
+  assert.ok(h.runUntil(() => gun.s.aspd === 20 + 5 * STEP, 60));
+  h.b.kill(spring, null);   // no beam: it would meet the operators the gun runs past
+  assert.ok(h.runUntil(() => gun.swing, 3));
+  charge.left = 0;
+  const n = gun.stats.attacks;
+  h.step();
+  assert.ok(!gun.findBuff('boss:charge'), 'it waits for the swing under way');
+  assert.ok(h.runUntil(() => gun.findBuff('boss:charge'), 3));
+  assert.equal(gun.stats.attacks, n + 1, 'after that shot');
+  assert.ok(h.runUntil(() => !gun.findBuff('boss:charge'), 16));
+  assert.equal(gun.s.aspd, 20 + 5 * STEP, 'the charge is no hit for the stacks');
+  assert.ok(wall.alive);
+  const t = h.b.time;
+  assert.ok(h.runUntil(() => gun.swing, 1) && h.b.time - t < h.TICK * 3, 'the re-attached attack is ready');
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('隐秘核心铳: a call that outlasts the charge\'s 15 s is cut as the charge ends', () => {
+  const { h, gun, spring } = stalled({ left: Infinity, speedMul: 0 });
+  assert.ok(h.runUntil(() => gun.s.aspd === 20 + 5 * STEP, 60));
+  skillOf(gun, '1').left = 0;
+  assert.ok(h.runUntil(() => gun.findBuff('boss:charge'), 5));
+  const t0 = h.b.time, dur = E[GUN].talents.bb['3.duration'];
+  gun.unbalanceUntil = t0 + dur - 3;                                          // held back, the charge is still on its way…
+  h.run(dur - 3 + h.TICK);
+  skillOf(gun, '2').left = 0;                                                 // …when a call comes 3 s before its end
+  h.step(2);
+  assert.ok(gun.findBuff('ab:channel') && spring.mem.ab.dash, 'the call is cast during the charge');
+  h.run(t0 + dur - h.b.time - 0.1);
+  assert.ok(gun.findBuff('ab:channel'));
+  h.run(0.3);
+  assert.ok(!gun.findBuff('ab:channel') && !gun.findBuff('boss:charge'), 'both over');
+  assert.equal(gun.form, null);
+  assert.ok(spring.mem.ab.dash, 'the spring keeps its own 5 s');
+  const cd = E[GUN].skills.find((s) => s.prefabKey === '2').cooldown;
+  assert.ok(Math.abs(skillOf(gun, '2').left - cd) < 0.4, 'the call\'s cooldown runs from the cut');
   assert.equal(h.b.errorCount, 0);
 });
 
@@ -250,18 +395,18 @@ test('隐秘核心铳: no charge starts during the call; a call during a charge 
   gun.profile.noAttack = true;
   h.spawn(SPRING, { pos: [3, 12], tag: 'part' });
   const charge = gun.mem.ab.list.find((a) => a && a.cd === 30), call = gun.mem.ab.list.find((a) => a && a.cd === 45 && a.fire);
-  charge.left = 0.5;
+  charge.left = call.left = Infinity;
+  h.run(OPENING + 0.5);
+  charge.left = 0.5; call.left = 0;
   h.step(2);
   assert.ok(gun.findBuff('ab:channel'));
   h.run(DOG - 0.2);
   assert.ok(!gun.findBuff('boss:charge'), 'the charge waits for the cast');
   h.run(0.4);
   assert.ok(gun.findBuff('boss:charge'), 'then it starts');
-  gun.atkCd = 3;
   call.left = 0;
   h.step();
-  assert.ok(gun.findBuff('ab:channel'));
-  assert.ok(gun.atkCd <= 3, 'the charge\'s mode has its own (empty) main attack');
+  assert.ok(gun.findBuff('ab:channel'), 'a call during the charge needs no attack turn');
   const x = gun.x;
   h.run(1);
   assert.equal(gun.x, x, 'it stands while it calls');

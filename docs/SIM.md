@@ -233,10 +233,12 @@ puts every 碎铳之簧 into 追逐模式 for its whole 5 s gain (`dog_duration`
 keeps following the casting gun after reaching it (PR #347; until 0.2.1 arrival or 1 tile ended the chase), and each
 gun casts on its own data timer (20 s after it spawns, then 45 s from the end of each call), so on a pair field the later
 call retargets every spring to that gun for a new 5 s (PRTS: 「持续召唤场上所有“碎铳之簧”向自身移动」). The call is the gun's own 5 s
-cast and takes its attack's turn: it waits for the attack under way, the gun neither walks nor attacks until it ends, its
-attack-speed stacks drop to one (ASPD 100) and its attack cooldown restarts, so it then walks on between its shots and
-picks a new target (§37.110) [src: enm_pfb_28.ab enemy_9017_achunt Skills/2; GameAssembly.dll AttackWrapper.SearchTarget
-/ Cast]. The pair's guns take turns: the
+cast: it neither walks nor attacks until it ends and its attack-speed stacks drop to one (ASPD 100), so it then walks on
+between its first two shots and picks a new target. `kitGun` runs the 铳's official attack timer (it restarts as a cast
+starts, keeps its progress when the attack speed changes; a cast lasts min(interval, clip)), and 【末日布道】, 【最终之罚】 and
+【盲信之誓】's one cast at the start take the attack's turn: they wait for it and restart its cooldown (22.5 s at ASPD 20 at
+the start). An operator that enters a 盲信之誓 beam counts as a hit for the stacks (§37.110) [src: enm_pfb_28.ab
+enemy_9017_achunt; GameAssembly.dll AttackWrapper.SearchTarget / Cast, LaserHitBehaviour]. The pair's guns take turns: the
 `boss_battle_multi_player` 铳 starts with the battle (0.1 s, right half) and the leader after its 10 s preDelay (left
 half) [src: official level_act1autochess_h08_02.json], `content/bosses.js branchAtStart` (§37.109). A spring's damage
 goes to that one gun only, never to the other springs [src: official buff_template_holder actrpa_passive]. A gun's
