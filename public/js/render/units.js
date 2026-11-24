@@ -563,7 +563,10 @@ export const FORMS = Object.freeze({
     skDrop: Object.freeze({ change: 'Skill_2_End_A', replay: true, roles: Object.freeze({}) }),
     skStance: Object.freeze({ change: 'Skill_1_Begin_A', hold: true, fit: true, roles: Object.freeze({}) }),
     skDash: Object.freeze({ change: 'Boost_A', hold: true, roles: Object.freeze({}) }),
-    skBlow: Object.freeze({ change: 'Skill_1_Attack_A', roles: Object.freeze({}) }),
+    // `lead`: the clip starts this far in, so its OnAttack frame (0.7 s of Skill_1_Attack_A) lands with the sim's damage
+    // event — the local feed plays events 0.2 s behind the sim (render/app.js LOCAL_LOOKAHEAD), which otherwise put the
+    // pile's extension after the impact (the user, 2026-11-24)
+    skBlow: Object.freeze({ change: 'Skill_1_Attack_A', lead: 0.2, roles: Object.freeze({}) }),
     skLeapUp: Object.freeze({ change: 'Skill_2_Begin_A', hold: true, roles: Object.freeze({}) }),
   }),
   enemy_9011_acrefr: Object.freeze({
@@ -1367,7 +1370,7 @@ export class UnitView {
     // an fx handed out late (render/app.js: a stall, a hidden tab) skips a change clip that would already have ended
     const late = fx && Number(fx.late) > 0 ? Number(fx.late) : 0;
     const change = f && f.change && !(late > 0 && late >= (this.actor.dur?.(f.change) ?? Infinity)) ? f.change : null;
-    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold, f.fit && dur > 0 ? dur : 0);
+    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold, f.fit && dur > 0 ? dur : 0, f.lead && !late ? f.lead : 0);
     else if (prev) this.actor.setForm(null, prev.leave && !(late > 0 && late >= (this.actor.dur?.(prev.leave) ?? Infinity)) ? prev.leave : null);
     // a swing already running (the freeing attack's own: ON_BEFORE_ATTACK switches the mode before the attack starts, so the
     // swing must show the new mode's clip, not the old form's) goes on in the new set's attack clip at the same point

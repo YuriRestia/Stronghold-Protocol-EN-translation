@@ -824,7 +824,7 @@ export class SpineActor {
    * the form's resting clip (予愿安洁莉娜 S2's Skill_2_Takeoff_End, which ends faded out high above her, goes straight on
    * to the chant's `_afterEndAnim` Skill_2_Begin: a resting frame between them showed her for a frame).
    */
-  setForm(roles, change = null, end = null, hold = false, fit = 0) {
+  setForm(roles, change = null, end = null, hold = false, fit = 0, lead = 0) {
     const anims = this._baseRoles();
     this.formRoles = roles || null;   // kept over a later skill slot (_applyRoles)
     this.roles = roles ? { ...anims, ...roles } : anims;
@@ -835,7 +835,7 @@ export class SpineActor {
       this.endAt = this.clock + Math.max(0, end.in - this.dur(end.clip));
       this.endRoles = end.roles || null;
     }
-    if (change && this.has(change)) this._change(change, hold, fit);
+    if (change && this.has(change)) this._change(change, hold, fit, lead);
     else if (this.mode === 'change' && this.changeUntil === Infinity) { this.mode = 'base'; this._play(this._baseName(), true); }
     else if (this.mode === 'base') this._play(this._baseName(), true);
     else if (this.mode === 'stun' && this.has(this.roles.stun?.loop)) this._play(this.roles.stun.loop, true);
@@ -882,14 +882,18 @@ export class SpineActor {
    * Play a form's transition clip once; attacks and the resting state wait for it (mode 'change') — with `hold`, on its
    * last frame until the next setForm.
    */
-  _change(clip, hold = false, fit = 0) {
+  _change(clip, hold = false, fit = 0, lead = 0) {
     if (this.mode !== 'change') this.stunWanted = this.mode === 'stun';
     this.frozen = false;
     this.mode = 'change';
     // (fork) `fit` (game s): the clip is played faster or slower so that it ends in `fit` s (the Steam Knight's stance)
     const ts = fit > 0 ? this.dur(clip) / fit : 1;
-    this._play(clip, false, ts !== 1 ? { mix: 0.08, timeScale: ts } : { mix: 0.08 });
-    this.changeUntil = hold ? Infinity : this.clock + (fit > 0 ? fit : this.dur(clip));
+    // (fork) `lead` (game s): start this far into the clip, so a clip's strike frame can be aligned with the sim's damage
+    // event (the Steam Knight's blow; the local feed runs 0.2 s behind — FORMS skBlow)
+    const start = Math.max(0, Math.min(Number(lead) || 0, this.dur(clip) - 1 / 30));
+    const opts = ts !== 1 ? { mix: 0.08, timeScale: ts, start } : { mix: 0.08, start };
+    this._play(clip, false, opts);
+    this.changeUntil = hold ? Infinity : this.clock + Math.max(0, (fit > 0 ? fit : this.dur(clip)) - start);
   }
 
   has(name) { return !!name && this.names.has(name); }

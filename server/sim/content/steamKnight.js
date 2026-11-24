@@ -158,6 +158,15 @@ export function steamKnightKit(bb, raw) {
         if (sk.attacks >= ZAN_SP) sk.zanReady = true;
       }, { owner: unit });
 
+      // ---- his normal attacks take the enemies he blocks (the user, 2026-11-24: "attack all enemies he blocks"):
+      // `hitAllBlocked` collects up to his block count from his range with the blocked ones first (ai.js targetCount);
+      // this narrows them to the blocked ones, so a large block count never reaches enemies that walk past him
+      battle.on('beforeAttack', (ctx) => {
+        if (ctx.attacker !== unit || ctx.isSkill) return;
+        const blocked = (unit.blocking || []).filter((e) => e.alive);
+        if (blocked.length) ctx.targets = blocked.slice();
+      }, { owner: unit });
+
       // ---- every landing starts the bunker
       sk.beginLanding = (x, y, dir, leap = false) => {
         sk.walk = null;
@@ -171,10 +180,15 @@ export function steamKnightKit(bb, raw) {
         battle.after(CLIP.landTouch, () => { if (unit.alive) battle.fx('steamKnight', { id: unit.id, kind: 'touchdown', x, y }); }, { owner: unit });
       };
 
-      const chooseTarget = (dir) => {
+      /** The stance's pick, taken at once when the charge ends (the user, 2026-11-24: no waiting): an elite or boss in the
+       *  lane first, else the farthest enemy in it — the longest boost does the most damage — and none ends the bunker. */
+      const pickLaneTarget = (dir) => {
         const { hits } = lane(battle, Math.round(unit.y), Math.round(unit.x), dir, groundFoes(battle, unit));
-        const big = hits.find((h) => isBig(h.e));
-        return big ? big.e : null;
+        if (!hits.length) return null;
+        const big = hits.filter((h) => isBig(h.e));
+        const pool = big.length ? big : hits;
+        pool.sort((a, b) => b.along - a.along);
+        return pool[0].e;
       };
 
       const endBunker = () => {
@@ -413,16 +427,12 @@ export function steamKnightKit(bb, raw) {
             break;
           case 'stance': {
             if (sk.t < sk.stanceDur - 1e-9) break;
-            let tgt = sk.target && sk.target.alive ? sk.target : chooseTarget(sk.dir);
-            // no wait limit set (cleared in the panel) = no wait: the fallback at once, so the stance cannot hang
-            if (!tgt && (!has(c.waitLimit) || sk.t >= sk.stanceDur + c.waitLimit)) {
-              // nobody big came in time: the normal enemy with the most HP in the lane
-              const { hits } = lane(battle, Math.round(unit.y), Math.round(unit.x), sk.dir, groundFoes(battle, unit));
-              hits.sort((a, b) => b.e.hp - a.e.hp || a.along - b.along);
-              if (!hits.length) { endBunker(); break; }
-              tgt = hits[0].e;
-            }
-            if (tgt) { sk.target = tgt; startDash(tgt); }
+            // the pick is taken the moment the charge ends (the user, 2026-11-24: no waiting for an elite): the lane's
+            // best — an elite or boss, else the farthest enemy — and no target ends the bunker
+            const tgt = sk.target && sk.target.alive ? sk.target : pickLaneTarget(sk.dir);
+            if (!tgt) { endBunker(); break; }
+            sk.target = tgt;
+            startDash(tgt);
             break;
           }
           case 'dash': {
@@ -486,10 +496,12 @@ export function steamKnightKit(bb, raw) {
           case 'zanBlow': {
             if (!sk.zanHit && sk.t >= CLIP.blowHit - 1e-9) {
               sk.zanHit = true;
-              const t = zanTarget();
-              if (t) {
-                for (let i = 0; i < ZAN_TIMES; i++) battle.dealDamage(unit, t, { amount: unit.s.atk * ZAN_SCALE, type: dmgType, isSkill: true, tags: ['steamKnight', 'zantetsuken'] });
-                battle.fx('steamKnight', { id: unit.id, kind: 'zanHit', x: t.x, y: t.y, target: t.id });
+              // every enemy he blocks takes the three hits (the user, 2026-11-24); with none blocked, the one in front
+              const blocked = (unit.blocking || []).filter((e) => e.alive);
+              const t = blocked.length ? null : zanTarget();
+              for (const x of blocked.length ? blocked : t ? [t] : []) {
+                for (let i = 0; i < ZAN_TIMES; i++) battle.dealDamage(unit, x, { amount: unit.s.atk * ZAN_SCALE, type: dmgType, isSkill: true, tags: ['steamKnight', 'zantetsuken'] });
+                battle.fx('steamKnight', { id: unit.id, kind: 'zanHit', x: x.x, y: x.y, target: x.id });
               }
             }
             if (sk.t >= CLIP.blowLen - 1e-9) {

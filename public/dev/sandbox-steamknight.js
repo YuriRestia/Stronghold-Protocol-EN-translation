@@ -17,8 +17,6 @@ const START = Object.freeze({
   sideDamage: 1,
   // [ASSUMED] side shove 1.5 tiles: clears the lane without sending them off the road; user OK 2026-11-24
   shoveDist: 1.5,
-  // [ASSUMED] wait for an elite or boss in the lane 5 s: as long as the official stance clip; user OK 2026-11-24
-  waitLimit: 5,
   // [ASSUMED] he blocks 1 enemy: the minimum that "he blocks" (user, 2026-11-24) can mean; the official enemy record has blockCnt 0; user OK 2026-11-24
   blockCnt: 1,
 });
@@ -29,7 +27,6 @@ const FIELDS = [
   ['dmgPerTile', 'Blow damage per tile boosted', '× ATK', START.dmgPerTile, 0.05, 'start value, you set it: added on top of the official 3 hits at 1.25 ATK'],
   ['sideDamage', 'Side damage', '× ATK', START.sideDamage, 0.05, 'start value, you set it: to each normal enemy the boost passes'],
   ['shoveDist', 'Side shove distance', 'tiles', START.shoveDist, 0.1, 'start value, you set it: how far a normal enemy is thrown aside'],
-  ['waitLimit', 'Wait for an elite or boss in the lane', 's', START.waitLimit, 0.5, 'start value, you set it: then the normal enemy with the most HP is the target'],
   ['blockCnt', 'Enemies he blocks at once', '', START.blockCnt, 1, 'start value, you set it (the official enemy record has none)'],
   // his stats (the user, 2026-11-24: "I would like to tune his stats"): these start at the OFFICIAL values
   // [src: official enemy_database enemy_1533_stmkgt level 0 attributes atk / maxHp / def / baseAttackTime]

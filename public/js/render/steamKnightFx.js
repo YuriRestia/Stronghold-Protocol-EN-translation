@@ -18,7 +18,7 @@ export const STEAM_KNIGHT_FX_KEYS = Object.freeze([
   'stmkgt_skill_02_end_01', 'stmkgt_skill_02_begin_01', 'stmkgt_skill_02_begin_02', 'stmkgt_skill_01_start_01',
   'stmkgt_skill_01_start_02', 'stmkgt_skill_01_start_03', 'stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02',
   'stmkgt_skill_01_hit_01', 'stmkgt_presure_buff_01', 'stmkgt_attack_hit_01',
-  'stmkgt_reborn_02', 'stmkgt_skill_02_hit_01', 'stmkgt_skill_02_hit_02', 'stmkgt_attack_start_01', 'stmkgt_attack_weapon_01',
+  'stmkgt_skill_02_hit_01', 'stmkgt_attack_start_01', 'stmkgt_attack_weapon_01',
   'stmkgt_skill_02_marker_01',
 ]);
 
@@ -42,8 +42,9 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
   const held = new Map();      // knight id → { keys: Set, hs: [] } the Zantetsuken loops on him until its cast ends
   const jets = new Map();      // knight id → { v, next } boosting: a steam puff left behind him every JET_EVERY s
   const puffs = [];            // { h, left } puffs cut after JET_LIFE s (the vent is a loop; at most ~JET_LIFE / JET_EVERY live)
-  // looks, not rules: a puff every 0.05 battle s, each cut after 1.1 s (its steam needs ~0.4 s to billow out)
-  const JET_EVERY = 0.05, JET_LIFE = 1.1;
+  // looks, not rules: a puff every 0.03 battle s, each cut after 1.5 s (its steam needs ~0.4 s to billow out); a boost
+  // is short, so the trail is laid denser than a longer one would need (the user, 2026-11-24: no steam behind him)
+  const JET_EVERY = 0.03, JET_LIFE = 1.5;
   let preloaded = false;
 
   /** Start official loops on his mount points, held until stopHeld; false when none could play. */
@@ -108,12 +109,10 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           break;
         }
         case 'touchdown':
-          // his feet hit the ground (the sim times it on the landing clip's touchdown, 0.4 s in): the landing sound, his
-          // official revive burst and the leap's ground hit layered in, cut short, and the camera shake (the user,
-          // 2026-11-24: "the landing needs more oomph"; the shake came late when it was timed on the wall clock)
+          // his feet hit the ground (the sim times it on the landing clip's touchdown, 0.4 s in): the landing sound and
+          // the camera shake. The revive burst and the leap hit were cut (the user, 2026-11-24: the gold ribbons as he
+          // falls should be removed) — the official landing effect and the TriggerHeroBomb shield stay
           sound('landing');
-          brief('stmkgt_reborn_02', x, y, 1.2);
-          brief('stmkgt_skill_02_hit_02', x, y, 0.7);
           shake?.(0.16, 0.4);
           break;
         case 'bunkerEnd':
@@ -196,7 +195,6 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           // weight (the user, 2026-11-24: "the impact needs more oomph"): the leap's bomb hit and the revive burst layered
           // in at the contact, cut short, and a camera shake that grows with the tiles boosted
           brief('stmkgt_skill_02_hit_01', x, y, 0.8);
-          brief('stmkgt_reborn_02', x, y, 1.2);
           shake?.(Math.min(0.3, 0.14 + (Number(d.tiles) || 0) * 0.025), 0.45);
           if (!a && !b) {
             const p = proj(x, y, 0.5);
@@ -226,8 +224,8 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         j.next = JET_EVERY;
         const h = wiring.playOn?.('stmkgt_skill_01_start_01', j.v, { important: true });
         if (h) puffs.push({ h, left: JET_LIFE });
-        // every third puff, the take-off's ground blast too: the boost's thrust kicking the steam off the ground
-        if ((j.n = (j.n || 0) + 1) % 3 === 1) {
+        // every second puff, the take-off's ground blast too: the boost's thrust kicking the steam off the ground
+        if ((j.n = (j.n || 0) + 1) % 2 === 1) {
           const g = wiring.playOn?.('stmkgt_skill_02_begin_02', j.v, { important: true });
           if (g) puffs.push({ h: g, left: JET_LIFE });
         }
