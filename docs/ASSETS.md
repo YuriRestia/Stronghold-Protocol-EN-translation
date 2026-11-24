@@ -990,7 +990,10 @@ The 2026-09-27 verification pass also checked:
 Settings ▸ Preload Assets keeps the assets on the player's disk, so nothing downloads mid-match.
 
 - **Manifest** `/data/resource-manifest.json` (server/resources.js): every file under `public/assets` and `public/fonts` up
-  to 24 MiB as `[path, size, sha1-12]`. Built once per process in the background at boot; hashes are cached by
+  to 24 MiB as `[path, size, sha1-12]`, at most 100 000 of them (shared/resources.js `MAX_MANIFEST_FILES`: the client
+  refuses more, the server warns at boot; the list's size and parsing time are in its comment). (fork) The Live2D cards
+  (`assets/local/dynillust/`, 14 524 files, 616 MB on 2026-11-24) are not listed and so never preloaded: their files load
+  when a card shows, and the preload zip and its import leave them out too. Built once per process in the background at boot; hashes are cached by
   size + mtime in `node_modules/.cache/sp-resource-hashes.json` (cold build ~12 s for 820 MB, warm ~1.5 s). Served
   `no-cache` with an ETag, so clients revalidate with a 304.
 - **Packs** (shared/resources.js `packOf`): `visual` (spine, char, local maps, ui, icons, fonts, ≈400 MB) and `audio` (bgm,
