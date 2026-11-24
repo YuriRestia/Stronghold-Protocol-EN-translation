@@ -198,7 +198,7 @@ test('data/assets.json: every outfit of data/outfits.json has its art and Front 
     const o = m.outfits.chars[r.id];
     assert.ok(o, `${r.id}: in the manifest`);
     for (const k of ['avatar', 'portrait']) assert.match(o[k], /^\/assets\/outfit\/(avatar|portrait)\/[A-Za-z0-9_.-]+\.png$/, `${r.id}.${k}`);
-    assert.match(o.art, /^\/assets\/outfit\/art\/[A-Za-z0-9_.-]+\.webp$/, `${r.id}.art`);
+    assert.match(o.art, /^\/assets\/outfit\/art2k\/[A-Za-z0-9_.-]+\.webp$/, `${r.id}.art`);
     assert.ok(o.spine?.front?.skel, `${r.id}: Front model`);
     assert.equal(!!o.spine.back, r.layout === 'fb', `${r.id}: Back model iff layout fb`);
   }

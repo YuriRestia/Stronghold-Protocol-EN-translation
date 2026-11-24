@@ -49,7 +49,7 @@ Server cost:
 Operator notes:
 
 - After the merge, `node tools/fetch-assets.mjs --add-only` on each server fetches the 11 new sprites (`ui/settleCard/*`, `ui/uiFxMask/*`); then the art upload as usual.
-- The full arts are now 2048 px in a new folder, `outfit/art2k/` (`tools/assets/plan.mjs artAlt`, `downloader.mjs WEBP_MAX_SIDE`): on dev-0.2 after the merge, a plain `npm run assets` (not `--add-only`, which keeps the manifest's old `outfit/art/` paths) downloads the 538 sources once (about 1.8 GB of PNG, converted to about 220 MB of WebP [src: work/dev-52/art2k.log]) and rewrites `data/assets.json`; commit the manifest, then the art upload. `--prune` later removes the unused 1024 copies in `outfit/art/`.
+- The full arts are now 2048 px in a new folder, `outfit/art2k/` (`tools/assets/plan.mjs artAlt`, `downloader.mjs WEBP_MAX_SIDE`); `data/assets.json` lists them since 2026-11-25 (rebuilt with `fetch-assets.mjs --offline` from the files on disk, about 220 MB [src: work/dev-52/art2k.log]). The art upload sends the 538 new files. `--prune` later removes the unused 1024 copies in `outfit/art/`.
 
 News:
 

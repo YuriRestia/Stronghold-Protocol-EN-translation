@@ -20,13 +20,13 @@ Server cost:
 
 | Measure | Typical | Worst case |
 |---|---|---|
-| Bandwidth out / in, per player | 0 MB/s of socket traffic; static files downloaded once, then cached: solo 0.19 MB (one art) [src: data/assets.json outfits art, median 193,688 bytes of 538 files] and 7 KB more of the framing table | 0.39 MB for one art; 3.2 MB for eight new arts on a Grand Alliance result [src: data/assets.json outfits art, largest 394,498 bytes of 538 files] |
-| Bandwidth out / in, per room (4 players) | at most 4 × 0.19 MB per player, less for art the room cards already loaded [unverified]; an AI seat's art and the "best operator of the lineup" setting are new downloads [unverified] | 4 players × 4 arts × 0.39 MB = 6.3 MB, once [unverified] |
-| Bandwidth out / in, 300 players | 60 MB (0.06 GB/day) if all 300 load one new art and the table in a day [unverified] | 950 MB (0.95 GB/day) if all 300 load eight of the largest art and the table in a day, 0.95 MB/s if within 1000 s [unverified] |
+| Bandwidth out / in, per player | 0 MB/s of socket traffic; static files downloaded once, then cached: solo 0.40 MB (one art) [src: public/assets/outfit/art2k, median 402,825 bytes of 538 files] and 7 KB more of the framing table | 1.25 MB for one art; 10 MB for eight new arts on a Grand Alliance result [src: public/assets/outfit/art2k, largest 1,247,986 bytes of 538 files] |
+| Bandwidth out / in, per room (4 players) | at most 4 × 0.40 MB per player, less for art the room cards already loaded [unverified]; an AI seat's art and the "best operator of the lineup" setting are new downloads [unverified] | 4 players × 4 arts × 1.25 MB = 20 MB, once [unverified] |
+| Bandwidth out / in, 300 players | 122 MB (0.12 GB/day) if all 300 load one new art and the table in a day [unverified] | 3 GB (3 GB/day) if all 300 load eight of the largest art and the table in a day, 3 MB/s if within 1000 s [unverified] |
 | Server CPU | 0 % of one core [src: no server code changed] | 0 % |
 | Memory | 0 MB on the server; one decoded image per card in the browser, as the wide cards [src: public/js/ui/dynCards.js CardArt] | 0 MB |
 | Disk | 0 MB/day [src: no server code changed] | 0 MB/day |
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
-- File sizes measured on the files `data/assets.json` lists today (`outfit/art`); the room and 300-player figures are estimated arithmetic, not a traffic-meter run, and do not count the CDN cache. With the 2048-px set (`outfit/art2k`) listed instead, the art would be about 2 to 3 times larger [src: public/assets/outfit/art2k, median 402,830 and largest 1,247,986 bytes].
+- File sizes measured on the files `data/assets.json` lists (`outfit/art2k`, 2048 px); the room and 300-player figures are estimated arithmetic, not a traffic-meter run, and do not count the CDN cache.
 - Cap: one static file per art, cached by the browser; at most eight cards on a screen. `data/card-art-framing.json` grows from 134,711 to 167,292 bytes raw, 23,919 to 31,144 gzip [src: data/card-art-framing.json]. The browser code grows once by under 4 KB raw [src: git diff dev-0.2, public/js, public/css].
