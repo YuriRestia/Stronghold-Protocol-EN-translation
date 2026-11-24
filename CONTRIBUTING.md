@@ -31,11 +31,11 @@ npm run golden:update                                            # 有意改变�
 npm run lint && npm run check:imports && npm run typecheck       # 代码检查、导入边界、类型
 ```
 
-提交 PR 前可以一条命令跑一遍 GitHub CI（`.github/workflows/ci.yml`）的 test、node24 守卫和 tooling 检查：`npm run ci`（或 `node tools/ci.mjs`）。
+提交 PR 前可以一条命令跑一遍 GitHub CI（`.github/workflows/ci.yml`）的 test、node22 守卫和 tooling 检查：`npm run ci`（或 `node tools/ci.mjs`）。
 依次是 setup 检查、`npm test`、服务器冒烟测试（在空闲端口启动、请求 `/healthz` 和首页、运行 doctor，然后关掉）、CI 守卫、lint、导入边界、
 类型；第一步失败就停下并打印每步结果和耗时。`--keep-going` 失败后继续，`--only lint,test` 只跑指定步骤，`--list` 列出步骤。
 不包含 `npm ci`（依赖请自己装），也不跑 Node 版本 × 系统的矩阵。
-全量 Golden 在独立的 Ubuntu / Node 22 job 中运行，本地另跑 `npm run golden`。发现差异直接失败并列出场景和字段，CI 不更新期望结果。
+全量 Golden 在独立的 Ubuntu / Node 24 job 中运行，本地另跑 `npm run golden`。发现差异直接失败并列出场景和字段，CI 不更新期望结果。
 
 另有独立检查 `local-extract (Python 3.8 syntax)`（`.github/workflows/local-extract-python.yml`）：用 setup 接受的最低 Python 3.8 执行 `python -m compileall -q -f tools/local-extract`，不安装提取依赖、不需要官方素材。
 
@@ -45,7 +45,7 @@ npm run lint && npm run check:imports && npm run typecheck       # 代码检查�
 `node --test --test-reporter=junit --test-reporter-destination=report.xml …` 生成）。`test/ci-shards.test.js` 守着
 「每个文件恰好一片」和「偏差不超过 1.3×」。权重来源、超时口径与测量上的坑见 [docs/CI.md](docs/CI.md)。
 
-CI 测试矩阵为 Ubuntu/Windows × Node 22 × 四片（8 个任务），Node 24 只跑 `test:guards`。本地 `npm run ci` 的测试步骤清掉继承的 `SHARD`/`JUNIT`，仍跑全量；`SHARD=2 npm test` 可手动复现一片。
+CI 测试矩阵为 Ubuntu/Windows × Node 24 × 四片（8 个任务）；（fork）线上服务器升级前，临时的 Node 22 任务只跑 `test:guards` 和插件沙箱测试。本地 `npm run ci` 的测试步骤清掉继承的 `SHARD`/`JUNIT`，仍跑全量；`SHARD=2 npm test` 可手动复现一片。
 
 浏览器测试默认不跑，需要本机 Chrome（路径不标准时设置 `CHROME_PATH`），用环境变量打开：
 
@@ -144,7 +144,7 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
   `npm run lint`, `npm run check:imports`, `npm run typecheck`.
   `npm run ci` (or `node tools/ci.mjs`) runs the test and tooling checks of `.github/workflows/ci.yml` in one go and stops at the first
   failure (`--keep-going`, `--only <steps>`, `--list`); it does not run `npm ci`. The full Golden corpus runs in a separate
-  Ubuntu / Node 22 job; run `npm run golden` separately locally. Differences fail with scenario and field details;
+  Ubuntu / Node 24 job; run `npm run golden` separately locally. Differences fail with scenario and field details;
   CI never updates expected results. Browser suites
   are opt-in: `SP_E2E=1`, `SP_REAL_E2E=1` (needs downloaded art), `RENDER_E2E=1`, `SIM_E2E=1` (a local Chrome,
   `CHROME_PATH`). `npm run test:browser` (tools/browser-suite.mjs) runs every browser file in one go, slowest first

@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  CI_SHARD_ENV, CI_TEST_ENV, ROOT, SKIPPED_CI_STEPS, SMOKE_PATHS, STEPS, TEST_FILES, binPath, formatDuration,
+  CI_SHARD_ENV, CI_TEST_ENV, NODE22_SANDBOX_TESTS, ROOT, SKIPPED_CI_STEPS, SMOKE_PATHS, STEPS, TEST_FILES, binPath, formatDuration,
   formatSummary, isSkippedCiStep, parseArgs, parseMatrix, parseWorkflow, selectSteps, stepEnv, runStep,
 } from '../tools/ci.mjs';
 import { SHARD_COUNT } from '../tools/ci-shards.mjs';
@@ -90,10 +90,10 @@ test('(fork) each test job writes its JUnit report and keeps it 3 days at most, 
   assert.match(block, /^ {10}path: junit\.xml$/m);
   const days = Number(block.match(/^ {10}retention-days: (\d+)$/m)?.[1]);
   assert.ok(days >= 1 && days <= 3, `retention-days ${days}`);
-  assert.ok(!workflow.jobs.node24.steps.some((s) => (s.uses || '').startsWith('actions/upload-artifact')), 'only the test jobs upload');
+  assert.ok(!workflow.jobs.node22.steps.some((s) => (s.uses || '').startsWith('actions/upload-artifact')), 'only the test jobs upload');
 });
 
-test('the full Golden check runs independently once on Ubuntu / Node 22 and cannot update or hide differences', () => {
+test('the full Golden check runs independently once on Ubuntu / Node 24 and cannot update or hide differences', () => {
   const golden = workflow.jobs.golden;
   assert.ok(golden, 'ci.yml must have a separate golden job');
   assert.deepEqual(golden.env, {});
@@ -108,7 +108,7 @@ test('the full Golden check runs independently once on Ubuntu / Node 22 and cann
   assert.ok(jobText, 'golden job settings were read');
   assert.match(jobText, /^    runs-on: ubuntu-latest$/m);
   assert.match(jobText, /^    timeout-minutes: 15$/m);
-  assert.match(jobText, /^          node-version: 22$/m);
+  assert.match(jobText, /^          node-version: 24$/m);
   assert.match(jobText, /^          cache: npm$/m);
   assert.doesNotMatch(jobText, /^\s*(strategy|needs|if|continue-on-error|defaults|env):/m);
   assert.equal(pkg.scripts.golden, 'node tools/golden.mjs');
@@ -150,7 +150,7 @@ test('npm test runs every test file and nothing else under test/: no helper, no 
   }
 });
 
-test('the test matrix runs every shard exactly once, on both systems, for node 22', () => {
+test('the test matrix runs every shard exactly once, on both systems, for node 24', () => {
   const matrix = parseMatrix(workflowText);
   assert.deepEqual(Object.keys(matrix), ['test'], 'only the test job is a matrix');
   const m = matrix.test;
@@ -158,14 +158,21 @@ test('the test matrix runs every shard exactly once, on both systems, for node 2
   // green — the table's own guard (test/ci-shards.test.js) only proves the partition inside ci-shards.json.
   assert.deepEqual((m.shard ?? []).map(Number), [...Array(SHARD_COUNT).keys()], 'matrix.shard must list 0..SHARD_COUNT-1 once each');
   assert.deepEqual(m.os, ['ubuntu-latest', 'windows-latest']);
-  assert.deepEqual((m.node ?? []).map(Number), [22], 'the full suite runs on node 22; node 24 has its own lane');
+  // (fork, user 2026-11-24) node 24: its JUnit names each test's file, which re-weighing ci-shards.json needs
+  assert.deepEqual((m.node ?? []).map(Number), [24], 'the full suite runs on node 24; node 22 has its own lane');
   // the job hands its shard to tools/test-run.mjs, which is what turns the number into files
   assert.equal(workflow.jobs.test.env.SHARD, '${{ matrix.shard }}');
-  // the node 24 lane is a job of its own, with the guards and without the suite
-  assert.ok(workflow.jobs.node24, 'ci.yml has the node 24 lane');
-  assert.deepEqual(workflow.jobs.node24.env, {}, 'the node 24 lane needs no job env');
-  assert.ok(workflow.jobs.node24.steps.some((s) => s.run === 'npm run test:guards'), 'the node 24 lane runs the guards');
-  assert.ok(!workflow.jobs.node24.steps.some((s) => s.run === 'npm run test'), 'the node 24 lane does not run the suite');
+  // (fork) the temporary node 22 lane (the live servers' version) is a job of its own: the guards and the plugin
+  // sandbox files, without the suite
+  const lane = workflow.jobs.node22;
+  assert.ok(lane, 'ci.yml has the node 22 lane');
+  assert.deepEqual(lane.env, {}, 'the node 22 lane needs no job env');
+  assert.match(workflowText.match(/^  node22:\n((?:\n| {4}[^\n]*\n)*)/m)?.[1] || '', /^          node-version: 22$/m);
+  assert.ok(lane.steps.some((s) => s.run === 'npm run test:guards'), 'the node 22 lane runs the guards');
+  assert.ok(lane.steps.some((s) => s.run === `node --test ${NODE22_SANDBOX_TESTS.join(' ')}`), 'and the plugin sandbox files');
+  for (const f of NODE22_SANDBOX_TESTS) assert.ok(fs.existsSync(path.join(ROOT, f)), `${f} exists`);
+  assert.ok(!lane.steps.some((s) => s.run === 'npm run test'), 'the node 22 lane does not run the suite');
+  assert.ok(!workflow.jobs.node24, 'no node 24 lane: the matrix is 24');
 });
 
 test('the matrix reader: flow lists, block lists, include/exclude left out, other jobs ignored', () => {

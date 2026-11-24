@@ -2,13 +2,13 @@
 
 分片只分配测试文件，不减少全量测试集合。#835 和 #836 一起落地；`.github/workflows/ci.yml` 的配置为：
 
-- `test (os, node, shard)`：Ubuntu / Windows × Node 22 × 片 0–3，共 8 个任务。每个任务做 setup 检查、自己一片的测试和服务器冒烟测试，超时 20 分钟。
-- `node24`：Ubuntu / Node 24，只跑 `npm run test:guards`（分片、工作流接线、测试运行器），超时 15 分钟。维护者 #833 接受此范围，不代表 Node 24 全量套件已验证。
-- `tooling`：Ubuntu / Node 22 跑 lint、导入边界和类型检查；lint 警告不失败。
-- `golden`：独立 Ubuntu / Node 22，全量 `npm run golden`，有差异则失败，绝不更新期望。
-- `golden-refresh`（fork，`.github/workflows/golden-refresh.yml`）：只能手动运行（workflow_dispatch），在所选分支上按版本跑 `npm run golden:update`，只把变动的黄金文件和移动场景的摘要作为保留 3 天的 artifact 上传；只读权限，从不提交或推送。用法见 [test/golden/README.md](../test/golden/README.md)「Refreshing on GitHub」。
+- `test (os, node, shard)`：Ubuntu / Windows × Node 24 × 片 0–3，共 8 个任务。每个任务做 setup 检查、自己一片的测试和服务器冒烟测试，超时 20 分钟。（fork）用户 2026-11-24 把矩阵从 Node 22 改为 24（“Alright, yeah, let's go with that”）：Node 24 的 JUnit 给每个用例写 `file`，重新计权需要它。
+- `node22`（fork，临时）：Ubuntu / Node 22，线上服务器升级到 24 之前保留。跑 `npm run test:guards`（分片、工作流接线、测试运行器）和插件沙箱的三个文件（`tools/ci.mjs` 的 `NODE22_SANDBOX_TESTS`：子进程和 `--permission` 参数是服务器上随 Node 版本变化的部分），超时 15 分钟。不代表 Node 22 全量套件已验证。服务器升级后删除此任务及其守卫。
+- `tooling`：Ubuntu / Node 24 跑 lint、导入边界和类型检查；lint 警告不失败。
+- `golden`：独立 Ubuntu / Node 24，全量 `npm run golden`，有差异则失败，绝不更新期望。
+- `golden-refresh`（fork，`.github/workflows/golden-refresh.yml`）：只能手动运行（workflow_dispatch），与 `golden` 同为 Node 24，在所选分支上按版本跑 `npm run golden:update`，只把变动的黄金文件和移动场景的摘要作为保留 3 天的 artifact 上传；只读权限，从不提交或推送。用法见 [test/golden/README.md](../test/golden/README.md)「Refreshing on GitHub」。
 
-本机 `npm run ci`（`node tools/ci.mjs`）依次复跑 setup、全量测试、冒烟、CI 守卫、lint、导入边界和类型检查。
+本机 `npm run ci`（`node tools/ci.mjs`）依次复跑 setup、全量测试、冒烟、CI 守卫、lint、导入边界和类型检查；`node22` 的沙箱步骤不在本地重复（这些文件已在全量测试里）。
 `--only`、`--keep-going`、`--list` 见 [CONTRIBUTING.md](../CONTRIBUTING.md)。本地测试步骤清除继承的 `SHARD` 和 `JUNIT`，保证全量且不意外写报告；全量黄金另跑 `npm run golden`。本地不复制 CI 的系统或 Node 版本矩阵。
 
 ## 分片契约
@@ -42,7 +42,7 @@ node tools/test-timings.mjs report.xml
 node tools/ci-shards.mjs --write --timings report.xml
 ```
 
-解析器只接受 `<testcase file="…" time="…">`，没有 `file` 的报告拒绝计权，不从用例名猜路径。部分 Node 版本的 JUnit 不提供 `file`；应先取得带文件信息的报告，路径按 test/ 或 plugins/ 归一到仓库。多个报告取每个文件的下中位数；未出现的文件保留原权重。每次改表后重新检查最慢任务墙钟，再决定超时；20 分钟保留 runner 机型差异和负载余量。
+解析器只接受 `<testcase file="…" time="…">`，没有 `file` 的报告拒绝计权，不从用例名猜路径。Node 22 的 JUnit 不提供 `file`（2026-11-23 的 CI 运行 45203534084 中 8 份报告均无此属性），所以矩阵改用 Node 24；应先取得带文件信息的报告，路径按 test/ 或 plugins/ 归一到仓库。多个报告取每个文件的下中位数；未出现的文件保留原权重。每次改表后重新检查最慢任务墙钟，再决定超时；20 分钟保留 runner 机型差异和负载余量。
 
 ## 改工作流
 
