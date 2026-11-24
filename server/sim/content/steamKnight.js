@@ -146,13 +146,7 @@ export function steamKnightKit(bb, raw) {
       const endBunker = () => {
         shield(false);
         bunker(false);
-        // back onto a tile of his own (the board holds one unit per tile): he walks there instead of snapping
-        const fx0 = unit.x, fy0 = unit.y;
-        const spot = freeTileNear(battle, unit.x, unit.y, unit);
-        if (spot && battle.relocate(unit, spot[0], spot[1]) && hypot(spot[1] - fx0, spot[0] - fy0) > 0.05) {
-          unit.x = fx0; unit.y = fy0;
-          sk.walk = { fr: fy0, fc: fx0, tr: spot[0], tc: spot[1], t: 0, len: hypot(spot[0] - fy0, spot[1] - fx0), moved: true };
-        }
+        // he stays where the thrust left him (free position, ownTile)
         clearForm();
         setPhase('fight', { dash: null, target: null });
       };
@@ -245,34 +239,46 @@ export function steamKnightKit(bb, raw) {
       };
 
       // ---- walking (a ground ally: tile hops; relocate keeps the tile occupancy true)
-      const walkSpeed = () => Math.max(0.05, unit.s.moveSpeed * MOVE_SCALE);
-      const stepWalk = (dt) => {
-        const w = sk.walk;
-        if (!w) return;
-        w.t += dt * walkSpeed() / w.len;
-        if (!w.moved && w.t >= 0.5) {
-          w.moved = true;
-          if (!battle.relocate(unit, w.tr, w.tc)) { sk.walk = null; unit.x = w.fc; unit.y = w.fr; return; }
+      // ---- a free position, like an enemy (the user, 2026-11-24: "fight without having to snap to a specific tile"): his
+      // x / y never snap. The board's tile under him is his while no operator stands on it (relocate keeps the block and
+      // the occupancy true; his x / y are put back at once); on an operator's tile he blocks nobody (`noBlock`) but still
+      // fights. His range is his tile and the 4 around it, from where he stands now.
+      const RANGE = [[0, 0], [0, 1], [1, 0], [-1, 0], [0, -1]];
+      let keysAt = -1;
+      const ownTile = () => {
+        const r = Math.round(unit.y), c = Math.round(unit.x);
+        if ((unit.tileR !== r || unit.tileC !== c) && battle.grid.inRect(r, c)) {
+          const o = battle._occ[r * COLS + c];
+          if (!(o && o.alive && o !== unit) && !battle.downOn(r, c)) {
+            const x = unit.x, y = unit.y;
+            if (battle.relocate(unit, r, c)) { unit.x = x; unit.y = y; keysAt = -1; }
+          }
         }
-        const t = Math.min(1, w.t);
-        unit.x = w.fc + (w.tc - w.fc) * t; unit.y = w.fr + (w.tr - w.fr) * t;
-        if (w.t >= 1) { unit.x = w.tc; unit.y = w.tr; sk.walk = null; }
+        if (keysAt !== r * COLS + c) {
+          keysAt = r * COLS + c;
+          const keys = [];
+          for (const [dr, dc] of RANGE) { const rr = r + dr, cc = c + dc; if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS) keys.push(rr * COLS + cc); }
+          unit.rangeKeys = keys; unit.rangeKeySet = new Set(keys); unit.baseRangeKeys = keys;
+        }
+        return unit.tileR === r && unit.tileC === c;
       };
-      const chooseWalk = () => {
+      const walkSpeed = () => Math.max(0.05, unit.s.moveSpeed * MOVE_SCALE);
+      /** One step toward the nearest enemy, along the ground path, unless one is within reach (he fights where he stands). */
+      const stepToward = (dt) => {
         let tgt = null, bd = Infinity;
         for (const e of groundFoes(battle, unit)) {
           const d = hypot(e.x - unit.x, e.y - unit.y);
           if (d < bd - 1e-9) { bd = d; tgt = e; }
         }
-        // he fights where he stands (the user, 2026-11-24): no step while an enemy is within his range grid's reach (his
-        // tile and the 4 around it: 1 tile + the 0.5 of a tile an enemy's position can sit off its centre)
+        // no step while an enemy is within his range's reach (1 tile + the 0.5 an enemy can sit off a tile's centre)
         if (!tgt || bd <= 1.5) return;
-        const path = battle.grid.findPath(unit.tileR, unit.tileC, Math.round(tgt.y), Math.round(tgt.x));
-        if (!path || path.length < 2) return;
-        const [tr, tc] = path[1];
-        const o = battle._occ[tr * COLS + tc];
-        if ((o && o.alive) || battle.downOn(tr, tc)) return;
-        sk.walk = { fr: unit.tileR, fc: unit.tileC, tr, tc, t: 0, len: hypot(tr - unit.tileR, tc - unit.tileC) || 1, moved: false };
+        const path = battle.grid.findPath(Math.round(unit.y), Math.round(unit.x), Math.round(tgt.y), Math.round(tgt.x));
+        const next = path && path.length >= 2 ? path[1] : null;
+        if (!next) return;
+        const dx = next[1] - unit.x, dy = next[0] - unit.y, d = hypot(dx, dy);
+        if (!(d > 1e-6)) return;
+        const s = Math.min(d, walkSpeed() * dt);
+        unit.x += (dx / d) * s; unit.y += (dy / d) * s;
       };
 
       // ---- the state machine
@@ -344,11 +350,10 @@ export function steamKnightKit(bb, raw) {
           default: {   // 'none' / 'fight'
             if (sk.phase === 'none') setPhase('fight');
             if (!unit.canAct || unit.s.flags.noMove) break;
-            if (sk.clock >= sk.leapAt - 1e-9 && has(c.dashSpeed) && !sk.walk && startLeap()) break;
-            // blocking: he stays (a step already on its new tile finishes its slide)
-            if (unit.blocking.length && !sk.walk?.moved) { sk.walk = null; break; }
-            if (!sk.walk) chooseWalk();
-            stepWalk(dt);
+            bunker(!ownTile());   // blocks only from a tile of his own
+            if (sk.clock >= sk.leapAt - 1e-9 && has(c.dashSpeed) && startLeap()) break;
+            if (unit.blocking.length) break;   // blocking: he stays
+            stepToward(dt);
           }
         }
       }, { owner: unit });
