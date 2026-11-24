@@ -249,6 +249,19 @@ test('与海为敌 normal attacks hit three and spend no ammunition; remote eros
   assert.ok(!bombs.some((c) => c.target === diagonal || c.target === fly)); done(h);
 });
 
+// (fork, user decision 2026-11-24) leaders take 侵蚀, so their burst marks them like any ground enemy's
+test('与海为敌 bombs a leader whose erosion bursts, and its own attacks fill that gauge', () => {
+  const { h, u } = field({ skill: 2 }); start(u); h.b.rng = () => 0.99;
+  const boss = h.spawn('enemy_9017_achunt', { pos: [10, 12], tag: 'boss', mods: { speedMul: 0, atkMul: 0 } });
+  assert.ok(boss.isBoss); assert.equal(boss.gaugeMax, 2000);
+  performAttack(h.b, u, effectiveProfile(u), [boss]);
+  assert.ok(boss.elem.erosion > 0, 'the S3 attack rider fills the leader');
+  h.b.dealDamage(u, boss, { amount: 2000, type: 'element', element: 'erosion' }); h.step();
+  assert.equal(u.skill.ammoLeft, 9); u.skill.stop(); h.run(2.6);
+  const bombs = hits(h, 'clemnt:bomb').filter((c) => c.target === boss);
+  assert.deepEqual(['phys', 'elemental'].map((t) => bombs.filter((c) => c.type === t).length), [3, 3]); done(h);
+});
+
 test('与海为敌 selects nearest marked enemy, suppresses duplicate bombing tiles and does not mark air or sleeping units', () => {
   const { h, u } = field({ skill: 2 }); start(u);
   const far = h.spawn('dummy', { pos: [12, 9] }), near = h.spawn('dummy', { pos: [11, 7] });

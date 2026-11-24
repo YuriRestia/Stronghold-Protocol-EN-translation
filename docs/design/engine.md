@@ -377,7 +377,9 @@ melee splash (Horn S2). Each shot retains its launch-time melee mode while flyin
 triple attack is three physical attacks `hit_interval` (0.3 s) apart, each splashing at radius 1.5 (PRTS 天赋; the
 blackboard `projectile_range` 0.5 is the 入戏 stone). Each stone passes DEF, shields and 「每次受到攻击」 on its own.
 The volley still finishes if the target is lost, and a scheduled stone still lands if the catapult dies. 入戏(敌方)
-is an `inPlay` flag this mode never grants (§32.14.9). Clementia S3 accepts enemy erosion bursts only.
+is an `inPlay` flag this mode never grants (§32.14.9). Clementia S3 accepts enemy erosion bursts only,
+leaders' included: (fork, user decision 2026-11-24) leaders take erosion in every version. Upstream keeps the CN
+act1autochess tip 「最终攻势中，敌方领袖不会受到侵蚀损伤」, which act2autochess and Global's lists do not have.
 Kjerag Ice and Tear Gas proc on actual carrier damage to enemies, including DoT/skill/splash; elemental gauge fill,
 HP loss, bare attack events and zero damage do not qualify. These changes do not alter other items' attack hooks.
 
