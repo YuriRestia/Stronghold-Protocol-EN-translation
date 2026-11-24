@@ -80,6 +80,18 @@ test('a cleared panel value switches that part off: no dash without a dash speed
   assert.equal(h.enemy('enemy_elite').hp, hp0, 'no bunker blow without a dash');
 });
 
+test('he holds an enemy while he charges the pile', () => {
+  const h = field();
+  const k = spawnSteamKnight(h.b, 'p1');
+  k.mem.sk.beginLanding(5, 10, [0, 1]);
+  h.runUntil(() => k.mem.sk.phase === 'stance', 10);
+  const e = h.spawn('enemy_norm', { pos: [10, 6] });
+  e.x = k.x + 0.6; e.y = k.y;
+  h.runUntil(() => e.blockedBy === k, 2);
+  assert.equal(e.blockedBy, k, `blocked while charging (phase ${k.mem.sk.phase}, gap ${Math.hypot(e.x - k.x, e.y - k.y).toFixed(2)})`);
+  assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+});
+
 test('a stun in the stance ends the bunker: no blow from a stunned knight', () => {
   const h = field();
   const e = h.spawn('enemy_elite', { pos: [10, 9] });

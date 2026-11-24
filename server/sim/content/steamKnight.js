@@ -140,6 +140,13 @@ export function steamKnightKit(bb, raw) {
         if (on && !unit.findBuff(BUNKER)) battle.addBuff(unit, { key: BUNKER, persist: true, allowDead: true, flags: { noBlock: true, disarm: true } });
         if (!on && unit.findBuff(BUNKER)) battle.removeBuff(unit, BUNKER);
       };
+      // the charge before the boost: he stands and keeps blocking by contact (the user, 2026-11-24: "he should block
+      // while charging"); only his weapon is out of action, so the buff disarms without the bunker's noBlock
+      const CHARGE = 'sk:charge';
+      const charging = (on) => {
+        if (on && !unit.findBuff(CHARGE)) battle.addBuff(unit, { key: CHARGE, persist: true, allowDead: true, flags: { disarm: true } });
+        if (!on && unit.findBuff(CHARGE)) battle.removeBuff(unit, CHARGE);
+      };
       // the standing Zantetsuken: no normal attack starts while it runs; he keeps blocking
       const ZAN = 'sk:zan';
       const zanning = (on) => {
@@ -194,6 +201,7 @@ export function steamKnightKit(bb, raw) {
       const endBunker = () => {
         shield(false);
         bunker(false);
+        charging(false);
         // he stays where the thrust left him (free position)
         clearForm();
         battle.fx('steamKnight', { id: unit.id, kind: 'bunkerEnd', x: unit.x, y: unit.y });
@@ -209,7 +217,9 @@ export function steamKnightKit(bb, raw) {
         const stanceDur = CLIP.stanceBeginLen;
         setPhase('stance', { stanceDur });
         shield(false);   // the landing's invincibility ends with the landing clip
-        bunker(true);
+        charging(true);
+        // (the engine's tile block stays off; contactBlock holds the enemies he catches)
+        if (!unit.findBuff('sk:contact')) battle.addBuff(unit, { key: 'sk:contact', persist: true, allowDead: true, flags: { noNewBlock: true } });
         phaseFx('skStance', { dur: stanceDur });
         battle.fx('steamKnight', { id: unit.id, kind: 'stance', x: unit.x, y: unit.y, castDur: stanceDur + CLIP.blowLen + CLIP.blowHit });
         holdSound(stanceDur);
@@ -243,6 +253,11 @@ export function steamKnightKit(bb, raw) {
 
       const startDash = (target) => {
         const dir = sk.dir;
+        // the charge ends with the boost: its buff gives way to the bunker's (no blocking from a body that is not on the
+        // tile any more), and the enemies he held are let go
+        charging(false);
+        bunker(true);
+        battle.releaseBlocked(unit);
         const dash = { dir, target, travelled: 0, shoved: new Set(), clipAt: 0, moveAt: sk.clock };
         // A run shorter than the blow clip's wind-up (the strike frame is 0.7 s in) winds up first and boosts for the
         // last part of it, so the thrust is the impact (the user, 2026-11-24): the clip starts now, the boost starts later.
@@ -426,6 +441,7 @@ export function steamKnightKit(bb, raw) {
             if (sk.t >= sk.dur - 1e-9) startStance();
             break;
           case 'stance': {
+            contactBlock();   // he holds his ground while the pile presses (the user, 2026-11-24)
             if (sk.t < sk.stanceDur - 1e-9) break;
             // the pick is taken the moment the charge ends (the user, 2026-11-24: no waiting for an elite): the lane's
             // best — an elite or boss, else the farthest enemy — and no target ends the bunker
