@@ -40,8 +40,8 @@ const FIELDS = [
 ];
 
 /** Music picks: [value, label] (audio.js STEAM_KNIGHT_BGM). */
-const BGM_START = 'I';
-const BGM = Object.freeze([['I', 'I · 14-10 mid-battle scene "fightback" (default)'], ['J', 'J · the same, straight to its loud part'], ['C', 'C · 14-10 battle'],
+const BGM_START = 'J';   // the user's pick, 2026-11-25
+const BGM = Object.freeze([['J', 'J · 14-10 mid-battle scene "fightback", straight to its loud part (default)'], ['I', 'I · the same with its intro'], ['C', 'C · 14-10 battle'],
   ['K', 'K · 14-10 story "frontline"'], ['L', 'L · 14-10 story "batmeeting"'], ['M', 'M · 14-10 story "newhope01"'],
   ['A', 'A · Chapter 13 battle 1, Victoria'], ['B', 'B · Chapter 13 battle 2, Victoria'],
   ['D', 'D · Hortus de Escapismo'], ['E', 'E · Zwillingstürme im Herbst'], ['F', 'F · Museum event'], ['G', 'G · Crisis Contract'], ['H', 'H · Near Light, Blood Knight'],
