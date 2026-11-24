@@ -363,10 +363,14 @@ const STEAM_KNIGHT_AUDIO = '/dev/steam-knight-audio/';
  * (fork) BGM keys of the dev sandbox while he is on the field: his own battle tracks [src: official audio_data bgmBanks
  * battle.ON_GAME_READY.stmkgt_01 / stmkgt_02], and the Victorian boss Alistair's (bat_boss_vtlionk, in the manifest's files).
  */
+const skTrack = (f, intro = true) => Object.freeze({ intro: intro ? `${STEAM_KNIGHT_AUDIO}${f}_intro.mp3` : null, loop: `${STEAM_KNIGHT_AUDIO}${f}_loop.mp3` });
 const STEAM_KNIGHT_BGM = Object.freeze({
-  'steamKnight:1': { intro: null, loop: `${STEAM_KNIGHT_AUDIO}m_bat_stmkgt_01_loop.mp3` },
-  'steamKnight:2': { intro: `${STEAM_KNIGHT_AUDIO}m_bat_stmkgt_02_intro.mp3`, loop: `${STEAM_KNIGHT_AUDIO}m_bat_stmkgt_02_loop.mp3` },
-  'steamKnight:3': { intro: '/assets/audio/bgm/m_bat_vtlionk_intro.mp3', loop: '/assets/audio/bgm/m_bat_vtlionk_loop.mp3' },
+  'steamKnight:1': skTrack('m_bat_stmkgt_01', false), 'steamKnight:2': skTrack('m_bat_stmkgt_02'),
+  'steamKnight:3': Object.freeze({ intro: '/assets/audio/bgm/m_bat_vtlionk_intro.mp3', loop: '/assets/audio/bgm/m_bat_vtlionk_loop.mp3' }),
+  // (the user, 2026-11-25: those were "sombre"; picked from 272 of the client's battle loops by key, drive and brightness)
+  'steamKnight:A': skTrack('m_bat_act43d0_1'), 'steamKnight:B': skTrack('m_bat_act43d0_2'), 'steamKnight:C': skTrack('m_act1mainss_bat2'),
+  'steamKnight:D': skTrack('m_bat_act26side'), 'steamKnight:E': skTrack('m_act29side_bat2', false), 'steamKnight:F': skTrack('m_bat_museum'),
+  'steamKnight:G': skTrack('m_bat_ccs_v2_5'), 'steamKnight:H': skTrack('m_bat_bldkgt'),
 });
 
 /**
@@ -1632,6 +1636,10 @@ export class AudioManager {
       takeoff: [{ url: `${K}e_atk_stmkgt_h.mp3`, pool: 'battle.ON_ABILITY_START.HeroBomb[first_state].1', group: 'Battle_BE_NAtk' }],
       // [src: audio_data soundFXBanks battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.first_die]
       die: [{ url: `${K}e_atk_stmkgtdie.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.first_die', group: 'Battle_BE_NAtk' }],
+      // the laser blade: an ON_ABILITY_START bank, so it starts with the arm's rise (the cast), not at the strike; it peaks
+      // 0.40-0.45 s in and the blade lights at 0.5 s [src: audio_data soundFXBanks battle.ON_ABILITY_START.enemy_1533_stmkgt
+      // .combat; official stmkgt_attack_weapon_01 FxDelay 0.5]
+      swing: [{ url: `${E}e_atk/e_atk_stmwpn_n.mp3`, pool: 'battle.ON_ABILITY_START.enemy_1533_stmkgt.combat' }],
       landing: [H1],
       shove: [{ url: `${E}e_imp/e_imp_stmwpn_n.mp3`, pool: 'battle.ON_ABILITY_HIT.enemy_1533_stmkgt.combat' }],
     };
@@ -2303,6 +2311,7 @@ export class AudioManager {
       // They play as his bank sounds (_playBank, like an enemy's): through _play they were held to its 1.5 ceiling and
       // the battle's 8-voice budget dropped them in a crowd (the user, 2026-11-24: "I can vaguely hear his laser sword")
       if (defId === STEAM_KNIGHT_ID) {
+        if (kind === 'attack') return true;   // his blade's sound came with the arm's rise (playSteamKnight 'swing')
         // one swing on several blocked enemies is one sound (an 'atk' comes per target): the unit cooldown _play keeps
         // (a 'hit' comes with its target's id, so the key is his own)
         const key = `${STEAM_KNIGHT_ID}:${kind}`, now = typeof performance !== 'undefined' ? performance.now() : Date.now();

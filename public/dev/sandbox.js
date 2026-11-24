@@ -314,7 +314,8 @@ async function main() {
   $('legacy').checked = q.get('legacy') === '1';
   $('note-ours').checked = q.get('notes') === 'ours';
   // (fork) the Steam Knight slice: its flag and panel values (sandbox-steamknight.js); off, the battle is the vanilla one
-  const skPanel = mountSteamKnightPanel($('sk-panel'), q, () => sync());
+  const skPanel = mountSteamKnightPanel($('sk-panel'), q, () => sync(), () => knightMusic?.());
+  let knightMusic = null;   // set by a running battle: his music again (a new pick)
   if (skPanel.cfg()) $('sk-box').open = true;
 
   const stage = data.lookup('stages', template.spec.stageId);
@@ -1441,6 +1442,7 @@ async function main() {
     me.playerEffects = [];
     // (another version: the battles run on its data and bounds, like a room of that version — runner.js loadSim)
     let knightId = null;
+    knightMusic = () => { if (runner && knightId != null) { if (skPanel.bgm()) audio.playBgm(skPanel.bgm()); else bgm(true); } };
     runner = createBattleRunner({ net, store: null, ...(seasonSim ? { loadSim: () => loadBrowserSim(seasonSim) } : null) });
     runner.on('field', (field) => {
       localFeed(field.speed);   // client-side combat, as the match screen runs it

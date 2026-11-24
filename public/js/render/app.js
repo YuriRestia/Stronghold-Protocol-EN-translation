@@ -1807,7 +1807,10 @@ export async function createFieldView(host, options = {}) {
 
   // attack wind-ups: an 'atk' still queued in the buffer starts its Spine clip early enough for the strike frame to
   // land when the event is rendered (app/windup.js; the official cast effects play with the clip — vfx/wiring.js castStart)
-  const lookahead = createWindUpLookahead({ views, woundUp, castStart: (v, tv, kind, o) => wiring.castStart(v, tv, kind, o),
+  const lookahead = createWindUpLookahead({ views, woundUp, castStart: (v, tv, kind, o) => {
+    if (v?.info?.defId === 'enemy_1533_stmkgt') skFx.swing();   // (fork) the Steam Knight's blade sound, at his cast start
+    return wiring.castStart(v, tv, kind, o);
+  },
     skip: isQuietNoteAttack, attackClip: (v, tv, kind, on) => wiring.attackClip(v, tv, kind, on),
     // (fork) a skill whose activation replaces the next attack (ReplacementSkill*): its clip may start before that attack
     skillNext: (v) => !v.isEnemy && /^ReplacementSkill/.test(wiring.skills?.of(v)?.plan?.rootClass || ''),

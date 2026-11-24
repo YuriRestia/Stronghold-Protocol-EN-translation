@@ -153,6 +153,9 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     /** Preload the official files (call before the battle starts). */
     ensure,
 
+    /** His normal attack's cast starts (render/app/windup.js): the laser blade's sound, which peaks as the blade lights. */
+    swing() { sound('swing'); },
+
     /** One sim `steamKnight` fx. */
     play(x, y, d) {
       if (!d || typeof d !== 'object') return;

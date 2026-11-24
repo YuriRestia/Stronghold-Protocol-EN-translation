@@ -40,7 +40,10 @@ const FIELDS = [
 ];
 
 /** Music picks: [value, label] (audio.js STEAM_KNIGHT_BGM). */
-const BGM = Object.freeze([['2', 'his second-phase theme (default)'], ['1', 'his first-phase theme'], ['3', 'Alistair, the Victorian emperor boss'], ['0', "off: the round's own music"]]);
+const BGM_START = 'A';
+const BGM = Object.freeze([['A', 'A · Chapter 13 battle 1, Victoria (default)'], ['B', 'B · Chapter 13 battle 2, Victoria'], ['C', 'C · Chapter 14 battle 2, Victoria'],
+  ['D', 'D · Hortus de Escapismo'], ['E', 'E · Zwillingstürme im Herbst'], ['F', 'F · Museum event'], ['G', 'G · Crisis Contract'], ['H', 'H · Near Light, Blood Knight'],
+  ['2', 'his own second-phase theme'], ['1', 'his own first-phase theme'], ['3', 'Alistair'], ['0', "off: the round's own music"]]);
 
 export const STEAM_KNIGHT_FIELDS = FIELDS;
 
@@ -56,7 +59,7 @@ export function readSteamKnightQuery(q) {
 }
 
 /** Build the panel's inputs into `host` and return { cfg(), write(params) }. */
-export function mountSteamKnightPanel(host, q, onChange) {
+export function mountSteamKnightPanel(host, q, onChange, onMusic) {
   const st = readSteamKnightQuery(q);
   host.innerHTML = '';
   const mk = (tag, props = {}, kids = []) => {
@@ -80,8 +83,10 @@ export function mountSteamKnightPanel(host, q, onChange) {
   }
   host.append(mk('label', { className: 'sb-check' }, [resist, " Second form's 30 % damage resistance (official reborn.damage_resistance), off by default"]));
   const music = mk('select', { id: 'sk-bgm' }, BGM.map(([v, label]) => mk('option', { value: v, textContent: label })));
-  music.value = BGM.some(([v]) => v === q.get('sk-bgm')) ? q.get('sk-bgm') : '2';
+  music.value = BGM.some(([v]) => v === q.get('sk-bgm')) ? q.get('sk-bgm') : BGM_START;
   host.append(mk('label', { className: 'sb-check' }, ['Music while he is on the field ', music]));
+  // a pick while he is fighting changes the music at once
+  music.addEventListener('change', () => onMusic?.());
   for (const el of [on, resist, music, ...Object.values(inputs)]) el.addEventListener('change', () => onChange?.());
   return {
     /** The flag object for the BattleSpec (`spec.flags.steamKnight`), or null when off. */
@@ -99,7 +104,7 @@ export function mountSteamKnightPanel(host, q, onChange) {
     /** The audio manager's BGM key of the picked music (audio.js STEAM_KNIGHT_BGM), or null: the round's own. */
     bgm() { return on.checked && music.value !== '0' ? `steamKnight:${music.value}` : null; },
     write(p) {
-      if (on.checked && music.value !== '2') p.set('sk-bgm', music.value); else p.delete('sk-bgm');
+      if (on.checked && music.value !== BGM_START) p.set('sk-bgm', music.value); else p.delete('sk-bgm');
       if (on.checked) p.set('sk', '1'); else p.delete('sk');
       if (resist.checked) p.set('sk-resist', '1'); else p.delete('sk-resist');
       for (const [k, , , start] of FIELDS) {
