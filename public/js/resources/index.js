@@ -15,7 +15,7 @@ import { settingsStore } from '../ui/settings.js';
 import { voicePrefOf } from '../ui/voiceLang.js';
 import { effectiveVoiceLang } from '../audio.js';
 import { data } from '../data.js';
-import { ALL_PACKS, BASE_PACKS, MANIFEST_URL, OUTFITS_PACK, SUMMARY_URL, VOICE_PACKS, parseManifest, resourceKey } from '../../../shared/resources.js';
+import { ALL_PACKS, BASE_PACKS, LIVE2D_PACK, MANIFEST_URL, OUTFITS_PACK, SUMMARY_URL, VOICE_PACKS, parseManifest, resourceKey } from '../../../shared/resources.js';
 import { PreloadStore, isQuotaError } from './store.js';
 import { openZip } from '../assetPack.js';
 import { dataUrl, hasDataHash } from '../dataUrls.js';
@@ -28,7 +28,9 @@ export const DOWNLOAD_LOCK = 'sp-resources-preload';
 export function sanitizePreloadPref(v) {
   const voice = Array.isArray(v?.voice) ? VOICE_PACKS.filter((p) => v.voice.includes(p)) : null;
   // (fork) the optional outfits pack (docs/OUTFITS.md): stored only while ticked (off by default)
-  return { started: v?.started === true, paused: v?.paused === true, voice, ...(v?.outfits === true ? { outfits: true } : null) };
+  return { started: v?.started === true, paused: v?.paused === true, voice, ...(v?.outfits === true ? { outfits: true } : null),
+    // (fork) the optional Live2D card art pack: stored only while ticked (off by default)
+    ...(v?.live2d === true ? { live2d: true } : null) };
 }
 
 /**
@@ -51,11 +53,17 @@ preloadPref.subscribe((s) => savePref('preload', sanitizePreloadPref(s)));
 /** The ticked voice packs right now. */
 export const tickedVoicePacks = () => preloadPref.get().voice ?? voicePacksOf(voicePrefOf(settingsStore.get()), data.get('assets')?.audio);
 /** The optional packs ticked (the voice packs, then the outfits pack when on): what a preload adds to BASE_PACKS. */
-export const tickedPacks = () => [...tickedVoicePacks(), ...(preloadPref.get().outfits ? [OUTFITS_PACK] : [])];
+export const tickedPacks = () => [...tickedVoicePacks(), ...(preloadPref.get().outfits ? [OUTFITS_PACK] : []),
+  ...(preloadPref.get().live2d ? [LIVE2D_PACK] : [])];
 
 /** Tick or untick the outfits pack (fork, docs/OUTFITS.md). */
 export function setOutfitsPack(on) {
   preloadPref.set({ ...preloadPref.get(), outfits: !!on });
+}
+
+/** Tick or untick the Live2D card art pack (fork). */
+export function setLive2dPack(on) {
+  preloadPref.set({ ...preloadPref.get(), live2d: !!on });
 }
 
 /**
@@ -236,6 +244,15 @@ export async function removeOutfitsPack() {
   if (running || preloadPref.get().outfits) return;
   const st = await context();
   await st.removePacks([OUTFITS_PACK]);
+  notifyWorker();
+  await inspectPreload();
+}
+
+/** (fork) Delete the saved files of the Live2D pack while it is unticked — its own button, like the Outfits'. */
+export async function removeLive2dPack() {
+  if (running || preloadPref.get().live2d) return;
+  const st = await context();
+  await st.removePacks([LIVE2D_PACK]);
   notifyWorker();
   await inspectPreload();
 }

@@ -3,8 +3,9 @@
 // shared/resources.js) in one zip a player imports in the preload manager (ui/preload.js 导入 zip), so a host can offer
 // the art somewhere else (a file host, a Discord link) instead of sending it from the server.
 //
-//   npm run package:preload [-- --out <dir>] [--force] [--dry-run]
+//   npm run package:preload [-- --live2d] [-- --out <dir>] [--force] [--dry-run]
 //   → Stronghold-Protocol-v<version>-preload.zip   one folder holding public/assets/…, public/fonts/… and README.txt
+//   → with --live2d: …-preload-live2d.zip, only the Live2D card art (LIVE2D_PACK); the standard zip leaves it out
 //
 // The file list is the server's own preload manifest (server/resources.js buildResourceManifest: every file under
 // public/assets and public/fonts up to MAX_FILE_BYTES, the official effects included once extracted), so the import
@@ -19,6 +20,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildResourceManifest } from '../server/resources.js';
+import { LIVE2D_PACK, packOf } from '../shared/resources.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FOLDER = 'Stronghold-Protocol';
@@ -69,10 +71,12 @@ export function preloadReadme({ version, files, bytes }) {
 }
 
 /** The pack's plan: the preload manifest's files, their bytes, and what the scan refuses. */
-export async function preloadPackPlan(root = ROOT, { scan = true, env = process.env, log = null } = {}) {
+export async function preloadPackPlan(root = ROOT, { scan = true, env = process.env, log = null, live2d = false } = {}) {
   const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version || '0.0.0';
   const doc = await buildResourceManifest({ publicDir: path.join(root, 'public'), hashCacheFile: path.join(root, 'node_modules', '.cache', 'sp-resource-hashes.json'), log });
-  const files = doc.files.map(([site, size]) => ({ site, rel: repoPath(site), size }));
+  // (fork) the Live2D card art (LIVE2D_PACK, 14 524 files) is a zip of its own: with it the standard zip would pass the
+  // zip's 65,535 entries (no ZIP64) and every importer would download 616 MB more than it ticked
+  const files = doc.files.filter(([site]) => (packOf(site) === LIVE2D_PACK) === live2d).map(([site, size]) => ({ site, rel: repoPath(site), size }));
   const problems = [];
   if (!files.length) problems.push('no files under public/assets: run npm run setup first');
   if (scan) {
@@ -85,7 +89,7 @@ export async function preloadPackPlan(root = ROOT, { scan = true, env = process.
   }
   const bytes = files.reduce((n, f) => n + f.size, 0);
   if (bytes > LIMIT * 0.98) problems.push(`the art is ${(bytes / 1e9).toFixed(2)} GB: over what a zip without ZIP64 holds`);
-  return { version, name: preloadPackName(version), files, bytes, manifestVersion: doc.version, problems };
+  return { version, name: preloadPackName(version) + (live2d ? '-live2d' : ''), live2d, files, bytes, manifestVersion: doc.version, problems };
 }
 
 /** A minimal zip writer (local headers, central directory, end record; UTF-8 names, no ZIP64). */
@@ -134,19 +138,20 @@ export function writeZip(zipPath, entries) {
   return offset;
 }
 
-const USAGE = 'usage: node tools/preload-pack.mjs [--out <dir>] [--force] [--dry-run]';
+const USAGE = 'usage: node tools/preload-pack.mjs [--live2d] [--out <dir>] [--force] [--dry-run]';
 
 export async function main(argv, { root = ROOT, log = console.log } = {}) {
-  const o = { out: path.join(os.tmpdir(), 'stronghold-protocol-release'), force: false, dryRun: false };
+  const o = { out: path.join(os.tmpdir(), 'stronghold-protocol-release'), force: false, dryRun: false, live2d: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--out') o.out = argv[++i];
+    else if (a === '--live2d') o.live2d = true;
     else if (a === '--force') o.force = true;
     else if (a === '--dry-run') o.dryRun = true;
     else { console.error(USAGE); return 2; }
   }
   if (!o.out) { console.error(USAGE); return 2; }
-  const p = await preloadPackPlan(root, { log: { info: log, warn: log } });
+  const p = await preloadPackPlan(root, { log: { info: log, warn: log }, live2d: o.live2d });
   log(`preload pack: ${p.name}.zip · ${p.files.length} files, ${(p.bytes / 1e6).toFixed(0)} MB · preload manifest ${p.manifestVersion}`);
   if (p.problems.length) {
     console.error(`PROBLEMS (${p.problems.length}):\n${p.problems.slice(0, 40).map((x) => `  ${x}`).join('\n')}`);

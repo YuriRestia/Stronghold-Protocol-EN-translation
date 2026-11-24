@@ -61,6 +61,7 @@ function mediaKeys(pathname) {
 function packOf(path) {
   const p = String(path || '');
   if (p.startsWith('/assets/outfit/')) return 'outfits';
+  if (p.startsWith('/assets/local/dynillust/')) return 'live2d';
   const voice = /^\/assets\/audio\/voice\/([a-z]+)\//.exec(p);
   if (voice) return VOICE_PACKS.includes(voice[1]) ? voice[1] : 'audio';
   if (p.startsWith('/assets/audio/')) return 'audio';
