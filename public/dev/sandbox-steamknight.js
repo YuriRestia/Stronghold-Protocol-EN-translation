@@ -34,6 +34,12 @@ const FIELDS = [
   ['stanceAfterLanding', 'Stance length after a landing', 's', START.stanceAfterLanding, 0.1, 'start value, you set it (the official stance clip is 5 s, played faster after a landing)'],
   ['waitLimit', 'Wait for an elite or boss in the lane', 's', START.waitLimit, 0.5, 'start value, you set it: then the normal enemy with the most HP is the target'],
   ['blockCnt', 'Enemies he blocks at once', '', START.blockCnt, 1, 'start value, you set it (the official enemy record has none)'],
+  // his stats (the user, 2026-11-24: "I would like to tune his stats"): these start at the OFFICIAL values
+  // [src: official enemy_database enemy_1533_stmkgt level 0 attributes atk / maxHp / def / baseAttackTime]
+  ['atk', 'ATK', '', 1600, 50, 'official value (enemy_database atk), yours to change', true],
+  ['maxHp', 'Max HP', '', 65000, 1000, 'official value (enemy_database maxHp), yours to change', true],
+  ['def', 'DEF', '', 2000, 50, 'official value (enemy_database def), yours to change', true],
+  ['bat', 'Attack interval', 's', 5, 0.1, 'official value (enemy_database baseAttackTime); the Boost\'s +100 attack speed halves it', true],
 ];
 
 export const STEAM_KNIGHT_FIELDS = FIELDS;
@@ -66,11 +72,11 @@ export function mountSteamKnightPanel(host, q, onChange) {
     mk('p', { className: 'sb-hint', textContent: 'Dev slice, sandbox only. Needs 6 Victoria on the board. Round 13: ?map=act1autochess_m03&enemies=hard-normal-r13. Every number below has no official source: the starting values are yours to change.' }),
   );
   const inputs = {};
-  for (const [k, label, unit, , step, hint] of FIELDS) {
+  for (const [k, label, unit, , step, hint, official] of FIELDS) {
     const inp = mk('input', { type: 'number', min: 0, step, value: String(st.values[k]), className: 'sb-num', id: `sk-${k}` });
     inp.style.width = '5.5em';
     inputs[k] = inp;
-    host.append(mk('label', { className: 'sb-check', title: hint }, [`${label} `, inp, unit ? ` ${unit}` : '', ' (start value, you set it)']));
+    host.append(mk('label', { className: 'sb-check', title: hint }, [`${label} `, inp, unit ? ` ${unit}` : '', official ? ' (official, you can change it)' : ' (start value, you set it)']));
   }
   host.append(mk('label', { className: 'sb-check' }, [resist, " Second form's 30 % damage resistance (official reborn.damage_resistance), off by default"]));
   for (const el of [on, resist, ...Object.values(inputs)]) el.addEventListener('change', () => onChange?.());

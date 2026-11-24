@@ -12,12 +12,13 @@
 // after a landing and the wait limit have NO official source: they are PANEL VALUES (`flags.steamKnight.*`), read here
 // without a default — a missing one switches that part off (no dash / no extra damage), never a guessed number.
 
-import { COLS, ROWS, MOVE_SCALE } from '../constants.js';
+import { COLS, ROWS, MOVE_SCALE, BLOCK_RADIUS_SQ } from '../constants.js';
 import { canTargetEnemy } from '../targeting.js';
 import { hypot } from '../detmath.js';
 
 export const STEAM_KNIGHT_ID = 'enemy_1533_stmkgt';
 
+const num = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const has = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 
 // ---- official values -----------------------------------------------------------------------------------------------
@@ -98,6 +99,9 @@ export function steamKnightKit(bb, raw) {
       unit.base.blockCnt = has(cfg().blockCnt) ? Math.floor(cfg().blockCnt) : 1;
       // full power from spawn: the Boost's move speed and attack speed stay on [src: Boost move_speed / attack_speed]
       battle.addBuff(unit, { key: 'sk:boost', persist: true, allowDead: true, mods: { moveFlat: BOOST_MOVE, aspd: BOOST_ASPD } });
+      // his stats, tunable in the sandbox panel (the user, 2026-11-24: "I would like to tune his stats"): a panel value
+      // replaces the official record's (enemy_database attributes atk 1600, maxHp 65000, def 2000, baseAttackTime 5)
+      for (const k of ['atk', 'maxHp', 'def', 'bat']) if (has(cfg()[k]) && cfg()[k] > 0) unit.base[k] = cfg()[k];
       if (cfg().secondFormResist) battle.addBuff(unit, { key: 'sk:resist', persist: true, allowDead: true, mods: { dmgTakenMul: 1 - SECOND_FORM_RESIST } });
 
       const setPhase = (p, extra = {}) => { sk.phase = p; sk.t = 0; Object.assign(sk, extra); };
@@ -240,27 +244,41 @@ export function steamKnightKit(bb, raw) {
 
       // ---- walking (a ground ally: tile hops; relocate keeps the tile occupancy true)
       // ---- a free position, like an enemy (the user, 2026-11-24: "fight without having to snap to a specific tile"): his
-      // x / y never snap. The board's tile under him is his while no operator stands on it (relocate keeps the block and
-      // the occupancy true; his x / y are put back at once); on an operator's tile he blocks nobody (`noBlock`) but still
-      // fights. His range is his tile and the 4 around it, from where he stands now.
+      // x / y never snap, and he blocks by contact from where he stands, not from a tile — an enemy within the official
+      // ground block radius of his position [src: server/sim/constants.js BLOCK_RADIUS_SQ.ground, PRTS 游戏数据基础 §阻挡半径]
+      // while he has room for its block weight (the engine's tile block is off for him: `noBlock`, the tile he spawned on
+      // stays his). His range is his tile and the 4 around it, from where he stands now.
       const RANGE = [[0, 0], [0, 1], [1, 0], [-1, 0], [0, -1]];
       let keysAt = -1;
-      const ownTile = () => {
+      const refreshKeys = () => {
         const r = Math.round(unit.y), c = Math.round(unit.x);
-        if ((unit.tileR !== r || unit.tileC !== c) && battle.grid.inRect(r, c)) {
-          const o = battle._occ[r * COLS + c];
-          if (!(o && o.alive && o !== unit) && !battle.downOn(r, c)) {
-            const x = unit.x, y = unit.y;
-            if (battle.relocate(unit, r, c)) { unit.x = x; unit.y = y; keysAt = -1; }
-          }
+        if (keysAt === r * COLS + c) return;
+        keysAt = r * COLS + c;
+        const keys = [];
+        for (const [dr, dc] of RANGE) { const rr = r + dr, cc = c + dc; if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS) keys.push(rr * COLS + cc); }
+        unit.rangeKeys = keys; unit.rangeKeySet = new Set(keys); unit.baseRangeKeys = keys;
+      };
+      const contactBlock = () => {
+        const R2 = BLOCK_RADIUS_SQ.ground;
+        // (a blocked enemy stands still; a push or pull unblocks it itself: displacement.js _unblock)
+        for (const e of unit.blocking.slice()) if (e.blockedBy === unit && !e.alive) battle._unblock(e);
+        const cap = Math.max(0, Math.floor(num(unit.s.blockCnt, 1)));
+        let used = 0;
+        for (const e of unit.blocking) used += e.blockWeight ?? 1;
+        for (const e of battle.enemies) {
+          if (used >= cap) break;
+          if (!e.alive || e.hidden || e.isFlying || e.blockedBy) continue;
+          const f = e.s.flags;
+          if (f.unblockable || f.levitate || f.fear || f.sleep) continue;
+          const w = e.blockWeight ?? 1;
+          if (used + w > cap) continue;
+          if ((e.x - unit.x) * (e.x - unit.x) + (e.y - unit.y) * (e.y - unit.y) >= R2) continue;
+          e.blockedBy = unit;
+          unit.blocking.push(e);
+          e.moving = false;
+          used += w;
+          if (battle._hooks?.blocked) battle.emit('blocked', { blocker: unit, enemy: e });
         }
-        if (keysAt !== r * COLS + c) {
-          keysAt = r * COLS + c;
-          const keys = [];
-          for (const [dr, dc] of RANGE) { const rr = r + dr, cc = c + dc; if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS) keys.push(rr * COLS + cc); }
-          unit.rangeKeys = keys; unit.rangeKeySet = new Set(keys); unit.baseRangeKeys = keys;
-        }
-        return unit.tileR === r && unit.tileC === c;
       };
       const walkSpeed = () => Math.max(0.05, unit.s.moveSpeed * MOVE_SCALE);
       /** One step toward the nearest enemy, along the ground path, unless one is within reach (he fights where he stands). */
@@ -350,8 +368,13 @@ export function steamKnightKit(bb, raw) {
           default: {   // 'none' / 'fight'
             if (sk.phase === 'none') setPhase('fight');
             if (!unit.canAct || unit.s.flags.noMove) break;
-            bunker(!ownTile());   // blocks only from a tile of his own
+            // the engine's tile block stays off — `noNewBlock`: it takes no enemy by its own contact rule from the tile he spawned
+            // on, and keeps the ones content hands it (as 酒神's 迷狂牢笼) — he blocks by contact from where he stands
+            bunker(false);
+            if (!unit.findBuff('sk:contact')) battle.addBuff(unit, { key: 'sk:contact', persist: true, allowDead: true, flags: { noNewBlock: true } });
+            refreshKeys();
             if (sk.clock >= sk.leapAt - 1e-9 && has(c.dashSpeed) && startLeap()) break;
+            contactBlock();
             if (unit.blocking.length) break;   // blocking: he stays
             stepToward(dt);
           }
