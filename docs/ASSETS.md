@@ -992,13 +992,23 @@ Settings ▸ Preload Assets keeps the assets on the player's disk, so nothing do
 - **Manifest** `/data/resource-manifest.json` (server/resources.js): every file under `public/assets` and `public/fonts` up
   to 24 MiB as `[path, size, sha1-12]`, at most 100 000 of them (shared/resources.js `MAX_MANIFEST_FILES`: the client
   refuses more, the server warns at boot; the list's size and parsing time are in its comment). (fork) The Live2D cards
-  (`assets/local/dynillust/`, 14 524 files, 616 MB on 2026-11-24) are not listed and so never preloaded: their files load
-  when a card shows, and the preload zip and its import leave them out too. Built once per process in the background at boot; hashes are cached by
+  (`assets/local/dynillust/`, 14 524 files, 616 MB on 2026-11-24) are listed too, as the optional pack `live2d`
+  (shared/resources.js `LIVE2D_PACK`, off by default, last in the download order): a player who never ticks it
+  downloads none of them (their files load when a card shows, as before), and the list stays well under the cap
+  (70 608 of 100 000 files). Settings ▸ Preload Assets shows it as a row of its own with the pack's size and, once
+  files are saved while it is unticked, its own remove button, as the Outfits pack does (`preloadPref.live2d`,
+  stored only while ticked, so a player who preloaded before is not asked for more). Cloudflare caches the files like
+  any other `/assets/` file (SERVER-NOTES "Cloudflare settings", the "game assets" Cache Rule, immutable): the
+  preload fetches `?v=<hash>` URLs, the cards `/assets/~<hash>/…` URLs. The preload zip (`npm run package:preload`)
+  holds no Live2D file (it would pass a zip's 65 535 entries and add 616 MB for every importer);
+  `npm run package:preload -- --live2d` writes `…-preload-live2d.zip` with them, and the same Import zip button takes
+  either. Built once per process in the background at boot; hashes are cached by
   size + mtime in `node_modules/.cache/sp-resource-hashes.json` (cold build ~12 s for 820 MB, warm ~1.5 s). Served
   `no-cache` with an ETag, so clients revalidate with a 304.
 - **Packs** (shared/resources.js `packOf`): `visual` (spine, char, local maps, ui, icons, fonts, ≈400 MB) and `audio` (bgm,
   sfx, guide art, ≈87 MB) are always included; voice packs `cn` / `en` / `jp` / `kr` / `native` (19–90 MB each) are a
-  checklist, pre-ticked from the voice language settings (default + per-operator picks) until the player edits it.
+  checklist, pre-ticked from the voice language settings (default + per-operator picks) until the player edits it;
+  `outfits` (docs/OUTFITS.md) and `live2d` (above) are single optional rows, unticked by default.
 - **Download** (public/js/resources/store.js): one Cache Storage cache, keyed by path; each entry carries the hash of
   its bytes in an `X-SP-Resource` header (no shared index, so the page and the worker never overwrite each other). Files are fetched as `<path>?v=<hash>` (audio through `/media/…`), which files.js marks immutable, so
   Cloudflare caches each version and the VPS sends it once per edge. `cache: 'no-store'` avoids a second copy in the HTTP
