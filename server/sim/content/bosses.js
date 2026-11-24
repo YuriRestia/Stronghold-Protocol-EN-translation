@@ -82,7 +82,7 @@ import { normalizeRoute } from '../simdata.js';
 import {
   ensureInstalled, abOf, attach, T, elem, hurt, targetsNear, allTargets, byPriority, areaAllies, areaAlliesInTiles, fieldAllies,
   remainingRoute, stayRoute, stepToward, setHits, hitCount, lpLoss, blinkForward, canCast, unbalancedNow, nthOf,
-  castSlot, attackTurnSkill,
+  castSlot, attackTurnSkill, setForm,
 } from './enemies.js';
 import { hypot, powi } from '../detmath.js';
 import { damageAttackType, isHpLoss } from '../attack.js';
@@ -690,9 +690,9 @@ function kitGun(ab, e, b) {
   // the stack group (OverrideGroup.Clear) and becomes the last one; then one stack is added — so the first hit on a
   // target already counts. The group holds `max_stack_cnt` stacks and `max_valid_stack_cnt` of them count
   // [src: OverrideGroup.ResetWithBuff RVA 0x6e0760, Blackboard.GetIntOrDefault "max_stack_cnt" / "max_valid_stack_cnt"].
-  // No timer clears them (life INFINITY). [unverified] whether the gun's skill casts also reach Apply (the talent registers
-  // for every ability family, `_targetFamilyMask` 31): only the normal attack is counted here, as before. The ASPD adds
-  // onto the clamped base 20 (officialBaseAspd).
+  // No timer clears them (life INFINITY). The talent registers for every ability family (`_targetFamilyMask` 31), so
+  // 【末日布道】's spell on the springs reaches Apply too (below); whether 【盲信之誓】's beams or the attack's flight time do
+  // is NOT modelled (open question, §37.110). The ASPD adds onto the clamped base 20 (officialBaseAspd).
   const step = T(ab, '2.attack_speed') ?? 0, maxN = T(ab, '2.max_stack_cnt') ?? 0;
   const maxValid = T(ab, '2.max_valid_stack_cnt') ?? -1;
   const P = { last: null, n: 0, charge: null };
@@ -780,9 +780,29 @@ function kitGun(ab, e, b) {
         }
       },
     });
+    // 【末日布道】 is the gun's own 5 s cast (fork, §37.110): `Skills/2` of enemy_9017_achunt is an
+    // AnimatedActionToTargetAbility with `_timeMode` LOAD_FROM_BLACKBOARD / `_cooldownKey` dog_duration, so the cast is as long
+    // as the gain, and its ThreePartChannelingAnimation (Skill_2_Begin / Loop / End) fills it [src: CN client
+    // battle/enm_pfb_28.ab enemy_9017_achunt Skills/2; dog_duration: official level_act1autochess_h08_02.json
+    // enemy_9017_achunt_2 skill 2]. The gun neither shoots nor walks while it casts (AttackState ends only with the cast [src:
+    // GameAssembly.dll Torappu.Battle.Enemy.States.AttackState$$OnTick RVA 0xad3500]); the spell hits every spring, and a spring
+    // is another target than the operator shot so far, so the attack-speed stacks clear and one is added [src:
+    // AbilityAttachment$$Apply RVA 0x5fb0e0, BrownbTalent_1$$Apply RVA 0xfdc1b0; talent `_targetFamilyMask` 31 = ALL]; the next
+    // call comes 45 s after the cast ENDED [src: EnemySkill$$_OnCastFinish RVA 0x70fe70; PRTS 「同一技能的冷却时间于该技能结束时
+    // 开始计时」]. After it the gun walks between its shots again and takes a new target.
+    const castTime = s2 ? (s2.bb.dog_duration ?? 0) : 0;
     if (s2) list.push({
-      cd: s2.cd, icd: s2.icd, sk: s2, cond: (b2) => b2.enemies.some((o) => o.alive && isSpring(o)),
+      cd: s2.cd, icd: s2.icd, sk: s2, clip: castTime, cond: (b2) => b2.enemies.some((o) => o.alive && isSpring(o)),
       fire(b2, e2) { // 【末日布道】 springs chase 铳 for the whole 5 s gain, invulnerable, trampling operators (kitSpring)
+        if (castTime > 0) {
+          b2.addBuff(e2, { key: 'ab:channel', duration: castTime, flags: { disarm: true, noMove: true } });
+          e2.skillAnimUntil = b2.time + castTime;
+          setForm(b2, e2, 'call', 'phase', { dur: castTime });
+          b2.after(castTime, (b3) => {
+            if (e2.alive && e2.form === 'call') { e2.form = null; b3.fx('phase', { x: e2.x, y: e2.y, id: e2.id, kind: 'call', form: null }); }
+          }, { owner: e2 });
+          P.last = {}; P.n = 1; setAspd(b2);                                // the spell's target is no operator: stacks clear, one added
+        }
         // PRTS “碎铳之簧” 追逐模式 "不进行普通攻击": `disarm` for the dash (until 0.1.3 it kept shooting while it ran).
         // Each gun casts on its own data timer, and a cast takes every spring — on a pair field the later of the two
         // calls retargets them all to its gun (handbook 「持续召唤场上所有“碎铳之簧”向自身移动」; no stagger, no lock while

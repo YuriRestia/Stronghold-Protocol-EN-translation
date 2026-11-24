@@ -74,7 +74,7 @@ test('隐秘核心铳 pair: the branch gun starts with the battle, the leader af
     const own = calls.filter((c) => c.gun === gun).map((c) => c.time);
     assert.equal(own.length, 3, 'three calls each in 150 s');
     assert.ok(Math.abs(own[0] - t0 - skill.initCooldown) < h.TICK * 2, `first call ${skill.initCooldown} s after its spawn`);
-    for (let i = 1; i < own.length; i++) assert.ok(Math.abs(own[i] - own[i - 1] - skill.cooldown) < h.TICK * 2, `then every ${skill.cooldown} s`);
+    for (let i = 1; i < own.length; i++) assert.ok(Math.abs(own[i] - own[i - 1] - skill.cooldown - skill.bb.dog_duration) < h.TICK * 2, `then ${skill.cooldown} s after the cast ended`);
   }
   // the calls alternate between the two guns, the leader's one (preDelay − branch time) after the branch gun's: the
   // springs go to each gun in turn, not always to the one that calls a tick later
@@ -164,6 +164,32 @@ test('隐秘核心铳: solo keeps the template initial cooldown and repeated cal
   const spawnTime = tpl.spawns.find((s) => s.tag === 'boss').time;
   const skill = (tpl.overrides[GUN]?.skills ?? E[GUN].skills).find((s) => s.prefabKey === '2');
   assert.ok(Math.abs(calls[0].time - spawnTime - skill.initCooldown) < h.TICK * 2);
-  assert.ok(Math.abs(calls[1].time - calls[0].time - skill.cooldown) < h.TICK * 2);
+  // the cooldown counts from the end of the 5 s cast (EnemySkill._OnCastFinish, §37.110)
+  assert.ok(Math.abs(calls[1].time - calls[0].time - skill.cooldown - skill.bb.dog_duration) < h.TICK * 2);
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('隐秘核心铳: the call is its own 5 s cast — no attack, no step, the stacks drop to one, then it shoots and walks on', () => {
+  const h = arena({ solo: true });
+  let gun = null;
+  h.b.on('enemySpawn', (c) => { if (c.enemy.defId === GUN) gun = c.enemy; });
+  const calls = recordCalls(h);
+  h.runUntil(() => calls.length > 0, 60);
+  assert.equal(calls.length, 1);
+  const dur = E[GUN].skills.find((s) => s.prefabKey === '2').bb.dog_duration;
+  assert.equal(dur, 5);
+  assert.ok(gun.findBuff('ab:channel'), 'casting');
+  assert.equal(gun.form, 'call');
+  assert.equal(gun.s.aspd, 100, 'the stacks are down to one (base 20 + 80)');
+  const x = gun.x, y = gun.y, shots = gun.stats.attacks;
+  h.run(dur - 0.2);
+  assert.equal(gun.stats.attacks, shots, 'no shot during the cast');
+  assert.ok(gun.x === x && gun.y === y, 'no step during the cast');
+  assert.equal(gun.s.aspd, 100);
+  h.run(0.4);
+  assert.ok(!gun.findBuff('ab:channel') && gun.form == null, 'the cast is over');
+  h.run(12);
+  assert.ok(gun.stats.attacks > shots, 'it shoots again after the call');
+  assert.ok(Math.hypot(gun.x - x, gun.y - y) > 0, 'and it walks on between its shots');
   assert.equal(h.b.errorCount, 0);
 });

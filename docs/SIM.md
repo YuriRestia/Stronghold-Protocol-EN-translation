@@ -231,8 +231,11 @@ ends by spawning a new 初始模式 copy on its level branch route (`left_hand_o
 HP, then `kill(old, null)` — uncounted, no bounty; the client sees a `die` and a `spawn`. The Hidden Core 铳's 【末日布道】
 puts every 碎铳之簧 into 追逐模式 for its whole 5 s gain (`dog_duration`; invulnerable, no ordinary attacks): the spring
 keeps following the casting gun after reaching it (PR #347; until 0.2.1 arrival or 1 tile ended the chase), and each
-gun casts on its own data timer (20 s after it spawns, then every 45 s), so on a pair field the later call retargets
-every spring to that gun for a new 5 s (PRTS: 「持续召唤场上所有“碎铳之簧”向自身移动」). The pair's guns take turns: the
+gun casts on its own data timer (20 s after it spawns, then 45 s from the END of each call), so on a pair field the
+later call retargets every spring to that gun for a new 5 s (PRTS: 「持续召唤场上所有“碎铳之簧”向自身移动」). The call is
+the gun's own 5 s cast: it neither shoots nor walks until it ends, and its attack-speed stacks drop to one (ASPD 100), so
+it then walks between its shots and takes a new target [src: enm_pfb_28.ab enemy_9017_achunt Skills/2; GameAssembly.dll
+AttackState$$OnTick, BrownbTalent_1$$Apply, EnemySkill$$_OnCastFinish] (§37.110). The pair's guns take turns: the
 `boss_battle_multi_player` 铳 starts with the battle (0.1 s, right half) and the leader after its 10 s preDelay (left
 half) [src: official level_act1autochess_h08_02.json], `content/bosses.js branchAtStart` (§37.109). A spring's damage
 goes to that one gun only, never to the other springs [src: official buff_template_holder actrpa_passive]. A gun's
