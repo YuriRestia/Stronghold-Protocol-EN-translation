@@ -11,7 +11,7 @@ import http from 'node:http';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { packOf, resourceKey, mediaKeys, parseManifest, formatBytes, CACHE_NAME, PACKS_PATH, RESOURCES_FORMAT } from '../shared/resources.js';
+import { packOf, resourceKey, mediaKeys, parseManifest, formatBytes, CACHE_NAME, MAX_MANIFEST_FILES, PACKS_PATH, RESOURCES_FORMAT } from '../shared/resources.js';
 import { buildResourceManifest } from '../server/resources.js';
 import { createStaticHandler } from '../server/index.js';
 import { PreloadStore } from '../public/js/resources/store.js';
@@ -117,6 +117,15 @@ test('parseManifest refuses entries it cannot trust', () => {
   assert.throws(() => parseManifest({ ...ok, format: 1 }));
 });
 
+test('(fork) the manifest may grow to MAX_MANIFEST_FILES files; past it, the error says so', () => {
+  const list = (n) => ({ format: RESOURCES_FORMAT, version: 'v', files: Array.from({ length: n }, (_, i) => [`/assets/f${i}.png`, 1, 'abcdefabcdef']) });
+  // 70 608 files were listed on 2026-11-24, with the Live2D cards: the preload refused every list over 60 000
+  assert.equal(parseManifest(list(70608)).files.length, 70608);
+  assert.equal(parseManifest(list(MAX_MANIFEST_FILES)).files.length, MAX_MANIFEST_FILES);
+  assert.throws(() => parseManifest(list(MAX_MANIFEST_FILES + 1)), /too many files/);
+  assert.throws(() => parseManifest({ ...list(0), files: null }), /no file list/);
+});
+
 test('server manifest: every file with size + SHA-1, hash cache reused, served gzip with an ETag', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-res-'));
   const pub = path.join(dir, 'public');
@@ -127,6 +136,7 @@ test('server manifest: every file with size + SHA-1, hash cache reused, served g
   write('assets/.DS_Store', 'x');
   write('fonts/f.woff2', 'font');
   write('js/main.js', 'code');
+  write('assets/local/dynillust/char_003_kalts_boc_6/a.png', 'a Live2D card file'); // (fork) never preloaded
   const cache = path.join(dir, 'hashes.json');
   try {
     const m = await buildResourceManifest({ publicDir: pub, hashCacheFile: cache });
