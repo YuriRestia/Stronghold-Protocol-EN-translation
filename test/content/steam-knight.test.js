@@ -114,9 +114,41 @@ test('a normal enemy within reach that nobody blocks: he steps into contact and 
   assert.equal(k.mem.sk.phase, 'fight');
   const e = h.spawn('enemy_norm', { pos: [Math.round(k.y), Math.round(k.x) + 1] });
   e.x = k.x + 1.2; e.y = k.y;   // inside his reach, outside the block radius
-  h.runUntil(() => e.blockedBy === k, 8);   // he walks slowly (his Boost's 0.3 move speed)
+  h.runUntil(() => e.blockedBy === k, 8);   // a swing that had started ends first, then he walks (0.8 move speed)
   assert.equal(e.blockedBy, k, `blocked by contact (gap ${Math.hypot(e.x - k.x, e.y - k.y).toFixed(2)}, phase ${k.mem.sk.phase}, e at ${e.x},${e.y} alive ${e.alive})`);
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+});
+
+test('he never moves while a swing plays, nor after an enemy that walks past', () => {
+  const h = field();
+  const k = spawnSteamKnight(h.b, 'p1');
+  h.run(12);
+  const e = h.spawn('enemy_norm', { pos: [Math.round(k.y), Math.round(k.x) + 1] });
+  e.y = k.y + 0.9; e.x = k.x + 1;
+  Object.defineProperty(e, 'moving', { get: () => true, set() {} });   // (the engine clears it on an enemy the test moves)
+  const x0 = k.x, y0 = k.y;
+  for (let i = 0; i < 90; i++) { e.x -= 0.02; h.step(); }
+  assert.ok(Math.abs(k.x - x0) < 1e-9 && Math.abs(k.y - y0) < 1e-9, `he stayed (${k.x - x0}, ${k.y - y0})`);
+});
+
+test('the boost hit pushes a survivor by the force rule: a heavy enemy less, no force none', () => {
+  const pushed = (massLevel, pushForce) => {
+    const h = makeBattle({ defs: { enemies: { enemy_big: { ...enemyRec({ key: 'enemy_big', rank: 'ELITE', hp: 1e7, speed: 0, def: 0 }) } } }, timeLimit: 600, autoFinish: false, seed: 3, flags: { dpPerSec: 0, dpMax: 999, steamKnight: { ...PANEL, pushForce } }, units: [], enemies: [] });
+    h.step();
+    const e = h.spawn('enemy_big', { pos: [10, 8] });
+    e.base.massLevel = massLevel; e._dirty = true;
+    const k = spawnSteamKnight(h.b, 'p1');
+    k.mem.sk.beginLanding(5, 10, [0, 1]);
+    h.runUntil(() => k.mem.sk.phase === 'dash', 20);
+    const x0 = e.x;
+    h.runUntil(() => k.mem.sk.phase === 'blow', 5);
+    h.run(0.1);
+    assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+    return e.x - x0;
+  };
+  const light = pushed(1, 5), heavy = pushed(5, 5), none = pushed(1, undefined);
+  assert.ok(light > heavy + 0.5 && heavy > 0.5, `light ${light}, heavy ${heavy}`);
+  assert.equal(none, 0);
 });
 
 test('he attacks every enemy he blocks (the Centurion rule), not just one', () => {

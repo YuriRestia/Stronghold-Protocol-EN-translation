@@ -12,7 +12,7 @@
 // after a landing and the wait limit have NO official source: they are PANEL VALUES (`flags.steamKnight.*`), read here
 // without a default — a missing one switches that part off (no dash / no extra damage), never a guessed number.
 
-import { COLS, ROWS, MOVE_SCALE, BLOCK_RADIUS_SQ } from '../constants.js';
+import { COLS, ROWS, MOVE_SCALE, BLOCK_RADIUS_SQ, TICK } from '../constants.js';
 import { canTargetEnemy } from '../targeting.js';
 import { hypot } from '../detmath.js';
 
@@ -26,6 +26,7 @@ const has = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 // enemies.enemy_1533_stmkgt.spineLocal.animations]
 const CLIP = Object.freeze({
   stanceBeginLen: 5,      // Skill_1_Begin_A 5 s
+  attackLen: 2,           // Attack_A 2 s
   blowLen: 2.5,           // Skill_1_Attack_A 2.5 s
   blowHit: 0.7,           // Skill_1_Attack_A strike frame 0.7 s (spineLocal.hits)
   leapUpLen: 1.2,         // FlyToMoon: Skill_2_Begin_A 1.2 s
@@ -113,6 +114,9 @@ export function steamKnightKit(bb, raw) {
       // panel field is off (`sandbox-steamknight.js`: an empty input sends nothing) — the same reading as the dash and
       // the side damage — so the fallback is 0, not 1 (the sandbox panel's own start value is 1)
       unit.base.blockCnt = has(cfg().blockCnt) ? Math.floor(cfg().blockCnt) : 0;
+      // his own walking speed: an ally's base is 0 (units.js), so he walked on the Boost's +0.3 alone
+      // [src: official enemy_database enemy_1533_stmkgt level 0 attributes moveSpeed 0.5]
+      unit.base.moveSpeed = num(battle.data.getEnemy(STEAM_KNIGHT_ID)?.stats?.moveSpeed, 0);
       // full power from spawn: the Boost's move speed and attack speed stay on [src: Boost move_speed / attack_speed]
       battle.addBuff(unit, { key: 'sk:boost', persist: true, allowDead: true, mods: { moveFlat: BOOST_MOVE, aspd: BOOST_ASPD } });
       // his stats, tunable in the sandbox panel (the user, 2026-11-24: "I would like to tune his stats"): a panel value
@@ -152,6 +156,12 @@ export function steamKnightKit(bb, raw) {
       const zanning = (on) => {
         if (on && !unit.findBuff(ZAN)) battle.addBuff(unit, { key: ZAN, persist: true, allowDead: true, flags: { disarm: true } });
         if (!on && unit.findBuff(ZAN)) battle.removeBuff(unit, ZAN);
+      };
+      // walking up to an enemy in reach that nobody blocks: no swing starts on the way
+      const CLOSE = 'sk:close';
+      const closing = (on) => {
+        if (on && !unit.findBuff(CLOSE)) battle.addBuff(unit, { key: CLOSE, persist: true, allowDead: true, flags: { disarm: true } });
+        if (!on && unit.findBuff(CLOSE)) battle.removeBuff(unit, CLOSE);
       };
       const phaseFx = (kind, extra = {}) => battle.fx('phase', { x: unit.x, y: unit.y, id: unit.id, kind, form: kind, ...extra });
       const clearForm = () => battle.fx('phase', { x: unit.x, y: unit.y, id: unit.id, kind: 'skFight', form: null });
@@ -283,6 +293,17 @@ export function steamKnightKit(bb, raw) {
         const scale = ZAN_TIMES * ZAN_SCALE + (has(c.dmgPerTile) ? c.dmgPerTile * tiles : 0);
         battle.fx('steamKnight', { id: unit.id, kind: 'impact', x: t.x, y: t.y, tiles, dr: d.dir[0], dc: d.dir[1], target: t.id });
         if (t.alive) battle.dealDamage(unit, t, { amount: unit.s.atk * scale, type: dmgType, isSkill: true, tags: ['steamKnight', 'bunker'] });
+        // a survivor is pushed along the boost by the official force rule: force less its weight picks the distance
+        // (displacement.js push, PUSH_TILES; leaders and 失衡免疫 stay). The force is the panel's
+        // Two ticks after the blow: the view draws a move up to a tick ahead of that tick's events, and the target was
+        // seen flying before its hit burst (a look, no rule).
+        if (t.alive && has(c.pushForce)) {
+          battle.after(2 * TICK, () => { if (t.alive && !t.hidden) battle.push(t, c.pushForce, { from: unit, dir: { x: d.dir[1], y: d.dir[0] }, fixed: true }); }, { owner: t });
+        }
+        // the thrust holds its ground: he blocks by contact again (an enemy walked through him during it, and he crept
+        // after it when it was over — the user, 2026-11-24)
+        bunker(false);
+        charging(true);
         battle.fx('steamKnight', { id: unit.id, kind: 'impactHit', x: t.x, y: t.y, tiles, scale, target: t.id });
       };
 
@@ -382,7 +403,10 @@ export function steamKnightKit(bb, raw) {
       // An enemy that walks past him unblocked (none blocks it, he has room) is met: he steps into contact and blocks it,
       // instead of hitting it from 1.5 tiles while it walks on and then following it (the user, 2026-11-24: "he seems to
       // get dragged along by an enemy behind him. He should be blocking that enemy, stand there and fight it").
+      // Never while a swing plays (he slid with his attack clip on), and only to an enemy that stands: creeping after one
+      // that walks past was the slide the user saw at tick 1316 (2026-11-24). One that walks into contact is blocked there.
       const stepToward = (dt) => {
+        if (unit.cast || battle.time - unit.lastCastAt < CLIP.attackLen - 1e-9) return;
         const room = unit.blocking.reduce((n, e) => n + (e.blockWeight ?? 1), 0) < Math.floor(num(unit.s.blockCnt, 1));
         // He walks only to an enemy that stands (blocked, waiting): one walking on toward the blue box outpaces him, and
         // following it was the drag the user saw.
@@ -391,14 +415,14 @@ export function steamKnightKit(bb, raw) {
           const d = hypot(e.x - unit.x, e.y - unit.y);
           if (d < near) near = d;
           if (!e.moving && d < bd - 1e-9) { bd = d; tgt = e; }
-          if (room && blockable(e) && d < fd - 1e-9) { fd = d; free = e; }
+          if (room && !e.moving && blockable(e) && d < fd - 1e-9) { fd = d; free = e; }
         }
         if (free && fd <= 1.5) {
           // straight at it, to inside the official block radius (0.707 tiles [src: server/sim/constants.js
           // BLOCK_RADIUS_SQ.ground]); contactBlock takes it on the next tick
           const s = Math.min(walkSpeed() * dt, Math.max(0, fd - 0.5));
           if (s > 1e-6) { unit.moving = true; unit.x += ((free.x - unit.x) / fd) * s; unit.y += ((free.y - unit.y) / fd) * s; }
-          return;
+          return true;   // closing in: no swing starts until he is there
         }
         // no step while an enemy is within his range's reach (1 tile + the 0.5 an enemy can sit off a tile's centre)
         if (!tgt || near <= 1.5) return;
@@ -424,6 +448,7 @@ export function steamKnightKit(bb, raw) {
         if (!unit.alive || !unit.deployed) return;
         const c = cfg();
         sk.clock += dt; sk.t += dt;
+        if (sk.phase !== 'fight' || !unit.canAct) closing(false);
         unit.moving = false;   // only stepToward sets it: the view plays his Move clip while he walks (snapshot animOf)
         // a stun (unit.canAct: units.js) cuts the stance, the boost or the Zantetsuken before its strike: no blow
         // lands from a stunned knight (the code review, 2026-11-24)
@@ -486,13 +511,16 @@ export function steamKnightKit(bb, raw) {
             break;
           }
           case 'blow':
+            contactBlock();
             if (sk.t >= CLIP.blowLen - 1e-9) endBunker();
             break;
           case 'zan': {
             contactBlock();   // he blocks through the Zantetsuken's charge too (the user, 2026-11-24)
             if (sk.t < CLIP.stanceBeginLen - 1e-9) break;
             setPhase('zanBlow', { target: sk.target, zanHit: false });
-            phaseFx('skBlow', { dur: CLIP.blowLen });
+            // lead 0: the clip and the hit play on one feed, so its strike frame is the hit (the form's own 0.2 s lead put
+            // the pile out before the hit's sound and burst — the user, 2026-11-24)
+            phaseFx('skBlow', { dur: CLIP.blowLen, lead: 0 });
             break;
           }
           case 'zanBlow': {
@@ -529,8 +557,8 @@ export function steamKnightKit(bb, raw) {
             contactBlock();
             // 4 SP: the standing Zantetsuken on the enemy in front of him (blocked, else the nearest in reach)
             if (sk.zanReady && !unit.cast) { const t = zanTarget(); if (t) { sk.target = t; startZan(t); break; } }
-            if (unit.blocking.length) break;   // blocking: he stays
-            stepToward(dt);
+            if (unit.blocking.length) { closing(false); break; }   // blocking: he stays
+            closing(stepToward(dt) === true);
           }
         }
       }, { owner: unit });

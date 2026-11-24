@@ -17,6 +17,8 @@ const START = Object.freeze({
   sideDamage: 1,
   // [ASSUMED] side shove 1.5 tiles: clears the lane without sending them off the road; user OK 2026-11-24
   shoveDist: 1.5,
+  // [ASSUMED] push force 5 on the boost's target: the top of the official scale (特大力; Weedy's Liquid Nitrogen Cannon at mastery 3 is 3), so weight 0-2 goes 3.53 tiles, 3 → 2.96, 4 → 2.14, 5 → 1.7, 6 → 0.44; user OK 2026-11-24 ("come up with a push force number that feels satisfying")
+  pushForce: 5,
   // [ASSUMED] he blocks 1 enemy: the minimum that "he blocks" (user, 2026-11-24) can mean; the official enemy record has blockCnt 0; user OK 2026-11-24
   blockCnt: 1,
 });
@@ -27,6 +29,7 @@ const FIELDS = [
   ['dmgPerTile', 'Blow damage per tile boosted', '× ATK', START.dmgPerTile, 0.05, 'start value, you set it: added on top of the official 3 hits at 1.25 ATK'],
   ['sideDamage', 'Side damage', '× ATK', START.sideDamage, 0.05, 'start value, you set it: to each normal enemy the boost passes'],
   ['shoveDist', 'Side shove distance', 'tiles', START.shoveDist, 0.1, 'start value, you set it: how far a normal enemy is thrown aside'],
+  ['pushForce', 'Push force on the boost hit', '', START.pushForce, 1, 'start value, you set it: the official force scale (-1 to 5); the distance is this less the enemy\'s weight, and bosses of a boss fight do not move'],
   ['blockCnt', 'Enemies he blocks at once', '', START.blockCnt, 1, 'start value, you set it (the official enemy record has none)'],
   // his stats (the user, 2026-11-24: "I would like to tune his stats"): these start at the OFFICIAL values
   // [src: official enemy_database enemy_1533_stmkgt level 0 attributes atk / maxHp / def / baseAttackTime]
