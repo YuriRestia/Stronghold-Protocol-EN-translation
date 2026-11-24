@@ -129,9 +129,12 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
       await guest.evaluate(() => globalThis.__SP__.net.request('g.infoReady', { setupRevision: 0 }));
       await host.waitForSelector('.brief-reroll button');
       await host.bringToFront();
+      const deadline = await guest.evaluate(() => globalThis.__SP__.store.get().match.public.deadline);
+      assert.ok(deadline > 0, `a running briefing countdown (${deadline})`);
       await host.click('.brief-reroll button');
       await guest.waitForSelector('.brief-reroll .btn--primary');
-      assert.equal(await guest.evaluate(() => globalThis.__SP__.store.get().match.public.deadline), 0);
+      // (fork) a vote no longer stops the briefing countdown (the user's decision of 2026-11-13): the deadline stays where it was
+      assert.equal(await guest.evaluate(() => globalThis.__SP__.store.get().match.public.deadline), deadline, 'the vote neither stops nor moves the countdown');
       await guest.bringToFront();
       // The host is now a background tab: WebSocket/store updates continue, but animation-frame polling can stop.
       // Arm its state wait before the vote so the regression covers a result arriving after the initial check.

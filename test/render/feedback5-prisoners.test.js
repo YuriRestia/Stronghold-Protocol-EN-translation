@@ -102,6 +102,20 @@ test('a prisoner view: confined clips, the orange set on \'warning\', the red se
   }
 });
 
+test('a swing already running when the mode changes goes on in the new mode\'s attack clip (the freeing attack shows red, not orange)', async () => {
+  // official buff_template_holder.ab enemy_liberty_listener[warning]: SwitchMode on ON_BEFORE_ATTACK, before the attack starts
+  for (const [id, [conf, warn, free]] of Object.entries(OFFICIAL)) {
+    const v = await view(id);
+    v.sync(sample(), 1);
+    v.onAttack(null, 2);
+    assert.equal(v.actor.current, `Attack${conf}`, `${id}: the confined swing`);
+    v.setForm('warning');
+    assert.equal(v.actor.current, `Attack${warn}`, `${id}: the swing goes on orange`);
+    v.setForm('liberty');
+    assert.equal(v.actor.current, `Attack${free}`, `${id}: the swing goes on red`);
+  }
+});
+
 test('the warning fx draws nothing of its own (the blinking collar is the model\'s); the liberation keeps its white blast', () => {
   assert.equal(fxSpec('phase', { kind: 'warning', form: 'warning' }).a, 'none');
   assert.equal(fxSpec('liberate', { form: 'liberty' }).a, 'blast');

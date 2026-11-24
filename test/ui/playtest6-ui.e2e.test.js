@@ -218,7 +218,8 @@ describe('user playtest #6 — UI items 6 / 10 (mock harness, headless Chrome)',
           const at = spot === 'strip centre' ? [strip.x + strip.w / 2, strip.y + strip.h / 2]
             : spot === 'strip right' ? [strip.x + strip.w * 0.9, strip.y + strip.h * 0.6] : [box.x + box.w * 0.94, box.y + box.h * 0.94];
           if (touch) await page.touchscreen.tap(at[0], at[1]); else await page.mouse.click(at[0], at[1]);
-          await sleep(450);
+          // the first buy of a page took 430-610 ms to show as sold (later ones about 150 ms): wait for the state, not a fixed 450 ms
+          await page.waitForFunction((i) => !!globalThis.__MOCK__.S().priv.shop.slots[i]?.sold, { timeout: 3000 }, slotIdx).catch(() => null);
           const after = await page.evaluate((i) => ({ funds: globalThis.__MOCK__.S().priv.funds, sold: !!globalThis.__MOCK__.S().priv.shop.slots[i]?.sold }), slotIdx);
           assert.ok(after.sold && after.funds < funds0, `${name} ${kind}: a ${touch ? 'tap' : 'click'} on the ${spot} buys`);
           if (spot === 'strip centre' && kind === 'operator') report.push(`${name}: ${probe.hit}/${probe.n}`);
