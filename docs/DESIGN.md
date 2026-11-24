@@ -26,6 +26,7 @@ The earlier 郁金香 S2 candidate remains unimplemented for the identity mismat
 (fork) When units become impostors, enemies first, and 设置「简化单位动画」: [§37.108](history/0.3.4.md#37108-impostors-later-and-shorter-in-big-fields-设置简化单位动画-fork); contract: [design/client.md](design/client.md) §9.
 (fork) The Hidden Core 铳 pair's second gun at the battle's start, no car damage split and each gun's ×0.2 from the units it marked: [§37.109](history/0.3.4.md#37109-hidden-core-铳-pair-the-cars-chase-both-guns-in-turn-no-damage-split-between-them-fork).
 (fork) The Hidden Core 铳's call is its own 5 s cast: it stands, loses its attack speed and walks on: [§37.110](history/0.3.4.md#37110-hidden-core-铳-the-call-is-its-own-cast-fork).
+(fork) The Hidden Core 铳's attack timer, a hit counted as the shot lands, the beams' step-ins and the opening cast: [§37.111](history/0.3.4.md#37111-hidden-core-铳-the-attacks-timer-the-shots-landing-the-beams-and-the-opening-cast-fork).
 
 The 0.3.1 sim investigation and rule correction are [§34.32](history/0.3.1.md#3432-瑕光-attacks-the-enemies-she-put-to-sleep-琳琅诗怀雅s-s3-keeps-its-coins):
 瑕光 S2 retains sleeper targeting and attack replay events; 琳琅诗怀雅 S3 keeps double attacks and coins at the cap,

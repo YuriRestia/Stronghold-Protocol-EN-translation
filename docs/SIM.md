@@ -235,7 +235,11 @@ gun casts on its own data timer (20 s after it spawns, then 45 s from the END of
 later call retargets every spring to that gun for a new 5 s (PRTS: 「持续召唤场上所有“碎铳之簧”向自身移动」). The call is
 the gun's own 5 s cast: it neither shoots nor walks until it ends, and its attack-speed stacks drop to one (ASPD 100), so
 it then walks between its shots and takes a new target [src: enm_pfb_28.ab enemy_9017_achunt Skills/2; GameAssembly.dll
-AttackState$$OnTick, BrownbTalent_1$$Apply, EnemySkill$$_OnCastFinish] (§37.110). The pair's guns take turns: the
+AttackState$$OnTick, BrownbTalent_1$$Apply, EnemySkill$$_OnCastFinish] (§37.110). `kitGun` also keeps the 铳's attack timer:
+a cast that is not the attack (the opening 【盲信之誓】, the call) restarts it for a full period, a changed attack speed keeps
+its progress, and a hit counts for the stacks as the shot lands and when an operator enters a 盲信之誓 beam [src:
+AttackWrapper$$Cast, ResetButKeepProgress, LaserHitBehaviour$$_DoTargetEnter; projectile prefabs `_speed` 10, `_laserWidth` 0.5]
+(§37.111). The pair's guns take turns: the
 `boss_battle_multi_player` 铳 starts with the battle (0.1 s, right half) and the leader after its 10 s preDelay (left
 half) [src: official level_act1autochess_h08_02.json], `content/bosses.js branchAtStart` (§37.109). A spring's damage
 goes to that one gun only, never to the other springs [src: official buff_template_holder actrpa_passive]. A gun's
