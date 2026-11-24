@@ -673,6 +673,24 @@ portraits put the eyes at about a third of their height), up to 2× (`STILL_ZOOM
 (`adjust`, `--still-edits`). The full arts are 2048 px (`outfit/art2k/`, the user's pick of 2026-11-23: a wide card draws
 them 1,900–2,650 px wide on a 4K screen).
 The dissolve composes a placed art at its own box (`object-fit: fill`) inside the card.
+(fork, 2026-11-24) **The tall cards' 2D art** (the solo room's card and the result screen's team cards, the official 232 × 458
+window's shape; the user's report: "outfit and e2 static arts of non L2D stuffs aren't calibrated for room, grand alliances,
+solo and likely results screen"): they showed the small portrait picture cut by `object-fit: cover`, so heads, horns and ears
+were off the top, while the animated illustration on the same card shows the figure through the official camera. They now draw
+the same full art as the wide cards, `CardArt shape="tall"` (the solo room through `SeatCard`, the result cards through
+`OperatorImage card="tall"`; the portrait stays the fallback), placed by `shared/cardArtFraming.js tallRect` — a pure
+function the browser and the tool share, from what the table already holds, so `data/card-art-framing.json` does not grow:
+the art's aspect (its wide rect's width ÷ height) and its face and head's top (`stills[art].face`, found from the official
+portrait inside the full art). **'upper'** (default): the art at the scale the wide card's framing found for it (its wide
+rect's height: the scale at which the scene covers a card's height, never below a cover of the tall card), the face on the
+face line (0.22–0.38 of the card's height, at most 0.45, the head's top kept 0.02 from the top, the wide cards' rule), centred
+on the face, the art over the whole card. **'full'**: the whole art inside the card, centred, the card's background around it.
+Which one is the user's pick (`setTallArtMode`, the review page's `&tall=upper|full`, `&tall=portrait` the old picture). An
+illustration's art linked to its illustration keeps the registered box on a tall card too (the tall card draws the card framing
+unzoomed, exactly what the registration was made at), so the dissolve to the live illustration does not jump. No per-art
+number is hand-set: there are no official per-character offsets for a still art in the game data (skin_table and
+character_table carry none; the client's `DynIllustAdjust` is the animated illustrations' only). The values of the face rule
+are the wide cards' design values. The review page's `&solo` shows the solo room (one operator a page).
 Which pages (the user's choice of 2026-11-22, "automatic by card size"): each card measures its art window and wants half
 pages while it is drawn at most `HALF_MAX_SCALE` 1 device px per unit of the official 232 × 458 window (measured: there half
 kept 74–100 % of full's detail, above it 36–82 %), full above; the page uses full while any card wants full (the renderer's

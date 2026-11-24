@@ -610,7 +610,7 @@ function TeamCard({ p, i, gd, self, victory, raw, opts, gate = null }) {
     <header class="tcard__head" aria-hidden="true"><i class="tcard__pin"></i><span class="tcard__code"><i></i><i></i><i></i>STRONGHOLD PROTOCOL</span><span class="tcard__seat num">${pad2(p.seat + 1)}</span></header>
     <div class="tcard__art">
       <${IllustArt} art=${art} animate=${animate} gate=${gate} class="tcard__dyn">
-        <${OperatorImage} m=${gd.m} chess=${art ? art.chess : v?.rec} ownerId=${p.playerId} skin=${isAce || !art ? ace?.skin : null} portrait avatarFallback portraitClass="tcard__img is-portrait" avatarClass="tcard__img is-avatar" fallback=${html`<span class="tcard__glyph">${[...(p.name || '?')][0]}</span>`} />
+        <${OperatorImage} m=${gd.m} chess=${art ? art.chess : v?.rec} ownerId=${p.playerId} skin=${isAce || !art ? ace?.skin : null} portrait card="tall" avatarFallback portraitClass="tcard__img is-portrait" avatarClass="tcard__img is-avatar" fallback=${html`<span class="tcard__glyph">${[...(p.name || '?')][0]}</span>`} />
       </${IllustArt}>
       ${p.left ? html`<span class="tcard__cut">${t('连接中断')}</span>` : null}
       ${title ? html`<div class="tcard__title" title=${title.text}>

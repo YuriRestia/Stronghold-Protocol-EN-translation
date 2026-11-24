@@ -1494,6 +1494,8 @@
    wrapper adds no box, so the 2D art keeps its own layout; the illustration's layer fills the card's art box (the
    nearest positioned ancestor) over the 2D art, which hides once the illustration covers the card (its fade-in done). */
 .dyn-art, .dyn-art__still { display: contents; }
+/* a placed full art (dynCards.js CardArt): its box is set inline in % of the card's art box, wherever it is used */
+.card-art { position: absolute; }
 .dyn-art__live { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .dyn-art.is-live .dyn-art__still > * { visibility: hidden; }
 /* the room's group flip (ui/dynCards.js FLIP_FADE_S): the cards fade in together over the official 0.15 s, the 2D art

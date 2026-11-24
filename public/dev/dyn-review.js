@@ -20,7 +20,7 @@ import { SettleFlow, useResultHold } from '/js/screens/settle.js';
 import { useState, useEffect } from '/vendor/hooks.module.js';
 import { startResultLoad, endResultLoad } from '/js/ui/dynCards.js';
 import { RoomScreen } from '/js/screens/room.js';
-import { setDynModule, setDynQuality, setDynFraming, setCardArtSeparate, setCardArtAdjust } from '/js/ui/dynCards.js';
+import { setTallArtMode, setDynModule, setDynQuality, setDynFraming, setCardArtSeparate, setCardArtAdjust } from '/js/ui/dynCards.js';
 import { cardStore, CARD_KEY } from '/js/ui/seatArt.js';
 import { outfitStore } from '/js/ui/outfits.js';
 
@@ -28,7 +28,9 @@ const P = new URLSearchParams(location.search);
 // &main: the cards drawn on the page's own thread, not in Workers (render/dynillust/index.js __dynMainThread)
 if (P.has('main')) globalThis.__dynMainThread = true;
 const SCREEN =['result', 'room', 'ga'].includes(P.get('screen')) ? P.get('screen') : 'result';
-const PER = SCREEN === 'ga' ? 8 : 4;
+// &solo (room): the solo room's one tall card (room.mode 'solo'), one operator a page
+const SOLO = SCREEN === 'room' && P.has('solo');
+const PER = SCREEN === 'ga' ? 8 : SOLO ? 1 : 4;
 const DEVICE = P.get('device') === 'phone' ? 'phone' : 'pc';
 const FRAME = P.has('frame');
 const SLOW = Math.max(0, Number(P.get('slow')) || 0); // MB/s, 0 = the connection as it is
@@ -186,7 +188,7 @@ function nameOf(e) {
 
 function fakeRoom(group, ids) {
   return {
-    code: 'REVIEW', hostId: ids[0], mode: 'coop', difficulty: 'HARD', inMatch: false, ...(SCREEN === 'ga' ? { capacity: 8 } : {}),
+    code: 'REVIEW', hostId: ids[0], mode: SOLO ? 'solo' : 'coop', difficulty: 'HARD', inMatch: false, ...(SCREEN === 'ga' ? { capacity: 8 } : {}),
     seats: group.map((e, i) => ({
       seat: i, playerId: ids[i], name: review.names[i], isBot: false, ready: true, connected: true, card: e.charId,
       outfits: e.skinId === `${e.charId}#2` ? {} : { [e.charId]: e.skinId },
@@ -565,6 +567,8 @@ async function boot() {
     setDynFraming(decideFraming);
   } else if (FR.size) setDynFraming((key) => FR.get(key) || FRAMING);
   else if (FRAMING) setDynFraming(FRAMING);
+  // &tall=upper|full: the tall cards' (solo room, result) 2D art framing (shared/cardArtFraming.js)
+  setTallArtMode(P.get('tall'));
   if (TIER) setDynQuality(TIER);
   else if (FRAME) setDynQuality('half');
   // the page's language as the game picks it (?lang=, a stored choice, else English: ui/lang.js START_LANG)
