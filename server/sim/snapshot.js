@@ -131,7 +131,9 @@ export function animOf(u, t) {
   // clip (owner 2026-10-16) — ai.js performAttack keeps the one before it in `lastAnimAttackAt`
   const atkAt = u.quietAttack ? u.lastAnimAttackAt : u.lastAttackAt;
   if (t - atkAt < ATTACK_ANIM_TIME) return u.skill && u.skill.active && u.skill.kind !== 'passive' ? ANIM.SKILL : ANIM.ATTACK;
-  if (u.side === 'enemy' && u.moving && !u.blockedBy) return ANIM.MOVE;
+  // (fork) `moving` is set by the enemies' walk (ai.js) and by the Steam Knight ally token's stepToward
+  // (content/steamKnight.js), the only ally that walks: both play their Move clip
+  if (u.moving && !u.blockedBy) return ANIM.MOVE;
   return ANIM.IDLE;
 }
 

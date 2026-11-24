@@ -102,7 +102,10 @@ export function steamKnightKit(bb, raw) {
   const dmgType = raw?.dmgType === 'arts' ? 'arts' : 'phys';
   return {
     skill: null,
-    trait: { attack: 'melee', dmgType, projectile: null, canHitFly: false, maxTargets: 1, heal: null, noAttack: false },
+    // (fork, 2026-11-24) he attacks every enemy he blocks, like a Centurion (强攻手): the engine's `hitAllBlocked`
+    // takes up to his block count from his range, the blocked ones first (ai.js targetCount) [src: PRTS 分支特性信息
+    // 强攻手 "普通攻击最大目标数等于阻挡数（不会低于1）"; server/sim/ai.js:360-370]
+    trait: { attack: 'melee', dmgType, projectile: null, canHitFly: false, maxTargets: 1, hitAllBlocked: true, heal: null, noAttack: false },
     install(battle, unit) {
       const cfg = () => cfgOf(battle) ?? {};
       const sk = unit.mem.sk = { phase: 'none', walk: null, leapAt: LEAP_FIRST, attacks: 0, t: 0, clock: 0, dir: DIRS.RIGHT, dash: null, target: null };
@@ -124,14 +127,13 @@ export function steamKnightKit(bb, raw) {
       // nobody (his body is not on the tile his block sits on): `noBlock` alone.
       const BUNKER = 'sk:bunker';
       const shield = (on) => {
+        // (the official HeroBomb's invincibility has no visible effect of its own: the effect Dev 65 laid on it, the
+        // Reborn talent's `stmkgt_immortal_buff_01`, is the boss's revive look and read wrong on a landing — the user,
+        // 2026-11-24. The official TriggerHeroBomb shield stays, played by the generic talent layer)
         if (on && !unit.findBuff(SHIELD)) {
           battle.addBuff(unit, { key: SHIELD, persist: true, allowDead: true, flags: { untargetable: true, invulnerable: true, noBlock: true, disarm: true } });
-          battle.fx('steamKnight', { id: unit.id, kind: 'invincible', on: true, x: unit.x, y: unit.y });
         }
-        if (!on && unit.findBuff(SHIELD)) {
-          battle.removeBuff(unit, SHIELD);
-          battle.fx('steamKnight', { id: unit.id, kind: 'invincible', on: false, x: unit.x, y: unit.y });
-        }
+        if (!on && unit.findBuff(SHIELD)) battle.removeBuff(unit, SHIELD);
       };
       const bunker = (on) => {
         // (disarm: no normal attack starts during the pile bunker — its clips are the official Zantetsuken's)
@@ -370,7 +372,7 @@ export function steamKnightKit(bb, raw) {
           // straight at it, to inside the official block radius (0.707 tiles [src: server/sim/constants.js
           // BLOCK_RADIUS_SQ.ground]); contactBlock takes it on the next tick
           const s = Math.min(walkSpeed() * dt, Math.max(0, fd - 0.5));
-          if (s > 1e-6) { unit.x += ((free.x - unit.x) / fd) * s; unit.y += ((free.y - unit.y) / fd) * s; }
+          if (s > 1e-6) { unit.moving = true; unit.x += ((free.x - unit.x) / fd) * s; unit.y += ((free.y - unit.y) / fd) * s; }
           return;
         }
         // no step while an enemy is within his range's reach (1 tile + the 0.5 an enemy can sit off a tile's centre)
@@ -381,6 +383,7 @@ export function steamKnightKit(bb, raw) {
         const dx = next[1] - unit.x, dy = next[0] - unit.y, d = hypot(dx, dy);
         if (!(d > 1e-6)) return;
         const s = Math.min(d, walkSpeed() * dt);
+        unit.moving = true;
         unit.x += (dx / d) * s; unit.y += (dy / d) * s;
       };
 
@@ -389,7 +392,6 @@ export function steamKnightKit(bb, raw) {
       battle.on('death', (c) => {
         if (c.unit !== unit) return;
         battle.fx('steamKnight', { id: unit.id, kind: 'bunkerEnd', x: unit.x, y: unit.y });
-        battle.fx('steamKnight', { id: unit.id, kind: 'invincible', on: false, x: unit.x, y: unit.y });
       });
 
       // ---- the state machine
@@ -397,6 +399,7 @@ export function steamKnightKit(bb, raw) {
         if (!unit.alive || !unit.deployed) return;
         const c = cfg();
         sk.clock += dt; sk.t += dt;
+        unit.moving = false;   // only stepToward sets it: the view plays his Move clip while he walks (snapshot animOf)
         // a stun (unit.canAct: units.js) cuts the stance, the boost or the Zantetsuken before its strike: no blow
         // lands from a stunned knight (the code review, 2026-11-24)
         if (!unit.canAct && (sk.phase === 'stance' || sk.phase === 'dash' || sk.phase === 'zan' || (sk.phase === 'zanBlow' && !sk.zanHit))) {
@@ -448,7 +451,10 @@ export function steamKnightKit(bb, raw) {
               if (sk.clock - d.clipAt >= CLIP.blowHit - 1e-9) impact();   // else he waits for the strike frame
               break;
             }
-            const mv = Math.min(c.dashSpeed * dt, remain);
+            // (fork, 2026-11-24) bounded by the distance to the target, not by `remain`: a target that walks away
+            // kept `remain` at one tick's step, so the boost matched its walk and trailed it forever (the user saw him
+            // "slowly sliding back" from tick 2538). Bounding by `along` always closes in; the impact fires at 1.0
+            const mv = Math.min(c.dashSpeed * dt, Math.max(0, along));
             const nr = Math.round(unit.y + d.dir[0] * mv), nc = Math.round(unit.x + d.dir[1] * mv);
             if (!battle.grid.inRect(nr, nc) || !battle.grid.groundPassable(nr, nc)) { endBunker(); break; }
             unit.y += d.dir[0] * mv; unit.x += d.dir[1] * mv; d.travelled += mv;

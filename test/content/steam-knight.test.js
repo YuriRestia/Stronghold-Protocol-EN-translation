@@ -106,3 +106,17 @@ test('a normal enemy within reach that nobody blocks: he steps into contact and 
   assert.equal(e.blockedBy, k, `blocked by contact (gap ${Math.hypot(e.x - k.x, e.y - k.y).toFixed(2)}, phase ${k.mem.sk.phase}, e at ${e.x},${e.y} alive ${e.alive})`);
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
 });
+
+test('he attacks every enemy he blocks (the Centurion rule), not just one', () => {
+  const h = field({ panel: { ...PANEL, blockCnt: 2 } });
+  const k = spawnSteamKnight(h.b, 'p1');
+  h.run(12);   // the landing and its bunker (no target: it ends) are over
+  const e1 = h.spawn('enemy_norm', { pos: [Math.round(k.y), Math.round(k.x) + 1] });
+  const e2 = h.spawn('enemy_norm', { pos: [Math.round(k.y), Math.round(k.x) - 1] });
+  e1.x = k.x + 0.6; e1.y = k.y; e2.x = k.x - 0.6; e2.y = k.y;   // both inside the block radius
+  const hp1 = e1.hp, hp2 = e2.hp;
+  h.runUntil(() => e1.hp < hp1 && e2.hp < hp2, 20);
+  assert.ok(e1.hp < hp1, 'the first blocked enemy took a hit');
+  assert.ok(e2.hp < hp2, 'the second blocked enemy took a hit');
+  assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+});

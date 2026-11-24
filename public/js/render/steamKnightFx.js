@@ -17,7 +17,7 @@
 export const STEAM_KNIGHT_FX_KEYS = Object.freeze([
   'stmkgt_skill_02_end_01', 'stmkgt_skill_02_begin_01', 'stmkgt_skill_02_begin_02', 'stmkgt_skill_01_start_01',
   'stmkgt_skill_01_start_02', 'stmkgt_skill_01_start_03', 'stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02',
-  'stmkgt_skill_01_hit_01', 'stmkgt_presure_buff_01', 'stmkgt_immortal_buff_01', 'stmkgt_attack_hit_01',
+  'stmkgt_skill_01_hit_01', 'stmkgt_presure_buff_01', 'stmkgt_attack_hit_01',
   'stmkgt_reborn_02', 'stmkgt_skill_02_hit_01', 'stmkgt_skill_02_hit_02', 'stmkgt_attack_start_01', 'stmkgt_attack_weapon_01',
   'stmkgt_skill_02_marker_01',
 ]);
@@ -38,7 +38,6 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
   };
   const leapOk = new Map();    // knight id → his leap's official window started (its end plays the landing)
   const marks = new Map();     // knight id → the marker loop on the enemy he boosts at
-  const immortal = new Map();  // knight id → his invincible loop
   const steam = new Map();     // knight id → the Boost's steam loop, held on him (follow) until he dies
   const held = new Map();      // knight id → { keys: Set, hs: [] } the Zantetsuken loops on him until its cast ends
   const jets = new Map();      // knight id → { v, next } boosting: a steam puff left behind him every JET_EVERY s
@@ -175,13 +174,6 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           if (!(tv && has('stmkgt_skill_01_hit_01') && wiring.playOn?.('stmkgt_skill_01_hit_01', tv, {}))) official('stmkgt_skill_01_hit_01', x, y);
           break;
         }
-        case 'invincible': {
-          // the official invincible loop (stmkgt_immortal_buff_01) while he is untouchable: the landing and the leap
-          const prev = immortal.get(id);
-          if (prev) { try { prev.stop?.(); } catch { /* gone */ } immortal.delete(id); }
-          if (d.on && v && has('stmkgt_immortal_buff_01')) { const h = wiring.playOn?.('stmkgt_immortal_buff_01', v, { loop: true }); if (h) immortal.set(id, h); }
-          break;
-        }
         case 'shove': {
           sound('shove');
           const tv = d.target != null ? views.get(d.target) : null;
@@ -250,11 +242,11 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     /** A new battle or the prep board: every handle stopped, every map emptied (a knight of the next battle may get
      * the same id). */
     clear() {
-      for (const m of [marks, immortal, steam]) for (const h of m.values()) { try { h.stop?.(); } catch { /* gone */ } }
+      for (const m of [marks, steam]) for (const h of m.values()) { try { h.stop?.(); } catch { /* gone */ } }
       for (const id of [...held.keys()]) stopHeld(id);
       for (const p of puffs.splice(0)) { try { p.h.stop?.(); } catch { /* gone */ } }
       jets.clear();
-      steam.clear(); leapOk.clear(); marks.clear(); immortal.clear();
+      steam.clear(); leapOk.clear(); marks.clear();
     },
   };
 }
