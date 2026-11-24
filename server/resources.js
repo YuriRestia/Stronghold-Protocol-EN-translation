@@ -1,6 +1,6 @@
 // server/resources.js — /data/resource-manifest.json, the file list of the optional asset preload (shared/resources.js).
 //
-// Lists every file under public/assets and public/fonts but the Live2D cards (shared/resources.js isPreloadFile) with its size and the first 12 hex of its SHA-1. Hashing ~820 MB
+// Lists every file under public/assets and public/fonts (the Live2D cards are the optional 'live2d' pack) with its size and the first 12 hex of its SHA-1. Hashing ~820 MB
 // takes a while, so the hashes are kept in a cache file keyed by size + mtime (only new or changed files are read again)
 // and the manifest is built once per process, in the background at boot (`warm()`); a request that arrives first waits
 // for it. Assets only change with a deploy (`npm run setup` / fetch-assets), which restarts the server anyway.
