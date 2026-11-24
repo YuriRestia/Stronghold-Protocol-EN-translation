@@ -109,15 +109,16 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio }) 
           sound('impact');
           // white-hot flash with a ring and a streak down the lane, then the orange fire cone and the sparks
           const p = proj(x, y, 0.5);
-          fx.particle('glow', p.x, p.y, { tint: WHITE, life: 0.28, s0: (p.s / 128) * 1.6 * big, s1: (p.s / 128) * 4.2 * big, a0: 1, a1: 0 });
-          fx.particle('glow', p.x, p.y, { tint: ORANGE, life: 0.5, s0: (p.s / 128) * 1.4 * big, s1: (p.s / 128) * 3.2 * big, a0: 0.9, a1: 0 });
+          // (the user, 2026-11-24: the flash hid the strike pose) a small, short white-hot core on the contact point only
+          fx.particle('glow', p.x, p.y, { tint: WHITE, life: 0.14, s0: (p.s / 128) * 0.5 * big, s1: (p.s / 128) * 1.3 * big, a0: 0.9, a1: 0 });
+          fx.particle('glow', p.x, p.y, { tint: ORANGE, life: 0.3, s0: (p.s / 128) * 0.6 * big, s1: (p.s / 128) * 1.8 * big, a0: 0.6, a1: 0 });
           fx.ring(x, y, 0, 0.2, 3.2 * big, WHITE, 0.5, 'shock');
           fx.ring(x, y, 0, 0.1, 2 * big, ORANGE, 0.7, 'ring');
           fx.streak(x - dc * 3.5 * big, y - dr * 3.5 * big, x + dc * 4 * big, y + dr * 4 * big, 0.5, WHITE, 0.3);
           fx.streak(x - dc * 2.5 * big, y - dr * 2.5 * big, x + dc * 3 * big, y + dr * 3 * big, 0.5, ORANGE, 0.45);
           fx.burst(p.x, p.y, p.s, Math.round(26 * big), HOT, { speed: 3.4, life: 0.55, size: 0.5, g: 0.8 });
           fx.burst(p.x, p.y, p.s, Math.round(18 * big), ORANGE, { speed: 2.4, life: 0.8, tex: 'dot', size: 0.4, g: 0.9 });
-          fx.flashScreen(WHITE, 0.7, 0.35);
+          fx.flashScreen(WHITE, 0.3, 0.2);
           break;
         }
         default: break;
