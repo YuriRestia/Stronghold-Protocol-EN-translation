@@ -159,19 +159,18 @@ export function steamKnightKit(bb, raw) {
         setPhase('dash', { dash });
       };
 
+      // The blow clip (Skill_1_Attack_A) starts on the flight path, so that its strike frame (0.7 s) is the moment he
+      // reaches the target: the pile is already forward on impact (the user, 2026-11-24). `d.clipAt` = when it started.
       const impact = () => {
         const c = cfg();
         const d = sk.dash, tiles = d.travelled, t = d.target;
         setPhase('blow');
-        phaseFx('skBlow', { dur: CLIP.blowLen });
+        sk.t = sk.clock - d.clipAt;   // the clip has been running since it started on the flight path
+        // 0 tiles = the official 3 hits at 1.25 ATK; the distance boosted adds on top (panel: ATK scale per tile)
+        const scale = ZAN_TIMES * ZAN_SCALE + (has(c.dmgPerTile) ? c.dmgPerTile * tiles : 0);
         battle.fx('steamKnight', { id: unit.id, kind: 'impact', x: t.x, y: t.y, tiles, dr: d.dir[0], dc: d.dir[1], target: t.id });
-        battle.after(CLIP.blowHit, () => {
-          if (!unit.alive || sk.phase !== 'blow') return;
-          // 0 tiles = the official 3 hits at 1.25 ATK; the distance boosted adds on top (panel: ATK scale per tile)
-          const scale = ZAN_TIMES * ZAN_SCALE + (has(c.dmgPerTile) ? c.dmgPerTile * tiles : 0);
-          if (t.alive) battle.dealDamage(unit, t, { amount: unit.s.atk * scale, type: dmgType, isSkill: true, tags: ['steamKnight', 'bunker'] });
-          battle.fx('steamKnight', { id: unit.id, kind: 'impactHit', x: t.x, y: t.y, tiles, scale, target: t.id });
-        }, { owner: unit });
+        if (t.alive) battle.dealDamage(unit, t, { amount: unit.s.atk * scale, type: dmgType, isSkill: true, tags: ['steamKnight', 'bunker'] });
+        battle.fx('steamKnight', { id: unit.id, kind: 'impactHit', x: t.x, y: t.y, tiles, scale, target: t.id });
       };
 
       // ---- the leap: take-off (FlyToMoon), then the landing at the rear tile with the longest clear lane to an elite / boss
@@ -271,8 +270,17 @@ export function steamKnightKit(bb, raw) {
             const d = sk.dash, t = d.target;
             if (!t || !t.alive) { endBunker(); break; }
             const along = (t.y - unit.y) * d.dir[0] + (t.x - unit.x) * d.dir[1];
-            if (along <= 1.0 + 1e-9) { impact(); break; }
-            const mv = Math.min(c.dashSpeed * dt, along - 1.0);
+            const remain = Math.max(0, along - 1.0);
+            // start the blow clip so that its strike frame lands on the arrival (a short run starts it at once)
+            if (!d.clipAt && remain <= c.dashSpeed * CLIP.blowHit + 1e-9) {
+              d.clipAt = sk.clock;
+              phaseFx('skBlow', { dur: CLIP.blowLen });
+            }
+            if (remain <= 1e-9) {
+              if (sk.clock - d.clipAt >= CLIP.blowHit - 1e-9) impact();   // else he waits for the strike frame
+              break;
+            }
+            const mv = Math.min(c.dashSpeed * dt, remain);
             const nr = Math.round(unit.y + d.dir[0] * mv), nc = Math.round(unit.x + d.dir[1] * mv);
             if (!battle.grid.inRect(nr, nc) || !battle.grid.groundPassable(nr, nc)) { endBunker(); break; }
             unit.y += d.dir[0] * mv; unit.x += d.dir[1] * mv; d.travelled += mv;
