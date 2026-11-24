@@ -221,7 +221,8 @@ export function steamKnightKit(bb, raw) {
         // (the engine's tile block stays off; contactBlock holds the enemies he catches)
         if (!unit.findBuff('sk:contact')) battle.addBuff(unit, { key: 'sk:contact', persist: true, allowDead: true, flags: { noNewBlock: true } });
         phaseFx('skStance', { dur: stanceDur });
-        battle.fx('steamKnight', { id: unit.id, kind: 'stance', x: unit.x, y: unit.y, castDur: stanceDur + CLIP.blowLen + CLIP.blowHit });
+        // dr / dc / boostIn: only the charge before a boost has them (display: the thrusters light ahead of it)
+        battle.fx('steamKnight', { id: unit.id, kind: 'stance', x: unit.x, y: unit.y, castDur: stanceDur + CLIP.blowLen + CLIP.blowHit, boostIn: stanceDur, dr: sk.dir[0], dc: sk.dir[1] });
         holdSound(stanceDur);
       };
       // the stance clip's own sound event: OnPlayAudio(zan_hold) at 2.5 s of the 5 s Skill_1_Begin_A [src: official

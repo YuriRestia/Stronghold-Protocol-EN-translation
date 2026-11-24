@@ -704,7 +704,7 @@ export class FxWiring {
       if (alt && alt !== k && this.ofx.lib.has(alt)) { k = alt; def = this.ofx.lib.def(k); }
     }
     const u = this.unitOf(v);
-    const skin = this.skinOf(u);
+    let skin = this.skinOf(u);
     const pose = this.pose(v);
     pose.strike = !!o.strike;
     let P = this._placing(def, def ? null : this.idx?.prefabs?.[k] || null, o);
@@ -728,6 +728,9 @@ export class FxWiring {
       const at0 = [pose.ux ?? pose.x, pose.uy ?? pose.y, pose.uz ?? pose.z], kept = new WeakMap(), chained = new Map();
       opts.track = (fx) => {
         if (!v || v.destroyed) return;
+        // (fork) an effect started before the index had loaded had no skin: its point stayed the fallback over the feet,
+        // unturned, for its whole life (the Steam Knight's charge glow, 1.4 s into a battle)
+        if (!skin) skin = this.skinOf(this.unitOf(v));
         if (!d) {
           d = this.ofx.lib.def(k);
           if (d) {

@@ -8,11 +8,14 @@
 //   landing   stmkgt_skill_02_end_01 where he comes down; the steam (stmkgt_presure_buff_01, the Boost) stays on him
 //   leapUp    stmkgt_skill_02_begin_01 / _02 at the take-off
 //   stance    the Zantetsuken cast start: stmkgt_skill_01_start_01 / _02 loops on him (ON_CAST_START)
-//   dashStart the leap marker stmkgt_skill_02_marker_01 on the enemy he boosts at
+//   dashStart the leap marker stmkgt_skill_02_marker_01 on the enemy he boosts at; his thrusters (the take-off's jets,
+//             lit at the charge's end and turned to point behind him) and the steam left along the boost
 //   shove     stmkgt_attack_hit_01 on a normal enemy he throws aside
 //   impact /  the strike: start_03 (ON_SPELL_ON) and start_weapon_01 / _02 (ON_SPELL_END) loops on him,
 //   zanHit    stmkgt_skill_01_hit_01 on the target; every loop stops at bunkerEnd (ON_CAST_END)
 // Every number here is a look, not a rule: nothing in it reaches the sim.
+
+import { SKELETON_TILT } from './vfx/mounts.js';
 
 export const STEAM_KNIGHT_FX_KEYS = Object.freeze([
   'stmkgt_skill_02_end_01', 'stmkgt_skill_02_begin_01', 'stmkgt_skill_02_begin_02', 'stmkgt_skill_01_start_01',
@@ -40,13 +43,52 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
   const marks = new Map();     // knight id → the marker loop on the enemy he boosts at
   const steam = new Map();     // knight id → the Boost's steam loop, held on him (follow) until he dies
   const held = new Map();      // knight id → { keys: Set, hs: [] } the Zantetsuken loops on him until its cast ends
-  const jets = new Map();      // knight id → { v, next } boosting: a steam puff left behind him every JET_EVERY s
-  const puffs = [];            // { h, left } puffs cut after JET_LIFE s (the vent is a loop; at most ~JET_LIFE / JET_EVERY live)
-  // looks, not rules: a wake every 0.09 battle s, cut after 0.9 s (its steam needs ~0.4 s to billow out). The wake is the
-  // take-off's ground blast left behind him — two overlapping instances and a procedural puff, because one prefab alone
-  // reads as a thin ring on his own body, not a trail (the user, 2026-11-24)
-  const JET_EVERY = 0.05, JET_LIFE = 1.1;
+  const jets = new Map();      // knight id → { v, dr, dc, wait, hs } his thrusters: waiting to light, then burning
+  // The thrusters are the official take-off's own jets (HeroBomb's stmkgt_skill_02_begin_01: two jet flames and their
+  // steam, straight down) turned to point away from the boost. JET_LIT: their flame fades in from 0.4 s and is full at
+  // 1.1 s [src: official stmkgt_skill_02_begin_01 clip material._TintColor.a keys 0.4 / 1.1], so lit that long before the
+  // boost they burn at full as he leaves. (The puffs tried before came out 0.4-0.5 s late, after a 0.35 s boost was over.)
+  const JET_KEY = 'stmkgt_skill_02_begin_01', JET_LIT = 1.1;
+  // looks, not rules: where the two pairs of nozzles sit — tiles behind his middle and up his body (back, legs)
+  const NOZZLES = [[1.05, 0.95], [1.05, 0.6], [1.05, 0.25]];
+  // The steam left along the boost: the stance's vent (stmkgt_skill_01_start_01), its 0.4 s start delay skipped [src:
+  // official stmkgt_skill_01_start_01 smoke_01 startDelay], one puff every PUFF_EVERY s dropped PUFF_BACK tiles behind him
+  // and cut after PUFF_LIFE (looks, not rules). The pile's exhausts blow with it, their 0.5 s `_delayToPlay` skipped.
+  const PUFF_KEY = 'stmkgt_skill_01_start_01', PUFF_SKIP = 0.4, PUFF_EVERY = 0.07, PUFF_BACK = 1.2, PUFF_LIFE = 0.9;
+  const EXHAUST = ['stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02'], EXHAUST_SKIP = 0.5;
+  const puffs = [];            // { h, left }
+  const puff = (j) => {
+    if (!has(PUFF_KEY)) return;
+    const t = -SKELETON_TILT / 2 * Math.PI / 180;
+    const h = ofx.spawn(PUFF_KEY, { pos: [j.v.x - 10 - j.dc * PUFF_BACK, j.v.y - 9 - j.dr * PUFF_BACK, -(j.v.z || 0)], groundZ: -(j.v.z || 0), rootRot: [Math.sin(t), 0, 0, Math.cos(t)], flipY: j.dc < 0 }, { important: true, skip: PUFF_SKIP });
+    if (h) puffs.push({ h, left: PUFF_LIFE });
+  };
   let preloaded = false;
+
+  /** Light his thrusters `skip` s into the flame's own fade-in, kept on him until douse. */
+  const ignite = (j, skip = 0) => {
+    if (j.hs || !has(JET_KEY)) return;
+    j.hs = [];
+    // the jets point down the model's plane; turned in that plane to point against the boost (dc, dr: board right / up)
+    const a = Math.atan2(-j.dc, j.dr) / 2, t = -SKELETON_TILT / 2 * Math.PI / 180;
+    const rootRot = [Math.sin(t) * Math.cos(a), -Math.sin(t) * Math.sin(a), Math.cos(t) * Math.sin(a), Math.cos(t) * Math.cos(a)];
+    for (const [back, up] of NOZZLES) {
+      const at = (out) => {
+        const rise = up * Math.cos(SKELETON_TILT * Math.PI / 180), near = up * Math.sin(SKELETON_TILT * Math.PI / 180);
+        out[0] = j.v.x - 10 - j.dc * back; out[1] = j.v.y - 9 - j.dr * back + rise; out[2] = -(j.v.z || 0) - near;
+        return out;
+      };
+      const h = ofx.spawn(JET_KEY, { pos: at([0, 0, 0]), groundZ: -(j.v.z || 0), rootRot },
+        { important: true, loop: true, owner: j.v, skip, track: (e) => { if (j.v && !j.v.destroyed) { at(e.anchor); e.groundZ = -(j.v.z || 0); } } });
+      if (h) j.hs.push(h);
+    }
+  };
+  const douse = (id) => {
+    const j = jets.get(id);
+    if (!j) return;
+    for (const h of j.hs || []) { try { h.stop?.(); } catch { /* gone */ } }
+    jets.delete(id);
+  };
 
   /** Start official loops on his mount points, held until stopHeld; false when none could play. */
   const holdOn = (id, v, keys) => {
@@ -68,7 +110,8 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     for (const h of e.hs) { try { h.stop?.(); } catch { /* gone */ } }
     held.delete(id);
   };
-  /** The strike (Zantetsuken's ON_SPELL_ON start_03, then ON_SPELL_END's weapon glow: his hits all land in one frame). */
+  /** The strike: ON_SPELL_ON's shock (start_03), then ON_SPELL_END's steam out of the pile's two exhausts (start_weapon_01 /
+   * _02: smoke only, on the bones Weapon_Ea / _Eb, 0.5 s `_delayToPlay`; his hits all land in one frame). */
   const spell = (id, v) => holdOn(id, v, ['stmkgt_skill_01_start_03', 'stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02']);
 
   const ensure = () => {
@@ -119,7 +162,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         case 'bunkerEnd':
           // the pile bunker or Zantetsuken is over (ON_CAST_END): its loops stop with their fade, and the marker
           stopHeld(id);
-          jets.delete(id);
+          douse(id);
           { const m = marks.get(id); if (m) { try { m.stop?.(); } catch { /* gone */ } marks.delete(id); } }
           break;
         case 'leapUp': {
@@ -135,17 +178,17 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         case 'stance': {
           sound('stance');
           // the official Zantetsuken (index.json units.enemy_1533_stmkgt.skills.zantetsuken, a MultiMeleeAttack): its
-          // ON_CAST_START loops start_01 / _02 now, on his own mount points, until ON_CAST_END (bunkerEnd); start_03
-          // (ON_SPELL_ON) and the weapon glow (ON_SPELL_END) come with the strike (spell). Played here row by row: the
-          // whole window at once (wiring.enemyCast) started all five loops at the stance (the user, 2026-11-24: "the vfx
-          // for it isn't quite correct")
+          // ON_CAST_START loops start_01 (steam) / start_02 (the pile's glow: weapon_glow_01 on the bone Weapon_Hc, lit 1 s
+          // in, flaring at 2.2 s, over a 7.3 s clip — the 5 s charge and the thrust) now, until ON_CAST_END (bunkerEnd);
+          // start_03 (ON_SPELL_ON) and the exhaust steam (ON_SPELL_END) come with the strike (spell)
           stopHeld(id);
-          // the charge wears the glow set the strike and the boost show — start_03 (ON_SPELL_ON) and the pile's two
-          // weapon glows — with the back vent; start_02 alone stretched over the model (the user, 2026-11-24)
-          if (!holdOn(id, v, ['stmkgt_skill_01_start_01', 'stmkgt_skill_01_start_03', 'stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02'])) {
-            const got = ['start_01', 'start_03', 'start_weapon_01', 'start_weapon_02'].map((n) => official(`stmkgt_skill_01_${n}`, x, y));
+          douse(id);
+          if (!holdOn(id, v, ['stmkgt_skill_01_start_01', 'stmkgt_skill_01_start_02'])) {
+            const got = ['start_01', 'start_02'].map((n) => official(`stmkgt_skill_01_${n}`, x, y));
             if (!got.some(Boolean)) fx.ring(x, y, 0, 0.2, 1.2, HOT, 0.4, 'shock');
           }
+          // the charge before a boost: his thrusters light JET_LIT s ahead of it (frame)
+          if (v && d.boostIn > 0) jets.set(id, { v, dr: Number(d.dr) || 0, dc: Number(d.dc) || 0, wait: d.boostIn - JET_LIT, hs: null });
           break;
         }
         case 'zanHold':
@@ -157,13 +200,18 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           // until the impact
           const tv = d.target != null ? views.get(d.target) : null;
           if (tv && has('stmkgt_skill_02_marker_01')) { const h = wiring.playOn?.('stmkgt_skill_02_marker_01', tv, { loop: true }); if (h) marks.set(id, h); }
-          // the propulsion (the user, 2026-11-24: "the steam ... blast out behind his back and legs as he's boosting"; "the
-          // glow ... should be playing when he's boosting already"): the pile's glow (Zantetsuken's start_weapon loops) from
-          // the boost on, the take-off's ground blast (HeroBomb's skill_02_begin_02) where he sets off, and the stance's
-          // back vent (start_01: steam out behind him) left along his path while he boosts (frame)
-          holdOn(id, v, ['stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02']);
+          // the propulsion (the user, 2026-11-24: "the steam ... blast out behind his back and legs as he's boosting"): his
+          // thrusters, burning since the charge's end (lit at full here if they were not), and one ground blast (the
+          // take-off's skill_02_begin_02) where he sets off. The pile's glow is the charge's own, still on it
           if (v) wiring.playOn?.('stmkgt_skill_02_begin_02', v, { important: true });
-          if (v && id != null) jets.set(id, { v, next: 0, dr: Number(d.dr) || 0, dc: Number(d.dc) || 0 });
+          if (v && id != null) {
+            const j = jets.get(id) || { v, dr: Number(d.dr) || 0, dc: Number(d.dc) || 0, wait: 0, hs: null };
+            j.wait = 0;
+            j.puffIn = 0;   // boosting from now on: the steam behind him (frame)
+            jets.set(id, j);
+            ignite(j, JET_LIT);
+            for (const k of EXHAUST) wiring.playOn?.(k, v, { important: true, skip: EXHAUST_SKIP });
+          }
           break;
         }
         case 'zanHit': {
@@ -188,7 +236,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         }
         case 'impact': {
           sound('impact');
-          jets.delete(id);
+          douse(id);
           spell(id, v);
           { const m = marks.get(id); if (m) { try { m.stop?.(); } catch { /* gone */ } marks.delete(id); } }
           // the official hit effects on the target's own hit point, plus the ground twin under him (the blow is the big one)
@@ -221,19 +269,9 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         try { h.stop?.(); } catch { /* gone */ }
         steam.delete(id);
       }
-      for (const [, j] of jets) {
-        j.next -= step;
-        if (j.next > 0) continue;
-        j.next = JET_EVERY;
-        // the back vent on his own body: the official stance steam, one puff per point (the plume experiments of
-        // 2026-11-24 — ground blasts and a procedural puff — left a thick low soup, and the procedural particles washed
-        // the board out: reverted to the official puffs alone until a better plume is tested)
-        const h = wiring.playOn?.('stmkgt_skill_01_start_01', j.v, { important: true });
-        if (h) puffs.push({ h, left: JET_LIFE });
-        if ((j.n = (j.n || 0) + 1) % 3 === 1) {
-          const g = wiring.playOn?.('stmkgt_skill_02_begin_02', j.v, { important: true });
-          if (g) puffs.push({ h: g, left: JET_LIFE });
-        }
+      for (const j of jets.values()) {
+        if (!j.hs && (j.wait -= step) <= 0) ignite(j);
+        if (j.puffIn != null && step > 0 && (j.puffIn -= step) <= 0) { j.puffIn += PUFF_EVERY; puff(j); }
       }
       for (let i = puffs.length - 1; i >= 0; i--) {
         if ((puffs[i].left -= step) > 0) continue;
@@ -247,8 +285,8 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     clear() {
       for (const m of [marks, steam]) for (const h of m.values()) { try { h.stop?.(); } catch { /* gone */ } }
       for (const id of [...held.keys()]) stopHeld(id);
+      for (const id of [...jets.keys()]) douse(id);
       for (const p of puffs.splice(0)) { try { p.h.stop?.(); } catch { /* gone */ } }
-      jets.clear();
       steam.clear(); leapOk.clear(); marks.clear();
     },
   };

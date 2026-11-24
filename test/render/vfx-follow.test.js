@@ -72,6 +72,17 @@ async function setup() {
 function walk(ofx, v, dx, frames = 4) { for (let i = 0; i < frames; i++) { v.x += dx / frames; ofx.update(1 / 30); } }
 
 describe('held effects move with their unit (R1)', () => {
+  test('(fork) an effect started before the index has loaded takes its mount point once it has', async () => {
+    const { ofx, w, v } = await setup();
+    const idx = w.idx;
+    w.idx = null;
+    const h = w.playOn('aura_weapon', v, { follow: true, loop: true });
+    ofx.update(1 / 30);
+    near(h.effect.anchor[0], -5, 1e-9, 'no skin yet: over the feet');
+    w.idx = idx;
+    ofx.update(1 / 30);
+    nearV(h.effect.anchor, [5 - 10 - 0.3, 0.4, -0.2], 1e-9, 'on its SpecialPoint0 (before: over the feet for good)');
+  });
   test('status loops without a FollowMountPoint stay on the walking enemy, whatever `_holdByOwner` says', async () => {
     const { ofx, w, v } = await setup();
     assert.equal(w.status(v, 'burn', true), true);
