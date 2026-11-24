@@ -1021,6 +1021,12 @@
   .rs-seats--wide .rseat__plus::after { height: 4px; }
   .rs-seats--wide .rseat__add { margin-top: .03rem; min-height: 0; padding-block: .02rem; }
 }
+/* a small window 521–600 px tall: the plate drops the ready word, as on phones (the user, 2026-11-24, "as recommended"; the
+   ✓ box and the lit card say it, screen readers still read it) — at 特大 it ran past the plate on 1100 × 530, 960 × 540,
+   1024 × 600 and 800 × 600 [src: work/dev-62 room-fit-wait.out, 2026-11-24] */
+@media (min-height: 521px) and (max-height: 600px) {
+  .rs-seats--wide .rseat__acts .rseat__said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 /* (fork) the wide cards on a short landscape phone keep the PC layout, scaled (the user, 2026-11-23: "adapt the room &
    grand alliance UI for mobile, I expect the current layout of PC is fine, just need correct scaling"). 1rem is 40 px
    here, so the PC's px floors (14 px gaps, a 36 px plate, a 22 px heading) took a third of the seat area and left a
