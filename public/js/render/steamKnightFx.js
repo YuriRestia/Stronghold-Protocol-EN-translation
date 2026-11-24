@@ -67,6 +67,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     if (h) puffs.push({ h, left: PUFF_LIFE });
   };
   let preloaded = false;
+  let clock = 0, zanAt = -1;   // frames drawn; the frame the last Zantetsuken hit sounded in
 
   /** Light his thrusters `skip` s into the flame's own fade-in, kept on him until douse. */
   const ignite = (j, skip = 0) => {
@@ -137,6 +138,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
   const ensure = () => {
     if (preloaded) return;
     preloaded = true;
+    sound('warm');
     try { preload?.(STEAM_KNIGHT_FX_KEYS.slice()); } catch { /* the procedural look alone */ }
   };
   const has = (key) => !!(ofx?.active && ofx.lib.has(key));
@@ -186,6 +188,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           { const m = marks.get(id); if (m) { try { m.stop?.(); } catch { /* gone */ } marks.delete(id); } }
           break;
         case 'leapUp': {
+          sound('takeoff');
           // the official HeroBomb window (slot 2 of his record): FlyToMoon's start effects now, DownToTile's end at its end
           const ok = !!(v && wiring.enemyCast?.(v, 2, 1.2));
           leapOk.set(id, ok);
@@ -238,7 +241,8 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           // the standing Zantetsuken's strike: its spell rows on him and its official hit on the target. No camera shake:
           // the client gives this skill none (the user, 2026-11-24: "his zantetsuken ... doing the screenshake, which I
           // dont think it should happen")
-          sound('impact');
+          // (one zanHit per enemy hit, all in one frame: one sound)
+          if (zanAt !== clock) { zanAt = clock; sound('zanHit'); }
           spell(id, v);
           const tv = d.target != null ? views.get(d.target) : null;
           if (!(tv && has('stmkgt_skill_01_hit_01') && wiring.playOn?.('stmkgt_skill_01_hit_01', tv, {}))) official('stmkgt_skill_01_hit_01', x, y);
@@ -282,6 +286,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     /** Every frame (battle seconds): the boost's steam jets, the held steam loop while he stands, and the cuts. */
     frame(dt) {
       const step = Number(dt) > 0 ? Number(dt) : 0;
+      clock++;
       // his death ends the Boost's steam loop: the sim holds it for his whole life and sends no stop for it
       for (const [id, h] of steam) {
         const view = views.get(id);

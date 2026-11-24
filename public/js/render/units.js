@@ -2437,7 +2437,8 @@ export class UnitView {
     // the boss HUD `hudDx` tiles beside the model, where the official prefab puts it (BOSS_HUD_DX)
     const hx = this.hudDx ? cam.project(this.x + this.hudDx, this.y, this.z + this.hover + this.lift, HUD_P).x : bx;
     // invulnerable (无敌, UF.INVULN): two gold ribbons spinning around the model (InvulnRibbons, made on first need)
-    if (this.flags & UF.INVULN) {
+    // (fork) not on the Steam Knight slice: they raced ahead to his landing tile (the user, 2026-11-25)
+    if (this.flags & UF.INVULN && this.info.defId !== 'enemy_1533_stmkgt') {
       if (!this.ribbons) this.ribbons = new InvulnRibbons(this.P, this.root, this.body);
       this.ribbons.update(t, s * this.ribbonK, -headTiles * s * RIBBON.centre);
     } else if (this.ribbons) this.ribbons.hide();

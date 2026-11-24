@@ -39,6 +39,9 @@ const FIELDS = [
   ['bat', 'Attack interval', 's', 5, 0.1, 'official value (enemy_database baseAttackTime); the Boost\'s +100 attack speed halves it', true],
 ];
 
+/** Music picks: [value, label] (audio.js STEAM_KNIGHT_BGM). */
+const BGM = Object.freeze([['2', 'his second-phase theme (default)'], ['1', 'his first-phase theme'], ['3', 'Alistair, the Victorian emperor boss'], ['0', "off: the round's own music"]]);
+
 export const STEAM_KNIGHT_FIELDS = FIELDS;
 
 /** The panel's state from the URL: { on, resist, values }. */
@@ -76,7 +79,10 @@ export function mountSteamKnightPanel(host, q, onChange) {
     host.append(mk('label', { className: 'sb-check', title: hint }, [`${label} `, inp, unit ? ` ${unit}` : '', official ? ' (official, you can change it)' : ' (start value, you set it)']));
   }
   host.append(mk('label', { className: 'sb-check' }, [resist, " Second form's 30 % damage resistance (official reborn.damage_resistance), off by default"]));
-  for (const el of [on, resist, ...Object.values(inputs)]) el.addEventListener('change', () => onChange?.());
+  const music = mk('select', { id: 'sk-bgm' }, BGM.map(([v, label]) => mk('option', { value: v, textContent: label })));
+  music.value = BGM.some(([v]) => v === q.get('sk-bgm')) ? q.get('sk-bgm') : '2';
+  host.append(mk('label', { className: 'sb-check' }, ['Music while he is on the field ', music]));
+  for (const el of [on, resist, music, ...Object.values(inputs)]) el.addEventListener('change', () => onChange?.());
   return {
     /** The flag object for the BattleSpec (`spec.flags.steamKnight`), or null when off. */
     cfg() {
@@ -90,7 +96,10 @@ export function mountSteamKnightPanel(host, q, onChange) {
       }
       return out;
     },
+    /** The audio manager's BGM key of the picked music (audio.js STEAM_KNIGHT_BGM), or null: the round's own. */
+    bgm() { return on.checked && music.value !== '0' ? `steamKnight:${music.value}` : null; },
     write(p) {
+      if (on.checked && music.value !== '2') p.set('sk-bgm', music.value); else p.delete('sk-bgm');
       if (on.checked) p.set('sk', '1'); else p.delete('sk');
       if (resist.checked) p.set('sk-resist', '1'); else p.delete('sk-resist');
       for (const [k, , , start] of FIELDS) {

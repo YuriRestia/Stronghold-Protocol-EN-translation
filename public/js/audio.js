@@ -357,6 +357,17 @@ export const UNIT_BASE_GAIN = 1;
  * the user's ear (2026-11-24: his boss banks at their own volume were barely heard), not an official value. */
 const STEAM_KNIGHT_ID = 'enemy_1533_stmkgt';
 const STEAM_KNIGHT_GAIN = 2;
+/** (fork) His sounds and music the manifest does not list: a git-ignored folder of the dev sandbox (absent = silent). */
+const STEAM_KNIGHT_AUDIO = '/dev/steam-knight-audio/';
+/**
+ * (fork) BGM keys of the dev sandbox while he is on the field: his own battle tracks [src: official audio_data bgmBanks
+ * battle.ON_GAME_READY.stmkgt_01 / stmkgt_02], and the Victorian boss Alistair's (bat_boss_vtlionk, in the manifest's files).
+ */
+const STEAM_KNIGHT_BGM = Object.freeze({
+  'steamKnight:1': { intro: null, loop: `${STEAM_KNIGHT_AUDIO}m_bat_stmkgt_01_loop.mp3` },
+  'steamKnight:2': { intro: `${STEAM_KNIGHT_AUDIO}m_bat_stmkgt_02_intro.mp3`, loop: `${STEAM_KNIGHT_AUDIO}m_bat_stmkgt_02_loop.mp3` },
+  'steamKnight:3': { intro: '/assets/audio/bgm/m_bat_vtlionk_intro.mp3', loop: '/assets/audio/bgm/m_bat_vtlionk_loop.mp3' },
+});
 
 /**
  * Gain of a unit's own sound with its manifest mix (sfx.units[id].mix[role]: the official bank's volume): `base` × `vol`,
@@ -1213,6 +1224,7 @@ export class AudioManager {
   /** The track of a BGM key: the player's own lobby music (setLobbyTrack), else the manifest's (resolveBgm). */
   _bgmTrack(key) {
     if (key === 'lobby' && this.lobbyTrack) return { intro: null, loop: LOCAL_BGM + this.lobbyTrack.id };
+    if (STEAM_KNIGHT_BGM[key]) return STEAM_KNIGHT_BGM[key];
     return resolveBgm(this.getManifest(), key);
   }
 
@@ -1596,8 +1608,10 @@ export class AudioManager {
    * @param {'stance'|'hold'|'dash'|'impact'|'landing'|'shove'} kind
    */
   playSteamKnight(kind) {
-    const E = '/assets/audio/sfx/enemy/';
-    const H1 = { url: `${E}e_imp/e_imp_stmkgt_h1.mp3`, pool: 'battle.ON_PROJECTILE_HIT.projectile_enemy_vtsk_s' };
+    const E = '/assets/audio/sfx/enemy/', K = STEAM_KNIGHT_AUDIO;
+    // his own bank's mixer group (it used to borrow projectile_enemy_vtsk_s, another enemy's, on a louder group)
+    // [src: audio_data soundFXBanks battle.ON_PROJECTILE_HIT.projectile_enemy_stmkgt_s customMixerGroup Battle_BE_NImp]
+    const H1 = { url: `${E}e_imp/e_imp_stmkgt_h1.mp3`, pool: 'battle.ON_PROJECTILE_HIT.projectile_enemy_stmkgt_s', group: 'Battle_BE_NImp' };
     const PARTS = {
       stance: [{ url: `${E}e_atk/e_atk_stmwpn_d1.mp3`, pool: 'battle.ON_ABILITY_START.enemy_1533_stmkgt.Zantetsuken' }],
       // the stance clip's OnPlayAudio(zan_hold) event (bank battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.zan_hold).
@@ -1608,11 +1622,22 @@ export class AudioManager {
       // the boost: his own steam-boost burst (bank battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.second_boost, the Die_A
       // clip's OnPlayAudio(second_boost) as he boosts back up), borrowed for the pile bunker's boost
       dash: [{ url: `${E}e_atk/e_atk_chargeboost.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.second_boost', group: 'Battle_BE_NAtk' }],
-      impact: [{ url: `${E}e_imp/e_imp_stmwpn_d.mp3`, pool: 'battle.ON_ABILITY_ON.enemy_1533_stmkgt.Zantetsuken' }, H1],
+      // the pile's hit (the user, 2026-11-25: "isnt very satisfying"): his official Zantetsuken sound takes 130 ms to peak
+      // [src: measured, e_imp_stmwpn_d 10 ms RMS], so a crunch that peaks at once (e_imp_rhcarcrash) leads it and his
+      // official second bomb hit (e_imp_stmkgt_h2, bank projectile_enemy_stmkgt_s) is the weight under it; the boost's
+      // adds his first hit and an explosion's low end. Which layers and how loud is a look, no official mix
+      zanHit: [{ url: `${K}e_imp_rhcarcrash.mp3`, pool: 'sk.crunch', group: 'Battle_BE_NImp', gain: 1.4 }, { url: `${K}e_imp_stmkgt_h2.mp3`, pool: 'sk.h2', group: 'Battle_BE_NImp' }, { url: `${E}e_imp/e_imp_stmwpn_d.mp3`, pool: 'battle.ON_ABILITY_ON.enemy_1533_stmkgt.Zantetsuken' }],
+      impact: [{ url: `${K}e_imp_rhcarcrash.mp3`, pool: 'sk.crunch', group: 'Battle_BE_NImp', gain: 1.6 }, { url: `${K}e_imp_stmkgt_h2.mp3`, pool: 'sk.h2', group: 'Battle_BE_NImp', gain: 1.2 }, { url: `${K}e_imp_explo.mp3`, pool: 'sk.explo', group: 'Battle_BE_NImp', gain: 1.2 }, { url: `${E}e_imp/e_imp_stmwpn_d.mp3`, pool: 'battle.ON_ABILITY_ON.enemy_1533_stmkgt.Zantetsuken' }],
+      // the leap's take-off: his own official sound [src: audio_data soundFXBanks battle.ON_ABILITY_START.HeroBomb[first_state].1]
+      takeoff: [{ url: `${K}e_atk_stmkgt_h.mp3`, pool: 'battle.ON_ABILITY_START.HeroBomb[first_state].1', group: 'Battle_BE_NAtk' }],
+      // [src: audio_data soundFXBanks battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.first_die]
+      die: [{ url: `${K}e_atk_stmkgtdie.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.first_die', group: 'Battle_BE_NAtk' }],
       landing: [H1],
       shove: [{ url: `${E}e_imp/e_imp_stmwpn_n.mp3`, pool: 'battle.ON_ABILITY_HIT.enemy_1533_stmkgt.combat' }],
     };
-    for (const p of PARTS[kind] || []) this._playBank(p.url, p.pool, UNIT_BASE_GAIN * STEAM_KNIGHT_GAIN, p.group);
+    // (a warm-up: every file decoded ahead, so the first hit is not late)
+    if (kind === 'warm') { for (const list of Object.values(PARTS)) for (const p of list) this._buffer(p.url); return; }
+    for (const p of PARTS[kind] || []) this._playBank(p.url, p.pool, UNIT_BASE_GAIN * STEAM_KNIGHT_GAIN * (p.gain || 1), p.group);
   }
 
   _playParts(e, gain) {
@@ -2277,7 +2302,12 @@ export class AudioManager {
       // (fork) the Steam Knight slice's normal attacks at the same gain as his other sounds (playSteamKnight)
       // They play as his bank sounds (_playBank, like an enemy's): through _play they were held to its 1.5 ceiling and
       // the battle's 8-voice budget dropped them in a crowd (the user, 2026-11-24: "I can vaguely hear his laser sword")
-      if (defId === STEAM_KNIGHT_ID) { this._playBank(url, poolId, unitGain(UNIT_BASE_GAIN, mix) * STEAM_KNIGHT_GAIN); return true; }
+      if (defId === STEAM_KNIGHT_ID) {
+        // one swing on several blocked enemies is one sound (an 'atk' comes per target): the unit cooldown _play keeps
+        const key = `${unitId}:${kind}`, now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (this.limiter.cooling(now, key)) return true;
+        this.limiter.lastByUnit.set(key, now);
+        this._playBank(url, poolId, unitGain(UNIT_BASE_GAIN, mix) * STEAM_KNIGHT_GAIN); return true; }
       this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix), limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
       // (fork) the running skill's attack may sound again after its swing (attackAlso: 圣约送葬人's Sanrio S2 shot)
       // — once per swing: an attack on several targets is one 'atk' per target, so it keeps the unit cooldown the swing has.

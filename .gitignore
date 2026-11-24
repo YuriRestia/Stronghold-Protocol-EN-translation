@@ -75,3 +75,5 @@ desktop.ini
 public/server-info.json
 # tools/sim-check.mjs: the corpus and its Node traces for /dev/sim-check.html
 public/dev/simcheck/data/
+# (fork) the Steam Knight slice's sounds and music, taken from the local client: this worktree's dev sandbox only
+public/dev/steam-knight-audio/

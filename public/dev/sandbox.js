@@ -1440,6 +1440,7 @@ async function main() {
     meter = null;
     me.playerEffects = [];
     // (another version: the battles run on its data and bounds, like a room of that version — runner.js loadSim)
+    let knightId = null;
     runner = createBattleRunner({ net, store: null, ...(seasonSim ? { loadSim: () => loadBrowserSim(seasonSim) } : null) });
     runner.on('field', (field) => {
       localFeed(field.speed);   // client-side combat, as the match screen runs it
@@ -1462,7 +1463,20 @@ async function main() {
       setBankable(true);
       renderBonds();
     });
-    runner.on('ev', (ev) => { view.pushEvents(ev); audio.handleBattleEvents(ev?.ev); });
+    runner.on('ev', (ev) => {
+      view.pushEvents(ev); audio.handleBattleEvents(ev?.ev);
+      // the Steam Knight slice: his music while he is on the field (the panel's pick), the round's own once he is gone
+      for (const e of Array.isArray(ev?.ev) ? ev.ev : []) {
+        if (e?.[0] === 'spawn' && e[1]?.defId === 'enemy_1533_stmkgt') {
+          knightId = e[1].id;
+          if (skPanel.bgm()) audio.playBgm(skPanel.bgm());
+        } else if (e?.[0] === 'die' && knightId != null && e[1] === knightId) {
+          knightId = null;
+          audio.playSteamKnight?.('die');
+          if (skPanel.bgm()) bgm(true);
+        }
+      }
+    });
     sb.runner = runner;
     paused = false;
     view.setFrozen?.(false);
