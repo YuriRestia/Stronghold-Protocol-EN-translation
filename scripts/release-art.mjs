@@ -121,7 +121,7 @@ export function parseSha256(text) {
 
 /**
  * The gate before `prepare`: the URLs of the release's data/assets.json the server lacks (what prepare's ensureAssets
- * would download), the files the preload manifest would list (shared/resources.js isPreloadFile: not the Live2D cards)
+ * would download), the files the preload manifest would list (shared/resources.js isPreloadFile)
  * and the folders that look like art backups. Pass: no URL missing, at most MAX_MANIFEST_FILES listed, no backup folder.
  * @param {unknown} manifest
  * @param {Map<string, number>} server every file under public/assets and public/fonts, the trees the manifest covers
