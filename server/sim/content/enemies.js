@@ -378,6 +378,7 @@ export const STATS_ONLY = Object.freeze({
   enemy_2002_bearmi: 'plain', enemy_2002_bearmi_2: 'plain',
   enemy_9012_acloon: '炎佑 is a bond summon (bonds.js)', enemy_10040_cnvbln: '狂欢时刻 absent', enemy_10043_sailor: 'bridges/cannons absent',
   enemy_10073_mpcar: 'plain', enemy_10124_uashld_2: 'taunt is data; 矿工游击队 absent',
+  enemy_1533_stmkgt: 'the Steam Knight slice is a bond summon (steamKnight.js)',
 });
 
 // 圣杯 damage sharing (PRTS 愧悔魂灵圣杯: "令半径1.7范围内…行动方式为地面的敌方单位受到的伤害降低至5%…以此减少的伤害以真实
