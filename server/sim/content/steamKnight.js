@@ -153,11 +153,23 @@ export function steamKnightKit(bb, raw) {
 
       const startDash = (target) => {
         const dir = sk.dir;
-        const dash = { dir, target, travelled: 0, shoved: new Set() };
-        phaseFx('skDash', { dr: dir[0], dc: dir[1], target: target.id });
-        battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: dir[0], dc: dir[1] });
+        const dash = { dir, target, travelled: 0, shoved: new Set(), clipAt: 0, moveAt: sk.clock };
+        // A run shorter than the blow clip's wind-up (the strike frame is 0.7 s in) winds up first and boosts for the
+        // last part of it, so the thrust is the impact (the user, 2026-11-24): the clip starts now, the boost starts later.
+        const along0 = (target.y - unit.y) * dir[0] + (target.x - unit.x) * dir[1];
+        const run = Math.max(0, along0 - 1.0) / c0().dashSpeed;
+        if (run < CLIP.blowHit) {
+          dash.clipAt = sk.clock;
+          dash.moveAt = sk.clock + (CLIP.blowHit - run);
+          phaseFx('skBlow', { dur: CLIP.blowLen });
+        } else {
+          phaseFx('skDash', { dr: dir[0], dc: dir[1], target: target.id });
+          battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: dir[0], dc: dir[1] });
+          dash.started = true;
+        }
         setPhase('dash', { dash });
       };
+      const c0 = () => cfg();
 
       // The blow clip (Skill_1_Attack_A) starts on the flight path, so that its strike frame (0.7 s) is the moment he
       // reaches the target: the pile is already forward on impact (the user, 2026-11-24). `d.clipAt` = when it started.
@@ -269,6 +281,11 @@ export function steamKnightKit(bb, raw) {
           case 'dash': {
             const d = sk.dash, t = d.target;
             if (!t || !t.alive) { endBunker(); break; }
+            if (sk.clock < d.moveAt - 1e-9) break;   // still winding up: the boost starts when the thrust is 'run' s from its strike
+            if (!d.started) {
+              d.started = true;
+              battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: d.dir[0], dc: d.dir[1] });
+            }
             const along = (t.y - unit.y) * d.dir[0] + (t.x - unit.x) * d.dir[1];
             const remain = Math.max(0, along - 1.0);
             // start the blow clip so that its strike frame lands on the arrival (a short run starts it at once)
