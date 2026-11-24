@@ -44,3 +44,38 @@ test('the knight drops, stands in the bunker stance, dashes and hits the elite h
   checkInvariants(h.b);
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
 });
+
+test('the side enemies are shoved and hit, a friendly operator never is, and every landing starts a bunker', () => {
+  const h = makeBattle({
+    defs: { enemies: ENEMIES }, timeLimit: 600, autoFinish: false, seed: 3, hooks: ['damaged'], captureNoisy: true,
+    flags: { dpPerSec: 0, dpMax: 999, steamKnight: PANEL },
+    units: [{ uid: 1, chessId: 'chess_char_4_07_b', row: 10, col: 3 }],
+  });
+  h.step();
+  const elite = h.spawn('enemy_elite', { pos: [10, 9] });
+  const side = h.spawn('enemy_norm', { pos: [11, 7] });   // one row beside the lane of row 10
+  const k = spawnSteamKnight(h.b, 'p1');
+  k.mem.sk.beginLanding(5, 10, [0, 1]);
+  const y0 = side.y;
+  const phases = [];
+  h.runUntil((b) => { const p = k.mem.sk.phase; if (phases[phases.length - 1] !== p) phases.push(p); return b.time > 31; }, 40);
+  assert.ok(Math.abs(side.y - y0) > 0.5 || side.hp < side.s.maxHp, 'the side enemy was thrown or hit');
+  assert.ok(elite.hp < elite.s.maxHp, 'the elite took the blow');
+  const hurt = h.hooksOf('damaged').filter((c) => c.source === k && c.target.side === 'ally');
+  assert.equal(hurt.length, 0, 'he never damages a friendly unit');
+  // the first drop and the leap's landing both run the whole bunker
+  assert.ok(phases.filter((p) => p === 'dash').length >= 2, phases.join());
+  assert.ok(phases.includes('leapUp'), phases.join());
+  checkInvariants(h.b);
+  assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
+});
+
+test('a cleared panel value switches that part off: no dash without a dash speed', () => {
+  const h = field({ panel: { enabled: true } });
+  h.spawn('enemy_elite', { pos: [10, 9] });
+  const k = spawnSteamKnight(h.b, 'p1');
+  const hp0 = h.enemy('enemy_elite').hp;
+  h.run(8);
+  assert.notEqual(k.mem.sk.phase, 'dash');
+  assert.equal(h.enemy('enemy_elite').hp, hp0, 'no bunker blow without a dash');
+});
