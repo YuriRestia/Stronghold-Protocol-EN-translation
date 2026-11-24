@@ -2304,7 +2304,8 @@ export class AudioManager {
       // the battle's 8-voice budget dropped them in a crowd (the user, 2026-11-24: "I can vaguely hear his laser sword")
       if (defId === STEAM_KNIGHT_ID) {
         // one swing on several blocked enemies is one sound (an 'atk' comes per target): the unit cooldown _play keeps
-        const key = `${unitId}:${kind}`, now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        // (a 'hit' comes with its target's id, so the key is his own)
+        const key = `${STEAM_KNIGHT_ID}:${kind}`, now = typeof performance !== 'undefined' ? performance.now() : Date.now();
         if (this.limiter.cooling(now, key)) return true;
         this.limiter.lastByUnit.set(key, now);
         this._playBank(url, poolId, unitGain(UNIT_BASE_GAIN, mix) * STEAM_KNIGHT_GAIN); return true; }
