@@ -56,6 +56,10 @@ describe('official shot and weapon-effect origins in a battle', { skip }, () => 
     await page.goto(`http://127.0.0.1:${srv.port}/dev/battle-perf.html?spec=origins&fx=full&panel=0&quality=high`, { waitUntil: 'load' });
     await page.waitForFunction(() => window.__perf && (window.__perf.ready || window.__perf.error), { timeout: 90000 });
     assert.equal(await page.evaluate(() => window.__perf.error && String(window.__perf.error)), null);
+    // the battle flies official shots only with the effects' file list: without it no shot ever comes (a worktree has
+    // public/assets through its junction, but not the git-ignored data/local-fx.json)
+    assert.ok(await page.evaluate(() => window.__perf.view.debug.ofx.init()),
+      'the page has no official effects: data/local-fx.json is missing or lists none (a worktree: copy it from the main checkout)');
     // every flight: its shooter, its effects and, for the wanted shooter, its path (the flying effect's anchor each frame)
     await page.evaluate(() => {
       const view = window.__perf.view;
@@ -116,11 +120,12 @@ describe('official shot and weapon-effect origins in a battle', { skip }, () => 
     return page.evaluate(() => window.__orig.done);
   }
 
-  test('灰毫: the shell leaves her raised barrel and lobs about a tile (the static Muzzle lay under her feet, the arc rose six)', async () => {
+  test('灰毫: the shell leaves her raised barrel and lobs about a tile (the static Muzzle lay under her feet, the arc rose six)', async (t) => {
     const r = await shot('ashlok', 'char_431_ashlok', false);
     assert.deepEqual(r.keys.slice(0, 1), ['ashlok_attack_01_trail']);
     const [start] = r.path;
     const up = (r.feet.y - start.y) / r.s, right = (start.x - r.feet.x) / r.s;
+    t.diagnostic(`muzzle: up ${up}, right ${right}, rise ${(start.y - Math.min(...r.path.map((p) => p.y))) / r.s} tiles`);
     assert.ok(up > 0.4 && up < 1.0, `the barrel above her feet: ${up.toFixed(2)} tiles on screen`);
     assert.ok(right > 0.6 && right < 1.4, `in front of her: ${right.toFixed(2)} tiles`);
     // a world tile of height draws half a tile up under the 30° camera: raiseHeight 1 above the muzzle ≈ 0.5 tile on screen

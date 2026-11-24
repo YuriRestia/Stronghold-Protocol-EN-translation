@@ -5,8 +5,10 @@
 // list, never from a fixed folder list; every URL the release's data/assets.json names must be on the server
 // (`missing: 0`) before `prepare`, or prepare's ensureAssets downloads art from GitHub and rebuilds the clip bounds on
 // the live server; a file neither the PC nor the server has stops the release; nothing extra goes inside public/ (the
-// preloader refuses a list of 60,000 files or more).
+// preload manifest would list it for every player, and the browser refuses a manifest over shared/resources.js
+// MAX_MANIFEST_FILES).
 import { missingAssets } from './generations.mjs';
+import { MAX_MANIFEST_FILES, isPreloadFile } from '../shared/resources.js';
 
 /** The lists every release ships beside the art: replaced when their content differs (sha256), never by size alone. */
 export const SHARED_LISTS = Object.freeze([
@@ -27,8 +29,11 @@ export const KEEP_SERVER_COPY = Object.freeze([
   /^public\/assets\/spine\/enemy\/enemy_10138_xdsnow\//,
 ]);
 
-/** The preloader refuses a resource list of this many files or more (`find public -type f | wc -l`). */
-export const PUBLIC_FILE_LIMIT = 60000;
+/**
+ * A folder named like a copy of art kept beside the original (2026-11-09: `public/assets/local.old-1109` put every local
+ * file in the preload manifest twice). No folder of the real art is named so.
+ */
+const BACKUP_FOLDER = /(^|[._ -])(old|bak|backup|orig|copy)([._ -]|\d|$)/i;
 /** Over this, the pack waits for a typed "y" (storage rule: over 1 GB asks first). */
 export const ASK_ABOVE_BYTES = 1e9;
 /** Never more than this in one release, whatever the answer (a bigger pack is a wrong list, not a release). */
@@ -116,15 +121,29 @@ export function parseSha256(text) {
 
 /**
  * The gate before `prepare`: the URLs of the release's data/assets.json the server lacks (what prepare's ensureAssets
- * would download) and the public/ file count. Pass: no URL missing, fewer files than PUBLIC_FILE_LIMIT.
- * @param {unknown} manifest @param {Map<string, number>} server @param {number} publicFiles
+ * would download), the files the preload manifest would list (shared/resources.js isPreloadFile)
+ * and the folders that look like art backups. Pass: no URL missing, at most MAX_MANIFEST_FILES listed, no backup folder.
+ * @param {unknown} manifest
+ * @param {Map<string, number>} server every file under public/assets and public/fonts, the trees the manifest covers
  */
-export function artGate(manifest, server, publicFiles) {
+export function artGate(manifest, server) {
   const missing = missingAssets(manifest, (u) => server.get(urlToPath(u)) ?? 0);
   const problems = [];
-  if (missing.length) problems.push(`${missing.length} file(s) of data/assets.json are not on the server (e.g. ${missing.slice(0, 3).join(', ')})`);
-  if (!(publicFiles < PUBLIC_FILE_LIMIT)) problems.push(`public/ holds ${publicFiles} files; the preloader refuses ${PUBLIC_FILE_LIMIT} or more (an art backup inside public/?)`);
-  return { missing, publicFiles, ok: !problems.length, problems };
+  if (missing.length) problems.push(`${missing.length} file(s) of data/assets.json are not on the server; prepare would download art and rebuild the clip bounds on the live server (e.g. ${missing.slice(0, 3).join(', ')})`);
+  let preloadFiles = 0;
+  const backups = new Map();
+  for (const p of server.keys()) {
+    if (!isPreloadFile(p.slice('public'.length))) continue;
+    preloadFiles++;
+    const dirs = p.split('/').slice(0, -1);
+    const i = dirs.findIndex((d) => BACKUP_FOLDER.test(d));
+    if (i < 0) continue;
+    const dir = dirs.slice(0, i + 1).join('/');
+    backups.set(dir, (backups.get(dir) ?? 0) + 1);
+  }
+  if (preloadFiles > MAX_MANIFEST_FILES) problems.push(`the preload manifest would list ${preloadFiles} files of public/; the preloader refuses more than ${MAX_MANIFEST_FILES} (an art backup inside public/?)`);
+  for (const [dir, n] of backups) problems.push(`${dir} looks like an art backup (${n} files): players would preload it; move it out of public/`);
+  return { missing, preloadFiles, ok: !problems.length, problems };
 }
 
 /** `12345678` → `12.3 MB`. @param {number} n */

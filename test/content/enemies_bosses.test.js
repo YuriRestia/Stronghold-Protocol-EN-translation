@@ -3109,6 +3109,7 @@ test('假想敌：铳: unblockable, targets the highest DEF in range, ASPD ramps
   // BrownbTalent_1.Apply: every hit on the same target adds a stack, the first one included; 20 + 80·n
   for (let n = 1; n <= maxN + 1; n++) {
     h.runUntil(() => e.stats.attacks >= n, 120);
+    h.run(0.25);                                                     // the projectile lands (speed 10, reach 2): the stack comes then
     assert.equal(e.s.aspd, 20 + step * Math.min(n, maxN), `after hit ${n}`);
   }
   assert.equal(h.unit('t_wall').stats.taken, 0);
@@ -3122,10 +3123,10 @@ test('假想敌：铳: a new target clears the stacks, then its first hit adds o
   const e = put(h, 'enemy_9017_achunt', [3, 10], { tag: 'boss' });
   const step = tb('enemy_9017_achunt', '2.attack_speed');
   h.runUntil(() => e.stats.attacks >= 3, 120);
+  h.run(0.25);
   assert.equal(e.s.aspd, 20 + 3 * step);
   h.b.retreat(h.unit('t_wall2'), { permanent: true });            // the highest-DEF target leaves: t_wall is next
-  const n = e.stats.attacks;
-  h.runUntil(() => e.stats.attacks >= n + 1, 120);
+  h.runUntil(() => e.s.aspd !== 20 + 3 * step, 120);
   assert.equal(e.s.aspd, 20 + step, 'cleared, then one stack');
   assert.ok(h.runUntil(() => h.unit('t_wall').stats.taken > 0, 3), 'that shot was at t_wall');
   // the interval follows: 4.5 s × 100 / 100 = 4.5 s, the card's base stays 22.5 s (a green −18.00)

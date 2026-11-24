@@ -10,8 +10,9 @@ import {
   clipInfo, clipVerdict, stripClipStamp, unpackCommand, BACKUPS_KEPT, parseDfAvail,
 } from '../scripts/release.mjs';
 import {
-  parseFileList, neededArt, artPlan, differingLists, parseSha256, artGate, urlToPath, SHARED_LISTS, PUBLIC_FILE_LIMIT,
+  parseFileList, neededArt, artPlan, differingLists, parseSha256, artGate, urlToPath, SHARED_LISTS,
 } from '../scripts/release-art.mjs';
+import { MAX_MANIFEST_FILES, isPreloadFile } from '../shared/resources.js';
 import { prepareCommand, statusCommand, sudoCheckCommand } from '../scripts/deploy-regions.mjs';
 import {
   nextNewsId, draftNews, editorText, parseEditorText, newsFromEdit, builtInNews, newsFile, newsDraftFile, untranslatedLines, bumpNews, NEWS_FILE_MAX,
@@ -60,13 +61,36 @@ describe('art diff (release-art.mjs)', () => {
     assert.equal(SHARED_LISTS.length, 4);
   });
 
-  test('gate: missing URLs and the preloader file limit', () => {
+  test('gate: missing URLs', () => {
     const full = new Map([['public/assets/a.png', 1], ['public/assets/v b.ogg', 1], ['public/fonts/f.woff2', 1]]);
-    assert.deepEqual(artGate(manifest, full, 100), { missing: [], publicFiles: 100, ok: true, problems: [] });
-    const g = artGate(manifest, new Map([['public/assets/a.png', 1], ['public/assets/v b.ogg', 0]]), PUBLIC_FILE_LIMIT);
+    assert.deepEqual(artGate(manifest, full), { missing: [], preloadFiles: 3, ok: true, problems: [] });
+    const g = artGate(manifest, new Map([['public/assets/a.png', 1], ['public/assets/v b.ogg', 0]]));
     assert.equal(g.ok, false);
     assert.deepEqual(g.missing.sort(), ['/assets/v%20b.ogg?x=1', '/fonts/f.woff2'], 'a zero-size file counts as missing, as in prepare');
-    assert.equal(g.problems.length, 2);
+    assert.equal(g.problems.length, 1);
+  });
+
+  test('gate: at most as many preload files as the browser takes, the Live2D cards exactly as shared/resources.js lists them', () => {
+    const none = { ops: {} };
+    const server = new Map();
+    for (let i = 0; i < MAX_MANIFEST_FILES; i++) server.set(`public/assets/spine/${i}.png`, 1);
+    assert.deepEqual(artGate(none, server), { missing: [], preloadFiles: MAX_MANIFEST_FILES, ok: true, problems: [] });
+    // one more listed file stops it, whether the preload lists the Live2D cards yet (the live2d pack lists them since 2026-11-24)
+    server.set('public/fonts/one-more.woff2', 1);
+    server.set('public/assets/local/dynillust/card.webp', 1);
+    const over = isPreloadFile('/assets/local/dynillust/card.webp') ? 1 : 0;
+    const g = artGate(none, server);
+    assert.equal(g.preloadFiles, MAX_MANIFEST_FILES + 1 + over);
+    assert.equal(g.ok, false);
+    assert.match(g.problems[0], new RegExp(`list ${MAX_MANIFEST_FILES + 1 + over} files of public/; the preloader refuses more than ${MAX_MANIFEST_FILES} `));
+  });
+
+  test('gate: an art backup inside public/ stops the release below the limit too', () => {
+    for (const dir of ['local.old-1109', 'local.bak', 'backup-1124', 'local copy']) {
+      const g = artGate({ ops: {} }, new Map([[`public/assets/${dir}/fx/a.png`, 1], [`public/assets/${dir}/b.png`, 1], ['public/assets/local/fx/golden_old.png', 1]]));
+      assert.equal(g.problems.length, 1, dir);
+      assert.ok(g.problems[0].startsWith(`public/assets/${dir} looks like an art backup (2 files)`), g.problems[0]);
+    }
   });
 });
 
