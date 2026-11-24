@@ -106,8 +106,10 @@ export function steamKnightKit(bb, raw) {
     install(battle, unit) {
       const cfg = () => cfgOf(battle) ?? {};
       const sk = unit.mem.sk = { phase: 'none', walk: null, leapAt: LEAP_FIRST, attacks: 0, t: 0, clock: 0, dir: DIRS.RIGHT, dash: null, target: null };
-      // he blocks (user, 2026-11-24); the official enemy record has blockCnt 0, so how many is a PANEL VALUE
-      unit.base.blockCnt = has(cfg().blockCnt) ? Math.floor(cfg().blockCnt) : 1;
+      // he blocks (user, 2026-11-24); the official enemy record has blockCnt 0, so how many is a PANEL VALUE. A cleared
+      // panel field is off (`sandbox-steamknight.js`: an empty input sends nothing) — the same reading as the dash and
+      // the side damage — so the fallback is 0, not 1 (the sandbox panel's own start value is 1)
+      unit.base.blockCnt = has(cfg().blockCnt) ? Math.floor(cfg().blockCnt) : 0;
       // full power from spawn: the Boost's move speed and attack speed stay on [src: Boost move_speed / attack_speed]
       battle.addBuff(unit, { key: 'sk:boost', persist: true, allowDead: true, mods: { moveFlat: BOOST_MOVE, aspd: BOOST_ASPD } });
       // his stats, tunable in the sandbox panel (the user, 2026-11-24: "I would like to tune his stats"): a panel value

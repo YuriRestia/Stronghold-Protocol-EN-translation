@@ -7,7 +7,7 @@ import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.
 import { spawnSteamKnight, STEAM_KNIGHT_ID } from '../../server/sim/content/steamKnight.js';
 
 // panel values of a test run (the sandbox panel sets them for real: none has an official source)
-const PANEL = { enabled: true, dashSpeed: 6, dmgPerTile: 0.5, sideDamage: 0.5, shoveDist: 1.5, waitLimit: 3 };
+const PANEL = { enabled: true, dashSpeed: 6, dmgPerTile: 0.5, sideDamage: 0.5, shoveDist: 1.5, waitLimit: 3, blockCnt: 1 };
 const ENEMIES = {
   enemy_elite: enemyRec({ key: 'enemy_elite', rank: 'ELITE', hp: 1e7, speed: 0, def: 0 }),
   enemy_norm: enemyRec({ key: 'enemy_norm', hp: 1e6, speed: 0, def: 0 }),

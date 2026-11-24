@@ -39,7 +39,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
   const leapOk = new Map();    // knight id → his leap's official window started (its end plays the landing)
   const marks = new Map();     // knight id → the marker loop on the enemy he boosts at
   const immortal = new Map();  // knight id → his invincible loop
-  const boosted = new Set();   // knight ids with the steam loop running
+  const steam = new Map();     // knight id → the Boost's steam loop, held on him (follow) until he dies
   const held = new Map();      // knight id → { keys: Set, hs: [] } the Zantetsuken loops on him until its cast ends
   const jets = new Map();      // knight id → { v, next } boosting: a steam puff left behind him every JET_EVERY s
   const puffs = [];            // { h, left } puffs cut after JET_LIFE s (the vent is a loop; at most ~JET_LIFE / JET_EVERY live)
@@ -95,8 +95,13 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
       const v = id != null ? views.get(id) : null;
       switch (d.kind) {
         case 'landing': {
-          // the steam stays on him from the first drop (Boost: always on): the official loop on his own mount point
-          if (v && id != null && !boosted.has(id) && has('stmkgt_presure_buff_01')) { boosted.add(id); wiring.playOn?.('stmkgt_presure_buff_01', v, { loop: true }); }
+          // the steam stays on him from the first drop (Boost: always on): the official loop on his own mount point, held
+          // with `follow` so it moves with him (and `frame` stops it when he dies). Without the hold it stayed where he
+          // first landed and never stopped (the code review, 2026-11-24)
+          if (v && id != null && !steam.has(id) && has('stmkgt_presure_buff_01')) {
+            const h = wiring.playOn?.('stmkgt_presure_buff_01', v, { follow: true, loop: true });
+            if (h) steam.set(id, h);
+          }
           // a leap's landing is the end of its official window (DownToTile, on his own position); the first drop plays it here
           if (!(d.leap && leapOk.get(id))) {
             if (!official('stmkgt_skill_02_end_01', x, y)) fx.ring(x, y, 0, 0.2, 2.4, STEAM, 0.6, 'shock');
@@ -213,9 +218,16 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
       }
     },
 
-    /** Every frame (battle seconds): the boost's steam jets, and cutting the short-lived ones. */
+    /** Every frame (battle seconds): the boost's steam jets, the held steam loop while he stands, and the cuts. */
     frame(dt) {
       const step = Number(dt) > 0 ? Number(dt) : 0;
+      // his death ends the Boost's steam loop: the sim holds it for his whole life and sends no stop for it
+      for (const [id, h] of steam) {
+        const view = views.get(id);
+        if (view && !view.destroyed && view.alive !== false) continue;
+        try { h.stop?.(); } catch { /* gone */ }
+        steam.delete(id);
+      }
       for (const [id, j] of jets) {
         j.next -= step;
         if (j.next > 0) continue;
@@ -238,11 +250,11 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     /** A new battle or the prep board: every handle stopped, every map emptied (a knight of the next battle may get
      * the same id). */
     clear() {
-      for (const m of [marks, immortal]) for (const h of m.values()) { try { h.stop?.(); } catch { /* gone */ } }
+      for (const m of [marks, immortal, steam]) for (const h of m.values()) { try { h.stop?.(); } catch { /* gone */ } }
       for (const id of [...held.keys()]) stopHeld(id);
       for (const p of puffs.splice(0)) { try { p.h.stop?.(); } catch { /* gone */ } }
       jets.clear();
-      boosted.clear(); leapOk.clear(); marks.clear(); immortal.clear();
+      steam.clear(); leapOk.clear(); marks.clear(); immortal.clear();
     },
   };
 }
