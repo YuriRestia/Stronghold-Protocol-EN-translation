@@ -101,6 +101,7 @@ import { hypot } from '../detmath.js';
 import { atPotential } from '../../../shared/potential.js';
 import { textFinite } from '../../../shared/plugins/textNumber.js';
 import { isOfficialId, isVersionData } from './support/index.js';
+import { steamKnightKit, STEAM_KNIGHT_ID } from './steamKnight.js';
 
 // Re-exported for the kits, which never import an index module (test/content/kits_layout.test.js): the group lists that
 // grow on another version's build only (DESIGN §35.22.4).
@@ -1634,6 +1635,7 @@ const RAW_KITS = {
   [TOKEN_IDS.eagle3]: inert({ hideFromEnemies: true }),
   [TOKEN_IDS.iceTarget]: inert(),
   [TOKEN_IDS.yanyou]: yanyouKit,
+  [STEAM_KNIGHT_ID]: steamKnightKit,   // (fork) dev sandbox slice, steamKnight.js
   [TOKEN_IDS.reserveMedic]: reserveMedicKit,
   [TOKEN_IDS.touch]: touchKit,
 };

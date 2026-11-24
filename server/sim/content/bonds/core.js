@@ -40,6 +40,7 @@
 
 import * as S from '../support/index.js';
 import { spawnYanyou } from '../tokens.js';
+import { spawnSteamKnight } from '../steamKnight.js';
 import { kjeragColdWind } from '../devices.js';
 import * as items from '../items.js';
 import { FORCED_EXIT } from '../../constants.js';
@@ -285,6 +286,8 @@ function installVictoria(battle, pid, bb, members) {
   apply();
   onLayers(battle, pid, 'victoriaShip', apply);
   if (!reached(battle, pid, 'victoriaShip', bb.power_bond_char_cnt)) return;
+  // (fork) dev sandbox slice: with the flag on, 6 Victoria bring 'The Last Steam Knight' (content/steamKnight.js)
+  if (battle.flags.steamKnight?.enabled) battle.on('battleStart', () => spawnSteamKnight(battle, pid), { once: true });
   const normal = num(bb.atk_normal_equip, 0), golden = normal + num(bb.atk_golden_equip, 0);
   for (const u of members) {
     const ids = S.itemsOf(u);
