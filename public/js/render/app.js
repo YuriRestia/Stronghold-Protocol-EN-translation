@@ -2044,7 +2044,9 @@ export async function createFieldView(host, options = {}) {
     // lerped (≤ teleport) or snapped the enemy most of the way — no frames in between (PR #380). The fx are still queued
     // here (processEvents took only those ≤ renderT); the view holds until `at`, then eases into the sim's position.
     slideAt = interp.nextSnapT(renderT);
-    if (slideAt > renderT) interp.forEachUpcoming(renderT, slideAt, startSlide);
+    // (fork) + half a ms: a snapshot's time is rounded to the ms, its events' is not (events.js snapshot `t`), so on the
+    // ticks that round down the push counted as later than its own snapshot and jumped instead of sliding
+    if (slideAt > renderT) interp.forEachUpcoming(renderT, slideAt + 0.0005, startSlide);
     interp.sample(renderT, sample);
     for (const [id, s] of sample) {
       let v = views.get(id);

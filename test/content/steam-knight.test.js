@@ -92,6 +92,22 @@ test('he holds an enemy while he charges the pile', () => {
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
 });
 
+test('the panel\'s block distance: blocked at the dome\'s edge along his lane, the next row is not his', () => {
+  const run = (blockDist, dx, dy) => {
+    const h = field({ panel: { ...PANEL, blockDist } });
+    const k = spawnSteamKnight(h.b, 'p1');
+    k.mem.sk.beginLanding(5, 10, [0, 1]);
+    h.runUntil(() => k.mem.sk.phase === 'stance', 10);
+    const e = h.spawn('enemy_norm', { pos: [10, 6] });
+    e.x = k.x + dx; e.y = k.y + dy;
+    h.run(0.1);
+    return e.blockedBy === k;
+  };
+  assert.ok(run(1.12, 1.05, 0));
+  assert.ok(!run(undefined, 1.05, 0), 'cleared: the official radius');
+  assert.ok(!run(1.12, 0, 1), 'the next row walks on');
+});
+
 test('a stun in the stance ends the bunker: no blow from a stunned knight', () => {
   const h = field();
   const e = h.spawn('enemy_elite', { pos: [10, 9] });

@@ -23,6 +23,8 @@ const START = Object.freeze({
   zanPushForce: 3,
   // [ASSUMED] he blocks 1 enemy: the minimum that "he blocks" (user, 2026-11-24) can mean; the official enemy record has blockCnt 0; user OK 2026-11-24
   blockCnt: 1,
+  // [src: official stmkgt_shield_01 shield__01: mesh general_ring_04 half width 0.9138 x scale 1.2212 = 1.116 tiles] the dome's edge
+  blockDist: 1.12,
 });
 
 /** [key, label, unit, start value, step, hint]. */
@@ -34,6 +36,7 @@ const FIELDS = [
   ['pushForce', 'Push force on the boost hit', '', START.pushForce, 1, 'start value, you set it: the official force scale (-1 to 5); the distance is this less the enemy\'s weight, and bosses of a boss fight do not move'],
   ['zanPushForce', 'Push force on the Zantetsuken hit', '', START.zanPushForce, 1, 'start value, you set it: the same force scale as the boost\'s; empty = no push'],
   ['blockCnt', 'Enemies he blocks at once (and drags along)', '', START.blockCnt, 1, 'start value, you set it (the official enemy record has none)'],
+  ['blockDist', 'Block distance along his lane', 'tiles', START.blockDist, 0.05, 'start value, the dome\'s edge, you set it: where he blocks and catches enemies; empty = the official 0.71'],
   // his stats (the user, 2026-11-24: "I would like to tune his stats"): these start at the OFFICIAL values
   // [src: official enemy_database enemy_1533_stmkgt level 0 attributes atk / maxHp / def / baseAttackTime]
   ['atk', 'ATK', '', 1600, 50, 'official value (enemy_database atk), yours to change', true],

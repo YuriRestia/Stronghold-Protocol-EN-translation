@@ -125,6 +125,18 @@ export function steamKnightKit(bb, raw) {
       for (const k of ['atk', 'maxHp', 'def', 'bat']) if (has(cfg()[k]) && cfg()[k] > 0) unit.base[k] = cfg()[k];
       if (cfg().secondFormResist) battle.addBuff(unit, { key: 'sk:resist', persist: true, allowDead: true, mods: { dmgTakenMul: 1 - SECOND_FORM_RESIST } });
 
+      // ---- his contact: along his lane as far as his dome reaches (the user, 2026-11-25: "block from further ... around
+      // where the dome is", a PANEL VALUE), across it the official ground block radius, so the next row is not his; with
+      // the field cleared the official radius all round [src: server/sim/constants.js BLOCK_RADIUS_SQ.ground]
+      const BODY_R2 = BLOCK_RADIUS_SQ.ground;
+      const reach = () => (has(cfg().blockDist) && cfg().blockDist > 0 ? cfg().blockDist : Math.sqrt(BODY_R2));
+      const touches = (e, dir) => {
+        const al = (e.y - unit.y) * dir[0] + (e.x - unit.x) * dir[1], off = (e.y - unit.y) * dir[1] - (e.x - unit.x) * dir[0];
+        return (al * al) / (reach() * reach()) + (off * off) / BODY_R2 < 1;
+      };
+      /** The boost's blow lands with the target this far ahead: the pile's reach, never inside what he carries. */
+      const strikeAt = () => Math.max(1.0, reach());
+
       const setPhase = (p, extra = {}) => { sk.phase = p; sk.t = 0; Object.assign(sk, extra); };
       const SHIELD = 'sk:untouchable';
       // Invincible only in the air and at the landing: the official leap flags him invincible from take-off to landing
@@ -361,7 +373,7 @@ export function steamKnightKit(bb, raw) {
       };
       const c0 = () => cfg();
       /** Seconds of boost until the target is in the pile's reach (1 tile). */
-      const runTo = (dir, t) => Math.max(0, (t.y - unit.y) * dir[0] + (t.x - unit.x) * dir[1] - 1.0) / c0().dashSpeed;
+      const runTo = (dir, t) => Math.max(0, (t.y - unit.y) * dir[0] + (t.x - unit.x) * dir[1] - strikeAt()) / c0().dashSpeed;
       const lostTarget = (d) => {
         const t = d.target;
         if (!t || !t.alive || t.hidden || !canTargetEnemy(unit, t, PROFILE)) return true;
@@ -494,7 +506,6 @@ export function steamKnightKit(bb, raw) {
         return !(f.unblockable || f.levitate || f.fear || f.sleep);
       };
       const contactBlock = () => {
-        const R2 = BLOCK_RADIUS_SQ.ground;
         // (a blocked enemy stands still; a push or pull unblocks it itself: displacement.js _unblock)
         for (const e of unit.blocking.slice()) if (e.blockedBy === unit && !e.alive) battle._unblock(e);
         const cap = Math.max(0, Math.floor(num(unit.s.blockCnt, 1)));
@@ -505,7 +516,7 @@ export function steamKnightKit(bb, raw) {
           if (!blockable(e)) continue;
           const w = e.blockWeight ?? 1;
           if (used + w > cap) continue;
-          if ((e.x - unit.x) * (e.x - unit.x) + (e.y - unit.y) * (e.y - unit.y) >= R2) continue;
+          if (!touches(e, sk.dir)) continue;
           e.blockedBy = unit;
           unit.blocking.push(e);
           e.moving = false;
@@ -594,7 +605,7 @@ export function steamKnightKit(bb, raw) {
             if (lostTarget(d) && !retarget(d)) { endBunker(); break; }
             const t = d.target;
             const along = (t.y - unit.y) * d.dir[0] + (t.x - unit.x) * d.dir[1];
-            const remain = Math.max(0, along - 1.0);
+            const remain = Math.max(0, along - strikeAt());
             // he reaches the pile's reach: the blow lands now — the thrust clip was started (with its lead) so that its
             // strike frame is this moment, never a pause at the start (the user, 2026-11-24)
             if (remain <= 1e-9) { impact(); break; }
@@ -611,11 +622,12 @@ export function steamKnightKit(bb, raw) {
               if (e === t || d.shoved.has(e) || (isBig(e) && !battle._displaceable(e))) continue;
               const al = (e.y - unit.y) * d.dir[0] + (e.x - unit.x) * d.dir[1];
               const off = (e.y - unit.y) * d.dir[1] - (e.x - unit.x) * d.dir[0];
-              if (al < -0.5 || al > 0.8 || Math.abs(off) > 1.0) continue;
-              if (canDrag(e) && dragRoom(d, e) && off * off < BLOCK_RADIUS_SQ.ground) {
-                if (al * al + off * off < BLOCK_RADIUS_SQ.ground) { grab(d, e); continue; }
+              if (al < -0.5 || al > Math.max(0.8, reach()) || Math.abs(off) > 1.0) continue;
+              if (canDrag(e) && dragRoom(d, e) && off * off < BODY_R2) {
+                if (touches(e, d.dir)) { grab(d, e); continue; }
                 if (al > 0) continue;   // about to be caught
               }
+              if (al > 0.8) continue;   // not at his side yet
               d.shoved.add(e);
               if (has(c.sideDamage) && c.sideDamage > 0) battle.dealDamage(unit, e, { amount: unit.s.atk * c.sideDamage, type: dmgType, isSkill: true, tags: ['steamKnight', 'side'] });
               if (has(c.shoveDist) && c.shoveDist > 0 && e.alive) {

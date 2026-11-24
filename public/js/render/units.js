@@ -2321,7 +2321,14 @@ export class UnitView {
     this.root.position.set(bx, by);
     this.root.alpha = alpha;
     // (fork) the Steam Knight ally is drawn over the operators he stands among (the user, 2026-11-24): 30 of the 50 a row is worth
-    this.root.zIndex = unitDepthKey(cam, this.x + this.gx, this.y + this.gy, this.lift, this._planeDepth()) + (this.info.defId === 'enemy_1533_stmkgt' ? 30 : 0);
+    let zi = unitDepthKey(cam, this.x + this.gx, this.y + this.gy, this.lift, this._planeDepth());
+    if (this.info.defId === 'enemy_1533_stmkgt') { zi += 30; this.ctx.skFront = { v: this, z: zi }; }
+    else if (this.isEnemy && this.ctx.skFront?.v.alive && !this.ctx.skFront.v.destroyed) {
+      // and the enemies over him (the user, 2026-11-25): the ones his body would cover, up to the row behind him
+      const k = this.ctx.skFront, dy = this.y - k.v.y;
+      if (dy < 1.3 && dy > -0.5 && Math.abs(this.x - k.v.x) < 2) zi = Math.max(zi, k.z + 1 - dy);
+    }
+    this.root.zIndex = zi;
     // off-screen: nothing to animate or draw (bounds / hit-testing still follow `screen`)
     if (this._cull(bx, by, s, dt)) return;
     const flip = this.modelFlip();
