@@ -18,6 +18,7 @@ export const STEAM_KNIGHT_FX_KEYS = Object.freeze([
   'stmkgt_skill_01_start_02', 'stmkgt_skill_01_start_03', 'stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02',
   'stmkgt_skill_01_hit_01', 'stmkgt_presure_buff_01', 'stmkgt_immortal_buff_01', 'stmkgt_attack_hit_01',
   'stmkgt_reborn_02', 'stmkgt_skill_02_hit_01', 'stmkgt_skill_02_hit_02', 'stmkgt_attack_start_01', 'stmkgt_attack_weapon_01',
+  'stmkgt_skill_02_marker_01',
 ]);
 
 const WHITE = 0xffffff, HOT = 0xfff1c9, ORANGE = 0xff8a2a, STEAM = 0xcfe6ff;
@@ -35,6 +36,8 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     return !!h;
   };
   const leapOk = new Map();    // knight id → his leap's official window started (its end plays the landing)
+  const marks = new Map();     // knight id → the marker loop on the enemy he boosts at
+  const immortal = new Map();  // knight id → his invincible loop
   const boosted = new Set();   // knight ids with the steam loop running
   let preloaded = false;
 
@@ -86,6 +89,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           // otherwise run to its estimated end, past the first wind-up (the user, 2026-11-24)
           const S = wiring.skills, U = v ? S?.of?.(v) : null;
           if (U?.ewin) S._enemyEnd(U, v);
+          { const m = marks.get(id); if (m) { try { m.stop?.(); } catch { /* gone */ } marks.delete(id); } }
           break;
         }
         case 'leapUp': {
@@ -109,9 +113,32 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           }
           break;
         }
-        case 'dashStart':
-          sound('dash');
+        case 'zanHold':
+          sound('hold');
           break;
+        case 'dashStart': {
+          sound('dash');
+          // the official leap marker (stmkgt_skill_02_marker_01, the HeroBomb's mark on its target) on the enemy he boosts at,
+          // until the impact
+          const tv = d.target != null ? views.get(d.target) : null;
+          if (tv && has('stmkgt_skill_02_marker_01')) { const h = wiring.playOn?.('stmkgt_skill_02_marker_01', tv, { loop: true }); if (h) marks.set(id, h); }
+          break;
+        }
+        case 'zanHit': {
+          // the standing Zantetsuken's strike: its official hit on the target (the window's own hit row may also draw it)
+          sound('impact');
+          const tv = d.target != null ? views.get(d.target) : null;
+          if (!(tv && has('stmkgt_skill_01_hit_01') && wiring.playOn?.('stmkgt_skill_01_hit_01', tv, {}))) official('stmkgt_skill_01_hit_01', x, y);
+          shake?.(0.1, 0.3);
+          break;
+        }
+        case 'invincible': {
+          // the official invincible loop (stmkgt_immortal_buff_01) while he is untouchable: the landing and the leap
+          const prev = immortal.get(id);
+          if (prev) { try { prev.stop?.(); } catch { /* gone */ } immortal.delete(id); }
+          if (d.on && v && has('stmkgt_immortal_buff_01')) { const h = wiring.playOn?.('stmkgt_immortal_buff_01', v, { loop: true }); if (h) immortal.set(id, h); }
+          break;
+        }
         case 'shove': {
           sound('shove');
           const tv = d.target != null ? views.get(d.target) : null;
@@ -124,6 +151,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         }
         case 'impact': {
           sound('impact');
+          { const m = marks.get(id); if (m) { try { m.stop?.(); } catch { /* gone */ } marks.delete(id); } }
           // the official hit effects on the target's own hit point, plus the ground twin under him (the blow is the big one)
           const tv = d.target != null ? views.get(d.target) : null;
           const a = tv && has('stmkgt_skill_01_hit_01') ? !!wiring.playOn?.('stmkgt_skill_01_hit_01', tv, {}) : official('stmkgt_skill_01_hit_01', x, y);
@@ -148,6 +176,6 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     /** Every frame (nothing to do: the official windows run in the wiring; kept for the render loop's call). */
     frame() {},
 
-    clear() { boosted.clear(); leapOk.clear(); },
+    clear() { boosted.clear(); leapOk.clear(); marks.clear(); immortal.clear(); },
   };
 }

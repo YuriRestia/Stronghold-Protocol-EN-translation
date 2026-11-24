@@ -1589,14 +1589,18 @@ export class AudioManager {
    * of the dash (spine event zan_hold: e_atk_stmwpn_d2), the blow's ON_ABILITY_ON (e_imp_stmwpn_d) and the skill hit
    * (e_imp_stmkgt_h1), a shove's normal hit (e_imp_stmwpn_n). The official second hit (e_imp_stmkgt_h2) and the death
    * sound (e_atk_stmkgtdie) are in neither local client: absent.
-   * @param {'stance'|'dash'|'impact'|'landing'|'shove'} kind
+   * @param {'stance'|'hold'|'dash'|'impact'|'landing'|'shove'} kind
    */
   playSteamKnight(kind) {
     const E = '/assets/audio/sfx/enemy/';
     const H1 = { url: `${E}e_imp/e_imp_stmkgt_h1.mp3`, pool: 'battle.ON_PROJECTILE_HIT.projectile_enemy_vtsk_s' };
     const PARTS = {
       stance: [{ url: `${E}e_atk/e_atk_stmwpn_d1.mp3`, pool: 'battle.ON_ABILITY_START.enemy_1533_stmkgt.Zantetsuken' }],
-      dash: [{ url: `${E}e_atk/e_atk_stmwpn_d2.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_10027_vtsk.zan_hold' }],
+      // the stance clip's OnPlayAudio(zan_hold) event (bank battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.zan_hold)
+      hold: [{ url: `${E}e_atk/e_atk_stmwpn_d2.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.zan_hold' }],
+      // the boost: his own steam-boost burst (bank battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.second_boost, the Die_A
+      // clip's OnPlayAudio(second_boost) as he boosts back up), borrowed for the pile bunker's boost
+      dash: [{ url: `${E}e_atk/e_atk_chargeboost.mp3`, pool: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1533_stmkgt.second_boost' }],
       impact: [{ url: `${E}e_imp/e_imp_stmwpn_d.mp3`, pool: 'battle.ON_ABILITY_ON.enemy_1533_stmkgt.Zantetsuken' }, H1],
       landing: [H1],
       shove: [{ url: `${E}e_imp/e_imp_stmwpn_n.mp3`, pool: 'battle.ON_ABILITY_HIT.enemy_1533_stmkgt.combat' }],
@@ -2263,7 +2267,10 @@ export class AudioManager {
       const group = kind === 'skill' && typeof own === 'string' ? u?.skillGroups?.[skillIndex] : u?.groups?.[kind];
       // (fork) a singing skill (SONG_SKILLS): the battle sounds step back while its song plays
       const song = kind === 'skill' && typeof own === 'string' && SONG_SKILLS[defId]?.includes(skillIndex);
-      this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix), limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
+      // (fork) the Steam Knight slice's normal attacks at 3x, like his other sounds (playSteamKnight: the official boss
+      // bank mix plays them at about 15 %, the user heard none, 2026-11-24)
+      const knightGain = defId === 'enemy_1533_stmkgt' ? 3 : 1;
+      this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix) * knightGain, limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
       // (fork) the running skill's attack may sound again after its swing (attackAlso: 圣约送葬人's Sanrio S2 shot)
       // — once per swing: an attack on several targets is one 'atk' per target, so it keeps the unit cooldown the swing has.
       // (fork) An enemy's normal attack: the fire / release banks of the same attack (`attackNext`: 假想敌：铳's shot

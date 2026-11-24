@@ -112,23 +112,36 @@ export function steamKnightKit(bb, raw) {
       // nobody (his body is not on the tile his block sits on): `noBlock` alone.
       const BUNKER = 'sk:bunker';
       const shield = (on) => {
-        if (on && !unit.findBuff(SHIELD)) battle.addBuff(unit, { key: SHIELD, persist: true, allowDead: true, flags: { untargetable: true, invulnerable: true, noBlock: true } });
-        if (!on && unit.findBuff(SHIELD)) battle.removeBuff(unit, SHIELD);
+        if (on && !unit.findBuff(SHIELD)) {
+          battle.addBuff(unit, { key: SHIELD, persist: true, allowDead: true, flags: { untargetable: true, invulnerable: true, noBlock: true, disarm: true } });
+          battle.fx('steamKnight', { id: unit.id, kind: 'invincible', on: true, x: unit.x, y: unit.y });
+        }
+        if (!on && unit.findBuff(SHIELD)) {
+          battle.removeBuff(unit, SHIELD);
+          battle.fx('steamKnight', { id: unit.id, kind: 'invincible', on: false, x: unit.x, y: unit.y });
+        }
       };
       const bunker = (on) => {
-        if (on && !unit.findBuff(BUNKER)) battle.addBuff(unit, { key: BUNKER, persist: true, allowDead: true, flags: { noBlock: true } });
+        // (disarm: no normal attack starts during the pile bunker — its clips are the official Zantetsuken's)
+        if (on && !unit.findBuff(BUNKER)) battle.addBuff(unit, { key: BUNKER, persist: true, allowDead: true, flags: { noBlock: true, disarm: true } });
         if (!on && unit.findBuff(BUNKER)) battle.removeBuff(unit, BUNKER);
+      };
+      // the standing Zantetsuken: no normal attack starts while it runs; he keeps blocking
+      const ZAN = 'sk:zan';
+      const zanning = (on) => {
+        if (on && !unit.findBuff(ZAN)) battle.addBuff(unit, { key: ZAN, persist: true, allowDead: true, flags: { disarm: true } });
+        if (!on && unit.findBuff(ZAN)) battle.removeBuff(unit, ZAN);
       };
       const phaseFx = (kind, extra = {}) => battle.fx('phase', { x: unit.x, y: unit.y, id: unit.id, kind, form: kind, ...extra });
       const clearForm = () => battle.fx('phase', { x: unit.x, y: unit.y, id: unit.id, kind: 'skFight', form: null });
 
-      // ---- Zantetsuken: every 4th attack is the 3-hit charge at 1.25 ATK [src: Zantetsuken spCost 4, times 3, atk_scale 1.25]
+      // ---- Zantetsuken ([Furious Defense]): 1 SP per normal attack, at 4 SP his next turn is the standing charge — the
+      // official stance (Skill_1_Begin_A 5 s) and thrust (Skill_1_Attack_A, strike at 0.7 s), 3 hits at 1.25 ATK
+      // [src: official enemy_database enemy_1533_stmkgt skills Zantetsuken spCost 4, times 3, atk_scale 1.25]
       battle.on('hit', (ctx) => {
         if (ctx.source !== unit || !ctx.dmg?.isAttack || !ctx.target || ctx.target.side !== 'enemy') return;
         sk.attacks++;
-        if (sk.attacks % ZAN_SP !== 0) return;
-        ctx.dmg.mul *= ZAN_SCALE;
-        for (let i = 1; i < ZAN_TIMES; i++) battle.dealDamage(unit, ctx.target, { amount: unit.s.atk * ZAN_SCALE, type: dmgType, isSkill: true, tags: ['steamKnight', 'zantetsuken'] });
+        if (sk.attacks >= ZAN_SP) sk.zanReady = true;
       }, { owner: unit });
 
       // ---- every landing starts the bunker
@@ -168,6 +181,33 @@ export function steamKnightKit(bb, raw) {
         phaseFx('skStance', { dur: c.stanceAfterLanding, speed: c.stanceAfterLanding > 0 ? CLIP.stanceBeginLen / c.stanceAfterLanding : 1 });
         // castDur: the official Zantetsuken window (its loops run from the stance to the end of the thrust clip) in s
         battle.fx('steamKnight', { id: unit.id, kind: 'stance', x: unit.x, y: unit.y, castDur: c.stanceAfterLanding + CLIP.blowLen + CLIP.blowHit });
+        holdSound(c.stanceAfterLanding);
+      };
+      // the stance clip's own sound event: OnPlayAudio(zan_hold) at 2.5 s of the 5 s Skill_1_Begin_A [src: official
+      // enm_art_17.ab enemy_1533_stmkgt.skel Skill_1_Begin_A events], at the same share of a faster stance
+      const holdSound = (stanceDur) => {
+        const ph = sk.phase;
+        battle.after(stanceDur * (2.5 / CLIP.stanceBeginLen), () => {
+          if (unit.alive && sk.phase === ph) battle.fx('steamKnight', { id: unit.id, kind: 'zanHold', x: unit.x, y: unit.y });
+        }, { owner: unit });
+      };
+
+      // ---- the standing Zantetsuken (his official charge, no dash): stance, then thrust; 3 hits at its strike frame
+      const startZan = (target) => {
+        sk.zanReady = false;
+        sk.attacks = 0;
+        zanning(true);
+        setPhase('zan', { target, zanHit: false });
+        phaseFx('skStance', { dur: CLIP.stanceBeginLen });
+        battle.fx('steamKnight', { id: unit.id, kind: 'stance', x: unit.x, y: unit.y, castDur: CLIP.stanceBeginLen + CLIP.blowLen });
+        holdSound(CLIP.stanceBeginLen);
+      };
+      const zanTarget = () => {
+        const t = sk.target;
+        if (t && t.alive && unit.blocking.includes(t)) return t;
+        let best = unit.blocking.find((e) => e.alive) ?? null, bd = Infinity;
+        if (!best) for (const e of groundFoes(battle, unit)) { const d = hypot(e.x - unit.x, e.y - unit.y); if (d <= 1.5 && d < bd - 1e-9) { bd = d; best = e; } }
+        return best;
       };
 
       const startDash = (target) => {
@@ -182,8 +222,8 @@ export function steamKnightKit(bb, raw) {
           dash.moveAt = sk.clock + (CLIP.blowHit - run);
           phaseFx('skBlow', { dur: CLIP.blowLen });
         } else {
-          phaseFx('skDash', { dr: dir[0], dc: dir[1], target: target.id });
-          battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: dir[0], dc: dir[1] });
+          // (a long run boosts in the held stance pose; its thrust starts 0.7 s before the contact)
+          battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: dir[0], dc: dir[1], target: target.id });
           dash.started = true;
         }
         setPhase('dash', { dash });
@@ -331,7 +371,7 @@ export function steamKnightKit(bb, raw) {
             if (sk.clock < d.moveAt - 1e-9) break;   // still winding up: the boost starts when the thrust is 'run' s from its strike
             if (!d.started) {
               d.started = true;
-              battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: d.dir[0], dc: d.dir[1] });
+              battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: d.dir[0], dc: d.dir[1], target: t.id });
             }
             const along = (t.y - unit.y) * d.dir[0] + (t.x - unit.x) * d.dir[1];
             const remain = Math.max(0, along - 1.0);
@@ -367,6 +407,29 @@ export function steamKnightKit(bb, raw) {
           case 'blow':
             if (sk.t >= CLIP.blowLen - 1e-9) endBunker();
             break;
+          case 'zan': {
+            if (sk.t < CLIP.stanceBeginLen - 1e-9) break;
+            setPhase('zanBlow', { target: sk.target, zanHit: false });
+            phaseFx('skBlow', { dur: CLIP.blowLen });
+            break;
+          }
+          case 'zanBlow': {
+            if (!sk.zanHit && sk.t >= CLIP.blowHit - 1e-9) {
+              sk.zanHit = true;
+              const t = zanTarget();
+              if (t) {
+                for (let i = 0; i < ZAN_TIMES; i++) battle.dealDamage(unit, t, { amount: unit.s.atk * ZAN_SCALE, type: dmgType, isSkill: true, tags: ['steamKnight', 'zantetsuken'] });
+                battle.fx('steamKnight', { id: unit.id, kind: 'zanHit', x: t.x, y: t.y, target: t.id });
+              }
+            }
+            if (sk.t >= CLIP.blowLen - 1e-9) {
+              zanning(false);
+              clearForm();
+              battle.fx('steamKnight', { id: unit.id, kind: 'bunkerEnd', x: unit.x, y: unit.y });
+              setPhase('fight', { target: null });
+            }
+            break;
+          }
           case 'leapUp':
             break;
           default: {   // 'none' / 'fight'
@@ -379,6 +442,8 @@ export function steamKnightKit(bb, raw) {
             refreshKeys();
             if (sk.clock >= sk.leapAt - 1e-9 && has(c.dashSpeed) && startLeap()) break;
             contactBlock();
+            // 4 SP: the standing Zantetsuken on the enemy in front of him (blocked, else the nearest in reach)
+            if (sk.zanReady && !unit.cast) { const t = zanTarget(); if (t) { sk.target = t; startZan(t); break; } }
             if (unit.blocking.length) break;   // blocking: he stays
             stepToward(dt);
           }
