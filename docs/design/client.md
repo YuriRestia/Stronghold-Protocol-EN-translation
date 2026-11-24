@@ -677,6 +677,10 @@ measured 2026-11-23; median art height 3.36 card heights → 2.40, the registere
 registered arts' 0.159) — plus the user's move / zoom on it (`adjust`, `--still-edits`). The full arts are 2048 px
 (`outfit/art2k/`, the user's pick of 2026-11-23: a wide card draws them 1,900–2,650 px wide on a 4K screen).
 The dissolve composes a placed art at its own box (`object-fit: fill`) inside the card.
+(fork, 2026-11-25) A face matched wrongly — a leg, a bag, a pet on the card — is searched again (`--reface`; the user: "Yes, fix
+them"): only inside the official card's window and at the size an official portrait has in the official picture
+(`PORTRAIT_UI`), the portrait turned in 15° steps for an operator drawn falling or leaning. 28 still-only arts were framed
+again; W's chibi outfit, whose portrait is no face crop, keeps its placement.
 (fork, 2026-11-24) **The tall cards' 2D art** (the solo room's card and the result screen's team cards, the official 232 × 458
 window's shape; the user's report: "outfit and e2 static arts of non L2D stuffs aren't calibrated for room, grand alliances,
 solo and likely results screen"): they showed the small portrait picture cut by `object-fit: cover`, so heads, horns and ears

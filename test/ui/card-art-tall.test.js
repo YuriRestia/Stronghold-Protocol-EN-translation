@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { officialRect } from '../../tools/card-art-framing.mjs';
+import { officialRect, turnedFace, PORTRAIT_UI } from '../../tools/card-art-framing.mjs';
 import { unityToCard } from '../../public/js/render/dynillust/framing.js';
 import { cardArtRect } from '../../public/js/ui/dynCards.js';
 
@@ -46,6 +46,31 @@ test('the table: hand-framed (linked) arts have no official box, the others a fi
     assert.ok(L < 116 && L + W > -116 && T < 229 && T + H > -229, `${art}: on the card`);
   }
   assert.ok(n > 300, `${n} official boxes`);
+});
+
+test('turnedFace: the face of a portrait turned clockwise; the head\'s top above it', () => {
+  const up = turnedFace(100, 200, 100, 0);           // the eyes 0.32 down the portrait, the head's top 0.06
+  near(up.x, 100); near(up.y, 182); near(up.top, 156);
+  const right = turnedFace(100, 200, 100, 90);
+  near(right.x, 118); near(right.y, 200); near(right.top, 174);
+  const down = turnedFace(100, 200, 100, 180);
+  near(down.x, 100); near(down.y, 218);
+});
+
+test('the still-only arts\' faces: at a size the official portraits have, inside the official card\'s window', () => {
+  // W's chibi outfit: no face crop in the portrait, kept as it was
+  const none = new Set(['char_1035_wisdel_game_9.webp']);
+  let n = 0;
+  for (const [art, e] of Object.entries(table.stills)) {
+    if (linked.has(art) || !e.official || none.has(art)) continue;
+    n++;
+    const x = e.official[0] + e.face[0] * e.official[2], y = e.official[1] + e.face[1] * e.official[3];
+    assert.ok(Math.abs(x) < 116 + 5 && y > -229 && y < -229 + 0.5 * 458, `${art}: the face at ${x.toFixed(0)}, ${y.toFixed(0)}`);
+    // the portrait's height in UI units (0.26 of it between the eyes and the head's top; 0.73 the card's holder scale)
+    const ui = ((e.face[1] - e.face[2]) / 0.26) * e.official[3] / 0.73;
+    assert.ok(ui > PORTRAIT_UI[0] - 5 && ui < PORTRAIT_UI[1] + 5, `${art}: a portrait of ${ui.toFixed(0)} units`);
+  }
+  assert.ok(n > 400);
 });
 
 test('cardArtRect tall: linked, then official, then the room framing by height; the wide shape ignores official', () => {

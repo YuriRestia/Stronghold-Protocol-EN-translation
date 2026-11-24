@@ -11,7 +11,8 @@
 
 - On the room and Grand Alliance cards, every full art that has no animated illustration (440 of 538) now shows more of the figure and sits higher, like the art of the animated cards. Tall horns or a halo can pass the card's top edge.
 - The 98 arts that belong to an animated illustration stay where they were on those cards.
-- Before: these arts were zoomed in to a bust close-up.
+- Cards that showed a leg, a bag or a pet instead of the operator now show the operator: Hoederer, Leonhardt, Hoshiguma, Raidian, Misery and the reserve operators among others.
+- Before: these arts were zoomed in to a bust close-up, and a few missed the face.
 
 Kind: player
 
@@ -28,4 +29,4 @@ Server cost:
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
 - File sizes measured on the files `data/assets.json` lists today (`outfit/art`); the room and 300-player figures are estimated arithmetic, not a traffic-meter run, and do not count the CDN cache. With the 2048-px set (`outfit/art2k`) listed instead, the art would be about 2 to 3 times larger [src: public/assets/outfit/art2k, median 402,830 and largest 1,247,986 bytes].
-- Cap: one static file per art, cached by the browser; at most eight cards on a screen. `data/card-art-framing.json` grows from 134,711 to 167,271 bytes raw, 23,919 to 31,149 gzip [src: data/card-art-framing.json]. The browser code grows once by under 4 KB raw [src: git diff dev-0.2, public/js, public/css].
+- Cap: one static file per art, cached by the browser; at most eight cards on a screen. `data/card-art-framing.json` grows from 134,711 to 167,248 bytes raw, 23,919 to 31,130 gzip [src: data/card-art-framing.json]. The browser code grows once by under 4 KB raw [src: git diff dev-0.2, public/js, public/css].
