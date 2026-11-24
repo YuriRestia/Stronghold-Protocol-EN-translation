@@ -2215,7 +2215,7 @@ export async function createFieldView(host, options = {}) {
       if (!penHidden) for (const v of penViews.values()) v.update(udt, cam, clock);
       if (leader && !leaderHidden) leader.view.update(udt, cam, clock);
       tiles.update(dt);
-      skFx.frame();
+      skFx.frame(udt);
       fx.update(udt);
       stepClipBounds(clipBoundsBudget(workRaw));   // (fork) a larger share of a slow frame (its own sampling not counted)
       sampledMs = clipBoundsSpentMs();

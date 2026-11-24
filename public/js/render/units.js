@@ -560,7 +560,7 @@ export const FORMS = Object.freeze({
   // held until the dash, Boost_A held while he boosts, the blow Skill_1_Attack_A (2.5 s) and the take-off Skill_2_Begin_A
   // (1.2 s) held while he is away
   enemy_1533_stmkgt: Object.freeze({
-    skDrop: Object.freeze({ change: 'Skill_2_End_A', roles: Object.freeze({}) }),
+    skDrop: Object.freeze({ change: 'Skill_2_End_A', replay: true, roles: Object.freeze({}) }),
     skStance: Object.freeze({ change: 'Skill_1_Begin_A', hold: true, fit: true, roles: Object.freeze({}) }),
     skDash: Object.freeze({ change: 'Boost_A', hold: true, roles: Object.freeze({}) }),
     skBlow: Object.freeze({ change: 'Skill_1_Attack_A', roles: Object.freeze({}) }),
@@ -1015,7 +1015,8 @@ export class UnitView {
     this.destroyed = false;
     // the unit's model form: an enemy's mode, a 傀儡师's 替身 (setForm, FORMS); (fork) an S2 丰川祥子's timbre (piano at first)
     this.form = typeof info.form === 'string' ? info.form : this.prep ? null : oblvnsStartForm(info, this.skillIndex);
-    this._dieForm = null;         // the form it died in (die): a model built while it lies down shows that form's death
+    this._formAt = typeof info.form === 'string' ? nowMs() : 0;   // (fork) when the form began (a `replay` form, see the model build)
+    this._dieForm = null;        // the form it died in (die): a model built while it lies down shows that form's death
 
     // --- display objects
     this.shadow = new P.Sprite(ctx.shadowTex || shadowTexture());
@@ -1282,7 +1283,10 @@ export class UnitView {
       // one lies in the form it died in (a 替身 knocked out: the sim resets the form at once, but the Front model it lies
       // down with facing UP, §22.1, is built a frame later; a model rebuilt while it is down)
       const f = this._formSpec() || (this.alive ? null : this._dieForm);
-      if (f) this.actor.setForm(f.roles);
+      // (fork) a form with `replay` (the Steam Knight's landing) whose model was still loading when it began plays its change
+      // clip from the start now, while it is recent: the model drops in instead of appearing already standing
+      const replay = f && f.replay && this._formAt > 0 && nowMs() - this._formAt < 1400;
+      if (f) this.actor.setForm(f.roles, replay ? f.change : null);
       this._castRoles(true);
       // replay current state (a dead model resumes its Die clip where it would be — a knocked-down one holds its end)
       if (!this.alive) {
@@ -1353,6 +1357,7 @@ export class UnitView {
     if (k && !FORMS[this.info.spine || this.info.defId]?.[k]) return;
     const prev = this._formSpec();
     this.form = k;
+    this._formAt = nowMs();
     this.info.form = k;
     const f = this._formSpec();
     if (!this.actor) return;
@@ -2301,7 +2306,8 @@ export class UnitView {
     if (lungeK) { const q = cam.project(this.x + this.gx + lx, this.y + this.gy + ly, this.z + this.hover + this.lift, LG_P); bx = q.x; by = q.y; }
     this.root.position.set(bx, by);
     this.root.alpha = alpha;
-    this.root.zIndex = unitDepthKey(cam, this.x + this.gx, this.y + this.gy, this.lift, this._planeDepth());
+    // (fork) the Steam Knight ally is drawn over the operators he stands among (the user, 2026-11-24): 30 of the 50 a row is worth
+    this.root.zIndex = unitDepthKey(cam, this.x + this.gx, this.y + this.gy, this.lift, this._planeDepth()) + (this.info.defId === 'enemy_1533_stmkgt' ? 30 : 0);
     // off-screen: nothing to animate or draw (bounds / hit-testing still follow `screen`)
     if (this._cull(bx, by, s, dt)) return;
     const flip = this.modelFlip();
