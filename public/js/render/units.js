@@ -451,8 +451,9 @@ const STATUE = Object.freeze({
 const JAKILL2 = clipSet('C2_Idle', 'C2_Move', 'C2_Die', 'C2_Attack');
 /** A prisoner's 'warning' (mode R) and 'liberty' (mode L) clip sets: the clip-name suffix of each (see the list above). */
 const prisoner = (warn, free) => Object.freeze({
-  warning: Object.freeze({ change: null, roles: clipSet(`Idle${warn}`, `Move${warn}`, `Die${warn}`, `Attack${warn}`) }),
-  liberty: Object.freeze({ change: null, roles: clipSet(`Idle${free}`, `Move${free}`, `Die${free}`, `Attack${free}`) }),
+  // `swing`: a swing already running goes on in the new set's attack clip (UnitView.setForm)
+  warning: Object.freeze({ change: null, swing: true, roles: clipSet(`Idle${warn}`, `Move${warn}`, `Die${warn}`, `Attack${warn}`) }),
+  liberty: Object.freeze({ change: null, swing: true, roles: clipSet(`Idle${free}`, `Move${free}`, `Die${free}`, `Attack${free}`) }),
 });
 const PRISONER = prisoner('2', '');
 const PRISONER_COLOURED = prisoner('_orange', '_red');
@@ -1352,6 +1353,10 @@ export class UnitView {
     const change = f && f.change && !(late > 0 && late >= (this.actor.dur?.(f.change) ?? Infinity)) ? f.change : null;
     if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold);
     else if (prev) this.actor.setForm(null, prev.leave && !(late > 0 && late >= (this.actor.dur?.(prev.leave) ?? Infinity)) ? prev.leave : null);
+    // a swing already running (the freeing attack's own: ON_BEFORE_ATTACK switches the mode before the attack starts, so the
+    // swing must show the new mode's clip, not the old form's) goes on in the new set's attack clip at the same point
+    // [src: official buff_template_holder.ab enemy_liberty_listener[warning]: SwitchMode on event 26 ON_BEFORE_ATTACK]
+    if (f?.swing && this.actor.mode === 'attack' && !change) this.actor.syncFormPose();
   }
 
   // ---- HUD -------------------------------------------------------------------------------------------------
