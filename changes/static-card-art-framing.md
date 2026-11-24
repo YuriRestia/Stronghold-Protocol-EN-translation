@@ -2,16 +2,15 @@
 
 ### Still outfit and Elite 2 art is framed on the solo room and result cards
 
-- The solo room's card and the result screen's team cards now show an operator's full outfit or Elite 2 art framed on the operator's face, inside the same card window the animated illustrations use, instead of the small portrait picture cut by the card. Heads, horns and ears are no longer cut off at the top of the card.
-- It is the same full art the room and Grand Alliance cards already show, placed by one shared framing rule for all of them.
+- The solo room's card and the result screen's team cards now show an operator's full outfit or Elite 2 art, inside the same card window the animated illustrations use, instead of the small portrait picture cut by the card.
 - An operator whose full art cannot be placed, or fails to load, keeps the portrait picture.
 - Before: these cards showed the portrait picture scaled to fill the card, so the framing differed from the animated card beside it.
 
-### Art without an animated illustration is framed like the animated cards
+### Art without an animated illustration shows more of the figure on the room cards
 
-- Every operator and outfit full art that has no animated illustration (440 of 538) now shows the figure in the card, like the animated cards' art the maintainer framed, instead of the bust close-up the earlier rule gave: median art height 3.36 → 2.40 card heights (the linked arts' 2.72), the head's top 0.03 from the card's top (the linked arts' 0.029), the face line 0.38 → 0.157 (the linked arts' 0.159).
-- The room, Grand Alliance, solo room and result cards all read the same framing table, so they change together.
-- The still rule now uses the illustrations' own zoom range (1–1.35) and the linked arts' placement [design values, user OK 2026-11-24: "follow the linked arts framing style", "the art should be raised higher"].
+- On the room and Grand Alliance cards, every full art that has no animated illustration (440 of 538) now shows more of the figure and sits higher, like the art of the animated cards. Tall horns or a halo can pass the card's top edge.
+- The 98 arts that belong to an animated illustration stay where they were on those cards.
+- Before: these arts were zoomed in to a bust close-up.
 
 Kind: player
 
@@ -19,13 +18,13 @@ Server cost:
 
 | Measure | Typical | Worst case |
 |---|---|---|
-| Bandwidth out / in, per player | 0 MB/s extra at the server (client display only; the art is a static file, no socket traffic); one-off file download: co-op 0 MB extra, solo 0.40 MB [src: public/assets/outfit/art2k median 402,830 bytes of 538 files] | 1.25 MB once for one art, 5 MB for four arts with the "best operator of the lineup" result setting [src: public/assets/outfit/art2k largest 1,247,986 bytes of 538 files] |
-| Bandwidth out / in, per room (4 players) | 0 MB extra in a co-op room (the room's wide cards already loaded the same art file) [src: public/js/screens/room.js full / fullPlain] | 5 MB per player, 20 MB for 4 players, once [unverified] |
-| Bandwidth out / in, 300 players | 0 MB/s at the server; 120 MB in one day if all 300 play solo for the first time (0.001 GB/day) [unverified] | 375 MB in a day, 0.4 GB/day, all 300 cold with the largest art; less behind the CDN cache [unverified] |
+| Bandwidth out / in, per player | 0 MB/s of socket traffic; static art downloaded once per art, then cached: solo 0.19 MB (one art) [src: data/assets.json outfits art, median 193,688 bytes of 538 files] | 0.39 MB for one art; 3.2 MB for eight new arts on a Grand Alliance result [src: data/assets.json outfits art, largest 394,498 bytes of 538 files] |
+| Bandwidth out / in, per room (4 players) | at most 4 × 0.19 MB per player, less for art the room cards already loaded [unverified]; an AI seat's art and the "best operator of the lineup" setting are new downloads [unverified] | 4 players × 4 arts × 0.39 MB = 6.3 MB, once [unverified] |
+| Bandwidth out / in, 300 players | 58 MB (0.058 GB/day) if all 300 load one new art in a day [unverified] | 947 MB (0.95 GB/day) if all 300 load eight of the largest art in a day, 0.95 MB/s if within 1000 s [unverified] |
 | Server CPU | 0 % of one core [src: no server code changed] | 0 % |
 | Memory | 0 MB on the server; one decoded image per card in the browser, as the wide cards [src: public/js/ui/dynCards.js CardArt] | 0 MB |
 | Disk | 0 MB/day [src: no server code changed] | 0 MB/day |
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
-- Measured on the shipped files (sizes); the 300-player day figures are estimated arithmetic, file size × players, not a traffic-meter run.
-- Cap: no new traffic channel and no new data file. `data/card-art-framing.json` grows by 539 bytes raw (134,711 → 135,250; 23,919 → 23,364 gzip) [src: data/card-art-framing.json]; the tall framing is computed in the browser from its existing `face` values. The browser code grows once by 7.4 KB raw, 3.4 KB gzip (`shared/cardArtFraming.js` 3,478 bytes raw, 1,618 gzip, plus the lines added in `public/js` 3,954 raw, 1,771 gzip) [src: git diff HEAD, wc -c, gzip -c].
+- File sizes measured on the files `data/assets.json` lists today (`outfit/art`); the room and 300-player figures are estimated arithmetic, not a traffic-meter run, and do not count the CDN cache. With the 2048-px set (`outfit/art2k`) listed instead, they would be about 2 to 3 times larger [src: public/assets/outfit/art2k, median 402,830 and largest 1,247,986 bytes].
+- Cap: one static file per art, cached by the browser; at most eight cards on a screen. `data/card-art-framing.json` grows from 134,711 to 135,250 bytes raw and goes from 23,919 to 23,364 gzip [src: data/card-art-framing.json]. The browser code grows once by 7.6 KB raw, 3.4 KB gzip [src: git diff dev-0.2 HEAD, shared/cardArtFraming.js and public/js, public/css].
