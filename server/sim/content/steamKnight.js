@@ -258,20 +258,15 @@ export function steamKnightKit(bb, raw) {
         charging(false);
         bunker(true);
         battle.releaseBlocked(unit);
-        const dash = { dir, target, travelled: 0, shoved: new Set(), clipAt: 0, moveAt: sk.clock };
-        // A run shorter than the blow clip's wind-up (the strike frame is 0.7 s in) winds up first and boosts for the
-        // last part of it, so the thrust is the impact (the user, 2026-11-24): the clip starts now, the boost starts later.
+        const dash = { dir, target, travelled: 0, shoved: new Set(), clipAt: sk.clock };
+        // He boosts at once and the thrust clip runs with it, started this far into its wind-up so that its strike frame
+        // (0.7 s) is the moment he reaches the target (the user, 2026-11-24: the pile was fully out while he still stood
+        // at the start — never again: the boost and the wind-up share the run, and the extension is the hit). The clip's
+        // OnAttack frame at the hit holds for any run: the lead is the strike frame less the run.
         const along0 = (target.y - unit.y) * dir[0] + (target.x - unit.x) * dir[1];
         const run = Math.max(0, along0 - 1.0) / c0().dashSpeed;
-        if (run < CLIP.blowHit) {
-          dash.clipAt = sk.clock;
-          dash.moveAt = sk.clock + (CLIP.blowHit - run);
-          phaseFx('skBlow', { dur: CLIP.blowLen });
-        } else {
-          // (a long run boosts in the held stance pose; its thrust starts 0.7 s before the contact)
-          battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: dir[0], dc: dir[1], target: target.id });
-          dash.started = true;
-        }
+        phaseFx('skBlow', { dur: CLIP.blowLen, lead: Math.max(0, CLIP.blowHit - run) });
+        battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: dir[0], dc: dir[1], target: target.id });
         setPhase('dash', { dash });
       };
       const c0 = () => cfg();
@@ -461,22 +456,11 @@ export function steamKnightKit(bb, raw) {
               const off = (t.y - unit.y) * d.dir[1] - (t.x - unit.x) * d.dir[0];
               if (al < -0.5 || Math.abs(off) > 1.0) { endBunker(); break; }
             }
-            if (sk.clock < d.moveAt - 1e-9) break;   // still winding up: the boost starts when the thrust is 'run' s from its strike
-            if (!d.started) {
-              d.started = true;
-              battle.fx('steamKnight', { id: unit.id, kind: 'dashStart', x: unit.x, y: unit.y, dr: d.dir[0], dc: d.dir[1], target: t.id });
-            }
             const along = (t.y - unit.y) * d.dir[0] + (t.x - unit.x) * d.dir[1];
             const remain = Math.max(0, along - 1.0);
-            // start the blow clip so that its strike frame lands on the arrival (a short run starts it at once)
-            if (!d.clipAt && remain <= c.dashSpeed * CLIP.blowHit + 1e-9) {
-              d.clipAt = sk.clock;
-              phaseFx('skBlow', { dur: CLIP.blowLen });
-            }
-            if (remain <= 1e-9) {
-              if (sk.clock - d.clipAt >= CLIP.blowHit - 1e-9) impact();   // else he waits for the strike frame
-              break;
-            }
+            // he reaches the pile's reach: the blow lands now — the thrust clip was started (with its lead) so that its
+            // strike frame is this moment, never a pause at the start (the user, 2026-11-24)
+            if (remain <= 1e-9) { impact(); break; }
             // (fork, 2026-11-24) bounded by the distance to the target, not by `remain`: a target that walks away
             // kept `remain` at one tick's step, so the boost matched its walk and trailed it forever (the user saw him
             // "slowly sliding back" from tick 2538). Bounding by `along` always closes in; the impact fires at 1.0

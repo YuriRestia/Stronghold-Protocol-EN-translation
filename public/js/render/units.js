@@ -1370,7 +1370,10 @@ export class UnitView {
     // an fx handed out late (render/app.js: a stall, a hidden tab) skips a change clip that would already have ended
     const late = fx && Number(fx.late) > 0 ? Number(fx.late) : 0;
     const change = f && f.change && !(late > 0 && late >= (this.actor.dur?.(f.change) ?? Infinity)) ? f.change : null;
-    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold, f.fit && dur > 0 ? dur : 0, f.lead && !late ? f.lead : 0);
+    // the sim may time the change clip itself (the Steam Knight's blow sends `lead`: the clip starts this far in, so its
+    // strike frame is the sim's hit for that run); a form's own `lead` is the fallback
+    const lead = fx && Number(fx.lead) > 0 ? Number(fx.lead) : f?.lead && !late ? f.lead : 0;
+    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold, f.fit && dur > 0 ? dur : 0, lead);
     else if (prev) this.actor.setForm(null, prev.leave && !(late > 0 && late >= (this.actor.dur?.(prev.leave) ?? Infinity)) ? prev.leave : null);
     // a swing already running (the freeing attack's own: ON_BEFORE_ATTACK switches the mode before the attack starts, so the
     // swing must show the new mode's clip, not the old form's) goes on in the new set's attack clip at the same point

@@ -42,9 +42,10 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
   const held = new Map();      // knight id → { keys: Set, hs: [] } the Zantetsuken loops on him until its cast ends
   const jets = new Map();      // knight id → { v, next } boosting: a steam puff left behind him every JET_EVERY s
   const puffs = [];            // { h, left } puffs cut after JET_LIFE s (the vent is a loop; at most ~JET_LIFE / JET_EVERY live)
-  // looks, not rules: a puff every 0.03 battle s, each cut after 1.5 s (its steam needs ~0.4 s to billow out); a boost
-  // is short, so the trail is laid denser than a longer one would need (the user, 2026-11-24: no steam behind him)
-  const JET_EVERY = 0.03, JET_LIFE = 1.5;
+  // looks, not rules: a wake every 0.09 battle s, cut after 0.9 s (its steam needs ~0.4 s to billow out). The wake is the
+  // take-off's ground blast left behind him — two overlapping instances and a procedural puff, because one prefab alone
+  // reads as a thin ring on his own body, not a trail (the user, 2026-11-24)
+  const JET_EVERY = 0.09, JET_LIFE = 0.9;
   let preloaded = false;
 
   /** Start official loops on his mount points, held until stopHeld; false when none could play. */
@@ -76,10 +77,10 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
     try { preload?.(STEAM_KNIGHT_FX_KEYS.slice()); } catch { /* the procedural look alone */ }
   };
   const has = (key) => !!(ofx?.active && ofx.lib.has(key));
-  /** An official effect at a board point; false when it cannot play (the caller falls back to the procedural look). */
+  /** An official effect at a board point; null when it cannot play (the caller falls back to the procedural look). */
   const official = (key, x, y, opts = {}) => {
-    if (!has(key)) return false;
-    return !!ofx.spawn(key, { pos: [x - 10, y - 9, 0], groundZ: 0 }, { important: true, ...opts });
+    if (!has(key)) return null;
+    return ofx.spawn(key, { pos: [x - 10, y - 9, 0], groundZ: 0 }, { important: true, ...opts }) || null;
   };
   const proj = (x, y, z = 0) => fx._proj(x, y, z);
 
@@ -160,7 +161,7 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
           // back vent (start_01: steam out behind him) left along his path while he boosts (frame)
           holdOn(id, v, ['stmkgt_skill_01_start_weapon_01', 'stmkgt_skill_01_start_weapon_02']);
           if (v) wiring.playOn?.('stmkgt_skill_02_begin_02', v, { important: true });
-          if (v && id != null) jets.set(id, { v, next: 0 });
+          if (v && id != null) jets.set(id, { v, next: 0, dr: Number(d.dr) || 0, dc: Number(d.dc) || 0 });
           break;
         }
         case 'zanHit': {
@@ -218,17 +219,23 @@ export function createSteamKnightFx({ fx, ofx, wiring, views, preload, audio, sh
         try { h.stop?.(); } catch { /* gone */ }
         steam.delete(id);
       }
-      for (const [id, j] of jets) {
+      for (const [, j] of jets) {
         j.next -= step;
         if (j.next > 0) continue;
         j.next = JET_EVERY;
-        const h = wiring.playOn?.('stmkgt_skill_01_start_01', j.v, { important: true });
-        if (h) puffs.push({ h, left: JET_LIFE });
-        // every second puff, the take-off's ground blast too: the boost's thrust kicking the steam off the ground
-        if ((j.n = (j.n || 0) + 1) % 2 === 1) {
-          const g = wiring.playOn?.('stmkgt_skill_02_begin_02', j.v, { important: true });
+        // the wake: ground blasts left behind him along his path (fixed points, so they trail), two overlapping for body
+        const x = (Number(j.v?.x) || 0) - j.dc * 0.8, y = (Number(j.v?.y) || 0) - j.dr * 0.8;
+        for (const [ox, oy] of [[0, 0], [j.dc * 0.3, j.dr * 0.3]]) {
+          const g = official('stmkgt_skill_02_begin_02', x + ox, y + oy);
           if (g) puffs.push({ h: g, left: JET_LIFE });
         }
+        // a white procedural puff at the same point: the guarantee that the plume reads at any tier (the prefab's steam is
+        // low and thin at ground level)
+        const p = proj(x - j.dc * 0.1, y - j.dr * 0.1, 0.35);
+        fx.burst(p.x, p.y, p.s, 10, STEAM, { speed: 1.8, up: 0.8, life: 0.8, size: 1.0 });
+        // and the stance's back vent on his own body, a short puff behind the shoulders
+        const h = wiring.playOn?.('stmkgt_skill_01_start_01', j.v, { important: true });
+        if (h) puffs.push({ h, left: JET_LIFE });
       }
       for (let i = puffs.length - 1; i >= 0; i--) {
         if ((puffs[i].left -= step) > 0) continue;
