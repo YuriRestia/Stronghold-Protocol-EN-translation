@@ -53,6 +53,38 @@
         "y": -2.561,
         "width": 577.5,
         "height": 511.504
+      },
+      "extents": {
+        "Attack": [
+          -397,
+          -579,
+          327,
+          163
+        ],
+        "Default": [
+          -309,
+          -505,
+          311,
+          51
+        ],
+        "Die": [
+          -443,
+          -508,
+          316,
+          250
+        ],
+        "Idle": [
+          -320,
+          -510,
+          328,
+          89
+        ],
+        "Move": [
+          -312,
+          -530,
+          313,
+          77
+        ]
       }
     },
     "enemy_1249_lysdb": {
@@ -107,6 +139,38 @@
         "y": -2.443,
         "width": 284.16,
         "height": 404.5
+      },
+      "extents": {
+        "Attack": [
+          -168,
+          -420,
+          249,
+          8
+        ],
+        "Default": [
+          -134,
+          -398,
+          113,
+          3
+        ],
+        "Die": [
+          -182,
+          -406,
+          142,
+          16
+        ],
+        "Idle": [
+          -142,
+          -400,
+          113,
+          3
+        ],
+        "Move": [
+          -131,
+          -420,
+          120,
+          9
+        ]
       }
     },
     "enemy_1254_lypa": {
@@ -166,6 +230,44 @@
         "y": -2.595,
         "width": 291.5,
         "height": 464.244
+      },
+      "extents": {
+        "Attack_A": [
+          -170,
+          -469,
+          204,
+          3
+        ],
+        "Attack_B": [
+          -188,
+          -469,
+          196,
+          3
+        ],
+        "Default": [
+          -164,
+          -469,
+          140,
+          3
+        ],
+        "Die": [
+          -208,
+          -482,
+          167,
+          3
+        ],
+        "Idle": [
+          -167,
+          -469,
+          140,
+          3
+        ],
+        "Move": [
+          -168,
+          -465,
+          177,
+          3
+        ]
       }
     },
     "enemy_1275_dwlock": {
@@ -222,6 +324,56 @@
         "y": -1.315,
         "width": 444.933,
         "height": 503.495
+      },
+      "extents": {
+        "Attack": [
+          -276,
+          -546,
+          334,
+          2
+        ],
+        "Default": [
+          -209,
+          -500,
+          236,
+          2
+        ],
+        "Die": [
+          -281,
+          -511,
+          352,
+          28
+        ],
+        "Idle": [
+          -223,
+          -501,
+          248,
+          2
+        ],
+        "Move": [
+          -231,
+          -521,
+          221,
+          6
+        ],
+        "Skill_Begin": [
+          -275,
+          -688,
+          358,
+          2
+        ],
+        "Skill_End": [
+          -261,
+          -681,
+          358,
+          14
+        ],
+        "Skill_Loop": [
+          -242,
+          -488,
+          366,
+          1
+        ]
       }
     },
     "enemy_1305_mhslim": {
@@ -448,6 +600,38 @@
         "y": -0.758,
         "width": 267.5,
         "height": 387.811
+      },
+      "extents": {
+        "Attack": [
+          -135,
+          -403,
+          192,
+          23
+        ],
+        "Default": [
+          -129,
+          -386,
+          133,
+          1
+        ],
+        "Die": [
+          -184,
+          -392,
+          172,
+          90
+        ],
+        "Idle": [
+          -133,
+          -394,
+          133,
+          1
+        ],
+        "Move": [
+          -140,
+          -394,
+          133,
+          5
+        ]
       }
     },
     "enemy_1376_ltndru": {
@@ -502,6 +686,262 @@
         "y": -8.293,
         "width": 410.5,
         "height": 406
+      },
+      "extents": {
+        "Attack": [
+          -202,
+          -405,
+          232,
+          23
+        ],
+        "Default": [
+          -198,
+          -397,
+          217,
+          9
+        ],
+        "Die": [
+          -198,
+          -406,
+          277,
+          117
+        ],
+        "Idle": [
+          -198,
+          -397,
+          222,
+          18
+        ],
+        "Move": [
+          -198,
+          -403,
+          223,
+          10
+        ]
+      }
+    },
+    "enemy_1533_stmkgt": {
+      "skel": "enemy_1533_stmkgt.skel",
+      "atlas": "enemy_1533_stmkgt.atlas",
+      "textures": [
+        "enemy_1533_stmkgt.png"
+      ],
+      "pma": false,
+      "anims": {
+        "idle": "Idle_A",
+        "deploy": "Idle_A",
+        "attack": {
+          "begin": null,
+          "loop": "Attack_A",
+          "end": null,
+          "via": "attackAny"
+        },
+        "attackDown": null,
+        "skill": {
+          "begin": null,
+          "loop": "Skill_1_Attack_A",
+          "end": null,
+          "index": 0,
+          "idle": null
+        },
+        "die": "Die_A",
+        "move": {
+          "begin": null,
+          "loop": "Move_A",
+          "end": null
+        },
+        "stun": null,
+        "skills": {
+          "0": {
+            "begin": null,
+            "loop": "Skill_1_Attack_A",
+            "end": null,
+            "index": 0,
+            "idle": null
+          },
+          "1": {
+            "begin": null,
+            "loop": "Skill_2_Begin_A",
+            "end": null,
+            "index": 1,
+            "idle": null
+          }
+        }
+      },
+      "animations": {
+        "Attack_A": 2,
+        "Attack_B": 2,
+        "Boost_A": 1,
+        "Default_A": 0,
+        "Default_B": 0,
+        "Die_A": 8,
+        "Die_B": 3,
+        "Idle_A": 2,
+        "Idle_B": 1.5,
+        "Move_A": 2,
+        "Move_B": 1.5,
+        "Skill_1_Attack_A": 2.5,
+        "Skill_1_Attack_B": 2.5,
+        "Skill_1_Begin_A": 5,
+        "Skill_1_Begin_B": 5,
+        "Skill_2_Begin_A": 1.2,
+        "Skill_2_Begin_B": 1.2,
+        "Skill_2_End_A": 1.5,
+        "Skill_2_End_B": 1.5,
+        "Stun_A": 1,
+        "Stun_B": 1
+      },
+      "events": [
+        "OnAttack",
+        "OnPlayAudio"
+      ],
+      "hits": {
+        "Attack_A": [
+          1.133
+        ],
+        "Attack_B": [
+          1.133
+        ],
+        "Skill_1_Attack_A": [
+          0.7
+        ],
+        "Skill_1_Attack_B": [
+          0.7
+        ]
+      },
+      "bounds": {
+        "x": -280.07,
+        "y": -1.662,
+        "width": 559,
+        "height": 679
+      },
+      "extents": {
+        "Attack_A": [
+          -359,
+          -836,
+          525,
+          64
+        ],
+        "Attack_B": [
+          -362,
+          -836,
+          526,
+          65
+        ],
+        "Boost_A": [
+          -324,
+          -668,
+          305,
+          25
+        ],
+        "Default_A": [
+          -293,
+          -656,
+          305,
+          12
+        ],
+        "Default_B": [
+          -272,
+          -676,
+          294,
+          2
+        ],
+        "Die_A": [
+          -362,
+          -692,
+          334,
+          32
+        ],
+        "Die_B": [
+          -372,
+          -702,
+          555,
+          105
+        ],
+        "Idle_A": [
+          -298,
+          -656,
+          312,
+          18
+        ],
+        "Idle_B": [
+          -272,
+          -676,
+          294,
+          2
+        ],
+        "Move_A": [
+          -276,
+          -670,
+          311,
+          18
+        ],
+        "Move_B": [
+          -276,
+          -677,
+          293,
+          12
+        ],
+        "Skill_1_Attack_A": [
+          -410,
+          -665,
+          615,
+          35
+        ],
+        "Skill_1_Attack_B": [
+          -411,
+          -676,
+          619,
+          39
+        ],
+        "Skill_1_Begin_A": [
+          -403,
+          -656,
+          377,
+          31
+        ],
+        "Skill_1_Begin_B": [
+          -403,
+          -676,
+          377,
+          31
+        ],
+        "Skill_2_Begin_A": [
+          -300,
+          -3641,
+          308,
+          16
+        ],
+        "Skill_2_Begin_B": [
+          -300,
+          -3641,
+          294,
+          8
+        ],
+        "Skill_2_End_A": [
+          -293,
+          -5393,
+          328,
+          42
+        ],
+        "Skill_2_End_B": [
+          -274,
+          -5476,
+          303,
+          27
+        ],
+        "Stun_A": [
+          -293,
+          -656,
+          387,
+          32
+        ],
+        "Stun_B": [
+          -272,
+          -676,
+          388,
+          32
+        ]
       }
     }
   }

@@ -306,7 +306,8 @@ JOBS = [
 # when the group lists every file of data/assets.json enemies[id].spineLocal (whose metadata
 # tools/assets/local-enemy-spines.json keeps: `node tools/fetch-assets.mjs --local-spines` after a game update).
 ENEMY_SPINES = ['enemy_1201_sfzhi', 'enemy_1249_lysdb', 'enemy_1254_lypa', 'enemy_1275_dwlock',
-                'enemy_1305_mhslim', 'enemy_1305_mhslim_2', 'enemy_1373_ltnhor_2', 'enemy_1376_ltndru']
+                'enemy_1305_mhslim', 'enemy_1305_mhslim_2', 'enemy_1373_ltnhor_2', 'enemy_1376_ltndru',
+                'enemy_1533_stmkgt']
 ENEMY_ART = 'refs/arts/enm_art_*.ab'
 ENEMY_SPINE_SUB = 'spine/enemy'
 

@@ -844,6 +844,9 @@ function tokenVariant(ctx, tokenId, char, { phase, level, skillIndex, skillLevel
   };
 }
 
+/** (fork) The Steam Knight boss, ally slice: enemy_database key (EN 'The Last Steam Knight', handbook BOSS). */
+const STEAM_KNIGHT_KEY = 'enemy_1533_stmkgt';
+
 /** Convert an enemy_database record (already merged) into ally-token stats (used for 炎佑). */
 function enemyAsTokenStats(e) {
   return {
@@ -1079,6 +1082,22 @@ function buildTokens(ctx, chess, tokenOwners, enemies) {
       assets: { avatar: loon.iconId, spine: loon.spine, isEnemyModel: true },
     };
   } else warn('炎佑 enemy_9012_acloon missing from enemies');
+
+  // (fork) 'The Last Steam Knight' as the Victoria bond's ally (dev sandbox slice, crew-docs/steam-knight-slice-design.md):
+  // the official enemy record (base level, first form) as an allied ground token with its enemy skeleton.
+  const knight = enemies[STEAM_KNIGHT_KEY];
+  if (knight) {
+    out[STEAM_KNIGHT_KEY] = {
+      tokenId: STEAM_KNIGHT_KEY, kind: 'bondSummon', bondId: 'victoriaShip', name: knight.name, appellation: null,
+      desc: knight.desc ?? null, descRaw: null, profession: 'TOKEN', subProfessionId: null, position: 'MELEE', motion: knight.stats.motion,
+      displayType: null, placeable: false, ownerRange: false, owners: [],
+      stats: { ...enemyAsTokenStats(knight), blockCnt: 1, deployLimit: 1 }, rangeGrid: [[0, 0]], dmgType: knight.stats.dmgType, attackKind: 'melee',
+      projectile: null, canHitFly: false, skill: null,
+      skills: knight.skills, talents: knight.talents, deployLimit: 1, count: 1,
+      abnormal: [], variants: {},
+      assets: { avatar: knight.iconId, spine: knight.spine, isEnemyModel: true },
+    };
+  } else warn(`${STEAM_KNIGHT_KEY} missing from enemies`);
 
   // Band map characters (auto_chess_change_map in aceffect_band_61): read from any stage predefine.
   const mapChars = new Map();
@@ -1550,6 +1569,8 @@ function collectEnemyKeys(ctx) {
   // actions, research 08 §5).
   const direct = new Set(keys);
   refs0.forEach(add);
+  // (fork) the Steam Knight ally slice (docs/design steam-knight): never a wave enemy, a token of the Victoria bond
+  add(STEAM_KNIGHT_KEY);
   // Transitive closure: summons & blackboard references of included enemies.
   const queue = [...keys];
   while (queue.length) {
