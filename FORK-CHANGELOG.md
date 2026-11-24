@@ -5,6 +5,170 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-11-24
+
+### Still outfit and Elite 2 art uses the official framing on the solo room and result cards
+
+- The solo room's card and the result screen's team cards now show an operator's full outfit or Elite 2 art where the official client places it on its own result card, instead of the small portrait picture cut by the card.
+- The 98 arts that belong to an animated illustration sit where their animation draws.
+- An operator whose full art cannot be placed, or fails to load, keeps the portrait picture.
+- Before: these cards showed the portrait picture scaled to fill the card, so the framing differed from the animated card beside it.
+
+### Art without an animated illustration shows more of the figure on the room cards
+
+- On the room and Grand Alliance cards, every full art that has no animated illustration (440 of 538) now shows more of the figure and sits higher, like the art of the animated cards. Tall horns or a halo can pass the card's top edge.
+- The 98 arts that belong to an animated illustration stay where they were on those cards.
+- Cards that missed the operator's face now show it, such as Hoederer's, Leonhardt's and Hoshiguma's Elite 2 art.
+- Before: these arts were zoomed in to a bust close-up, and a few missed the face.
+
+### Live2D card art is an optional preload item
+
+- Settings ▸ Preload Assets has a new row, "Live2D Card Art", for the animated card illustrations. It is unticked by default; tick it to save all 14,524 files (about 616 MB) in this browser so the cards never wait for a download. Untick it and use its own "Remove Unticked Live2D Card Art" button to delete them again.
+- Players who preloaded before are not asked for anything new: the row stays unticked until they tick it.
+- Import zip takes a second zip, built with `npm run package:preload -- --live2d`, for hosts who share the art somewhere else; the standard preload zip does not hold these files.
+- Before: the Live2D files were left out of the preload entirely and always downloaded when a card showed.
+
+### Corrosion works on bosses
+
+- Final Assault and Hidden Core bosses now take Corrosion like every other Elemental Injury: the bar fills to 2000 and bursts for 5000 Elemental damage and a permanent, stacking DEF -120.
+- Clementia's third skill now bombs a boss whose Corrosion bursts, and Thumpy's and Muelsyse's Corrosion effects work on bosses too.
+- Before: bosses ignored Corrosion completely, a rule from a loading tip that only the Chinese server's Season 2 Part 1 had. Boss HP is unchanged.
+
+### A freed prisoner no longer swings in its old colour
+
+- The attack that frees a prisoner now shows the freed (red) look, and the attack that starts the warning shows the orange look. The swing already running switches to the new look's attack clip at the same point instead of finishing in the old one.
+- Before: the orange attack clip kept playing for over a second after a prisoner was freed.
+
+### The result screen no longer waits when no animated illustrations are installed
+
+- A player whose browser has no animated operator illustrations now gets the result screen at once, with the usual still art on the cards.
+- Before: the result screen still started the illustration renderer and its background workers, and could sit behind the black cover waiting on files that were never there.
+
+### Fortress operators raise their cannon for the first shot too
+
+- Ashlock and Horn now play their cannon pose, with the shell leaving the raised barrel, from their first ranged attack: the first one used the melee pose and the shell left at their feet.
+
+### The old "leaders take no Corrosion" hint is gone
+
+- Season 2 Part 1 rooms no longer show the loading tip that enemy leaders take no Corrosion in the Final Assault: they do now, in every version.
+- Every other tip stays.
+
+### Hidden Core OpFor: Gun: its attack timing follows the official client
+
+- A hit now counts for its attack speed as its shot lands, not as it is fired.
+- An operator stepping into one of its beams to the carts counts as a hit for its attack speed, each time it steps in;
+  the link to the cart itself does not.
+- A cast that is not its normal attack (the opening beams, the cart call) restarts its attack timer for a full period, and
+  a change of attack speed keeps the timer's progress instead of restarting it. So its first shot comes later than before.
+
+### Hidden Core OpFor: Gun: calling the carts resets its attack speed
+
+- When the gun calls its carts it now stops shooting and stands for the 5 s of the call, loses the attack speed it built
+  up, and then walks on between its next shots, so it can pick another target, as in the official game.
+
+- Before: it kept shooting through its own call at full attack speed, and could stand forever on an operator it could not
+  kill.
+- The next call comes 45 s after the last one ended, not 45 s after it began.
+- The gun plays its own calling animation during the call.
+
+### Room labels fit small windows
+
+- In small windows with large text, the empty seats' "Add AI Teammate" button is no longer cut off, and the ready word leaves the name plate on windows up to 600 px tall, as on phones (the check box still shows it). AI teammates' plates show the robot icon there without the words.
+- With large text in a window up to 1020 px wide, or extra-large text up to 1100 px, the room chat folds to its button, so it no longer covers the difficulty pill.
+
+### The update news title keeps its version number on one line
+
+- A title such as "Update 0.3.4-2" no longer breaks inside the version number in a small window with extra-large text.
+
+## 2026-11-23
+
+### Animated cards talk in the room and the Grand Alliance room
+
+- Now and then, one operator whose card is animated says one of their official home-screen lines: a Talk line or the Idle line. A line comes only after two to three minutes of quiet, never while another voice plays, and a click, tap or key press (typing in chat too) starts the quiet again, like the official home screen's idle line. The cards take turns, and one card speaks at most once every five minutes.
+- A player who joins with an animated card says Appointed as Squad Leader, a Deployment line or their Greeting as their card comes alive. When several players join one after another, each says about two words before the next one talks over them, and the last one finishes their line.
+- The lines follow your voice language, the per-operator voice choice and the outfit's own voice. Nothing plays with the voice muted or at zero, and only cards that are animated on your screen speak.
+- The lines are downloaded only when they play, and Preload Assets includes them with your voice pack.
+
+### Animated room cards: an official home background behind each illustration
+
+- In a Team Simulation room and the Grand Alliance room, each animated card now shows one of the game's own home screen backgrounds behind its operator, chosen to fit the outfit or the operator's faction (a beach for summer outfits, the Sui siblings' green fields, Laterano's clear sky, and so on). Where an illustration's scene ends before the wide card does, the background fills the rest instead of the card's dark back.
+- The illustration and its still picture cast a soft shadow onto the background, so a scene's torn edge sits on it instead of being cut off.
+- The still picture a card shows before its animation starts, or with animated illustrations turned off, has the same background, and the switch to the animation keeps it.
+- Before: the card's dark back showed through wherever a scene ended inside the card.
+
+### Live2D Quality setting: Auto, Half or Full
+
+- A new Live2D Quality row under Animated Illustrations in Settings picks the art resolution of the animated cards in the room, the Grand Alliance room and the result screen.
+- Auto (the default) works as before: half-resolution art while the cards are drawn small on screen, full-resolution art when they are large. Half always uses half-resolution art; Full always uses full-resolution art, which is sharper but uses more GPU memory and work.
+- A change applies at once: the cards reload at the new resolution without reloading the page.
+
+### Particles start when the game starts them
+
+- Official effects: a particle now starts at the exact moment the game's engine would start it within a frame, not at
+  the frame's end, and one born just before an effect loops lives through the rest of that frame as in the game.
+  Effects that keep a fixed number of particles alive no longer blink out for a moment (or, in slowed effects, for
+  several seconds) when one particle is replaced by the next.
+- Animated illustrations: Nightingale's "Iakhu of Flows" gold ring and gold bars no longer vanish for a second or more
+  at a time; the same dropouts are gone from 27 other animated illustrations (glows, sparks, butterflies, leaves,
+  stars and light beams), among them Exusiai the New Covenant's Elite 2 art, Logos' "Radiant Serenity", Civilight Eterna's
+  "Condolence" and Lin's "Heavenly Mirage".
+
+### Result cards are either animated or a picture for their whole entrance
+
+- On the result screen, each card now falls in either already animated or as its still picture, and stays that way. Before, a card could fall in showing its picture and switch to the animation partway through.
+
+### The room and Grand Alliance screens fit phones
+
+- On a phone held sideways, the room and the Grand Alliance room keep the PC layout, scaled to the screen: the animated cards fill the space between the top bar and the footer, and their name plates stay readable.
+- In a 4-player room on a phone, the four cards stand side by side as tall cards, so the whole operator shows and the screen's sides are no longer empty.
+- A name plate on a phone shows the player's name, the ready mark and the buttons; the ready word, the seat number and, in a Grand Alliance room, the other players' profile icons give way to the name. The plate's buttons are easier to tap.
+- A Grand Alliance squad's name and ready count stand beside its row of cards, so the cards get the height. The footer's lines sit side by side, and the chat button shows only its icon and unread count.
+- On tablets and small windows, the plate text no longer shrinks below a readable size. The PC screens are unchanged.
+- Before: on a phone the cards shrank to thumbnails, a card's name was squeezed out, and the Grand Alliance plates ran into each other.
+
+### Effects pick the same sprites as the game
+
+- Official effects: a particle whose picture is picked at random from a sprite sheet now gets the pick the game's
+  engine gives it, so an effect with a fixed seed shows the same pictures, in the same order, as in the game.
+- Animated illustrations: the balloons of Texas the Omertosa's "Il Segreto Della Notte" now come up in the game's
+  colours and order instead of a random mix of blue, purple and orange; 66 other animated illustrations pick their
+  sprites the game's way too.
+
+## 2026-11-22
+
+### Animated operator illustrations on the result, room and Grand Alliance cards
+
+- The cards on the result screen, in the room and in the Grand Alliance room now play the operators' official animated illustrations, with their effects and backgrounds, framed as on the official end-of-match card. An operator without one keeps its picture.
+- They load only after the last battle of a match is over. The result screen waits for them for at most 3 seconds after the settlement pause and opens as soon as they are ready; a card that is still loading shows its picture and switches when ready.
+- Before: every card showed a still picture.
+
+### Wide room cards
+
+- In a Team Simulation room the four cards are now wide windows onto the operators' illustrations, two by two; in the Grand Alliance room each squad has a row of four wide cards under its name and its ready count.
+- Nothing covers the art any more: the ready state, the buttons and the seat number sit in the name plate under each card. Your own card has a mint ring around it, and the host's card a crown on its top edge.
+- Each card is framed on its operator's face, zoomed in where the scene would leave the card's edges bare, so no head is cut off.
+- Until its animation starts, and for operators without one, a card shows the operator's official full art in place of the small portrait: exactly where the animation will draw, or framed on the face the same way.
+- Before: tall cards with the host tag, the operator's name and the ready state over the art.
+
+### Result cards enter as in the official client
+
+- Each result card now plays the official entrance, one card after another: it fades in, the operator drops into place, the name card slides up, and a cleared card gets the light beam, the teal frame and strip and the colour wash (a failed one the grey frame and strip), over the official card background.
+- Before: the cards faded in with a simple animation of our own.
+
+### New settings: Animated Illustrations and Result Card Art
+
+- Settings → Animated Illustrations: **Off**, **Mine Only** (default on phones) or **Everyone** (default on PC).
+- Settings → Result Card Art: each result card shows the doctor's **Card Operator** in their outfit, or the **Best Unit** of their final lineup.
+
+### Room cards switch to the animated illustrations together, with the official card dissolve
+
+- In the room and the Grand Alliance room, every card keeps its picture until all the cards' animated illustrations are ready. They then start playing behind the pictures, and once the animation runs smoothly, the pictures dissolve away one card after another in quick succession: the pictures dim, then one thin white line in a mint rim sweeps each picture away in about a third of a second, leaving the animated illustration under a faint mint glow that fades.
+- A card whose illustration fails keeps its picture and does not hold the others back. On a slow connection the cards wait for the slowest one and then switch together, however long that takes, never one by one. Only a download that stops completely (nothing arrives for 5 seconds) is given up: that card keeps its picture until the room is opened again, and the others switch without it. A player who sits down later, or a changed outfit, still switches on its own.
+- While the animated cards load, the room no longer stutters: the switch effect is prepared and drawn off the page's own thread where the browser allows it.
+- On the result screen, each card's one-time entrance now waits for its animated illustration and plays with it, instead of starting with the picture and switching later. The room cards' illustrations are kept through the match for this, so they usually show at once. When they still need to load after the end-of-match pause, the screen fades to black with a small loading sign and the result screen comes up only when they are ready, never half-built. The black screen lasts at most about 8 seconds after the match ends, even if an animation never starts.
+- On a computer where the animations never run smoothly, the cards keep their pictures instead of showing stuttering animations.
+- Before: each card switched on its own as soon as it was ready, with a short fade.
+
 ## 2026-11-15
 
 ### Big battles keep full animation longer, and your own operators keep it longest
