@@ -28,7 +28,9 @@ const P = new URLSearchParams(location.search);
 // &main: the cards drawn on the page's own thread, not in Workers (render/dynillust/index.js __dynMainThread)
 if (P.has('main')) globalThis.__dynMainThread = true;
 const SCREEN =['result', 'room', 'ga'].includes(P.get('screen')) ? P.get('screen') : 'result';
-const PER = SCREEN === 'ga' ? 8 : 4;
+// &solo (room): the solo room's one tall card (room.mode 'solo'), one operator a page
+const SOLO = SCREEN === 'room' && P.has('solo');
+const PER = SCREEN === 'ga' ? 8 : SOLO ? 1 : 4;
 const DEVICE = P.get('device') === 'phone' ? 'phone' : 'pc';
 const FRAME = P.has('frame');
 const SLOW = Math.max(0, Number(P.get('slow')) || 0); // MB/s, 0 = the connection as it is
@@ -186,7 +188,7 @@ function nameOf(e) {
 
 function fakeRoom(group, ids) {
   return {
-    code: 'REVIEW', hostId: ids[0], mode: 'coop', difficulty: 'HARD', inMatch: false, ...(SCREEN === 'ga' ? { capacity: 8 } : {}),
+    code: 'REVIEW', hostId: ids[0], mode: SOLO ? 'solo' : 'coop', difficulty: 'HARD', inMatch: false, ...(SCREEN === 'ga' ? { capacity: 8 } : {}),
     seats: group.map((e, i) => ({
       seat: i, playerId: ids[i], name: review.names[i], isBot: false, ready: true, connected: true, card: e.charId,
       outfits: e.skinId === `${e.charId}#2` ? {} : { [e.charId]: e.skinId },

@@ -36,7 +36,6 @@ import { seatOperator, cardContext, cardOperators, CARD_KEY, cardStore } from '.
 import { whenScreenSettled } from '../loadLater.js';
 import { uiUrl } from './assetUrls.js';
 import * as stub from './dynStub.js';
-
 // ---- 设置「动态立绘」 (D7) ------------------------------------------------------------------------------------------
 
 /** The modes a card can resolve to. */
@@ -295,7 +294,7 @@ export function loadCardArtFraming() {
     // to still link the values since the mismatched ones are the exception")
     const m = new Map();
     const sep = new Set(Array.isArray(j?.separate) ? j.separate : []);
-    for (const [art, e] of Object.entries(j?.stills || {})) if (Array.isArray(e?.rect)) m.set(art, { art, own: e.rect, adjust: e.adjust || null, reg: null, key: null, separate: true });
+    for (const [art, e] of Object.entries(j?.stills || {})) if (Array.isArray(e?.rect)) m.set(art, { art, own: e.rect, official: Array.isArray(e.official) ? e.official : null, adjust: e.adjust || null, reg: null, key: null, separate: true });
     for (const [key, e] of Object.entries(j?.registered || {})) {
       if (!e?.art || !Array.isArray(e.rect)) continue;
       m.set(e.art, { ...(m.get(e.art) || { art: e.art, own: null }), reg: e.rect, key, separate: sep.has(key) });
@@ -311,8 +310,9 @@ export function cardArtEntry(src) {
 }
 /** The full art's box on a w × h card in % of the card ({ left, top, width, height }): the entry's box, then its
  * illustration's zoom about (fx, fy) of the card. */
-export function cardArtRect(entry, w, h) {
+export function cardArtRect(entry, w, h, shape = 'wide') {
   if (!entry || !(w > 0 && h > 0)) return null;
+  if (shape === 'tall') return tallArtRect(entry, w, h);
   // linked: where the illustration draws, with its framing value; separate: the art's own placement
   const sepOv = entry.key && separateOverride ? separateOverride(entry.key) : undefined;
   const linked = !!(entry.key && entry.reg) && !(sepOv ?? entry.separate);
@@ -329,6 +329,22 @@ export function cardArtRect(entry, w, h) {
   return { left: (100 * x) / w, top: (100 * y) / h, width: (100 * u * W * zoom) / w, height: (100 * u * H * zoom) / h };
 }
 
+/**
+ * A tall card's 2D art (the solo room's, the result screen's: the official 232 × 458 window's shape). An illustration's
+ * art linked to it (registered on it at the card framing, which a tall card draws unzoomed) sits where the live
+ * illustration draws, so the dissolve between them does not jump. Every other art sits where the client's own prefab puts
+ * it on the official card (`official`; the user's pick of 2026-11-24: "let's go with official. anything i hand framed
+ * stays"); an art without it keeps its room framing by height, centred as there.
+ */
+function tallArtRect(entry, w, h) {
+  const linked = !!(entry.key && entry.reg) && !entry.separate;
+  const rect = linked ? entry.reg : entry.official || entry.own || entry.reg;
+  if (!rect) return null;
+  const u = linked || entry.official ? Math.min(w / WIN_W, h / WIN_H) : h / WIN_H;
+  const [L, T, W, H] = rect;
+  return { left: (100 * (w / 2 + u * L)) / w, top: (100 * (h / 2 + u * T)) / h, width: (100 * u * W) / w, height: (100 * u * H) / h };
+}
+
 /** The full art `src`'s box on a w × h card in the card's CSS px ({ x, y, w, h }, may pass the card's edges), or null
  * without a placement (the table not loaded, or no entry: the art then shows object-fit cover). For the dissolve's cover. */
 export function staticPlacement(src, w, h) {
@@ -341,7 +357,7 @@ export function staticPlacement(src, w, h) {
  * face), inside the card's art box — its containing block, measured. `fallback` (the portrait) shows when the art has no
  * entry or fails to load; nothing shows for the moment the small table takes to arrive.
  */
-export function CardArt({ src, fallback = null, class: cls = '' }) {
+export function CardArt({ src, fallback = null, class: cls = '', shape = 'wide' }) {
   const [ready, setReady] = useState(!!artTable);
   const [bad, setBad] = useState(false);
   const [box, setBox] = useState(null);
@@ -367,7 +383,7 @@ export function CardArt({ src, fallback = null, class: cls = '' }) {
   }, [entry]);
   if (!ready && !artTable) return null;
   if (!entry) return fallback;
-  const p = box ? cardArtRect(entry, box[0], box[1]) : null;
+  const p = box ? cardArtRect(entry, box[0], box[1], shape) : null;
   const style = p ? `inset:auto;left:${p.left}%;top:${p.top}%;width:${p.width}%;height:${p.height}%;max-width:none;object-fit:fill` : 'visibility:hidden';
   return html`<img ref=${ref} class=${`card-art${cls ? ` ${cls}` : ''}`} src=${src} alt="" draggable=${false} style=${style} onError=${() => setBad(true)} />`;
 }

@@ -667,12 +667,40 @@ zoomed out; all 98 now at least 0.87) and moved with the illustration's own fram
 own for the exceptions listed in `separate` (the user, 2026-11-23: "a separate setting for static and live2d", then "a way
 to still link the values since the mismatched ones are the exception"; by default the registrations under
 `SEPARATE_BELOW` 0.45, none today); the dissolve may then move the picture as it reveals the illustration. Every full art
-has that own placement (`stills`): framed with the face rule, its face from the official portrait found inside it (the
-portraits put the eyes at about a third of their height), up to 2× (`STILL_ZOOMS`: a still sits in a wide torn frame; of
-440 stills 168 still leave over 5 % of the card bare at 2×, measured 2026-11-23), plus the user's move / zoom on it
-(`adjust`, `--still-edits`). The full arts are 2048 px (`outfit/art2k/`, the user's pick of 2026-11-23: a wide card draws
-them 1,900–2,650 px wide on a 4K screen).
+has that own placement (`stills`): its face from the official portrait found inside it (the portraits put the eyes at
+about a third of their height), placed like the linked arts — the head's top 0.03 of the card's height from its top (the
+98 registrations' median, 0.029), the face below it and never past `FACE_MAX` 0.45 — in the illustrations' own zoom
+range, 1–1.35 (`STILL_ZOOMS`, `tools/dyn-cover-framing.mjs` `ZOOMS`) — the user's pick of 2026-11-24, "follow the linked
+arts framing style, those were done by me", "the art should be raised higher": a still shows the figure like a registered
+art, not the bust close-up the earlier up-to-2× steps gave (of 440 stills 168 still left over 5 % of the card bare at 2×,
+measured 2026-11-23; median art height 3.36 card heights → 2.40, the registered arts' 2.72; face line 0.38 → 0.157, the
+registered arts' 0.159) — plus the user's move / zoom on it (`adjust`, `--still-edits`). The full arts are 2048 px
+(`outfit/art2k/`, the user's pick of 2026-11-23: a wide card draws them 1,900–2,650 px wide on a 4K screen).
 The dissolve composes a placed art at its own box (`object-fit: fill`) inside the card.
+(fork, 2026-11-25) A face matched wrongly — a leg, a bag, a pet on the card — is searched again (`--reface`; the user: "Yes, fix
+them"): only inside the official card's window and at the size an official portrait has in the official picture
+(`PORTRAIT_UI`), the portrait turned in 15° steps for an operator drawn falling or leaning. One drawn upside down (turned past 90°:
+Leonhardt's Elite 2) is centred on the portrait's whole area (`focus`), not raised to its head (the user: "his art is upside
+down, which is artist intention. and it should be framed around that area"). 28 still-only arts were framed
+again; W's chibi outfit, whose portrait is no face crop, keeps its placement.
+(fork, 2026-11-24) **The tall cards' 2D art** (the solo room's card and the result screen's team cards, the official 232 × 458
+window's shape; the user's report: "outfit and e2 static arts of non L2D stuffs aren't calibrated for room, grand alliances,
+solo and likely results screen"): they showed the small portrait picture cut by `object-fit: cover`, so heads, horns and ears
+were off the top, while the animated illustration on the same card shows the figure through the official camera. They now draw
+the same full art as the wide cards, `CardArt shape="tall"` (the solo room through `SeatCard`, the result cards through
+`OperatorImage card="tall"`; the portrait stays the fallback), placed as the client places them (the user's pick of
+2026-11-24: "let's go with official. anything i hand framed stays of course"). The official card shows a still by
+instantiating the art's own prefab in the illustration holder [src: official GameAssembly.dll
+UICharacterIllustController._LoadChrStaticIllust 0x1455770, UICharacterIllustLoader.ControllerOnlyLoadChrIllust 0x1497DE0],
+so the prefab root's position and size are its framing [src: official chararts/<charId>.ab and skinpack/<charId>.ab,
+`illust_<portraitId>` RectTransform m_AnchoredPosition, m_SizeDelta]. `tools/local-extract/illust_framing.py` reads them from
+the player's client and finds which part of the official canvas our file holds (some are trimmed): an art counts only when its
+picture matches and is not stretched. `tools/card-art-framing.mjs --official` maps them through the holder's offset and scale —
+the animated illustrations' own (`render/dynillust/framing.js`) — into `stills[art].official`. On a tall card
+(`dynCards.js tallArtRect`): an illustration's art linked to it keeps its registered box (it is hand-framed, and the dissolve to
+the live illustration does not jump), else the official box, else — no official match — the room framing by height, centred as
+there. The wide cards do not use it. No per-art number is hand-set. The review page's `&solo` shows the solo room (one operator
+a page).
 Which pages (the user's choice of 2026-11-22, "automatic by card size"): each card measures its art window and wants half
 pages while it is drawn at most `HALF_MAX_SCALE` 1 device px per unit of the official 232 × 458 window (measured: there half
 kept 74–100 % of full's detail, above it 36–82 %), full above; the page uses full while any card wants full (the renderer's

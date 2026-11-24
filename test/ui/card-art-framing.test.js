@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { toUnits, fromUnits, stillFraming, artOfKey, STILL_AR, STILL_ZOOMS } from '../../tools/card-art-framing.mjs';
-import { TOP_MIN, BAND, FACE_MAX } from '../../tools/dyn-cover-framing.mjs';
+import { TOP_MIN, FACE_MAX } from '../../tools/dyn-cover-framing.mjs';
 import { cardArtRect, staticPlacement } from '../../public/js/ui/dynCards.js';
 import { chessFullArtUrl } from '../../public/js/ui/assetUrls.js';
 
@@ -41,21 +41,22 @@ test('card units: the tool\'s round trip, and the card\'s box (cardArtRect) the 
   assert.ok(near(apart.left, p.left), 'separate: its own box');
 });
 
-test('a still full art is framed on its face: the line, the head inside, the smallest zoom that covers', () => {
+test('a still full art is framed like the linked arts: the head\'s top 0.03 from the card\'s top, the art over the card', () => {
   // an opaque square art, the face high in it
   const opaque = { w: 64, h: 64, A: new Float32Array(64 * 64).fill(1) };
   const p = stillFraming({ x: 0.5, y: 0.2, top: 0.12 }, opaque);
   assert.equal(p.zoom, 1, 'an opaque art covers at once');
   assert.equal(p.uncovered, 0);
-  assert.ok(p.faceY >= BAND[0] - 1e-9 && p.faceY <= FACE_MAX + 1e-9, `face line ${p.faceY}`);
-  assert.ok(p.top >= TOP_MIN - 1e-9, `head ${p.top}`);
+  // the linked arts' placement (median head top 0.03, face 0.16 of the card, 2026-11-24)
+  assert.ok(Math.abs(p.top - (TOP_MIN + 0.01)) < 1e-9, `head top ${p.top}`);
+  assert.ok(p.faceY > 0 && p.faceY <= FACE_MAX + 1e-9, `face ${p.faceY}`);
   // the art covers the card's sides: x ≤ 0 and x + w ≥ the card's width
   assert.ok(p.rect.x <= 1e-9 && p.rect.x + p.rect.w >= STILL_AR - 1e-9);
-  // an art transparent in its left 60 %: no zoom covers the card (its opaque part is narrower than the card even at 2×),
+  // an art transparent in its left 60 %: no zoom covers the card (its opaque part is narrower than the card at any step),
   // the pick is the best covering one — the largest zoom
   const part = { w: 64, h: 64, A: new Float32Array(64 * 64).map((_, i) => ((i % 64) < 38 ? 0 : 1)) };
   const q = stillFraming({ x: 0.8, y: 0.3, top: 0.2 }, part);
-  assert.ok(q.uncovered > 0 && q.top >= TOP_MIN, JSON.stringify(q));
+  assert.ok(q.uncovered > 0 && q.top >= TOP_MIN - 1e-9, JSON.stringify(q));
   assert.equal(q.zoom, STILL_ZOOMS.at(-1));
 });
 

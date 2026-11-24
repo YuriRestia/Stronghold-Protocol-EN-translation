@@ -363,7 +363,8 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
   // top edge, one's own card a ring (room.css .rs-seats--wide); the solo room keeps its tall card beside the briefing
   const wide = coop;
   // the wide card's full art follows the portrait: the outfit's while its picture shows, the default's once it gave way
-  const fullSrc = wide && art ? (art === portrait ? fullArt : fullArtDefault) : null;
+  // (the solo room's tall card too: the same art, framed for its shape, dynCards.js CardArt `shape`)
+  const fullSrc = art ? (art === portrait ? fullArt : fullArtDefault) : null;
   const botTag = seat.isBot ? html`<span class="rseat__bot"><${Icon} name="robot" /><span class="rseat__botname">${t('AI 队友')}</span></span>` : null;
   const pickBtn = canPick ? html`<button type="button" class="rseat__pick" data-testid="seat-card-pick" onClick=${onPickCard}
     title=${t('更换名片干员')} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null;
@@ -388,7 +389,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
     <div class="seat__art rseat__art">
       ${art
         ? html`<${IllustArt} art=${illust?.art || null} animate=${!!illust?.animate} wait="settled" own=${isMe} backdrop=${!wide} fill=${wide} framing=${wide ? 'cover' : null} class="rseat__dyn">
-            ${fullSrc ? html`<${CardArt} key=${fullSrc} src=${fullSrc} class="seat__portrait" fallback=${portraitImg} />` : portraitImg}
+            ${fullSrc ? html`<${CardArt} key=${fullSrc} src=${fullSrc} shape=${wide ? 'wide' : 'tall'} class="seat__portrait" fallback=${portraitImg} />` : portraitImg}
           </${IllustArt}>`
         : html`<${AvatarFrame} size="xl" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}
       <div class="rseat__top">
@@ -946,9 +947,9 @@ export function RoomScreen() {
         const outfit = op ? outfitOptsOf(op.chess.charId, s.playerId) : undefined;
         const art = op ? chessPortraitUrl(data.get('assets'), op.chess, { skin, ...outfit }) : null;
         const plain = op ? chessPortraitUrl(data.get('assets'), op.chess, { outfit: null }) : null;
-        // a co-op room's wide card shows the full art (SeatCard fullArt)
-        const full = coop && op ? chessFullArtUrl(data.get('assets'), op.chess, { skin, ...outfit }) : null;
-        const fullPlain = coop && op ? chessFullArtUrl(data.get('assets'), op.chess, { outfit: null }) : null;
+        // the card shows the full art (the solo room's tall card too; SeatCard fullArt)
+        const full = op ? chessFullArtUrl(data.get('assets'), op.chess, { skin, ...outfit }) : null;
+        const fullPlain = op ? chessFullArtUrl(data.get('assets'), op.chess, { outfit: null }) : null;
         // (fork) the card's animated illustration (ui/dynCards.js; the result card's rules, D5): the room card's operator
         // in the seat's outfit, when 动态立绘 lets this card play it
         const dyn = op ? cardArtOf(op.chess, s.playerId) : null;

@@ -12,7 +12,9 @@
 //     and the live illustration come from one framing value (cardArtRect in public/js/ui/dynCards.js).
 //   stills[art] = { rect }: a full art with no animated illustration, its face from its official portrait (the portrait
 //     found inside the full art: the eyes of the official portraits sit at about a third of their height), framed with
-//     the face rule of tools/dyn-cover-framing.mjs (face line, head inside, the smallest zoom that covers the card).
+//     the face rule of tools/dyn-cover-framing.mjs (face line, head inside, the smallest zoom that covers the card) at
+//     the illustrations' own zoom range — the user's pick of 2026-11-24, "follow the linked arts framing style": a
+//     still shows the figure like a registered art does, not a bust close-up.
 //
 // Registration: plain normalised cross-correlation on small copies (no image library beyond sharp), coarse to fine over
 // scale and offset; the score is kept so a poor match shows in the log and the test.
@@ -21,11 +23,15 @@
 //   node tools/card-art-framing.mjs --capture <dir> --base http://127.0.0.1:3253 [--pages 1,2]   (GPU Chrome: crew lock)
 //     the review page's 4-seat room at framing=card (zoom 1): each live card's box as JPEG + boxes.json
 //   node tools/card-art-framing.mjs --register <dir> --stills --out data/card-art-framing.json
+//   node tools/card-art-framing.mjs --official <frames.json>   (from tools/local-extract/illust_framing.py; after any
+//     --register run, which writes new stills: where the official card puts each still-only art, for the tall cards)
+//   node tools/card-art-framing.mjs --reface <frames.json>   (after --official: the faces matched wrongly, searched again)
 // Caps: 30 pages, 20 min capture, 200 MB of captures, 25 min matching, log < 200 KB.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GOAL, TOP_MIN, BAND, FACE_MAX } from './dyn-cover-framing.mjs';
+import { GOAL, TOP_MIN, FACE_MAX, ZOOMS } from './dyn-cover-framing.mjs';
+import { HOLDER_SCALE, HOLDER_Y } from '../public/js/render/dynillust/framing.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
@@ -44,10 +50,11 @@ export const RETRY = 0.55, MIN_SCORE = 0.3;
 /** A registration below this keeps the 2D art apart from its illustration by default (Chongyue's E2, 0.41; the next
  * lowest, 0.46–0.54, checked by eye and right). */
 export const SEPARATE_BELOW = 0.45;
-/** A still's zoom steps: past the illustrations' 1.35, since a still full art sits in a wide torn frame (at 1.35, 287 of
- * 381 stills left over 5 % of the card bare, 2026-11-23); 2 keeps the 1024-px art at about 2 device px per art px on a 4K
- * card. Design values. */
-export const STILL_ZOOMS = Object.freeze([1, 1.1, 1.2, 1.35, 1.5, 1.75, 2]);
+/** A still's zoom steps: the illustrations' own range (dyn-cover-framing ZOOMS), so a still is framed like the linked
+ * arts the user approved (2026-11-24: "follow the linked arts framing style, those were done by me"); past 1.35 a tall
+ * full art is a bust close-up (2026-11-23's up-to-2× frames, retired). A still still covers the card — its own torn
+ * edges show the card's background. Design values (user OK 2026-11-24). */
+export const STILL_ZOOMS = Object.freeze([...ZOOMS]);
 
 /** A rect in card px (x, y, w, h) of a w × h card → official card units from the card's centre. */
 export function toUnits(r, w, h) {
@@ -174,23 +181,24 @@ export async function register(sharp, tplSrc, artSrc, { range = [0.3, 4], hang =
 
 // ---- stills: the face rule on a full art ----------------------------------------------------------------------------
 /**
- * The framing of a still full art on a card of aspect `ar` (height 1): its width the card's times z, the face on its line
- * and the head inside (planFraming's rule), the art kept over the card's sides; `alpha` (the art's alpha plane, aw × ah)
- * measures what is left uncovered. face / top in art fractions. Returns the pick { zoom, rect (card px of a 1-high card),
- * faceY, top, uncovered }.
+ * The framing of a still full art on a card of aspect `ar` (height 1): its width the card's times z, the head's top
+ * `TOP_MIN` (+1 %) from the card's top — the linked arts' placement, whose heads sit at 0.03 of the card (median of the
+ * 98 registrations, 2026-11-24), the face below it and never past `FACE_MAX` — the art kept over the card's sides;
+ * `alpha` (the art's alpha plane, aw × ah) measures what is left uncovered. face / top in art fractions. Returns the
+ * pick { zoom, rect (card px of a 1-high card), faceY, top, uncovered }.
  */
 export function stillFraming(face, alpha, ar = STILL_AR, zooms = STILL_ZOOMS) {
   const tries = [];
   for (const z of zooms) {
     const w = ar * z, h = w * alpha.h / alpha.w;
     const fyArt = face.y * h, topArt = face.top * h;
-    const fitHead = (fyArt - topArt) + TOP_MIN + 0.01;
-    const yt = Math.min(FACE_MAX, Math.max(BAND[0], Math.min(BAND[1], fyArt), fitHead));
-    let y = yt - fyArt;
+    const yt = Math.min(FACE_MAX, (fyArt - topArt) + TOP_MIN + 0.01);
+    // an upside-down operator (`focus`: the portrait's area, its centre): that area in the card's middle
+    let y = face.focus ? 0.5 - face.focus[1] * h : yt - fyArt;
     // the art's bottom stays at or below the card's bottom when it can
     if (y + h < 1) y = Math.min(0, 1 - h);
     // the face centred, the art kept over both sides
-    let x = ar / 2 - face.x * w;
+    let x = ar / 2 - (face.focus ? face.focus[0] : face.x) * w;
     x = Math.min(0, Math.max(ar - w, x));
     const top = y + topArt;
     // uncovered: the card's pixels where the art is transparent or absent (a 64-high grid)
@@ -392,7 +400,7 @@ async function reframe() {
     if (!fs.existsSync(f)) continue;
     const am = await sharp(f).metadata();
     const alpha = await planes(sharp, f, 128, Math.max(8, Math.round(128 * am.height / am.width)));
-    const pick = stillFraming({ x: e.face[0], y: e.face[1], top: e.face[2] }, alpha);
+    const pick = stillFraming({ x: e.face[0], y: e.face[1], top: e.face[2], ...(e.focus ? { focus: e.focus } : {}) }, alpha);
     Object.assign(e, { rect: toUnits({ x: pick.rect.x * H, y: pick.rect.y * H, w: pick.rect.w * H, h: pick.rect.h * H }, W, H), zoom: pick.zoom, uncovered: pick.uncovered });
     n++;
   }
@@ -400,8 +408,120 @@ async function reframe() {
   console.log(`${n} stills framed again → ${path.relative(ROOT, OUT)}`);
 }
 
+/**
+ * Where the official card puts a still art: the client's prefab of it (position and size in the illustration holder, y up)
+ * through the holder's own offset and scale (render/dynillust/framing.js, the animated illustrations' values), and the part
+ * of the official canvas our file holds (`box`, canvas fractions). The art's box in card units from the window's centre.
+ */
+export function officialRect(f) {
+  const x0 = HOLDER_SCALE * (f.x - f.w / 2), y0 = -HOLDER_Y - HOLDER_SCALE * (f.y + f.h / 2);
+  const [l, t, r, b] = f.box;
+  return [x0 + HOLDER_SCALE * f.w * l, y0 + HOLDER_SCALE * f.h * t, HOLDER_SCALE * f.w * (r - l), HOLDER_SCALE * f.h * (b - t)].map((v) => +v.toFixed(2));
+}
+
+/** The size of a portrait in the official canvas, UI units of height: 194–416 on the 481 matches scored at least 0.8. */
+export const PORTRAIT_UI = Object.freeze([190, 430]);
+/** A face match below REFACE_BELOW, or of another size, is searched again; a new one counts from REFACE_MIN and only when
+ * better (the new matches at 0.54–0.63 checked by eye, 2026-11-25; the one at 0.38, a chibi's, was wrong). */
+export const REFACE_BELOW = 0.6, REFACE_MIN = 0.5;
+/** Past this a match is good enough to stop turning the portrait. */
+const REFACE_GOOD = 0.8;
+/** The face and the head's top (art px) of a portrait `ph` px high lying at centre (cx, cy), turned `rot`° clockwise. */
+export function turnedFace(cx, cy, ph, rot = 0) {
+  const a = (rot * Math.PI) / 180, r = (0.5 - PORTRAIT_FACE) * ph;
+  const x = cx + r * Math.sin(a), y = cy - r * Math.cos(a);
+  return { x, y, top: y - (PORTRAIT_FACE - PORTRAIT_TOP) * ph };
+}
+
+/**
+ * --reface <frames.json> (tools/local-extract/illust_framing.py): the still-only arts whose face was matched poorly or at a
+ * size no portrait has (a leg, a bag, a pet: 2026-11-24) are matched again inside the official card's window, at the
+ * official portraits' size, turned in 15° steps when the straight one is not found (an operator drawn falling or leaning),
+ * and framed again. An art of an animated illustration is left alone.
+ */
+async function reface() {
+  const { default: sharp } = await import('sharp');
+  const OUT = arg('--out', path.join(ROOT, 'data/card-art-framing.json'));
+  const t = JSON.parse(fs.readFileSync(OUT, 'utf8')), frames = JSON.parse(fs.readFileSync(arg('--reface'), 'utf8'));
+  const assets = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).outfits;
+  const linked = new Set(Object.values(t.registered || {}).map((e) => e.art));
+  const pub = (u) => path.join(ROOT, 'public', u.replace(/^\//, ''));
+  const portraits = new Map();
+  for (const r of Object.values(assets.chars)) if (r.art && r.portrait) portraits.set(path.basename(r.art), [r.portrait]);
+  for (const [cid, r] of Object.entries(assets.defaults)) if (r.art) portraits.set(path.basename(r.art), [2, 1].map((e) => `/assets/char/portrait/${cid}_${e}.png`));
+  const T0 = Date.now();
+  const H = 458, W = H * STILL_AR;
+  for (const [art, e] of Object.entries(t.stills)) {
+    const f = frames[art], file = pub(`/assets/outfit/art/${art}`);
+    if (linked.has(art) || !f || !e.official || !fs.existsSync(file)) continue;
+    const ui = ((e.face[1] - e.face[2]) / (PORTRAIT_FACE - PORTRAIT_TOP)) * (f.box[3] - f.box[1]) * f.h;
+    if (e.score >= REFACE_BELOW && ui >= PORTRAIT_UI[0] && ui <= PORTRAIT_UI[1]) continue;
+    if (Date.now() - T0 > 12 * 60e3) throw new Error('time cap, nothing written');
+    const m = await sharp(file).metadata(), [L, T, OW] = e.official, k = m.width / OW; // art px per card unit
+    // the card's window with 60 units of room (to 300 down: no face of the good matches sits lower)
+    const x0 = Math.max(0, Math.round((-176 - L) * k)), y0 = Math.max(0, Math.round((-289 - T) * k));
+    const x1 = Math.min(m.width, Math.round((176 - L) * k)), y1 = Math.min(m.height, Math.round((71 - T) * k));
+    const crop = await sharp(file).extract({ left: x0, top: y0, width: x1 - x0, height: y1 - y0 }).png().toBuffer();
+    let best = null;
+    for (const u of portraits.get(art) || []) {
+      if (!fs.existsSync(pub(u))) continue;
+      const pm = await sharp(pub(u)).metadata();
+      for (let rot = 0; rot < 360 && !(best && best.r.score >= REFACE_GOOD); rot += 15) {
+        const tpl = rot ? await sharp(pub(u)).ensureAlpha().rotate(rot, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer() : pub(u);
+        const rm = await sharp(tpl).metadata();
+        // the crop's width in template widths, for a portrait of PORTRAIT_UI height
+        const at = (v) => (x1 - x0) / (v * HOLDER_SCALE * k * (rm.width / pm.height));
+        const r = await register(sharp, tpl, crop, { range: [at(PORTRAIT_UI[1]), at(PORTRAIT_UI[0])], hang: 0.25, masked: true, coarse: 32 });
+        if (r && (!best || r.score > best.r.score)) best = { r, rm, pm, rot };
+      }
+    }
+    if (!best || best.r.score < REFACE_MIN || best.r.score <= e.score) { console.log(`${art}: kept (${e.score}, best ${best?.r.score})`); continue; }
+    const q = (x1 - x0) / best.r.w;
+    const cx = x0 + (best.rm.width / 2 - best.r.x) * q, cy = y0 + (best.rm.height / 2 - best.r.y) * q;
+    const p = turnedFace(cx, cy, best.pm.height * q, best.rot);
+    // drawn upside down on purpose: the body is above the head, so the card frames the portrait's whole area (the user,
+    // 2026-11-25, on Leonhardt: "his art is upside down, which is artist intention. and it should be framed around that area")
+    const focus = best.rot > 90 && best.rot < 270 ? [+(cx / m.width).toFixed(4), +(cy / m.height).toFixed(4)] : null;
+    // rounded as stored, so --reframe gives the same box
+    const face = { x: +(p.x / m.width).toFixed(4), y: +(p.y / m.height).toFixed(4), top: +(p.top / m.height).toFixed(4) };
+    const alpha = await planes(sharp, file, 128, Math.max(8, Math.round((128 * m.height) / m.width)));
+    const pick = stillFraming(focus ? { ...face, focus } : face, alpha);
+    console.log(`${art}: ${e.score} → ${best.r.score}${best.rot ? ` turned ${best.rot}°` : ''} z${pick.zoom}`);
+    Object.assign(e, { rect: toUnits({ x: pick.rect.x * H, y: pick.rect.y * H, w: pick.rect.w * H, h: pick.rect.h * H }, W, H), score: best.r.score, zoom: pick.zoom, uncovered: pick.uncovered,
+      face: [face.x, face.y, face.top], ...(focus ? { focus } : {}) });
+  }
+  const txt = `${JSON.stringify(t, null, 1)}\n`;
+  if (txt.length > 400e3) throw new Error('table size cap');
+  fs.writeFileSync(OUT, txt);
+  console.log(`done in ${Math.round((Date.now() - T0) / 1000)} s`);
+}
+
+/** --official <frames.json> (tools/local-extract/illust_framing.py): stills[art].official from the client's prefabs; an
+ * art of an animated illustration gets none (it keeps its registered box). */
+function official() {
+  const OUT = arg('--out', path.join(ROOT, 'data/card-art-framing.json'));
+  const t = JSON.parse(fs.readFileSync(OUT, 'utf8')), frames = JSON.parse(fs.readFileSync(arg('--official'), 'utf8'));
+  const linked = new Set(Object.values(t.registered || {}).map((e) => e.art));
+  let n = 0;
+  const none = [];
+  for (const [art, e] of Object.entries(t.stills || {})) {
+    delete e.official;
+    if (linked.has(art)) continue;
+    if (!frames[art]) { none.push(art); continue; }
+    e.official = officialRect(frames[art]);
+    n++;
+  }
+  const txt = `${JSON.stringify(t, null, 1)}\n`;
+  if (txt.length > 400e3) throw new Error('table size cap');
+  fs.writeFileSync(OUT, txt);
+  console.log(`${n} official, ${none.length} without (room framing), ${linked.size} linked left as they are → ${path.relative(ROOT, OUT)}`);
+  if (none.length) console.log(none.join(' '));
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (has('--reframe')) await reframe();
+  if (arg('--official')) official();
+  else if (arg('--reface')) await reface();
+  else if (has('--reframe')) await reframe();
   else if (arg('--capture')) await capture();
   else if (arg('--register')) await build();
   else console.log('usage: --capture <dir> --base <url> | --register <dir> [--stills] [--out file]');

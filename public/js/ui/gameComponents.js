@@ -12,8 +12,9 @@ import { skinsStore, ownerSkin, tokenSkinShown } from './skins.js';
 import { settingsStore } from './settingsStore.js';
 import { useAvatarArt } from './avatars.js';
 import {
-  uiUrl, chessAvatarUrl, chessPortraitUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, bondIconUrl, bandIconUrl,
+  uiUrl, chessAvatarUrl, chessPortraitUrl, chessFullArtUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, bondIconUrl, bandIconUrl,
 } from './assetUrls.js';
+import { CardArt } from './dynCards.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -96,7 +97,7 @@ export function noImageMenu(e) {
  * B6, maintainer option A (2026-10-18); docs/SKINS.md and §35.4. Model outfits retain their models.
  */
 export function OperatorImage({ m, chess, ownerId, skin = null, outfitOwner = ownerId, portrait = false, avatarFallback = false,
-  portraitClass, avatarClass, ...props }) {
+  portraitClass, avatarClass, card = null, ...props }) {
   useData('assets');
   m = data.get('assets') || m;
   const localSkins = useStore((s) => s.skins, Object.is, skinsStore);
@@ -107,7 +108,11 @@ export function OperatorImage({ m, chess, ownerId, skin = null, outfitOwner = ow
   const o = { skin: selected, ...outfitOptsOf(chess?.charId, outfitOwner) };
   const art = portrait ? chessPortraitUrl(m, chess, o) : null;
   const src = art || (!portrait || avatarFallback ? chessAvatarUrl(m, chess, o) : null);
-  return html`<${Img} ...${props} src=${src} class=${art ? portraitClass ?? props.class : avatarClass ?? props.class} />`;
+  const img = html`<${Img} ...${props} src=${src} class=${art ? portraitClass ?? props.class : avatarClass ?? props.class} />`;
+  // `card` ('tall'): a card of the official art window's shape (the result cards): the full art framed for it, as the
+  // solo room's card (dynCards.js CardArt), the picture above while that art has no placement or fails to load
+  const full = card && portrait ? chessFullArtUrl(m, chess, o) : null;
+  return full ? html`<${CardArt} key=${full} src=${full} shape=${card} class=${portraitClass ?? props.class} fallback=${img} />` : img;
 }
 
 /** Official UI sprite by 'group/key' with a fallback. */

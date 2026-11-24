@@ -288,9 +288,10 @@ test('a co-op room\'s wide card (the user\'s layout I, 2026-11-22): nothing over
   // `fill`: the wide card's official home background behind its art (dynCards.js FILL, the user's picks of 2026-11-23)
   assert.match(roomJs, /wait="settled" own=\$\{isMe\} backdrop=\$\{!wide\} fill=\$\{wide\} framing=\$\{wide \? 'cover' : null\} class="rseat__dyn"/);
   // its 2D art: the full art where the illustration draws (CardArt, data/card-art-framing.json), the portrait as fallback;
-  // the default's full art once the outfit's picture gave way
-  assert.match(roomJs, /const fullSrc = wide && art \? \(art === portrait \? fullArt : fullArtDefault\) : null;/);
-  assert.match(roomJs, /\$\{fullSrc \? html`<\$\{CardArt\} key=\$\{fullSrc\} src=\$\{fullSrc\} class="seat__portrait" fallback=\$\{portraitImg\} \/>` : portraitImg\}/);
+  // the default's full art once the outfit's picture gave way (the solo room's tall card too: the art framed for its shape,
+  // CardArt `shape`)
+  assert.match(roomJs, /const fullSrc = art \? \(art === portrait \? fullArt : fullArtDefault\) : null;/);
+  assert.match(roomJs, /\$\{fullSrc \? html`<\$\{CardArt\} key=\$\{fullSrc\} src=\$\{fullSrc\} shape=\$\{wide \? 'wide' : 'tall'\} class="seat__portrait" fallback=\$\{portraitImg\} \/>` : portraitImg\}/);
   // a squad's heading line: name, rule, its doctors' ready count
   assert.match(roomJs, /<header class="rs-squad__head">[\s\S]*?<i class="rs-squad__rule" aria-hidden="true"><\/i>[\s\S]*?rs-squad__ready/);
   // the card's shape and size: the art at --rs-ar, its width from the seat area (a size container)
