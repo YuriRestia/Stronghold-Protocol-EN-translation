@@ -79,7 +79,7 @@ describe('held effects move with their unit (R1)', () => {
     v.x += 1;
     ofx.refollow();
     near(on.effect.anchor[0], 6 - 10 - 0.3, 1e-9, 'placed again');
-    near(on.effect.sys[1].pos[0], 6 - 10 - 0.3, 1e-9, 'its local-space particles drawn there');
+    near(on.effect.sys[1].pos[0], 6 - 10 - 0.3, 1e-6, 'its local-space particles drawn there (a 32-bit matrix)');
     near(off.effect.anchor[0], 5 - 10 - 0.3, 1e-9, 'the other waits for the next update');
   });
   test('(fork) an effect started before the index has loaded takes its mount point once it has', async () => {
