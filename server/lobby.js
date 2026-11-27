@@ -241,7 +241,7 @@ import { chatLine } from '../shared/text.js';
 import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes, utf8Bytes } from './match/chatLimit.js';
 import { CHAT_ON } from './match/chatWallet.js';
 import { LARGE_ROOM_SEATS, IDLE_PREP_ROUNDS, SQUAD_SEATS, ROOM_PASSWORD_RE, ROOM_PASSWORD_TRIES, ROOM_PASSWORD_WINDOW_MS, squadOfSeat, squadMoveWait, squadMoveLog, SQUAD_MOVE_LOG_MAX } from '../shared/largeRoom.js';
-import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../shared/protocol.js';
+import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds, validateC2S, CROSS_CARRY_MAX_LEN } from '../shared/protocol.js';
 import { cleanOutfits } from '../shared/outfits.js';
 import { knownAvatar } from '../shared/avatars.js';
 import { encode, isErrCode, sendRaw, sendSession } from './net.js';
@@ -1219,7 +1219,7 @@ export class Lobby {
     return OK;
   }
 
-  join(session, { code, testAck, ticket, password, squad }) {
+  join(session, { code, testAck, ticket, password, squad, carry }) {
     const norm = String(code).trim().toUpperCase();
     const room = norm.length === ROOM_CODE_LEN ? this.rooms.get(norm) : undefined;
     if (!room) return fail(ERR.ROOM_NOT_FOUND);
@@ -1248,6 +1248,8 @@ export class Lobby {
     if (room.versionVote) this.voidVersionVote(room, 'members');
     if (cur) this.removeMember(cur, session.playerId);
     this.unqueue(session);
+    // (fork) a moved Doctor's settings from its own server, before the seat copies them (crossCarry)
+    if (held && carry) this.applyCarry(session, room.code, carry);
     room.seats[idx] = this.humanSeat(idx, session, room);
     session.roomCode = room.code;
     session.notice = null;
@@ -3192,12 +3194,14 @@ export class Lobby {
     // (fork) a Grand Alliance's squads as planned: a member who changed squad since would split one (fitSquads)
     if (large && squads && rooms.some((r) => !sameSquads(squadCounts(r), squads[r.code]))) return { ok: false, member };
     const frame = { t: 'room.move', region, code, ticket };
+    // (fork) each Doctor's own settings ride along, signed (crossCarry): the target seats a new session
+    const frameFor = (session) => { const carry = this.crossCarry(session, code, ticket); return carry ? { ...frame, carry } : frame; };
     for (const r of rooms) {
       for (const [i, s] of r.seats.entries()) {
         if (!s || s.isBot || s.left) continue;
         const session = this.registry.byId(s.playerId);
         const to = assign?.[r.code]?.[i >= SQUAD_SEATS ? 1 : 0];
-        if (session) sendSession(session, Number.isInteger(to) ? { ...frame, squad: to } : frame);
+        if (session) { const f = frameFor(session); sendSession(session, Number.isInteger(to) ? { ...f, squad: to } : f); }
       }
       this.log.info(`[cross] ${r.code} moves to ${code} on ${region}`);
       this.disposeRoom(r, 'moved');
@@ -3206,9 +3210,73 @@ export class Lobby {
       this.soloQueue.remove(s.playerId);
       this.sendQueue(s, { placed: true });
       const to = soloSquads?.[k];
-      sendSession(s, Number.isInteger(to) ? { ...frame, squad: to } : frame);
+      const f = frameFor(s);
+      sendSession(s, Number.isInteger(to) ? { ...f, squad: to } : f);
     }
     return { ok: true, member };
+  }
+
+  /**
+   * (fork) A moved Doctor's settings for the target server (DESIGN §90.2 "Arrive"): the browser joins there on a socket
+   * without a token, so the target seats a new session, and the match starts on the last moved Doctor's join — before
+   * the page could resend anything (player report 2026-11-27: a 自选 Clementia missing after a cross-region match). This
+   * server already holds them, checked, on the session: the loadout and 潜能 / 练度, 干员持有, 自选编队, outfits, skins
+   * and card, signed with the peers' secret like the ticket (`kind: 'carry'`, so neither stands in for the other), bound
+   * to the room and expiring with the ticket. The page hands it back in its room.join (applyCarry). Null without
+   * settings, without the peers' signer, or when longer than CROSS_CARRY_MAX_LEN.
+   * @param {any} session @param {string} code @param {string} ticket
+   */
+  crossCarry(session, code, ticket) {
+    if (!this.crossTicket || !this.crossVerify || !session) return null;
+    const exp = this.crossVerify(ticket)?.exp;
+    if (!Number.isFinite(exp)) return null;
+    /** @type {Record<string, any>} */
+    const s = {};
+    if (session.loadout) { s.loadout = session.loadout; if (session.ops) s.ops = session.ops; }
+    if (session.notOwned) s.notOwned = session.notOwned;
+    if (session.diy) s.diy = session.diy;
+    if (session.outfits) s.outfits = session.outfits;
+    if (session.skins) s.skins = session.skins;
+    if (session.card) s.card = session.card;
+    if (!Object.keys(s).length) return null;
+    const carry = this.crossTicket({ kind: 'carry', code, exp, s });
+    if (typeof carry !== 'string' || carry.length > CROSS_CARRY_MAX_LEN) {
+      this.log.warn(`[cross] ${session.name}'s settings left behind: ${typeof carry === 'string' ? carry.length : 0} chars`);
+      return null;
+    }
+    return carry;
+  }
+
+  /**
+   * (fork) A moved Doctor's carried settings (crossCarry), on its join with a valid ticket: each goes through its own
+   * handler — the same checks as the page's room.loadout / room.ownership / room.diy / room.outfits / room.skins /
+   * room.card — before the seat is taken, so the seat and the match have them. A forged, expired or other room's
+   * carry, or one setting the checks refuse, is left out; the page's own resend after the move still follows.
+   * @param {any} session @param {string} code @param {unknown} carry
+   */
+  applyCarry(session, code, carry) {
+    const p = carry ? this.crossVerify?.(carry) : null;
+    if (!p || p.kind !== 'carry' || p.code !== code || !p.s || typeof p.s !== 'object') return;
+    const s = p.s;
+    const msgs = [
+      s.loadout ? { t: 'room.loadout', entries: s.loadout, ...(s.ops ? { ops: s.ops } : {}) } : null,
+      s.notOwned ? { t: 'room.ownership', notOwned: s.notOwned } : null,
+      s.diy ? { t: 'room.diy', picks: s.diy } : null,
+      s.outfits ? { t: 'room.outfits', outfits: s.outfits } : null,
+      s.skins ? { t: 'room.skins', skins: s.skins } : null,
+      typeof s.card === 'string' ? { t: 'room.card', charId: s.card } : null,
+    ];
+    for (const m of msgs) {
+      if (!m || validateC2S(m)) continue;
+      try {
+        if (m.t === 'room.loadout') this.loadout(session, m);
+        else if (m.t === 'room.ownership') this.ownership(session, m);
+        else if (m.t === 'room.diy') this.diy(session, m);
+        else if (m.t === 'room.outfits') this.outfits(session, m);
+        else if (m.t === 'room.skins') this.skins(session, m);
+        else this.card(session, m);
+      } catch (e) { this.log.error(`[cross] carried ${m.t} failed`, e); }
+    }
   }
 
   /**

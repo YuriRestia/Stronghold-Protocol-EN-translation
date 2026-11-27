@@ -432,7 +432,10 @@ export function createRegions(deps) {
   /** room.move: matchmaking placed this group on another server (server/crossMatch.js). */
   async function follow(msg) {
     // (fork) a Grand Alliance: the squad the server held this seat in
-    const fields = { code: msg.code, ticket: msg.ticket, ...(msg.squad === 0 || msg.squad === 1 ? { squad: msg.squad } : {}) };
+    // (fork) `carry`: this player's settings, signed by its own server, handed back as they came (server/lobby.js
+    // crossCarry): the join's new session on the target has none, and the match may start on this very join
+    const fields = { code: msg.code, ticket: msg.ticket, ...(msg.squad === 0 || msg.squad === 1 ? { squad: msg.squad } : {}),
+      ...(typeof msg.carry === 'string' ? { carry: msg.carry } : {}) };
     try {
       if (msg.region === current) await net.request('room.join', fields);
       else await requestAcross(msg.region, 'room.join', fields);
