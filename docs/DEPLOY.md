@@ -182,6 +182,7 @@ node scripts/maintenance.mjs --status            # 正在进行的对局、房�
 node scripts/maintenance.mjs --in 15             # 所有玩家屏幕顶部出现倒计时「服务器将在 14:59 后维护」
 node scripts/maintenance.mjs --at 21:30          # 或者指定时刻（本机时间；已过则为明天）
 node scripts/maintenance.mjs --close             # 从现在起不能开始新的模拟，正在进行的对局照常打完（--open 撤销）
+# 已关闭期间：在选择界面（确认信息、选策略、机变、休整期）连续120秒没有任何操作的玩家会被移出本局；所有玩家都连续150秒没有操作的对局会被直接结束（lobby 选项 afkKickMs / afkEndMs，0 为关闭；GitHub #193）
 node scripts/maintenance.mjs --stop-when-idle    # 没有进行中的对局时自动停止服务器，只生效一次（--keep-running 撤销）
 node scripts/maintenance.mjs --back-in 20        # 告诉玩家的预计停机时间（或 --back-at 21:45）
 node scripts/maintenance.mjs --message "更新 0.2.3"   # 在玩家的提示条里加一行文字（--message "" 删除）
@@ -462,7 +463,7 @@ volumes:
 
 **没有客户端的服务器**想要上表中的官方素材，最简单的是运行 `npm run assets:release-local`（见下面「也可以用脚本代替手动复制」）。手动的话：从**同一版本**的完整包（[Releases](https://github.com/sganggs/Stronghold-Protocol/releases)）里，把 `public/assets/local/` 文件夹和 `data/local-assets.json`（还有官方战斗特效的清单 `data/local-fx.json`）复制到服务器项目目录下的相同位置。服务器每次请求都会重新读取这两处，不必重启，玩家刷新页面即可。一定要用与服务器代码相同版本的完整包：各版本提取的内容和清单可能不同（例如灼热 / 炽焰源石虫的模型是 0.1.0 之后才加入的，召唤物模型是 0.2.0 加入的），混用其他版本的文件会缺图或用错图。复制后 `node tools/doctor.mjs` 会显示本地素材的条目数和「3D 棋盘可用」。分组或官方特效清单和这一版对不上时，它会提示已有多少、这一版期望多少。
 
-**也可以用脚本代替手动复制**（Linux、macOS、Windows 都行，只需要 Node）：`npm run assets:release-local`（`node tools/fetch-release-local.mjs`）用 HTTP 范围请求只读取完整包的文件目录和这两部分（约 800 MB 的包里大约 200 MB），不用手动解压。默认取与本目录 `package.json` 版本相同的发布（`--tag v0.3.1` 指定其他版本，`--latest` 取最新），逐个文件校验 CRC，中断后再运行会接着下载；原有的 `public/assets/local/` 和 `data/local-assets.json` 会移到 `.cache/release-local/previous-<时间>/`，不会删除。本目录的其他内容（代码、数据、其他素材、本地改动）都不动。`--dry-run` 只列出将要下载的内容。
+**也可以用脚本代替手动复制**（Linux、macOS、Windows 都行，只需要 Node）：`npm run assets:release-local`（`node tools/fetch-release-local.mjs`）用 HTTP 范围请求只读取完整包的文件目录和这两部分（约 800 MB 的包里大约 200 MB），不用手动解压。默认取与本目录 `package.json` 版本相同的发布（`--tag v0.3.1` 指定其他版本，`--latest` 取最新），逐个文件校验 CRC，中断后再运行会接着下载；原有的 `public/assets/local/` 和 `data/local-*.json` 会移到 `.cache/release-local/previous-<时间>/`，不会删除（0.3.0 起也包括 `data/local-fx.json`：服务器提供的官方战斗特效清单）。本目录的其他内容（代码、数据、其他素材、本地改动）都不动。`--dry-run` 只列出将要下载的内容。
 
 **分组对不上这一版提取器的**：`node tools/setup.mjs` 对照当前提取器会写出的分组（`tools/local-extract/extract.py --print-jobs` 里的 `expectedGroups`，不需要客户端）。少了分组，或清单写的条目数和分组里列出的不一致，会提示已有多少个分组、多少项，这一版期望多少个分组。缺的不是战场场景时，请用 `node tools/setup.mjs --local` 重新提取。缺的分组如果全是 `scene/`（某个战场，或共用贴图 `scene/tex`），有客户端时改为 `node tools/setup.mjs --scenes`，没有客户端时改为从同一版本的完整包复制 `public/assets/local` 和 `data/local-assets.json`：`--local` 不会下载战场场景。召唤物模型是 0.2.0 新增的提取项（`spine/token/<id>`）；只想补这一项也可以在提取用的 Python 环境里运行 `tools/local-extract/extract.py --only spine/token`（新文件写入 `public/assets/local/spine/token/`，清单里其他条目保持不变）。官方特效清单 `data/local-fx.json` 是另一步，用项目里的 `.venv-extract/bin/python`（Windows 是 `.venv-extract\Scripts\python.exe`）运行 `tools/local-extract/extract.py --only fx --fx-set used`：没有它只记一行「未提取」，不把本地美术算成失败；有了但分组、条目数或版本不对会单独警告。
 
@@ -691,3 +692,33 @@ Node 22 的 `--permission` **不限制网络**（TCP/UDP/DNS/监听均可能可�
 - 房间要等它被真正从大厅移除（`disposeRoom`）才归还配额，玩家掉线不算：大厅断线宽限（`lobbyGraceMs`）和对局中的会话重连窗口是两只独立的时钟。
   前者管理未开局房间中的断线成员，后者管理对局重连；不能用其中一个期限推断另一个期限或整个房间的销毁时间。
   排查「明明没人了还开不出房」时，先看房间是否仍存在、是否正在等待断线成员。
+
+## 13. 对局记录（可选，本分叉）
+
+服务器可以为每场结束的对局保存一份匿名记录，用于统计：各难度、各大厅规则和各策略下玩家与 AI 的胜率，SPA-CC 的
+Risk 难度曲线，玩家在休整期怎么花钱等。**默认关闭**：不设置就不记录、不写任何文件。
+
+开启：环境变量 `SP_RECORDS`，例如 `SP_RECORDS=on npm start`。Windows 后台服务（§1.4）：在 `scripts\service.env.cmd` 里加一行 `set "SP_RECORDS=on"`（重新运行安装脚本会重写这个文件）；systemd：加一行 `Environment=SP_RECORDS=on`。
+
+| `SP_RECORDS` | 记录 |
+|---|---|
+| 不设置、空、`0`、`off`、`false`、`no` | 关闭 |
+| `1`、`on`、`true`、`yes` | 写到安装目录的 `logs/records/`（和整个 `logs/` 一样不进 git） |
+| 其他值 | 写到这个文件夹（相对路径以安装目录为准） |
+
+开启后服务器日志在启动时显示 `[records] match records on: <文件夹>`。每场结束的对局写一个文件
+`<文件夹>/<YYYY-MM-DD>/<随机 id>.json.gz`（gzip 压缩的 JSON，单人约 10 KB，4 人合作约 30–35 KB）。文件和文件夹的时间都设为当天 0 点（UTC），打包后也看不出对局的具体时刻。测试房间从不记录。
+这些文件的任意子集都是有效的数据集：想分享数据时，把某一天（或几天）的文件夹打包发出即可。
+
+**记录包含**：程序版本和日期；模式、难度、大厅规则、插件房间的内容哈希、种子；每个席位（`s0`–`s3`）：玩家还是 AI、
+策略、通过的回合数、称号和结算统计；结果；每个改变游戏状态的操作（按顺序，不含时间：购买、出售、刷新、升级、移动、
+装备、战术装置、奖励、轮选、AI 托管开关；由 AI 代为执行的操作会标出），每次商店刷新出的内容，每个获得的干员或装备；
+每回合一行（生命值、商店等级、资金、阵容、盟约、层数）；以及每场战斗的 BattleSpec 和结果摘要；每一回合都有一行，包括对局结束的那一回合，以及进入隐秘核心之前打赢的最终决战。战斗是确定性的，
+所以可以从 spec 重放。
+
+**记录从不包含**：玩家名字或 id、房间号、IP 地址、令牌、浏览器或设备信息、具体时刻（只有日期）、表情或聊天、
+「问题反馈」的文本。席位只有 `s0`–`s3` 和玩家 / AI 之分：无法把同一个玩家的多场对局联系起来。
+
+查看：`node tools/records.mjs [文件夹…]`（默认 `logs/records`）输出表格（按模式和难度的对局数、玩家与 AI 席位、
+按大厅规则、按 Risk、按策略、玩家每回合的休整期操作）；在第一场战斗前就结束的对局（所有人在简报或轮选时离开）单独计数，不计入表格。`--json` 以 JSON 输出同样的数字；`--verify` 用当前代码从
+spec 重放每场记录的普通战斗，检查结果是否与记录一致：当前版本的记录不一致即报错；其他版本的记录也会重放，但版本之间可能有玩法改动，所以它们的不一致单独列为“可能”，不算失败。

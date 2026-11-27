@@ -41,8 +41,9 @@
 
 import {
   num, buffsOf, bandRecord, isOp, onField, isElite, tierOf, unitBonds, activeBondIds, playerOps, passiveBuff, fxOn,
-  matchBands, gainLayers, alliesAround, N4, baseChessId, isGroundOp, directMods, isVersionData, isFirstPeriod,
+  matchBands, gainLayers, alliesAround, N4, baseChessId, isGroundOp, directMods, battleRule, isVersionData, isFirstPeriod,
 } from '../support/index.js';
+import { CC } from '../../../../shared/ruleData.js';
 import { weaknessRetype, addShieldLayer, PRIO_RESPAWN, reviveNow } from '../items/battle.js';
 import { spawnMapChar } from '../tokens.js';
 
@@ -62,7 +63,8 @@ const deployedOps = (battle, pid) => playerOps(battle, pid, { fieldOnly: true })
 const BY_KEY = {
   // 阿米娅 众志合一
   act1autochess_band2_buff(battle, ps, p, bandId) {
-    const n = activeBondIds(battle, ps.playerId).length;
+    // SPA-CC Strategy 2 (ccStrategyLate 2): each tier needs CC.strategy2.amiyaExtra more active alliances
+    const n = activeBondIds(battle, ps.playerId).length - (battleRule(battle, 'ccStrategyLate') >= 2 ? CC.strategy2.amiyaExtra : 0);
     let atk = 0, hp = 0;
     for (let i = 1; i <= 9 && p[`value_${i}`] != null; i++) {
       if (n >= num(p[`value_${i}`], Infinity)) { atk = num(p[`atk_${i}`]); hp = num(p[`max_hp_${i}`]); }
@@ -215,7 +217,9 @@ const BY_KEY = {
       const elites = deployedOps(battle, ps.playerId).filter(isElite);
       const n = elites.length;
       if (!n) return;
-      const mods = directMods({ atk: a * n, hp: h * n });
+      // SPA-CC Strategy 2 (ccStrategyLate 2): ATK and HP each at most +CC.strategy2.ioletaCap
+      const cap = battleRule(battle, 'ccStrategyLate') >= 2 ? CC.strategy2.ioletaCap : Infinity;
+      const mods = directMods({ atk: Math.min(cap, a * n), hp: Math.min(cap, h * n) });
       for (const u of elites) passiveBuff(battle, u, keyOf(bandId), mods);
     });
   },

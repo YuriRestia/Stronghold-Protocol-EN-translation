@@ -12,6 +12,7 @@ import { DELAYS } from './common.js';
 import { previewPlayer } from '../preview.js';
 import { morphBattleOpt } from '../../../shared/plugins/rules.js';
 import { noteChatKills } from '../chatWallet.js';
+import { noteBattle, noteDowns } from '../autoAward.js';
 
 export class MatchCombat {
   /** Construct a battle; a constructor failure yields a finished stand-in (clean result) and is logged. */
@@ -43,7 +44,7 @@ export class MatchCombat {
     return out;
   }
 
-  _normalBattle(ps) { return this.newBattle(this._normalOpts(ps)); }
+  _normalBattle(ps) { const o = this._normalOpts(ps); noteBattle(this, o); return this.newBattle(o); }
 
   /** Battle options of a player's normal field (after the onBattleStart handlers). */
   _normalOpts(ps, { preview = false, board = ps.board } = {}) {
@@ -51,7 +52,8 @@ export class MatchCombat {
     if (preview) ps = previewPlayer(ps, board);
     const input = ps.battleInput({ side: 'L', colOffset: 0 });
     // the client's list: bounty units inserted among their host action's own units, which are re-timed around them
-    const spawns = withBounties(this.gd, this.round, wave, ps.bounties, ps.playerId).map((s) => ({ ...s, ownerPlayerId: ps.playerId }));
+    // (the SPA-CC risk bounties, waveBounties, ride with the player's own)
+    const spawns = withBounties(this.gd, this.round, wave, this.waveBounties(ps), ps.playerId).map((s) => ({ ...s, ownerPlayerId: ps.playerId }));
     // `waveSpawns`: the round's own wave before this player's bounties (a copy), so a draw every player shares picks the
     // same units; `routes`: their lanes (鸭爵, GitHub #839)
     const waveSpawns = (wave.spawns || []).map((s) => ({ ...s, mods: s.mods ? { ...s.mods } : undefined }));
@@ -71,7 +73,7 @@ export class MatchCombat {
       spawns: this._sanitizeSpawns(Array.isArray(ev.spawns) ? ev.spawns : spawns, ps.playerId),
       routes: wave.routes,
       sharedBoss: null,
-      flags: { layerGainsEnabled: true, ...this.gd.dp },
+      flags: { layerGainsEnabled: true, ...this.gd.dp, rules: this.lobbyRules },
       fieldId: `n:${ps.playerId}`,
       enemyOverrides: wave.overrides,
       waveId: wave.templateId,
@@ -152,6 +154,7 @@ export class MatchCombat {
       const res = resultOf(f);
       this._collectSimErrors(f, res);
       noteChatKills(this, f, res);
+      noteDowns(this, res); // (GitHub #125) Low Efficiency
       for (const pid of f.players) {
         const pp = res.perPlayer && res.perPlayer[pid];
         this.lastResults.set(pid, pp || { killed: 0, total: 0, leaked: [], perfect: true, layerGains: {}, coins: 0, damageDealt: 0, unitsEnd: [], unitStats: [] });

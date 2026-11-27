@@ -41,7 +41,13 @@ export function isOneForAll(room) { return isLarge(room) && room.oneForAll === t
  * (fork) The matchmaking pool of a room: rooms meet only rooms of the same version, difficulty and size, and a Grand
  * Alliance only one of the same strategy mode (Free pick or One for All). Rooms without One for All keep their old key.
  */
-export function poolKey(room) { return `${roomVersion(room)}|${room.difficulty}|${roomCap(room)}${isOneForAll(room) ? '|ofa' : ''}`; }
+/**
+ * (fork) A room that searches as 'modded' (Room.searchKind) meets only rooms that do too, with the same lobby rules, so no
+ * host's rules are replaced by another's; a vanilla room's key is what it always was.
+ */
+export function poolKey(room) {
+  return `${roomVersion(room)}|${room.difficulty}|${roomCap(room)}${isOneForAll(room) ? '|ofa' : ''}${room.searchKind === 'modded' ? `|mod${JSON.stringify(room.rules ?? null)}` : ''}`;
+}
 
 /** (fork) Occupied seats per squad (seats 1–4, 5–8); a normal room has its players in the first. */
 export function squadCounts(room) {

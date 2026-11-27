@@ -208,18 +208,32 @@ export function composeRules(entries) {
 }
 
 /**
+ * The Alliance an item gives a bearer that also wears a 变形同构体: its `giveBondId`, else the `morphBondId` a lobby rule
+ * adds (Damazti Isomorph+, GitHub #134: shared/ruleData.js ISO_PLUS). A separate field, so those items don't become
+ * Alliance items anywhere else (a Victorian Hammer check, the shop's bias, the bots' bond items read `giveBondId`).
+ * @param {any} rec
+ * @returns {string|null}
+ */
+export function morphBondOf(rec) {
+  if (!rec || typeof rec !== 'object') return null;
+  if (typeof rec.giveBondId === 'string' && rec.giveBondId) return rec.giveBondId;
+  return typeof rec.morphBondId === 'string' && rec.morphBondId ? rec.morphBondId : null;
+}
+
+/**
  * Bonds a 变形同构体 pairing grants.
  * official: fewer than two items grants nothing; a canGiveBond item must be present; every other item's
  * giveBondId grants (when bondOk says the bond exists — the client passes a bondOk that always accepts).
  * plus: one item is enough, a canGiveBond item must still be present, and only the leftmost giveBondId grants.
+ * free (Fish Edition: Mod Z Phantom): no canGiveBond item and no second item needed; every item's giveBondId grants.
  * @param {Array<string|{id?: string}>|null|undefined} items
  * @param {(id: string) => any} getItem
- * @param {{ mode?: string, bondOk?: (id: string) => boolean }} [opts]
+ * @param {{ mode?: string, bondOk?: (id: string) => boolean, free?: boolean }} [opts]
  * @returns {string[]}
  */
-export function grantedBondsByMorph(items, getItem, { mode = 'official', bondOk = () => true } = {}) {
+export function grantedBondsByMorph(items, getItem, { mode = 'official', bondOk = () => true, free = false } = {}) {
   const list = Array.isArray(items) ? items : [];
-  if (mode !== 'plus' && list.length < 2) return [];
+  if (!free && mode !== 'plus' && list.length < 2) return [];
   const recs = [];
   for (const it of list) {
     const id = typeof it === 'string' ? it : it && it.id;
@@ -227,11 +241,11 @@ export function grantedBondsByMorph(items, getItem, { mode = 'official', bondOk 
     const rec = getItem(id);
     if (rec && typeof rec === 'object') recs.push(rec);
   }
-  if (!recs.some((r) => r.canGiveBond)) return [];
+  if (!free && !recs.some((r) => r.canGiveBond)) return [];
   const out = [];
   for (const r of recs) {
     if (r.canGiveBond) continue;
-    const id = r.giveBondId;
+    const id = morphBondOf(r);
     if (typeof id === 'string' && id && bondOk(id) && !out.includes(id)) {
       out.push(id);
       if (mode === 'plus') break;

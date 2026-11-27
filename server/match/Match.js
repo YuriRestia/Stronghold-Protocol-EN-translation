@@ -15,6 +15,9 @@
 //   opts.aiPicksLast boolean (optional)         the co-op room option 「AI 队友最后选择」 (room.setAiPicksLast, GitHub #338):
 //                                              the strategy and 机变 drafts put every human seat before every AI seat
 //                                              (MatchPhases.humansFirst); only `true` turns it on; ignored in solo
+//   opts.lobbyRules  { [RULE_KEYS]: boolean } (optional)  the room's lobby rules (shared/constants.js); missing = all off.
+//                                              Read once: extraDeploy → PlayerState.deployCap, extraFunds → the round
+//                                              start income, untimed → soloUntimed. Shown as m.public.rules.
 //   opts.seats       Array<{ seat: 0..3, playerId: string, name: string, isBot: boolean, connected: boolean,
 //                            loadout?: { [baseChessId]: { skill: index, module: uniEquipId|'none'|null } } | null,
 //                            ops?: { [charId]: { potential: 1–6, cultivate: 0–3 } } | null,
@@ -50,6 +53,9 @@
 //                                              ALT_ART_EVERY-th match may get the alternate result background (results.js)
 //   opts.altArtChance 'every' | 'picked' | null (optional, fork) the lobby's results.js altArtChance(); absent =
 //                                              derived from serverMatchNo
+//   opts.record      boolean (optional, fork)    keep the anonymous match record (GitHub #32, ./records.js): only `true`
+//                                              turns it on (the lobby, when SP_RECORDS is set); the onEnd summary then
+//                                              carries it as `record`. Observes only: the match plays the same either way
 //   opts.cs          string (optional)          the content hash of the room's content set (DESIGN §32,
 //                                              server/plugins/identity.js; 64 hex digits): copied into every BattleSpec
 //                                              as `cs` — the sim never reads it; absent (or malformed) ⇒ specs carry none
@@ -229,8 +235,9 @@
 //   common.js        what the modules share (FLOW_TICKER_PRIORITY, DELAYS, BAND_TURN_SECONDS — re-exported here, OK,
 //                    fail, BOSS_CLOCK_MS)
 
-import { PHASE, modeIdFor } from '../../shared/constants.js';
 import { isContentHash } from '../../shared/plugins/identity.js';
+import { ruleDataPatch, rulesChangeData } from '../../shared/ruleData.js';
+import { PHASE, modeIdFor, normalizeRules } from '../../shared/constants.js';
 import { DEFAULT_VERSION, versionById } from '../../shared/versions.js';
 import { Battle } from '../sim/Battle.js';
 import { DataSource } from '../sim/simdata.js';
@@ -264,6 +271,7 @@ import { MatchUnite } from './match/unitePhase.js';
 import { MatchBoss } from './match/bossRounds.js';
 import { MatchSettle } from './match/settle.js';
 import { installTestTrace } from './testTrace.js';
+import { installRecorder } from './records.js';
 import { MatchTestCommands } from './match/testCommands.js';
 import { MatchOffers } from './match/offers.js';
 import { MatchLargeRoom } from './match/largeRoom.js';
@@ -320,6 +328,8 @@ export class Match {
     this.mode = opts.mode === 'solo' ? 'solo' : 'coop';
     this.difficulty = opts.difficulty;
     this.modeId = opts.modeId || modeIdFor(this.mode, opts.difficulty);
+    /** lobby rules (shared/constants.js RULE_KEYS), fixed for the whole match */
+    this.lobbyRules = normalizeRules(opts.lobbyRules);
     this.seed = (Number(opts.seed) >>> 0) || 1;
     // (fork) the server-wide match number (lobby: every match this server process created); 0 = not counted
     this.serverMatchNo = Number.isInteger(opts.serverMatchNo) && opts.serverMatchNo > 0 ? opts.serverMatchNo : 0;
@@ -361,6 +371,11 @@ export class Match {
     this._offerResume = null;
     /** window sequence (diagnostics and messages) */
     this.offerSeq = 0;
+    // the rebalanced alliances of the lobby rules (shared/ruleData.js): this match's records, the shared data untouched
+    if (rulesChangeData(this.lobbyRules)) {
+      const patch = ruleDataPatch(this.data, this.lobbyRules);
+      this.data = { ...this.data, chess: { ...(this.data.chess || {}), ...patch.chess }, garrisons: { ...(this.data.garrisons || {}), ...patch.garrisons }, bonds: { ...(this.data.bonds || {}), ...patch.bonds }, items: { ...(this.data.items || {}), ...patch.items } };
+    }
     this.gd = new GameData(this.data, this.modeId);
     if (!this.difficulty) this.difficulty = this.gd.difficulty;
     this.isSolo = this.mode === 'solo' || this.gd.isSolo;
@@ -540,13 +555,13 @@ export class Match {
     this._initOneForAll(opts);
 
     // per-match setup (DESIGN §6.5)
-    const setup = setupMatchWaves(this.gd, this.rngSetup);
+    const setup = setupMatchWaves(this.gd, this.rngSetup, { stageId: this.lobbyRules.stage });
     this.stageId = setup.stageId;
     this.stage = this.stageId ? this.gd.stage(this.stageId) : null;
     this.factions = setup.factions;
     this.bossId = setup.bossId;
     this.hiddenBossId = setup.hiddenBossId;
-    const bans = drawDisabledBonds(this.gd, this.rngSetup);
+    const bans = drawDisabledBonds(this.gd, this.rngSetup, { picks: this.lobbyRules.bans });
     this.disabledBonds = bans.drawn;
     this.staticInactiveBonds = bans.staticOff;
     this.bannedChess = bans.banned;
@@ -629,6 +644,7 @@ export class Match {
     // above). The input journal records the steps that callback took; replay stops there.
     this.externalAI = createExternalAI(this, opts);
     if (this.test && opts.journal !== false) installTestTrace(this, opts);
+    if (opts.record === true) installRecorder(this);
   }
 }
 

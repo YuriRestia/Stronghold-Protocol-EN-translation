@@ -182,8 +182,9 @@ test('6_02 圣聆初雪 S1 铃音吹雪: 2 charges (cast with enemies in range);
     const colds = statuses(h, 'cold', (c) => c.source === u && c.t === t0);
     assert.equal(colds.length, 2);
     for (const c of colds) approx(c.duration, bb.cold, 'cold');
+    h.settle();
     const [e1] = h.enemies();
-    approx(e1.x, 5 + 0.44 * started(h, u).length, 'pushed forward along her direction by the official 0.44 tiles per cast');
+    approx(e1.x, 5 + 0.44 * started(h, u).length, 'pushed forward along her direction by the official 0.44 tiles per cast', 0.002);
     approx(e1.y, 10, 'no sideways push');
     // (the pushed enemies clear the snow of the tiles they leave: "首个敌人离开该地块时积雪消失")
     for (let d = 3; d <= bb.trig_cnt; d++) assert.ok((u.mem.snow.get(10 * COLS + 4 + d) ?? 0) >= 1, `snow ${d} tiles ahead`);

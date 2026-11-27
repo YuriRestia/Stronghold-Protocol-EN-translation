@@ -10,16 +10,26 @@ import { mitigate } from './calculation.js';
  * escort, drone or other minion), the battle is a boss / hidden one (the client's step mode: every boss battle outside
  * training) and ceil(amount) ≥ BOSS_HIT_LIMIT. The cancel is whole (no clamp): no HP / pool loss, no credit, no damage
  * number. A 'hitCap' fx event `{ id, n: ceil(amount) }` marks it for the client, which draws nothing — the official
- * shows no number [ASSUMED]. Every HP-damage kind is checked as the official `modifier.isDamage` (phys, arts, true,
+ * shows no number [ASSUMED]. (fork, GitHub #131, Fish 2026-11-12) A hit from a promoted (elite) operator ignores the
+ * limit, and so does its summon's: `source` is the hitting unit; source-less damage (element bursts) stays limited.
+ * Every HP-damage kind is checked as the official `modifier.isDamage` (phys, arts, true,
  * 元素伤害 incl. element bursts, DoT ticks — they all come through dealDamage — and losses passed on to a leader through
  * Battle.dealHPLose, except the 胄 drone link's pool share: `noHitLimit`, DESIGN §25.13.4); element 损伤 (gauge fill,
  * 'element') removes no HP and is never checked. Deterministic (Math.ceil of the same double on every engine).
  */
-export function leaderHitCancelled(battle, target, amount) {
+export function leaderHitCancelled(battle, target, amount, source = null) {
   if (!(BOSS_HIT_LIMIT > 0) || !target || !target.isBoss || (battle.kind !== 'boss' && battle.kind !== 'hidden')) return false;
+  if (battle.flags && battle.flags.rules && battle.flags.rules.noHitLimit) return false; // the cheat 「取消领袖单次伤害上限」 (GitHub #174: apart from 「叠层上限 9999」)
+  if (promotedSource(source)) return false;
   if (!(Math.ceil(amount) >= BOSS_HIT_LIMIT)) return false;
   battle.fx('hitCap', { x: target.x, y: target.y, id: target.id, n: Math.ceil(amount) });
   return true;
+}
+
+/** (fork, #131) The hitting unit is an ally promoted operator, or a summon of one (units.js `ownerUnit`). */
+function promotedSource(u) {
+  if (!u || u.side !== 'ally') return false;
+  return !!(u.def?.golden || u.ownerUnit?.def?.golden);
 }
 
 /**
@@ -34,7 +44,7 @@ export function loseHp(battle, ctx, amount, { noHitLimit = false } = {}) {
   if (!target || !target.alive || !(amount > 0)) return 0;
   const lost = dmg.type === 'phys' || dmg.type === 'arts' ? mitigate(amount, dmg.type, target.s, dmg) : amount;
   if (!Number.isFinite(lost) || !(lost > 0)) return 0;
-  if (!noHitLimit && leaderHitCancelled(battle, target, lost)) return 0;
+  if (!noHitLimit && leaderHitCancelled(battle, target, lost, ctx.source)) return 0;
   return applyHpDecrease(battle, { ...ctx, kind: 'hpLoss' }, lost);
 }
 
@@ -58,7 +68,7 @@ export function applyHpDecrease(battle, ctx, amount, mark) {
     const before = pool.hp;
     const pid = credit && credit.side === 'ally' ? credit.ownerId : null;
     if (hpAmount > 0) {
-      try { pool.damage(pid, hpAmount); } catch (e) { battle._internalError('bossPool.damage', e); pool.hp = Math.max(0, pool.hp - hpAmount); }
+      try { pool.damage(pid, hpAmount, dmg ? dmg.type : undefined); } catch (e) { battle._internalError('bossPool.damage', e); pool.hp = Math.max(0, pool.hp - hpAmount); }
     }
     dealt = Math.max(0, before - pool.hp);
     if (!Number.isFinite(dealt)) dealt = 0; // a misbehaving pool (NaN hp) must not poison damage stats

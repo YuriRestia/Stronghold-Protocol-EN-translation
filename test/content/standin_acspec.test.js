@@ -214,8 +214,10 @@ test('Misery S3 空间的归依 (山 / 锏): nothing at the battle start; knocke
     // the drag and the 停顿 ride a 0-damage hit on the ones nobody blocks
     assert.deepEqual(new Set(tagged(h, u, 'acspec:pull').map((c) => c.target)), new Set([diag, above]));
     for (const e of [diag, above]) {
-      approx(Math.hypot(e.x - u.x, e.y - u.y), PULL_STOP_RADIUS, `${id}: dragged to her front (weight 0, 小力)`, 1e-3);
-      assert.ok(Math.hypot(e.x - start.get(e)[0], e.y - start.get(e)[1]) > 0.2, `${id}: it moved`);
+      // where the drag's slide ends (battle/displacement.js; GitHub #60)
+      const end = e.shift ? h.b._shiftPredict(e, e.shift) : e;
+      approx(Math.hypot(end.x - u.x, end.y - u.y), PULL_STOP_RADIUS, `${id}: dragged to her front (weight 0, 小力)`, 1e-3);
+      assert.ok(Math.hypot(end.x - start.get(e)[0], end.y - start.get(e)[1]) > 0.2, `${id}: it moved`);
       const s = e.findBuff('sluggish');
       assert.ok(s && s.timeLeft > bb.sluggish - 0.1 && s.timeLeft <= bb.sluggish + 1e-9, `${id}: 停顿 ${bb.sluggish} s`);
     }

@@ -26,6 +26,8 @@ import { CombatSummary } from '../ui/combatSummary.js';
 import { sentText } from '../ui/lang.js';
 import { UnofficialMark, VersionTag } from '../ui/pluginTag.js';
 import { TestMark } from '../ui/testConsole.js';
+import { ruleBadges, RulesChips, AwardNotesButton } from '../ui/lobbyRules.js';
+import { rulesInForce } from '../../../shared/rules.js';
 import { t, tParts, N_, shownName } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -134,6 +136,14 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
   const bg = uiUrl(gd.m, r.victory ? 'settle/settlemen_teamshow_success' : 'settle/settlemen_teamshow_fail');
   const mins = r.durationMs ? Math.round(r.durationMs / 60000) : null;
 
+  // Custom Lobby Modifications of the match (shared/rules.js): "seeded" after the difficulty, the WITH CHEATS mark, and the
+  // list of every rule in force (shown in full: a recording of the screen shows how the result was made)
+  const rules = pub?.rules || null;
+  const inForce = rules ? rulesInForce(rules) : [];
+  // (GitHub #125) the Risk tags the autoAward rule added at the end: in the Risk total, and as AUTO chips
+  const awarded = res?.awarded ?? pub?.awarded ?? null;
+  const awardNotes = res?.awardNotes ?? pub?.awardNotes ?? null; // why the others weren't (a panel, closed by default)
+  const badges = ruleBadges(rules, awarded);
   return html`<div class=${cx('screen', 'result', r.victory ? 'is-win' : 'is-lose')}>
     <div class="result__bg" aria-hidden="true" style=${bg ? `--result-bg:url("${bg}")` : undefined}></div>
     <div class="result__grid" aria-hidden="true"></div>
@@ -141,7 +151,12 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
       <section class="result__hero">
         <div class="result__summary">
         <div class="result__logo"><${Sprite} k="entry/season_logo_settle" class="result__logoimg" fallback=${html`<${MicroLabel} tone="mint">STRONGHOLD PROTOCOL</${MicroLabel}>`} /></div>
-        ${r.difficulty ? html`<${DifficultyTag} difficulty=${r.difficulty} size="lg" />` : null}
+        ${r.difficulty || badges.seeded || badges.risk > 0 ? html`<div class="result__tagline">
+          ${r.difficulty ? html`<${DifficultyTag} difficulty=${r.difficulty} size="lg" />` : null}
+          ${badges.risk > 0 ? html`<span class="result__risk num">+${badges.risk}</span>` : null}
+          ${badges.seeded ? html`<span class="result__seeded">${badges.seeded}</span>` : null}
+        </div>` : null}
+        ${badges.cheats ? html`<div class="result__cheats" role="note">${badges.cheats}</div>` : null}
         <h1 class="result__headline">${r.victory ? t('模拟完成') : t('模拟失败')}</h1>
         <${UnofficialMark} room=${content ? { content } : null} class="result__modmark" /><${VersionTag} version=${version} class="result__vertag" />
         ${res?.test === true ? html`<p class="result__test" data-testid="result-test"><${TestMark} /> ${t('测试对局')}${Number.isInteger(res.testActions) ? html` · ${t('测试指令 {n} 次', { n: res.testActions })}` : null}</p>
@@ -160,6 +175,11 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
             <${Img} src=${enemyIconUrl(gd.m, hidden.enemyKey)} /><span class="medal__check">${r.hiddenCleared ? html`<${Icon} name="check" />` : html`<${Icon} name="close" />`}</span>
             <span class="medal__label">${t('隐秘核心')}</span></div>` : null}
         </div>
+        ${inForce.length || awarded ? html`<div class="result__rules">
+          <span class="result__rlabel">${t('本局房间改动')}</span>
+          <${RulesChips} rules=${rules} awarded=${awarded} />
+          <${AwardNotesButton} notes=${awardNotes} />
+        </div>` : null}
         ${mins ? html`<p class="result__time t-lo">${tParts('本局耗时 {n} 分钟', { n: html`<b class="num">${mins}</b>`, mins })}</p>` : null}
         </div>
         <footer class="result__foot">

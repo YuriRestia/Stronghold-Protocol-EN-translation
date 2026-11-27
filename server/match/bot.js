@@ -131,27 +131,27 @@ export function runSteps(gen) {
  * bench value. Unit power runs 10-25 and computeBonds already scores the plan's bonds exactly, so the full weight
  * benched tier 5/6 carries for tier 1-2 plan members (27 of 38 LLM preps from R10).
  */
-const PLAN_UNIT_SHARE = 0.25;
+let PLAN_UNIT_SHARE = 0.25;
 /** Lineup value of each deployed member of the focus bond (up to its top threshold). */
-const FOCUS_MEMBER = 4;
+let FOCUS_MEMBER = 4;
 /**
  * [ASSUMED] §35.62: lineup value of a core bond at its second tier or above (6 拉特兰 / 叙拉古 …, 5 阿戈尔), on top of the
  * linear tier weight. The guides build around a 6-member main (handoff/round51 RESEARCH §2); measured on ABYSS solo, a
  * linear weight never fielded one (boards stayed 3 + 3 + 3) even with 6 distinct members owned.
  */
-const CORE_TOP_TIER = 30;
+let CORE_TOP_TIER = 30;
 /** §37.43: lineup bonus for the top tier of a core bond whose top threshold exceeds the deploy cap (炎 9). */
-const TOP_ABOVE_CAP = 60;
+let TOP_ABOVE_CAP = 60;
 /** [ASSUMED] §35.62: bench members of a core bond with at least this many distinct owned members are not sold as junk. */
-const CORE_KEEP_OWNED = 4;
+let CORE_KEEP_OWNED = 4;
 /**
  * [ASSUMED] §35.63 commitment to a 6-member core: last round's focus keeps CORE_LOCK (was 6) once 3 members are owned, a
  * new focus member is worth CORE_MEMBER more on the way to the top threshold, and a refresh that may show one is worth
  * CORE_HIT × P(shown) (coreGap).
  */
-const CORE_LOCK = 16;
-const CORE_MEMBER = 10;
-const CORE_HIT = 20;
+let CORE_LOCK = 16;
+let CORE_MEMBER = 10;
+let CORE_HIT = 20;
 /**
  * [ASSUMED] §35.63 sustain floor: from HEAL_FROM the lineup values its first healer at HEAL_FIRST and a second one from R9
  * at HEAL_SECOND (buyScore: the first healer +14, a second from R8 +4). Bots fielded 0.1–0.5 healers in R4–R13 and died
@@ -159,33 +159,33 @@ const CORE_HIT = 20;
  * since — co-op enemies carry 2–2.5× the solo HP from R7, and with the bots of §37.37–§37.39 a co-op seat does better
  * fielding a dealer in that slot (see COOP_BENCH_BUDGET for the whole co-op change).
  */
-const HEAL_FROM = 5;
-const HEAL_FIRST = 16;
-const HEAL_SECOND = 6;
+let HEAL_FROM = 5;
+let HEAL_FIRST = 16;
+let HEAL_SECOND = 6;
 /** Value per unit of armour fit (the share of a dealer's damage the round's DEF / RES lets through, armorFit). */
-const ARMOR_WEIGHT = 10;
+let ARMOR_WEIGHT = 10;
 /** Least buy score of a purchase once the board is full (below it the bot refreshes instead). */
-const BUY_FULL_MIN = 8;
+let BUY_FULL_MIN = 8;
 /**
  * Value of completing an elite (+25 % stats, skill level 7, and the merge's free pick of three tier min(level + 1, 6)
  * chess — worth having for any pair, a cheap one included) and of making a keeper's pair; refreshValue weighs them by
  * the shop odds.
  */
-const MERGE_HIT = 36;
-const PAIR_HIT = 8;
+let MERGE_HIT = 36;
+let PAIR_HIT = 8;
 /** Pairs the bench holds at once while refreshes hunt their third copies (each takes a hand slot or two). */
-const MAX_PAIRS = 4;
+let MAX_PAIRS = 4;
 /** Refreshes per prep at most (funds bound them first). */
-const MAX_REFRESHES = 16;
+let MAX_REFRESHES = 16;
 /** Spare bench units kept beyond the lineup at the prep start (pairs first). */
-const BENCH_BUDGET = 6;
+let BENCH_BUDGET = 6;
 /**
  * §37.40 [ASSUMED] co-op play: a co-op seat keeps 4 spare bench units (solo 6), fields no healer for its own sake (the
  * HEAL_FIRST / HEAL_SECOND lineup terms are solo only) and takes the bounty card with the least enemy HP (bountyPick).
  * 终极 co-op 1–320 against §37.39: 35.9 → 43.7 % pool completion (+7.8 ± 2.5 paired), wins 46 → 73; leaving one of the
  * three out cost 3.4 / 3.7 / 4.3 points. In solo none of them helped (−2.8 / −0.2 / −0.3).
  */
-const COOP_BENCH_BUDGET = 4;
+let COOP_BENCH_BUDGET = 4;
 /**
  * Shop level the bot aims for at the start of round r (index = round). §35.63: L5 at R9 and L6 at R11 (were R10 / R12),
  * the community rhythm 3-5-7-9 (BV19UXZBJExQ reply; handoff/round51 RESEARCH §3.2) plus one step: 终极 solo boards
@@ -194,14 +194,14 @@ const COOP_BENCH_BUDGET = 4;
  * than tier 6 brings: capped at L5 the bots field more elites (R13 1.6 → 2.1) and layers (171 → 202), and 终极 solo pool
  * completion rose 32.0 → 39.0 % on 160 seeds (+6.9 ± 2.3 paired). L4 as the cap, or L5 a round earlier or later, was worse.
  */
-const LEVEL_TARGET = [1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 5, 5, 5];
-const BOT_MAX_LEVEL = 5;
+let LEVEL_TARGET = [1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 5, 5, 5];
+let BOT_MAX_LEVEL = 5;
 /**
  * AI 托管 of a human with 自选 picks (0.2.0; bots field none): the buy score of one of the player's own slotted pieces —
  * the operator the player chose to field (follow-up #13: under AI 托管 they were rarely bought) — and the 调度中心 is
  * levelled one round earlier for the step that opens a slotted tier (levelUp).
  */
-export const DIY_PIECE_BONUS = 12;
+export let DIY_PIECE_BONUS = 12;
 const TIER_POWER = [0, 10, 12.5, 15, 18, 21.5, 25];
 /** Prep-side 特质 that keep adding bond layers every round / every refresh (a player's main layer engine). */
 const RECURRING_TRAIT_EVENTS = new Set(['SERVER_PREP_START', 'SERVER_PREP_FIN', 'SERVER_REFRESH_SHOP']);
@@ -228,8 +228,8 @@ const DEFAULT_MELEE_RANGE = [[0, 0], [0, 1]];
  * excluded, the default band. One rng draw per call (deterministic per seed); a solo match has no teammate to reserve
  * against.
  */
-const SOFT_BAND_RESERVE = 0.25;
-const MATE_BURDEN = 0.1;
+let SOFT_BAND_RESERVE = 0.25;
+let MATE_BURDEN = 0.1;
 /**
  * §37.46: the bots' own strength with each band of the default version — 终极 solo pool completion (%) of 80 forced games
  * per band (seeds 1–80, botbench --band) at dev 17a075f1 (handoff/round57). Forced 40 games already ranked them far apart:
@@ -248,8 +248,8 @@ const BAND_STRENGTH = Object.freeze({
 });
 const BAND_STRENGTH_MEAN = Object.values(BAND_STRENGTH).reduce((s, v) => s + v, 0) / Object.keys(BAND_STRENGTH).length;
 /** Pulled toward the mean by the 80-seed noise (SE ≈ 4 points against a spread of ≈ 7). */
-const BAND_STRENGTH_SHRINK = 0.7;
-const BAND_STRENGTH_POWER = 6;
+let BAND_STRENGTH_SHRINK = 0.7;
+let BAND_STRENGTH_POWER = 6;
 /**
  * §37.46 [ASSUMED]: the 终极 pick multiplier of band `id` — (shrunk strength / 50)^6; against 歌利亚's: 阿米娅 ×1.5,
  * 杜宾 / 梓兰 ×0.45, 克莱门莎 ×0.03. 歌利亚 still leads on its LP (57 % of solo picks instead of 44 %). Pool completion
@@ -492,7 +492,7 @@ export function bountyKillChance(m, ps, card) {
 }
 
 /** Exposure (× HP) a bounty enemy needs for a 63 % kill chance (conservative: it fights beside the wave). */
-const BOUNTY_KILL = 2;
+let BOUNTY_KILL = 2;
 
 /**
  * §37.40 [ASSUMED]: the HP a bounty card adds to the own battles (its enemy's max HP × count) — a co-op seat takes the card
@@ -783,15 +783,15 @@ function selfPlan(m, ps) {
  * 获得时 layer trait counts (acquireLayers), and so do the deployed 小满 / 夕, which add layers for every operator gained in
  * the prep (gainCountLayers) — with both out, any cheap operator is a trade. Measured on 终极: see history §35.63, §37.35.
  */
-const TRADE_MIN = 3;
+let TRADE_MIN = 3;
 /**
  * §37.60 [ASSUMED]: alone the bar is 4 layers per fund — the funds a 3-per-fund trade or refresh spends buy more in the
  * shop (终极 solo 1–320 +1.75 ± 1.04, fresh seeds 481–640 +3.15 ± 1.33, wins 63 → 75; 5 and 6 less). In co-op it stays 3:
  * 4 there was −1.49 ± 1.83 on 1–320.
  */
-const SOLO_TRADE_MIN = 4;
+let SOLO_TRADE_MIN = 4;
 export const tradeMin = (m) => (m.isSolo ? SOLO_TRADE_MIN : TRADE_MIN);
-const TRADE_FROM = 4;
+let TRADE_FROM = 4;
 const bondList = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
 
 /**
@@ -1051,7 +1051,7 @@ function traitsOf(m, c) {
  * 获得时 one (the layer trade, acquireLayers), a layer-scaled bonus (「每叠加3层」) or one feeding whichever bond has the most
  * layers (号角, 塑心, 调香师: counting them cost co-op seats, history §37.36). Cached per match and bond.
  */
-const ENGINE_BONUS = 10;
+let ENGINE_BONUS = 10;
 export function engineFor(m, c, bond) {
   if (!c || !bond) return false;
   const cache = m._botEngines || (m._botEngines = new Map());
@@ -1618,7 +1618,7 @@ function armorFit(model, rec) {
 }
 
 /** Tunables of the exposure model (tuned offline against the real simulation, tools/matchrun.mjs sweeps). */
-export const LAYOUT_PARAMS = Object.freeze({ hold: 4, kill: 1.5, secondHold: 0.5, healHold: 0.5, roadPenalty: 0.15, spread: 99 });
+export let LAYOUT_PARAMS = Object.freeze({ hold: 4, kill: 1.5, secondHold: 0.5, healHold: 0.5, roadPenalty: 0.15, spread: 99 });
 
 /**
  * Exposure model of a layout: every enemy of route ρ spends tileTime on each tile of its route (plus the hold time
@@ -1936,7 +1936,7 @@ function bossCandidateOpts(m, ps, byUid, plan) {
     if (Array.isArray(ev.spawns)) spawns = ev.spawns;
     if (Array.isArray(ev.routes)) routes = ev.routes;
   }
-  const hp = bossPoolHp(m.gd, bossId, alive.length, bossPoolSeats(m));
+  const hp = bossPoolHp(m.gd, bossId, alive.length, null, { seats: bossPoolSeats(m) });
   return {
     seed: faRehearsalSeed(m, ps),
     kind,
@@ -2154,6 +2154,7 @@ function tryDo(fn) {
 function canUseItem(m, ps, item) {
   const rec = m.gd.item(item.id);
   if (!rec) return false;
+  if (rec.booster === true) return false; // the boosterPack cheat's pack is for humans (GitHub #35): never used
   if (rec.itemType === 'MAGIC') return m.registry.has('item:' + itemKey(item.id));
   const consume = typeof rec.kind === 'string' && rec.kind.startsWith('consume_on_equip');
   if (consume) return m.registry.has('item:' + itemKey(item.id));
@@ -2407,9 +2408,14 @@ function pagerUse(m, ps) {
  * Returns the rehearsal job (or null).
  */
 export function* botPrepBeginSteps(m, ps, options = {}) {
+  legacyPrepPreamble(m, ps);
+  return yield* LEGACY_PREP.prepBegin(m, ps, options);
+}
+
+/** (fork) What the legacy prep does before its prep actions; tactic profiles (botTactics.js) run it too. */
+export function legacyPrepPreamble(m, ps) {
   selfPlan(m, ps);
   pagerUse(m, ps);
-  return yield* LEGACY_PREP.prepBegin(m, ps, options);
 }
 
 /** Prep routine, end: the rehearsed layout (when it beat the default plan), temp, a free hand slot, Ready. */
@@ -2936,7 +2942,7 @@ export function* planSpendSteps(m, ps) {
  * costs the least lineup score, at most FA_LINEUPS of them (the best swaps first). They join the boss rehearsal, which keeps
  * the one that deals the most leader damage — the default lineup unless one deals more.
  */
-const FA_LINEUPS = 2;
+let FA_LINEUPS = 2;
 function faLineups(m, ps, ctx, chosen) {
   if (m.wave || m.round !== m.gd.bossRound) return [];
   const gd = ps.gd || m.gd;
@@ -4043,8 +4049,8 @@ const isMutationCell = (gd, itemId) => itemEffect(gd.item(itemId)) === 'char_che
  * still has copies in the pool. The community's 「拟态物质在差一只合成时买」 (handoff/round55 community research 装6).
  * Paired 终极 results in docs/history/0.3.4.md §37.41.
  */
-const WANTED_ITEM = 40;
-const ELITE_ITEM_TIER = 4;
+let WANTED_ITEM = 40;
+let ELITE_ITEM_TIER = 4;
 function eliteItem(m, ps, id) {
   const gd = ps.gd || m.gd;
   const rec = gd.item(id);
@@ -4422,12 +4428,15 @@ export function equipItems(m, ps) {
  * (PlayerState._fillHandFromTemp — resolveTemp asks for the rightmost temp piece, the next one a slot pulls in). false:
  * the hand stays full (summon cards only).
  */
+/** The boosterPack cheat's Booster Pack (shared/ruleData.js BOOSTER): the bot neither uses nor drops it. */
+const isBoosterPack = (gd, id) => gd.item(id)?.booster === true;
+
 function makeHandRoom(m, ps, piece = null) {
   const room = () => freeSlot(ps.hand) >= 0 || (piece != null && !ps.temp.includes(piece));
   if (room()) return true;
   if (sellWeakestHand(m, ps, { handOnly: true }) && room()) return true;
   const gd = ps?.gd || m.gd;
-  const junk = ps.isBot && !ps.autoplay ? ps.hand.filter((p) => p && p.kind === 'item' && !isMutationCell(gd, p.id))
+  const junk = ps.isBot && !ps.autoplay ? ps.hand.filter((p) => p && p.kind === 'item' && !isMutationCell(gd, p.id) && !isBoosterPack(gd, p.id))
     .sort((a, b) => ((gd.item(a.id) || {}).price || 0) - ((gd.item(b.id) || {}).price || 0) || a.uid - b.uid)[0] : null;
   if (junk && tryDo(() => ps.destroy(junk.uid)) && room()) return true;
   return sellWeakestHand(m, ps, { handOnly: true, keepPairs: false }) && room();
@@ -4460,7 +4469,8 @@ export function resolveTemp(m, ps) {
     } else if (p.kind === 'item') {
       // 突变细胞 comes back after every transformation (昆图斯's strategy item), and a human's item under AI 托管 is theirs:
       // make room in the hand (sell a bench operator) rather than lose it — only a hand of nothing but items still drops it
-      if ((isMutationCell(m.gd, p.id) || ps.autoplay) && makeHandRoom(m, ps, p)) {
+      // the boosterPack cheat's pack is never dropped either (GitHub #35)
+      if ((isMutationCell(m.gd, p.id) || isBoosterPack(m.gd, p.id) || ps.autoplay) && makeHandRoom(m, ps, p)) {
         if (!ps.temp.includes(p)) continue;
         const j = freeSlot(ps.hand);
         if (j >= 0 && tryDo(() => ps.move(p.uid, { area: 'hand', idx: j }))) continue;
@@ -4673,8 +4683,34 @@ function faItemHunt(m, ps) {
   }
 }
 
-// Explicit operation references keep the default policy and RNG consumption unchanged.
-const LEGACY_PREP_ACTIONS = Object.freeze({
+// (fork) Legacy's tunables, per seat: the layered legacy bot (botTacticsLegacy.js; fish-edition/ai-players/02-architecture.md)
+// exposes these as its tactics' parameters. A profile whose tactics set any runs each of its hooks inside
+// withLegacyTunables (botTactics.js); every other seat, and legacy itself, reads the constants above unchanged. Bot code
+// runs synchronously between yields, so the values are swapped in and back around each step and never leak to another
+// seat. Read at call time only: nothing above uses them while the module loads.
+const currentTunables = () => ({
+  BAND_STRENGTH_SHRINK, BAND_STRENGTH_POWER, SOFT_BAND_RESERVE, MATE_BURDEN, BOUNTY_KILL, TRADE_MIN, SOLO_TRADE_MIN, TRADE_FROM, BUY_FULL_MIN, MERGE_HIT, PAIR_HIT, MAX_PAIRS, MAX_REFRESHES, BENCH_BUDGET, COOP_BENCH_BUDGET, DIY_PIECE_BONUS, ENGINE_BONUS, ARMOR_WEIGHT, PLAN_UNIT_SHARE, FOCUS_MEMBER, CORE_TOP_TIER, TOP_ABOVE_CAP, CORE_KEEP_OWNED, CORE_LOCK, CORE_MEMBER, CORE_HIT, HEAL_FROM, HEAL_FIRST, HEAL_SECOND, LEVEL_TARGET, BOT_MAX_LEVEL, WANTED_ITEM, ELITE_ITEM_TIER, LAYOUT_PARAMS, FA_LINEUPS,
+});
+/** Upstream's values of legacy's tunables. */
+export const LEGACY_TUNABLES = Object.freeze(currentTunables());
+function setTunables(t) {
+  ({ BAND_STRENGTH_SHRINK, BAND_STRENGTH_POWER, SOFT_BAND_RESERVE, MATE_BURDEN, BOUNTY_KILL, TRADE_MIN, SOLO_TRADE_MIN, TRADE_FROM, BUY_FULL_MIN, MERGE_HIT, PAIR_HIT, MAX_PAIRS, MAX_REFRESHES, BENCH_BUDGET, COOP_BENCH_BUDGET, DIY_PIECE_BONUS, ENGINE_BONUS, ARMOR_WEIGHT, PLAN_UNIT_SHARE, FOCUS_MEMBER, CORE_TOP_TIER, TOP_ABOVE_CAP, CORE_KEEP_OWNED, CORE_LOCK, CORE_MEMBER, CORE_HIT, HEAL_FROM, HEAL_FIRST, HEAL_SECOND, LEVEL_TARGET, BOT_MAX_LEVEL, WANTED_ITEM, ELITE_ITEM_TIER, LAYOUT_PARAMS, FA_LINEUPS } = t);
+}
+/**
+ * Run `fn` with some of legacy's tunables replaced (`t`: a partial LEGACY_TUNABLES; null runs it as is), then put the
+ * previous values back, also when it throws.
+ */
+export function withLegacyTunables(t, fn) {
+  if (!t) return fn();
+  for (const k of Object.keys(t)) if (!Object.hasOwn(LEGACY_TUNABLES, k)) throw new TypeError(`Unknown legacy tunable ${k}`);
+  const prev = currentTunables();
+  setTunables({ ...prev, ...t });
+  try { return fn(); } finally { setTunables(prev); }
+}
+
+// Explicit operation references keep the default policy and RNG consumption unchanged. (fork) Exported for the
+// tactics chains (botTactics.js): a decision point no tactic takes runs these.
+export const LEGACY_PREP_ACTIONS = Object.freeze({
   takeOffers, sellJunk, buyLoopSteps, levelUp, planSpendSteps, spendDown, maybeFreeze, arrangeSteps, equipItems,
   applyPlanSteps, resolveTemp, freeHandSlot, rememberOwned,
   hasHandRoom: (ps) => freeSlot(ps.hand) >= 0,

@@ -3,14 +3,16 @@
 // view carries) and RESULT (finish: m.result to every human still here, onEnd).
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
-import { PHASE, layerGainRoom } from '../../../shared/constants.js';
+import { PHASE, layerGainRoom, layerCapOf } from '../../../shared/constants.js';
 import { uniteSurvivors } from '../unite.js';
 import { buildResult, endingView } from '../results.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
 import { msg, playerParam } from '../../../shared/i18n.js';
 import { onSettle, resetRoundCounters } from '../botEmotes.js';
 import { creditedKillsOf } from '../../sim/spec.js';
+import { finishRecord } from '../records.js';
 import { settleChatWallet } from '../chatWallet.js';
+import { finishAwards, noteSettle } from '../autoAward.js';
 
 export class MatchSettle {
   settle(plan, uniteResult) {
@@ -23,7 +25,8 @@ export class MatchSettle {
     const cap = this.gd.lpCapPerRound;
     // a 联防 battle that could not run at all (synthetic result) must not wipe the leakers' losses: charge their own leaks
     const uniteRan = !!(plan && uniteResult && !uniteResult.synthetic);
-    const survivors = uniteRan ? uniteSurvivors(plan, uniteResult) : null;
+    // a survivor costs its LP weight (a leaked Patriot / tier-3 Zaaro: Match.riskLeakWeight; 1 otherwise)
+    const survivors = uniteRan ? uniteSurvivors(plan, uniteResult, (k) => this.riskLeakWeight(k)) : null;
     // The 联防's outcome as data for the SETTLE view (m.public.uniteResult, views.js; GitHub #235, PR #112 by @Convey123):
     // each client pops the official result box from it (ui/gameLogic/phases.js uniteResultBox) — `through` = the leakers'
     // enemies that still got through (uncapped; only decides whether 「全员无伤！」 is true), `losses` = every alive
@@ -40,9 +43,12 @@ export class MatchSettle {
     for (const ps of alive) {
       const r = this.lastResults.get(ps.playerId) || { leaked: [], perfect: true, coins: 0, layerGains: {}, killed: 0, damageDealt: 0 };
       const counted = (r.leaked || []).filter((l) => l && l.counted !== false).length;
-      const loss = uniteRan && plan.leakers.includes(ps) ? Math.min(cap, survivors.get(ps.playerId) || 0) : Math.min(cap, counted);
+      const leaker = uniteRan && plan.leakers.includes(ps);
+      // SPA-CC (Match.riskLoss): a leaked Patriot's weight, ccLastLine's extra LP past the cap
+      const loss = this.riskLoss(r.leaked, leaker ? Math.min(cap, survivors.get(ps.playerId) || 0) : Math.min(cap, counted), !leaker);
       if (this.uniteResultView) this.uniteResultView.losses[ps.playerId] = loss;
       ps.lp -= loss;
+      noteSettle(this, ps, counted > 0); // (GitHub #125) Last Line
       ps.stats.lpLost += loss;
       ps.stats.leaks += counted;
       ps.stats.kills += Number(r.killed) || 0;
@@ -69,7 +75,7 @@ export class MatchSettle {
       for (const [bondId, n] of Object.entries(r.layerGains || {})) {
         if (!this.gd.bond(bondId) || !(n > 0)) continue;
         const before = ps.layers[bondId] || 0;
-        const add = layerGainRoom(before, Math.floor(n));
+        const add = layerGainRoom(before, Math.floor(n), layerCapOf(this.lobbyRules));
         if (!(add > 0)) continue;
         ps.layers[bondId] = before + add;
         this.dispatch(ps, 'onLayers', { bondId, from: before, to: ps.layers[bondId], reason: 'battle' });
@@ -150,6 +156,8 @@ export class MatchSettle {
     this.deadline = 0;
     for (const f of this.fields) f.live = false;
     this.outcome = { victory: !!victory, hiddenReached: this.hiddenReached, hiddenCleared: !!hiddenCleared, reason };
+    // (GitHub #125) the Risk tags the autoAward rule adds (null: none)
+    try { this.awarded = finishAwards(this); } catch (e) { this.reportError('autoAward', e); this.awarded = null; this.awardNotes = null; }
     let result;
     try {
       result = buildResult(this, this.outcome);
@@ -157,6 +165,8 @@ export class MatchSettle {
       this.reportError('buildResult', e);
       result = { t: 'm.result', victory: !!victory, roundsPassed: 0, reason, modeId: this.modeId, difficulty: this.difficulty, players: [] };
     }
+    if (this.awarded) result.awarded = { ...this.awarded };
+    if (this.awardNotes) result.awardNotes = structuredClone(this.awardNotes);
     if (this.test) {
       result.test = true;
       result.testActions = this.testActions;
@@ -170,6 +180,8 @@ export class MatchSettle {
     const { t, ...summary } = result;
     void t;
     summary.errors = this.errorCount;
+    // the anonymous match record (fork, ./records.js): the lobby writes it and keeps it out of room.lastSummary
+    if (this._record) { try { summary.record = finishRecord(this, summary); } catch (e) { this.reportError('record', e); } }
     try { this.onEndFn(summary); } catch (e) { this.reportError('onEnd', e); }
   }
 }

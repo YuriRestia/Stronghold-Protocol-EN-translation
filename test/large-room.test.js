@@ -103,6 +103,7 @@ test('public and private again keeps the password; private the first time withou
   const h = harness();
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: LARGE_ROOM_SEATS }));
+  ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
   ok(h.lobby.setLock(host, { on: true }));
   const first = h.last(host, 'room.state').password;
   assert.match(first, /^[A-Z]{4}$/);
@@ -119,12 +120,14 @@ test('large room: 8 seats, humans only, searches like any room (DESIGN §90.4), 
   const h = harness();
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: LARGE_ROOM_SEATS }));
+  ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
   const st = h.last(host, 'room.state');
   assert.equal(st.seats.length, 8);
   assert.equal(st.capacity, 8);
   assert.equal(st.locked, false);
   assert.equal(st.password, undefined);
   refused(h.lobby.addBot(host), ERR.BAD_TARGET);
+  refused(h.lobby.fillBots(host, { preset: 'basic' }), ERR.BAD_TARGET); // (Fish Edition) room.fillBots too
   ok(h.lobby.search(host, { on: true })); // (2026-11-08) matchmaking fills it too
   refused(h.lobby.setAiTakeover(host, { on: true }), ERR.BAD_TARGET);
   // a normal room.state stays without the keys
@@ -139,6 +142,7 @@ test('large room: members move to the other squad\'s first free seat, the host s
   const h = harness({ now: () => t });
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+  ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
   const code = h.last(host, 'room.state').code;
   const ps = ['B', 'C', 'D', 'E'].map((n) => h.player(n));
   for (const p of ps) ok(h.lobby.join(p, { code }));
@@ -168,6 +172,7 @@ test('large room: squad moves are limited per player (a gap, then a count per mi
   const h = harness({ now: () => t });
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+  ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
   const code = h.last(host, 'room.state').code;
   const p = h.player('Hopper');
   ok(h.lobby.join(p, { code }));
@@ -205,6 +210,7 @@ test('large room: a full squad refuses a move; changing squad un-readies the mov
   const h = harness({ now: () => t });
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+  ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
   const code = h.last(host, 'room.state').code;
   const ps = ['B', 'C', 'D', 'E', 'F', 'G', 'H'].map((n) => h.player(n));
   for (const p of ps) ok(h.lobby.join(p, { code }));
@@ -246,6 +252,7 @@ test('room browser: every open room, a locked one marked, refreshed while watche
   const watcher = h.player('W');
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+  ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
   const code = h.last(host, 'room.state').code;
   ok(h.lobby.watchRooms(watcher, { on: true }));
   let list = h.last(watcher, 'rooms.list');
@@ -266,6 +273,7 @@ test('a large room starts its match with largeRoom, browser bots and the idle ca
   const h = harness();
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+  ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
   ok(h.lobby.start(host));
   assert.equal(Rec.last.largeRoom, true);
   assert.equal(Rec.last.botExecution, 'host');
@@ -522,6 +530,7 @@ test('lock: the host locks with 4 letters and alone sees them; joining by key or
   const h = harness();
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+  ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
   const code = h.last(host, 'room.state').code;
   const mate = h.player('Mate');
   ok(h.lobby.join(mate, { code }));
@@ -567,6 +576,7 @@ test('lock: no other copy of the room carries the password — frames to members
   h.lobby.trustedRuntime = { event: (name, data) => events.push([name, data]) };
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+  ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
   const code = h.last(host, 'room.state').code;
   const mate = h.player('Mate');
   ok(h.lobby.join(mate, { code }));

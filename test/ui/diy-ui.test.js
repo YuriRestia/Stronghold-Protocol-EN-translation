@@ -294,7 +294,10 @@ describe('自选编队 picker (screens/diy.js)', () => {
     assert.deepEqual(skills.map((v) => v.props['data-skill']), [0, 1, 2]);
     assert.equal(skills.find((v) => v.props['aria-checked'] === 'true').props['data-skill'], 2);
     const mods = [...walk(tree)].filter((v) => v.props?.role === 'radio' && v.props['data-module'] != null);
-    assert.deepEqual(mods.map((v) => v.props['data-module']), ['none', 'uniequip_002_siege', 'uniequip_003_siege']);
+    assert.deepEqual(mods.map((v) => v.props['data-module']), ['none', 'uniequip_002_siege', 'uniequip_003_siege'], 'no Mod Z among the choices');
+    // (Fish Edition) an operator with a Mod Z / W says so on its card (the lobby rules equip it); one without does not
+    const tagged = (id) => [...walk(opts.find((v) => v.props['data-char'] === id))].some((v) => v.props?.['data-modz-available']);
+    assert.ok(tagged(SIEGE) && !tagged(SHARP), 'the "Mod Z available" tag');
     // another skill and no module, then 确认
     skills.find((v) => v.props['data-skill'] === 0).props.onClick();
     tree = view();

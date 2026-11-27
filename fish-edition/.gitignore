@@ -1,0 +1,5 @@
+# Kept out of git on purpose (Fish, 2026-10-21): everything else in fish-edition/ is tracked.
+# untracked/: superseded drafts (spacc-live-spec.md was merged into spacc/working-spec.md).
+untracked/
+# images/: reference screenshots and art from the official client (© Hypergryph), never committed.
+images/

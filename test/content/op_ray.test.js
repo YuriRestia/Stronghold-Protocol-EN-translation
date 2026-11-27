@@ -191,6 +191,7 @@ test('S1 脱身矢 (MANUAL, 2 charges, data SEARCH): a special bullet at once (n
       h.run(allyCastWindup(u) + 0.05); // the cast's normal attack hits (and takes its bullet) one wind-up after the cast (official cast → hit)
       const ammo0 = u.trait.ammo;
       h.run(0.6);
+      h.settle();
       const special = atkAt.filter(([c]) => c.dmg.tags?.includes(SPECIAL_TAG));
       assert.equal(special.length, 1, `T${tier}: one special bullet`);
       const [c, atk] = special[0];

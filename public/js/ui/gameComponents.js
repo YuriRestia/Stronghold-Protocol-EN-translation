@@ -179,7 +179,6 @@ export function TokenAvatar({ m, tokenId, ownerId = null, skin = null, fallback 
 }
 
 export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showTier = true, class: cls, dim = false, badge = null, title, rec = null, ownerId, skin = null, outfitOwner = null }) {
-
   const m = data.get('assets');
   // a summon wears its owner's outfit (#876) under the operators' 显示其他玩家的皮肤 gate (round-54 audit)
   const tokenSkin = kind === 'token' ? shownTokenSkin(skin, ownerId) : null;
@@ -187,6 +186,7 @@ export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showT
   let name = '';
   let t = tier;
   let si = null;
+  let cursed = false;
   if (kind === 'chess') {
     const c = rec || data.lookup('chess', id);
     si = rec && typeof rec.standInFor === 'string' && rec.standInFor ? rec : null;
@@ -197,6 +197,7 @@ export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showT
     const it = data.lookup('items', id);
     src = itemIconUrl(m, it);
     name = it?.name || '';
+    cursed = !!it?.cursed; // the SPA-CC Toxic Waste
     t = t ?? it?.tier;
     golden = golden ?? !!it?.isGolden;
   } else if (kind === 'token') {
@@ -209,7 +210,7 @@ export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showT
     name = e?.name || '';
   }
   const glyph = [...(name || '?')][0] || '?';
-  return html`<span class=${cx('uthumb', `uthumb--${size}`, `uthumb--${kind}`, golden && 'is-golden', dim && 'is-dim', t && `uthumb--t${Math.max(1, Math.min(6, t | 0))}`, cls)}
+  return html`<span class=${cx('uthumb', `uthumb--${size}`, `uthumb--${kind}`, golden && 'is-golden', cursed && 'is-cursed', dim && 'is-dim', t && `uthumb--t${Math.max(1, Math.min(6, t | 0))}`, cls)}
       title=${title ?? name}>
     <span class="uthumb__art">
       ${kind === 'chess'

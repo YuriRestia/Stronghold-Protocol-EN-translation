@@ -81,6 +81,9 @@ export class MatchViews {
       serverNow: this.sched.now(),
       modeId: this.modeId,
       difficulty: this.difficulty,
+      rules: { ...this.lobbyRules },
+      ...(this.awarded ? { awarded: { ...this.awarded } } : {}),
+      ...(this.awardNotes ? { awardNotes: structuredClone(this.awardNotes) } : {}),
       stageId: this.stageId,
       // a non-default official version's match (DESIGN §35.23): its registry id, so a page that never saw the room (a
       // reload after it closed: the lobby's result replay) reads the frames with that version's data; absent for the
@@ -123,6 +126,8 @@ export class MatchViews {
         ...(this.squads ? { squad: ps.squad } : {}),
         name: ps.name,
         isBot: ps.isBot,
+        // (fork, GitHub #87) which bot an AI player plays (a registered strategy id; ui/teamPanel.js shows its name)
+        ...(ps.isBot && typeof this.botFor?.(ps)?.id === 'string' ? { bot: this.botFor(ps).id } : {}),
         // (fork) the profile icon (shared/avatars.js), omitted while none (an older client: the default icon)
         ...(ps.avatar ? { avatar: ps.avatar } : {}),
         ...(Number.isInteger(ps.aiTakeoverRound) ? { aiTakeoverRound: ps.aiTakeoverRound } : {}),
@@ -268,20 +273,25 @@ export class MatchViews {
   _pendingLpView(ps) {
     if (!ps || !ps.alive || (this.phase !== PHASE.COMBAT && this.phase !== PHASE.UNITE)) return {};
     const counted = (r) => (r && Array.isArray(r.leaked) ? r.leaked.filter((l) => l && l.counted !== false).length : 0);
-    // 联防: a leaker's enemies still standing on the 联防 field (uncapped), the loss capped like settle()
+    // 联防: a leaker's enemies still standing on the 联防 field (uncapped), the loss as settle() bills it: their LP weights
+    // (a leaked Patriot 5, GitHub #76) capped per round, then the SPA-CC extras (Match.riskLoss: ccLastLine)
     const left = this._uniteLeft(ps);
     if (left != null) {
-      const loss = Math.min(this.gd.lpCapPerRound, left);
+      const own = this.lastResults.get(ps.playerId);
+      const loss = this.riskLoss(own && own.leaked, Math.min(this.gd.lpCapPerRound, this._uniteLeft(ps, true)), false);
       return loss > 0 ? { uniteLeft: left, pendingLp: loss } : { uniteLeft: left };
     }
     let n = 0;
-    if (this.lastResults.has(ps.playerId)) n = counted(this.lastResults.get(ps.playerId));
+    let leaked = null;
+    if (this.lastResults.has(ps.playerId)) { const r = this.lastResults.get(ps.playerId); n = counted(r); leaked = r && r.leaked; }
     else if (this.phase === PHASE.COMBAT) {
       const f = this.fields.find((x) => x && x.kind === 'normal' && Array.isArray(x.players) && x.players.includes(ps.playerId));
       if (f && f.cc) n = f.done && f.result ? counted(f.result.perPlayer && f.result.perPlayer[ps.playerId]) : Number(f.progress && f.progress.leaks) || 0;
       else if (f && f.battle) { try { n = battleProgress(f.battle).leaks; } catch { n = 0; } }
     }
-    const loss = Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(Number(n) || 0)));
+    const base = Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(Number(n) || 0)));
+    // SPA-CC (Match.riskLoss): a leaked Patriot's weight (once the leaked list is known), ccLastLine's extra LP
+    const loss = this.riskLoss(leaked || (base > 0 ? [{ counted: true }] : []), base, !!leaked);
     return loss > 0 ? { pendingLp: loss } : {};
   }
 
@@ -291,10 +301,10 @@ export class MatchViews {
     if (this.bossWaves) {
       const g = this.bossGroupOf(ps);
       if (!g) return [];
-      return previewOf([...g.wave.spawns, ...bountySpawns(this.gd, this.round, g.wave, ps.bounties, ps.playerId, { solo: this.isSolo, side: g.side })]);
+      return previewOf([...g.wave.spawns, ...bountySpawns(this.gd, this.round, g.wave, this.waveBounties(ps, { boss: true, field: g.players }), ps.playerId, { solo: this.isSolo, side: g.side })]);
     }
     if (!this.wave) return [];
-    const bounty = bountySpawns(this.gd, this.round, this.wave, ps.bounties, ps.playerId, { solo: this.isSolo });
+    const bounty = bountySpawns(this.gd, this.round, this.wave, this.waveBounties(ps), ps.playerId, { solo: this.isSolo });
     return previewOf([...this.wave.spawns, ...bounty]);
   }
 

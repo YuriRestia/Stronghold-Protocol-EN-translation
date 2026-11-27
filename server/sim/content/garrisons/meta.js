@@ -28,6 +28,7 @@
 //     "本回合每刷新过1次" (SERVER_ADD_REFRESH_CNT_MULTIPLIER_BOND_LAYER, 阿罗玛 / 安洁莉娜 / 售出时)
 //     fires on another event and reads the player's refreshes of the round (roundStats), like 本回合每获得过 / 每花费.
 
+import { SOLD_GAIN_CHESS } from '../../../../shared/ruleData.js';
 import { metaBonds, frontPiece, behindPiece, distinctTiers } from '../support/meta.js';
 
 const ids = (s) => String(s ?? '').split(',').map((x) => x.trim()).filter(Boolean);
@@ -270,6 +271,15 @@ H.SERVER_GAIN_EQUIP = {
     const { bb, bbStr } = ctx.source;
     if (!ctx.gd.item(bbStr.chess)) return;
     for (let i = 0; i < Math.min(10, num(bb.count, 1)); i++) ctx.grantItem(bbStr.chess, { requirePool: false });
+  },
+};
+
+// 煌's 驻守 in 凯瑟琳's slot (Custom Lobby Modifications blaze, shared/ruleData.js): <售出时> gain one 烛煌 (the elite's: an
+// elite one) — a chess of the shared pool, so none when its copies are gone (the default of every granted chess)
+H[SOLD_GAIN_CHESS] = {
+  run(ctx) {
+    const id = ctx.source.bbStr?.chessId;
+    if (typeof id === 'string' && ctx.gd.chess(id)) ctx.grantChess(id);
   },
 };
 

@@ -57,7 +57,7 @@ const NOT_SCALED = [
   // pinned onto board tiles by JS-computed pixels (ui/standInTags.js, ui/underframe.js)
   /\.sitag/, /\.tempnote/, /\.uframe/, /\.ff-/,
   // in-match HUD chrome whose box the design fixed (a later pass: shop cards, top bar, bond strip, corner buttons)
-  /\.gm__/, /\.roundbox/, /\.capsule/, /\.capfx/, /\.lp\b/, /\.lp--/, /\.misstag/, /\.bossbar/, /\.readywrap/,
+  /\.gm__/, /\.roundbox/, /\.capsule/, /\.capfx/, /\.lp\b/, /\.lp--/, /\.misstag/, /\.bossbar/, /\.ledger/, /\.readywrap/,
   /\.bstrip/, /\.bslot/, /\.effect/, /\.efftip/, /\.ebubble/, /\.cbubble/, /\.ticker/, /\.dpbox/, /\.vswitch/,
   /\.specpill/, /\.otwarn/, /\.team/, /\.enemybtn/, /\.readybtn/, /\.ewheel/, /\.fwheel/, /\.chud/, /\.toolbtn/,
   /\.shopbar/, /\.scard/, /\.scr\b/,

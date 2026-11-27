@@ -32,10 +32,11 @@ function harness() {
     s.ws = { readyState: 1, bufferedAmount: 0, send() {}, terminate() {} };
     return s;
   };
-  /** A room of `host` with a ready guest; returns the room. */
-  const room = (create) => {
+  /** A room of `host` with a ready guest; returns the room. `open`: a Grand Alliance (created private) made public first. */
+  const room = (create, { open = false } = {}) => {
     const host = player('Host');
     ok(lobby.create(host, create));
+    if (open) ok(lobby.setLock(host, { on: false }));
     const r = lobby.roomOf(host);
     const guest = player('Guest');
     ok(lobby.join(guest, { code: r.code, ...(r.locked ? { password: r.password } : {}) }));
@@ -66,13 +67,15 @@ test('a private co-op room and a solo room keep the setup reroll (no rerollLock 
 
 test('a public (unlocked) Grand Alliance has no reroll; one created locked keeps it', () => {
   const h = harness();
-  assert.equal(h.lockAtStart(h.room({ mode: 'coop', capacity: 8 })), 'public');
+  assert.equal(h.lockAtStart(h.room({ mode: 'coop', capacity: 8 }, { open: true })), 'public');
   assert.equal(h.lockAtStart(h.room({ mode: 'coop', capacity: 8, password: 'abcd' })), null);
+  // a Grand Alliance opens private, so one never made public keeps the reroll
+  assert.equal(h.lockAtStart(h.room({ mode: 'coop', capacity: 8 })), null);
 });
 
 test('a Grand Alliance that was public stays without reroll after the host locks it', () => {
   const h = harness();
-  const ga = h.room({ mode: 'coop', capacity: 8 });
+  const ga = h.room({ mode: 'coop', capacity: 8 }, { open: true });
   ok(h.lobby.setLock(ga.host, { on: true }));
   assert.equal(h.lockAtStart(ga), 'matchmade');
   const locked = h.room({ mode: 'coop', capacity: 8, password: 'wxyz' });

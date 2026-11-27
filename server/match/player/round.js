@@ -6,11 +6,27 @@
 // Installed on PlayerState.prototype by server/match/PlayerState.js (a method container: never instantiated; `this` is
 // the player state).
 
+import { RULE_EXTRA_FUNDS, layerCapOf } from '../../../shared/constants.js';
+import { tagLevel } from '../../../shared/rules.js';
+import { CC, BOOSTER, ITEM_BOOSTER } from '../../../shared/ruleData.js';
+import { createRng, deriveSeed } from '../../sim/rng.js';
 import { boardOrder, pieceDir } from '../board.js';
 import { equippedItemProgress } from '../itemProgress.js';
 import { computeBonds, bondSnapshot, activatedLayers, bondsWithGains } from '../bondsMeta.js';
+import { noteBonds, noteHand } from '../autoAward.js';
 
 export class PlayerRound {
+  /** The tierStart cheat's operators: per tier, a random base id the shared pool still has a copy of. */
+  grantTierStart() {
+    const rng = createRng(deriveSeed(this.m.seed, `cheat-tiers:${this.playerId}`));
+    const pool = this.m.pool;
+    const bases = [...pool.entries.keys()].sort();
+    for (let tier = 1; tier <= 6; tier++) {
+      const list = bases.filter((b) => this.gd.tierOf(b) === tier && pool.left(b) > 0 && !this.gd.chess(b)?.isDiy);
+      if (list.length) this.acquireChess(list[Math.floor(rng() * list.length)], { source: 'cheat', silent: true });
+    }
+  }
+
   startRound(r) {
     this.round = { refreshes: 0, buys: 0, sells: 0, spent: 0, gainedChess: 0, arts: 0 };
     this.pendingLayerGains = null; // settled (or lapsed) at the last SETTLE
@@ -20,7 +36,22 @@ export class PlayerRound {
     this.pendingFunds = 0;
     this.m.dispatch(this, 'onIncome', ev);
     const nonNeg = (v) => (Number.isFinite(v) && v > 0 ? Math.trunc(v) : 0);
-    this.addFunds(nonNeg(ev.income) + nonNeg(ev.pending), { reason: 'income' });
+    // extraFunds lobby rule: added after the onIncome handlers, so nothing withholds or rewrites it
+    const extra = this.m.lobbyRules?.extraFunds ? RULE_EXTRA_FUNDS : 0;
+    // SPA-CC Junk: everyone's Toxic Waste at the start (no shop stock: made, not drawn); Junk 2: income −1 while it is
+    // not equipped (in the hand or the temporary hand)
+    const junk = tagLevel(this.m.lobbyRules, 'ccJunk');
+    if (junk > 0 && r === 1 && this.gd.item(CC.junk.itemId)) this.stow(this.newPiece('item', CC.junk.itemId), { allowTemp: true });
+    // the tierStart cheat: one random operator of each tier (1–6) from the shared pool, on its own seeded stream (the
+    // match's other draws stay as they were)
+    if (r === 1 && this.m.lobbyRules?.tierStart) this.grantTierStart();
+    // the boosterPack cheat: the Booster Pack at the start (made, not drawn; items.js openBooster)
+    if (r === 1 && this.m.lobbyRules?.boosterPack && this.gd.item(BOOSTER.itemId)) this.stow(this.newPiece('item', BOOSTER.itemId), { allowTemp: true });
+    // the itemBoosterPack cheat: the Equipment Booster Pack at the start (items.js openItemBooster)
+    if (r === 1 && this.m.lobbyRules?.itemBoosterPack && this.gd.item(ITEM_BOOSTER.itemId)) this.stow(this.newPiece('item', ITEM_BOOSTER.itemId), { allowTemp: true });
+    // (not on round 1: the hammer has just arrived — Fish 2026-10-16, starting on 3 Funds was too harsh)
+    const cursed = junk >= 2 && r > 1 && [...this.hand, ...this.temp].some((p) => p && p.kind === 'item' && p.id === CC.junk.itemId) ? CC.junk.incomeLoss : 0;
+    this.addFunds(Math.max(0, nonNeg(ev.income) - cursed) + nonNeg(ev.pending) + extra, { reason: 'income' });
     // temp is NOT wiped here: the last prep's deadline resolved what the player could act on (endPrep); what overflowed
     // after it (battle-result grants, SETTLE merges, returned equipment) is shown and usable in this prep (tempDue).
     // Queued reward offers (a promotion's pick, a strategy's special refresh, an item offer) are kept until picked —
@@ -79,14 +110,18 @@ export class PlayerRound {
   }
 
   recompute() {
+    this.applyModVBonds(); // (Fish Edition) Mod V Viviana: the Alliances of Mlynar, Nearl and Degenbrecher
+    noteHand(this.m, this); // (GitHub #125) a placement or unequip that filled the hand: Junk 1 can't be awarded
     this.deployMap(); // a change of the deploy field (a boss round's prep) marks the legality stale
     if (this._legalityStale) this._evictIllegal();
     this._liftOutOfRange();
     // a free regular hand slot pulls a temp piece in (PRTS 卫戍协议/帮助 §手牌区 "常规手牌区出现空位时自动移入")
     this._fillHandFromTemp();
+    noteHand(this.m, this);
     // the states the last recompute stored: the change since then is reported once (_reportActiveBonds)
     const before = this.bonds;
     this.bonds = computeBonds(this.gd, this);
+    noteBonds(this.m, this); // (GitHub #125) 投资人 active: Investor can't be awarded
     this.dirty();
     this._reportActiveBonds(before, this.bonds);
   }
@@ -121,7 +156,7 @@ export class PlayerRound {
    * in-battle gains of this round's finished normal battle (bondsMeta.bondsWithGains). The 联防 field fights with them too
    * (battleInput `reached`); no other rule reads them.
    */
-  bondsView() { return bondsWithGains(this.bonds, this.pendingLayerGains); }
+  bondsView() { return bondsWithGains(this.bonds, this.pendingLayerGains, layerCapOf(this.m.lobbyRules)); }
 
   /**
    * `reached`: the bonds carry the layers this round's own combat reached (bondsView: the pending in-battle gains, capped
@@ -136,6 +171,7 @@ export class PlayerRound {
     for (const { r, c, piece } of boardOrder(this.board)) {
       if (piece.kind === 'chess') {
         const u = { uid: piece.uid, kind: 'chess', chessId: piece.id, row: r, col: c, dir: pieceDir(piece), items: (piece.items || []).map((i) => i.id) };
+        if (Array.isArray(piece.grantedBonds) && piece.grantedBonds.length) u.grantedBonds = piece.grantedBonds.slice(); // Mod Z Kal'tsit Esperanta
         const progress = equippedItemProgress(this, piece);
         if (progress) u.itemProgress = progress;
         const pick = this.diyPickOf(piece.id);
@@ -143,6 +179,7 @@ export class PlayerRound {
           // 0.2.0 自选编队: a slotted DIY slot fights as its pick (sim getChess(id, { diy }): the operator's body, the pick's
           // skill and module — no loadout fields, docs/SIM.md §12)
           u.diy = { charId: pick.charId, skillIndex: pick.skillIndex, uniEquipId: pick.uniEquipId };
+          this.diyEver.add(pick.charId);
         } else if (this.fieldsStandIn(piece.id)) {
           // 0.2.0 补位: a chess this player does not own fights as its stand-in (sim getChess(id, { standIn: true }): the
           // backup skill / module — no loadout fields, docs/SIM.md §12)

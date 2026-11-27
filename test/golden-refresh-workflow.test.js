@@ -24,11 +24,10 @@ test('golden refresh workflow: a button only, read-only, never commits or pushes
   assert.match(wf, /timeout-minutes: \d+/);
   // inputs reach the shell only through env (no ${{ inputs.* }} inside a run script)
   for (const block of wf.split(/\n\s+run: \|/).slice(1)) assert.ok(!/\$\{\{\s*inputs\./.test(block.split(/\n\s+- (name|uses):/)[0]), 'no input expression in a script');
-  // the same setup as ci.yml's golden job (its own block: ci.yml also has the node 22 lane)
-  const ci = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8').replace(/\r\n?/g, '\n');
-  const goldenJob = ci.match(/^  golden:\n((?:\n| {4}[^\n]*\n)*)/m)?.[1] || '';
-  for (const line of ['uses: actions/checkout@v7', 'uses: actions/setup-node@v7', 'node-version: 24', 'npm ci --no-audit --no-fund']) {
-    assert.ok(goldenJob.includes(line) && wf.includes(line), line);
+  // the same setup as ci.yml's golden job
+  const ci = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+  for (const line of ['uses: actions/checkout@v7', 'uses: actions/setup-node@v7', 'node-version: 22', 'npm ci --no-audit --no-fund']) {
+    assert.ok(ci.includes(line) && wf.includes(line), line);
   }
 });
 

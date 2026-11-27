@@ -14,6 +14,7 @@ import { html, Button, Icon, Spinner, DifficultyIcon, promptDialog } from './com
 import { net, regions } from '../net.js';
 import { useStore } from '../store.js';
 import { regionLabel } from './regionNames.js';
+import { useAllowMods } from './modsPref.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
 /** A ping test of every server while the browser is open, this often (the server picker's pace, ui/regionPicker.js). */
@@ -29,6 +30,7 @@ export function roomRows(msg) {
       squads: Array.isArray(r.squads) && r.squads.length === 2 ? r.squads.map((n) => (Number.isInteger(n) ? n : 0)) : [r.seats, 0],
       locked: r.locked === true,
       oneForAll: r.oneForAll === true,
+      modded: r.modded === true,
       // (fork) the server the room is on (server/regions.js id); null without regions
       region: typeof r.region === 'string' && REGION_ID_RE.test(r.region) ? r.region : null,
     }));
@@ -175,8 +177,11 @@ export function RoomBrowser({ onClose, onCreate, onJoin, busy, online }) {
     addEventListener('keydown', onKey);
     return () => { off?.(); removeEventListener('keydown', onKey); net.request('rooms.watch', { on: false }).catch(() => {}); };
   }, []);
-  const shown = rows ? filterRows(rows, filter) : null;
-  const count = (f) => (rows ? filterRows(rows, f).length : 0);
+  // a modded room (its host may change the rules) is listed only to a player who allows mods (ui/modsPref.js)
+  const [allowMods] = useAllowMods();
+  const visible = rows ? rows.filter((r) => allowMods || !r.modded) : null;
+  const shown = visible ? filterRows(visible, filter) : null;
+  const count = (f) => (visible ? filterRows(visible, f).length : 0);
   return html`<div class="rbr" role="dialog" aria-modal="true" aria-label=${t('大同盟')} data-testid="room-browser">
     <div class="rbr__bg" aria-hidden="true"></div>
     <header class="rbr__top">
@@ -203,7 +208,7 @@ export function RoomBrowser({ onClose, onCreate, onJoin, busy, online }) {
           ${shown.map((r) => html`<li key=${r.code} class=${`rbr-card${r.locked ? ' is-locked' : ''}${r.oneForAll ? ' is-ofa' : ''}`}>
             <div class="rbr-card__head">
               <span class="rbr-card__host"><${Icon} name="crown" /><b>${r.host || t('博士')}</b></span>
-              <span class="rbr-card__tags">${r.oneForAll ? html`<${OneForAllTag} class="rbr-card__ofa" />` : null}
+              <span class="rbr-card__tags">${r.oneForAll ? html`<${OneForAllTag} class="rbr-card__ofa" />` : null}${r.modded ? html`<span class="rbr-card__mod" data-testid="room-modded">${t('改动房间')}</span>` : null}
                 ${r.locked ? html`<span class="rbr-card__lock" title=${t('私密')}><${Icon} name="lock" />${t('私密')}</span>` : null}</span>
             </div>
             <div class="rbr-card__diff"><${DifficultyIcon} difficulty=${r.difficulty} />${DIFFICULTY_NAMES[r.difficulty] ? t(DIFFICULTY_NAMES[r.difficulty]) : ''}

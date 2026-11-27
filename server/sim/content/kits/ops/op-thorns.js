@@ -107,8 +107,9 @@ export default {
       // one poison per 棘刺 (independentCharacterSource) — but the LOR-Δ stage 2+ one (thorns_e_003_t has no such flag)
       const key = breakMul > 0 ? 'thorns:poison' : `thorns:poison:${unit.id}`;
       const old = e.findBuff(key);
+      // (Fish Edition) Mod Z (content/modZ.js): `fishPoisonTickMul` = how many times as often the poison ticks
       const b = battle.addBuff(e, {
-        key, duration: dur, refresh: 'extend', interval: POISON_IV, source: unit, tags: ['dot', 'talent'],
+        key, duration: dur, refresh: 'extend', interval: POISON_IV / (unit.fishPoisonTickMul ?? 1), source: unit, tags: ['dot', 'talent'],
         data: { base, cnt: 1 },
         onTick({ battle: bt, unit: tgt, buff }) {
           if (!tgt.alive || !hasHp(tgt)) return;

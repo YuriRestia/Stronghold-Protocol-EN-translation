@@ -1,7 +1,7 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, REHEARSAL_MAX_CANDIDATES } from './constants.js';
+import { DIFFICULTIES, NAME_MAX_LEN, PUBLIC_NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, RULE_KEYS, REHEARSAL_MAX_CANDIDATES } from './constants.js';
 import { LARGE_ROOM_SEATS, ROOM_CAPACITIES, ROOM_PASSWORD_RE } from './largeRoom.js';
 import { isDroppableChess } from './standIn.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
@@ -12,6 +12,8 @@ import { isContentHash } from './plugins/identity.js';
 import { isPluginId } from './plugins/manifest.js';
 import { isTestCommand } from './testMode.js';
 import { PLUGIN_OFFER_SLOTS } from './plugins/limits.js';
+import { isRuleValue } from './rules.js';
+import { isRoomBot, isFillPreset } from './botProfiles.js';
 
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -25,6 +27,8 @@ export const CROSS_CARRY_MAX_LEN = 60 * 1024;
 /** (fork) the longest chat frame text accepted at all (UTF-16 units): a real line is at most 300 code points, 600 units */
 const CHAT_FRAME_MAX = 600;
 const isBool = (v) => typeof v === 'boolean';
+// (fork) what a room searching for strangers promises them: the original game only, or lobby rules may change (server/lobby.js searchKind)
+const isSearchKind = (v) => v === 'vanilla' || v === 'modded';
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && /^[A-Za-z0-9_\-.:]+$/.test(v);
 const isUid = (v) => isInt(v, 1, 2 ** 31);
 const isNum = (v, lo = -Infinity, hi = Infinity) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
@@ -75,7 +79,7 @@ const isPerPlayer = (p) => isPlain(p) && isInt(p.killed, 0, 1e5) && isInt(p.tota
   && optional((x) => isInt(x, 0, 1e9))(p.creditedKills)
   && isList(p.leaked, RESULT_LIMITS.leaked, isLeak) && isBool(p.perfect)
   && isMap(p.layerGains, RESULT_LIMITS.layerGains, isId, (v) => isNum(v, 0, 1e4))
-  && isStat(p.coins) && isStat(p.damageDealt) && isStat(p.bossDamage) && isStat(p.healingDone) && isStat(p.deaths)
+  && isStat(p.coins) && isStat(p.damageDealt) && isStat(p.bossDamage) && isStat(p.healingDone) && isStat(p.deaths) && optional(isStat)(p.downs)
   && isList(p.unitsEnd, RESULT_LIMITS.unitsEnd, isUnitEnd)
   && (p.unitStats === undefined || isList(p.unitStats, RESULT_LIMITS.unitStats, isUnitStat));
 const isUnspawned = (u) => isPlain(u) && isId(u.enemyKey) && nullable(isId)(u.sourcePlayerId) && nullable((v) => isStr(v, 16))(u.tag)
@@ -534,7 +538,10 @@ export const C2S = {
     noReplace: isBool, claimAt: (v) => isNum(v, 0, Number.MAX_SAFE_INTEGER), delta: (v) => v == null || isInt(v, 0, 1e6),
     // (fork) the player's profile icon (shared/avatars.js): any short string here; the lobby keeps only a known id
     avatar: (v) => v == null || isStr(v, AVATAR_ID_MAX),
-    $optional: ['token', 'version', 'noReplace', 'claimAt', 'delta', 'avatar'] },
+    // (fork, GitHub #118) the name this player opted in to have written into their match records (server/net.js
+    // sanitizePublicName); absent = anonymous records, as #32 designed them
+    publicName: (v) => v == null || isStr(v, PUBLIC_NAME_MAX_LEN * 4),
+    $optional: ['token', 'version', 'noReplace', 'claimAt', 'delta', 'avatar', 'publicName'] },
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v) },
   // test: only the literal true (DESIGN §34.8). Omit it for a normal room — `false` is a bad field, so a
   // string cannot sneak in as "not a test". The server still refuses it unless SP_TEST_MODE is on.
@@ -564,6 +571,10 @@ export const C2S = {
   // the co-op room option 「AI 队友最后选择」 (GitHub #338; host, before the match): the strategy and 机变 drafts order every
   // human seat before every AI seat (server/match/match/phases.js humansFirst); room.state.aiPicksLast
   'room.setAiPicksLast': { on: isBool },
+  // lobby rules (host only, shared/rules.js RULES): a non-empty partial { [key]: value } — each value of its rule's type
+  // (bool, a choice's option, a stage id or null, a list of bond ids) — merged into the room's rules
+  'room.setRules': { rules: (v) => isMap(v, RULE_KEYS.length, (k) => RULE_KEYS.includes(k), () => true) && Object.keys(v).length > 0
+    && Object.entries(v).every(([k, x]) => isRuleValue(k, x)) },
   // 「不限时」 (DESIGN §35.23.10; host, before the match, a solo room of a version whose solo is timed): the match's
   // preparation and 机变 stay untimed (Match opts.soloUnlimited). Off by default; room.state omits the key unless it is on.
   'room.setSoloUnlimited': { on: isBool },
@@ -572,8 +583,13 @@ export const C2S = {
   'room.setAiTakeover': { on: isBool },
   'room.aiRequest': { botId: isId },
   'room.aiVote': { voteId: (v) => typeof v === 'string' && v.length <= 16, approve: isBool },
-  'room.addBot': {},
+  // (fork) lang: the host's language, for the AI's name (server/lobby.js botNames; GitHub #89)
+  // (fork, GitHub #107) bot: the AI seat's profile (shared/botProfiles.js ROOM_BOTS; absent = the default)
+  'room.addBot': { lang: (v) => isStr(v, 16), bot: isRoomBot, $optional: ['lang', 'bot'] },
   'room.removeBot': { seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1) },
+  // (fork, GitHub #107) the host changes an AI seat's profile, or fills every free seat with a preset's AI
+  'room.setBot': { seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), bot: isRoomBot },
+  'room.fillBots': { preset: isFillPreset, lang: (v) => isStr(v, 16), $optional: ['lang'] },
   // the host removes another human before the match (server/lobby.js kick; community report #17); playerId = the one the
   // host confirmed — a seat that changed hands meanwhile is refused
   'room.kick': { seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), playerId: isId },
@@ -582,7 +598,7 @@ export const C2S = {
   // or unlock it (the host)
   'room.moveSeat': { $optional: ['seat', 'squad'], seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), squad: (v) => v === 0 || v === 1 },
   'room.swapSeats': { a: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), b: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1) },
-  'room.setLock': { on: isBool, password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), $optional: ['password'] },
+  'room.setLock': { on: isBool, password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), kind: isSearchKind, $optional: ['password', 'kind'] },
   // (fork) the Grand Alliance strategy mode「Free pick | One for All」(host, before the match, large rooms only; un-readies
   // nobody, a searching room restarts its search): room.state.oneForAll
   'room.setOneForAll': { on: isBool },
@@ -624,13 +640,13 @@ export const C2S = {
   'room.spectate': { $optional: ['testAck', 'password'], testAck: (v) => v === true, password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'room.removeSpectator': { playerId: isId },
   // 搜寻队友 (DESIGN §90): the host of a co-op room turns the search on or off
-  'room.search': { on: isBool },
+  'room.search': { on: isBool, kind: isSearchKind, $optional: ['kind'] },
   // 单人匹配 (DESIGN §90): queue from the lobby without a room; queue.ai once queue.state's aiAt has passed
   // (fork) versions: the official versions to be matched for (left out: 第二期下半); large: may also sit in a Grand Alliance;
   // oneForAll: with large, may also sit in a One for All Grand Alliance (ignored without large)
-  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), versions: (v) => isList(v, 8, isVersionId) && v.length > 0, large: isBool, oneForAll: isBool, $optional: ['versions', 'large', 'oneForAll'] },
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), versions: (v) => isList(v, 8, isVersionId) && v.length > 0, large: isBool, oneForAll: isBool, mods: isBool, $optional: ['versions', 'large', 'oneForAll', 'mods'] },
   'queue.leave': {},
-  'queue.ai': {},
+  'queue.ai': { lang: (v) => isStr(v, 16), $optional: ['lang'] },
   // the room's plugins (DESIGN §32, P1a; host, before the match — like a difficulty change it un-readies the others):
   // the plugins of this server the room switches on, in any order (the server closes the set over their requirements
   // and sorts it: shared/plugins/order.js); [] = the original content. Cosmetic plugins (art: the room's visual set,
@@ -696,6 +712,8 @@ export const C2S = {
   // the stats the own board's units start their next battle with (user playtest #4 item 7; prep phases): answered by
   // the push m.unitStats { seq, round, units: [unitStatsEntry] }; `seq` is echoed so the client keeps the newest answer
   'g.unitStats': { seq: (v) => isInt(v, 0, 2 ** 31), $optional: ['seq'] },
+  // (fork, GitHub #132) the shared deck's copies left: answered by the push m.deck { seq, round, ops: [[baseId, left, cap]] }
+  'g.deck': { seq: (v) => isInt(v, 0, 2 ** 31), $optional: ['seq'] },
   'g.leave': {},
   // host test commands (DESIGN §34.8 phase 2). The server applies them only in a test match. `args` is checked
   // again by shared/testMode.js parseTestArgs (ids, bounds). Unknown keys inside args fail there, not here.
@@ -715,7 +733,11 @@ export const C2S = {
     by: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isNum(x, 0, BIG)), done: isBool,
     left: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isInt(x, 0, 1e5)),
     leaksBy: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isNum(x, 0, 1e6)),
-    $optional: ['resolved', 'leaks', 'bossDmg', 'by', 'done', 'left', 'leaksBy'],
+    // SPA-CC boss-pool Risk tags (server/sim/bossRisk.js): this field's cumulative Arts / Physical damage to the pool, and
+    // whether a Degenbrecher of the Delegation sub-wave lives on it (United 2), the HP it took from her (`degen`,
+    // cumulative: the Degenbrechers' linked HP bar) and the gate steps she finished (`degenGate`, United 3)
+    bossArts: (v) => isNum(v, 0, BIG), bossPhys: (v) => isNum(v, 0, BIG), hold: isBool, degen: (v) => isNum(v, 0, BIG), degenGate: (v) => isNum(v, 0, 1000),
+    $optional: ['resolved', 'leaks', 'bossDmg', 'by', 'done', 'left', 'leaksBy', 'bossArts', 'bossPhys', 'hold', 'degen', 'degenGate'],
   },
   // `cs` (DESIGN §32, optional): the content hash the reporting browser ran the battle on — its spec's `cs`. In a room
   // with gameplay plugins (P1c, DESIGN §32.6) the match refuses a result without it or with another one (and runs the
@@ -782,8 +804,11 @@ export const S2C = [
   'm.layer',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)
   'm.unitStats',
+  // (fork) m.deck { seq, round, ops: [[baseId, left, cap]] } — the answer to g.deck (the requester only)
+  'm.deck',
   // client-side combat (DESIGN §14): b.start { battleId, fieldId, kind, spec, authoritative, startAt, serverNow, elapsed,
-  // speed, watch? } · b.pool { hp, max, teamLp, acked: { [fieldId]: cumulative boss damage counted } } ·
+  // speed, watch? } · b.pool { hp, max, teamLp, acked: { [fieldId]: cumulative boss damage counted }, risk? (the SPA-CC
+  // boss-pool view, server/sim/bossRisk.js) } ·
   // b.end { battleId, fieldId, reason }
   'b.start', 'b.pool', 'b.end',
   // a delegated bot layout rehearsal (DESIGN §14): b.rehearsal { taskId, playerId, cap, specs } — the host's browser

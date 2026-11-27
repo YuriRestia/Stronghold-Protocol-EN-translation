@@ -11,7 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
-import { BLOCK_RADIUS } from '../../server/sim/constants.js';
+import { BLOCK_RADIUS, BLOCK_EDGE_OUT } from '../../server/sim/constants.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 
 const FRONT = 'test_front_a', BACK = 'test_back_a';
@@ -52,9 +52,13 @@ test('#4: the enemy between two operators is taken over by the front one when it
   kill(h, back);
   h.step(2);
   assert.equal(e().blockedBy, front, 'the front operator takes E over');
+  // E stood inside the front operator's tile: just past its nearest edge (block shifting, GitHub #61)
+  assert.ok(Math.abs(ex - 6) < 0.5);
+  const at = 6 - BLOCK_EDGE_OUT;
+  assert.ok(Math.abs(e().x - at) < 1e-6, `shifted to the edge (${e().x})`);
   h.run(5);
   assert.equal(e().blockedBy, front);
-  assert.ok(Math.abs(e().x - ex) < 1e-6, 'E did not walk on');
+  assert.ok(Math.abs(e().x - at) < 1e-6, 'E did not walk on');
   checkInvariants(h.b);
 });
 

@@ -11,6 +11,15 @@ import { tileKey, inField, parseDir, freeSlot } from '../board.js';
 import { offsetTile } from '../../sim/dir.js';
 import { itemKey } from '../gamedata.js';
 import { OK, fail } from './common.js';
+import { CC, BOOSTER, BOOSTER_NAME, ITEM_BOOSTER, ITEM_BOOSTER_NAME } from '../../../shared/ruleData.js';
+
+/** The item a full carrier loses by default: the oldest that is not the Toxic Waste (SPA-CC Junk). */
+const replaceableIndex = (items) => Math.max(0, items.findIndex((x) => x.id !== CC.junk.itemId));
+/** The slot policy's replaced item, never the Toxic Waste by default (one named by replaceUid is refused in equip). */
+const replacedIndex = (policy, items, replaceUid) => {
+  const i = policy.replacedIndex(items, replaceUid);
+  return items[i]?.id === CC.junk.itemId ? replaceableIndex(items) : i;
+};
 
 export class PlayerItems {
   /**
@@ -44,12 +53,17 @@ export class PlayerItems {
     if (this.gd.config.version?.rules?.benchEquip === false && tloc.area !== 'board') return fail(ERR.BAD_TARGET);
     const item = iloc.piece;
     const target = tloc.piece;
+    // the boosterPack / itemBoosterPack cheats: a pack is not attached, it opens its offer
+    if (rec.booster === true) return rec.boosts === 'items' ? this.openItemBooster() : this.openBooster(target);
     // Before anything moves: 信标's text (and any other item whose official sentence says so) cannot go on a 自选 piece.
     if (itemForbidsDiy(rec) && chessIsDiy(this.gd.chess(target.id))) return fail(ERR.BAD_TARGET, 'diy');
     if (replaceUid != null && !(Number.isInteger(replaceUid) && (target.items || []).some((x) => x.uid === replaceUid))) return fail(ERR.BAD_TARGET, 'replace: not equipped on the target');
     const policy = this._slotPolicy();
     // [ASSUMED] a second 变形同构体 is refused before anything moves. Official accepts() is always true.
     if (!policy.accepts(target.items || [], rec)) return fail(ERR.BAD_TARGET, 'morph already equipped');
+    // SPA-CC Junk: the Toxic Waste is never the replaced (destroyed) item
+    if (replaceUid != null && (target.items || []).some((x) => x.uid === replaceUid && x.id === CC.junk.itemId)) return fail(ERR.BAD_TARGET, 'the Toxic Waste cannot be replaced');
+    if ((target.items || []).length >= this.gd.equipPerChess && (target.items || []).every((x) => x.id === CC.junk.itemId)) return fail(ERR.BAD_TARGET, 'the Toxic Waste cannot be replaced');
     const consume = typeof rec.kind === 'string' && rec.kind.startsWith('consume_on_equip');
     if (consume) {
       const key = 'item:' + itemKey(item.id);
@@ -115,7 +129,7 @@ export class PlayerItems {
     // A plus morph does not occupy a slot, so this while does not run for it. Official occupies() is always true
     // and slotsUsed is items.length, so the comparison and the splice index stay today's.
     while (policy.occupies(rec) && policy.slotsUsed(target.items) >= cap) { // loop-cap: splices one item each pass
-      const i = policy.replacedIndex(target.items, replaceUid);
+      const i = replacedIndex(policy, target.items, replaceUid);
       const [old] = target.items.splice(i, 1);
       replaceUid = null;
       this.m.dispatchItem(this, old, target, 'onDestroy', { item: old, holder: target, reason: 'replace' });
@@ -134,9 +148,47 @@ export class PlayerItems {
     // A plus morph does not replace anyone. Official occupies() is always true.
     if (incoming && !policy.occupies(incoming)) return null;
     if (policy.slotsUsed(target.items) < policy.slotCap(this.gd.equipPerChess)) return null;
-    const idx = policy.replacedIndex(target.items, replaceUid);
+    const idx = replacedIndex(policy, target.items, replaceUid);
     const [piece] = target.items.splice(idx, 1);
     return { piece, idx };
+  }
+
+  /**
+   * The Booster Pack on `target` (the boosterPack cheat, shared/ruleData.js BOOSTER): a free pick-one offer of
+   * BOOSTER.choices operators of the target's tier, the next ones of that tier's fixed order (its base chess ids sorted,
+   * 自选 slots left out) after this player's place in it, which then moves on, round the end of the order. The operators
+   * are listed whatever copies the shared pool has left (a displayed reward survives stock exhaustion, prep.js
+   * pickReward). The pack itself stays where it was.
+   */
+  openBooster(target) {
+    const tier = this.gd.tierOf(target.id);
+    const order = [...this.m.pool.entries.keys()].filter((b) => this.gd.tierOf(b) === tier && !this.gd.chess(b)?.isDiy).sort();
+    if (!order.length) return fail(ERR.BAD_TARGET, 'no operator of that tier');
+    this.boosterAt = this.boosterAt || {};
+    const at = (this.boosterAt[tier] || 0) % order.length;
+    const n = Math.min(BOOSTER.choices, order.length);
+    const ids = Array.from({ length: n }, (_, i) => order[(at + i) % order.length]);
+    this.boosterAt[tier] = (at + n) % order.length;
+    if (!this.pushRewardOffer('booster', { tier, ids, label: BOOSTER_NAME })) return fail(ERR.BAD_TARGET, 'no operator of that tier');
+    return OK;
+  }
+
+  /**
+   * The Equipment Booster Pack (the itemBoosterPack cheat, shared/ruleData.js ITEM_BOOSTER) on any operator: a free
+   * pick-one offer of ITEM_BOOSTER.choices items, the next ones of the fixed order through every shop item (gd
+   * shopItemsByTier: tier 1 → 6, ids sorted) after this player's place in it, which then moves on, round the end. Listed
+   * whatever copies the shared stock has left, as the Booster Pack's operators (a displayed reward survives it). The pack
+   * stays where it was.
+   */
+  openItemBooster() {
+    const order = Object.keys(this.gd.shopItemsByTier).map(Number).sort((a, b) => a - b).flatMap((t) => this.gd.shopItemsByTier[t]);
+    if (!order.length) return fail(ERR.BAD_TARGET, 'no item');
+    const at = (this.itemBoosterAt || 0) % order.length;
+    const n = Math.min(ITEM_BOOSTER.choices, order.length);
+    const ids = Array.from({ length: n }, (_, i) => order[(at + i) % order.length]);
+    this.itemBoosterAt = (at + n) % order.length;
+    if (!this.pushItemOffer(ids, { source: 'itemBooster', label: ITEM_BOOSTER_NAME, anyStock: true })) return fail(ERR.BAD_TARGET, 'no item');
+    return OK;
   }
 
   /** g.art {itemUid, row, col, dir?}: the Art's range grid is rotated by `dir` (absent ⇒ RIGHT). */
@@ -181,6 +233,7 @@ export class PlayerItems {
     const loc = this.find(uid);
     if (!loc || loc.piece.kind !== 'item') return fail(ERR.BAD_TARGET, 'only items can be destroyed');
     if (loc.area === 'equipped') return fail(ERR.BAD_TARGET, 'equipped items are locked');
+    if (loc.piece.id === CC.junk.itemId) return fail(ERR.BAD_TARGET, 'the Toxic Waste cannot be destroyed'); // SPA-CC Junk
     this._detach(loc);
     this.releaseItemStock(loc.piece);
     this.m.dispatchItem(this, loc.piece, loc.holder || null, 'onDestroy', { item: loc.piece, holder: loc.holder || null, reason: 'player' });

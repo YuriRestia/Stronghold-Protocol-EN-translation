@@ -51,7 +51,7 @@ async function safeImport(path) {
 }
 
 const KIT_REGISTRY = await safeImport('./kits/index.js');
-const DOMAIN_NAMES = ['tokens', 'devices', 'enemies', 'bosses', 'bonds', 'garrisons', 'items', 'bands', 'choices'];
+const DOMAIN_NAMES = ['tokens', 'devices', 'enemies', 'bosses', 'bonds', 'garrisons', 'items', 'bands', 'choices', 'risk'];
 const DOMAINS = await Promise.all(DOMAIN_NAMES.map((n) => safeImport(`./${n}.js`)));
 const tokens = DOMAINS[0];
 
@@ -61,7 +61,7 @@ const tokens = DOMAINS[0];
  */
 export const KITS = KIT_REGISTRY.KITS ?? Object.freeze({});
 
-/** Domain modules in install order: tokens, devices, enemies, bosses, bonds, garrisons, items, bands, choices. */
+/** Domain modules in install order: tokens, devices, enemies, bosses, bonds, garrisons, items, bands, choices, risk. */
 export const MODULES = Object.freeze(DOMAIN_NAMES.map((n, i) => [n, DOMAINS[i]]));
 
 /**
@@ -81,7 +81,9 @@ export function isDiyDef(def) {
 }
 
 /** A def whose body is another character than its chess id names (补位 stand-in, 自选 piece): its kit is keyed by charId. */
-const isOtherBody = (def) => isStandInDef(def) || isDiyDef(def);
+/** 煌 in 凯瑟琳's slot (Custom Lobby Modifications, shared/ruleData.js): the slot's ids, Blaze's body and kit. */
+export const isRuleBodyDef = (def) => !!(def && def.raw?.ruleBody && def.charId);
+const isOtherBody = (def) => isStandInDef(def) || isDiyDef(def) || isRuleBodyDef(def);
 
 /** Tier kit key → the charId it was written for (kits/index.js). */
 const KIT_CHAR_IDS = KIT_REGISTRY.KIT_CHAR_IDS ?? Object.freeze({});

@@ -105,7 +105,7 @@ export class FxSim {
       case 'telegraph': {
         const d = Math.max(0.4, dur || 1);
         if (r >= 12) { this.flashScreen(col, 0.45, d); break; }
-        if (ex.tiles) this.tileFlash(tilesAround(at.x, at.y, r, ex.tiles), col, d, true);
+        if (ex.tiles) this.tileFlash(tilesAround(at.x, at.y, r, ex.tiles), col, d, true, null, ex.key ?? null);
         else this.zone(at.x, at.y, at.z, r, col, d, 'ring', true);
         break;
       }

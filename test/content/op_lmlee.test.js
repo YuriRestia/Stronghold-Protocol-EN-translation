@@ -295,6 +295,7 @@ test('S3 贵客盈门 (AUTO, SP_FULL): range x-4, ATK / DEF +31 % / +37 %, taunt
     assert.ok(h.runUntil(() => h.hooksOf('attack').some((c) => c.attacker === u), 3), `T${tier}: attacks`);
     const main = h.hooksOf('attack').find((c) => c.attacker === u).targets[0];
     const other = main === a ? b : a;
+    h.settle();
     assert.ok(Math.hypot(main.x - (main === a ? 6 : 5), main.y - (main === a ? 10 : 11)) < 1e-6, `T${tier}: the target is not pushed`);
     assert.ok(Math.hypot(other.x - (other === a ? 6 : 5), other.y - (other === a ? 10 : 11)) > 1, `T${tier}: the other one is pushed`);
     done(h);

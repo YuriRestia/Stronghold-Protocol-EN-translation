@@ -151,7 +151,7 @@ export function createWindUpLookahead({ views, woundUp, castStart, skip = null, 
       if (rate.t > t) break;
       interval = rate.value;
     }
-    // (fork) the target too: a lord's melee twin (UnitView.windUp); upstream: the model faces it as the clip starts
+    // the target: the model faces it as the clip starts, and (fork) a lord's or agent's melee twin (UnitView.windUp)
     const target = views.get(e[2]) || null;
     lastAtk.set(e[1], { kind: e[3], target: e[2] });
     // (fork) the predicted skill swing (below) already plays this attack's clip and cast effects: only its timing

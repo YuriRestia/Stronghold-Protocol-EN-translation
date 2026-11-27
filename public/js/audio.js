@@ -2767,13 +2767,23 @@ export class AudioManager {
             u.heldAttack = Number.isInteger(n) && unitSfx(this.getManifest()?.audio?.sfx, u.def, null)?.attacks?.[String(n)] ? n : null;
           }
         } else if (kind === 'fx') {
-          // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
+          // an enemy's animation-event sound (manifest sfx.units[def].events, planned for the fork's enemies): 爱国者
+          // kneels into his revive, rises from it, and his spear lands (FX_EVENT_SFX)
           const ex = e[4];
           // (fork, enemy sound leftovers job 2) an enemy skill impact this fx times (sfx.units[def].fxHits)
           this._enemyFxHit(e[1], ex, died, e[2], e[3]);
           // (fork, enemy sound leftovers job 1) an enemy's form from now on (its attack variant: unit())
           if (ex && typeof ex === 'object' && ex.id != null) this._noteForm(e[1], ex);
+          const evName = ex && typeof ex === 'object' ? FX_EVENT_SFX[`${e[1]}:${ex.form ?? ''}`] ?? FX_EVENT_SFX[e[1]] : null;
+          if (evName) {
+            const uid = ex.id ?? ex.from;
+            const u = uid != null ? this.units.get(ex.from ?? uid) : null;
+            const url = u ? this.getManifest?.()?.audio?.sfx?.units?.[u.def]?.events?.[evName] : null;
+            // only a planned event sound replaces the rest (Yuri's moments still play for an enemy without one)
+            if (url) { this._playUnitUrl(url, `${ex.from ?? uid}:${evName}`, 0.8); continue; }
+          }
           if (ex && typeof ex === 'object' && ex.id != null) this._fxSound(e[1], ex);
+          // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
           if (!ex || typeof ex !== 'object' || !ex.consumed || ex.id == null) continue;
           const u = this.units.get(ex.id);
           if (!u || u.side === 'enemy') continue;
@@ -2787,6 +2797,12 @@ export class AudioManager {
     } catch (err) { this._warn('events', err); }
   }
 }
+
+/**
+ * fx tuple → animation-event sound name (`kind:form`, or the kind alone): the revive's knock-out ('telegraph', form
+ * 'reborn'), its end ('revive', form 'form2'), 爱国者's spear impact ('patriotSpear', anchored on him by `from`).
+ */
+const FX_EVENT_SFX = Object.freeze({ 'telegraph:reborn': 'reborn_1', 'revive:form2': 'reborn_3', patriotSpear: 'spear_1' });
 
 let manifestGetter = () => null;
 /** App-wide audio manager. */

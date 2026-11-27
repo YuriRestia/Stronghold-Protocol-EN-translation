@@ -454,6 +454,7 @@ test('歌蕾蒂娅 S3: binds the farthest target, tornado pulses 85 % ATK arts e
   approx(far.findBuff(`glady:slow:${u.id}`).mods.moveMul, 1 + bb.move_speed, 1e-9);
   const x0 = far.x;
   h.runUntil(() => !u.skill.active, 20);
+  h.settle();   // the final pull's slide
   const pulses = dmgBy(h, u, (c) => c.dmg?.tags?.includes('tornado') && c.target === far);
   assert.equal(pulses.length, Math.floor(D(id).skill.duration / bb.interval + 1e-9), 'one pulse every 1.5 s');
   approx(pulses[0].amount, u.s.atk * bb.atk_scale, 1e-6);
@@ -1238,6 +1239,7 @@ test('elite (精锐) kits read the Lv7 blackboard: skill magnitudes differ from 
       const x0 = side.x, y0 = side.y;
       castNow(u, 'test', { free: true });
       h.run(D(id).skill.bb.interval + 0.1);
+      h.settle();   // the pull's slide
       return Math.hypot(side.x - x0, side.y - y0);
     };
     approx(pulled('chess_char_4_12_b'), Math.SQRT2 - 0.05, 0.02);

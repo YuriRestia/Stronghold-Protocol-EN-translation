@@ -11,6 +11,7 @@ import { OK, fail } from './common.js';
 import { setBondCall } from '../bondCall.js';
 import { onHumanEmote } from '../botEmotes.js';
 import { sendChat } from '../chatWallet.js';
+import { noteAiSeat } from '../autoAward.js';
 
 /**
  * (fork) The intents that show a player is at the keyboard and reset a large room's idle count (match/largeRoom.js): the
@@ -66,6 +67,7 @@ export class MatchIntents {
       case 'g.pause': return this.setPause(ps, !!msg.on);
       // the stats the board's units start their next battle with (the detail card in prep, user playtest #4 item 7)
       case 'g.unitStats': return this.unitStats(ps, msg.seq ?? null);
+      case 'g.deck': return this.deck(ps, msg.seq ?? null);
       case 'g.leave': this.onLeave(ps.playerId); return OK;
       case 'g.test': return this.applyTestCommand(ps, msg);
       case 'b.progress': return this._onProgress(ps, msg);
@@ -98,6 +100,7 @@ export class MatchIntents {
   setAutoplay(ps, on) {
     if (ps.autoplay === on) return OK;
     ps.autoplay = on;
+    if (on) noteAiSeat(this); // (GitHub #125) 托管 counts as an AI seat
     this.markPublic();
     if (on) this.kickBot(ps);
     else this.cancelBotTasks(ps.playerId); // (fork) the human took the seat back: a bot task for it must not hold the queue
@@ -135,6 +138,18 @@ export class MatchIntents {
     return OK;
   }
 
+  /**
+   * (fork, GitHub #132) The shared deck: every operator of the match's pool with its copies left and its copies in all
+   * (`ops`: [baseId, left, cap], the public SharedPool counts; an overdrawn operator shows 0). Answered by the push
+   * m.deck { seq, round, ops } to the requester only, in any phase (the popup asks on opening and each round).
+   */
+  deck(ps, seq = null) {
+    const ops = [];
+    for (const [id, e] of this.pool?.entries ?? []) ops.push([id, Math.max(0, e.left), e.cap]);
+    this.sendTo(ps.playerId, { t: 'm.deck', seq: Number.isInteger(seq) ? seq : null, round: this.round, ops });
+    return OK;
+  }
+
   /** The start-of-battle stats of a player's board units (see unitStats); [] when the preview battle cannot be built. */
   _unitStatsOf(ps) {
     const input = ps.battleInput({ side: 'L', colOffset: 0 });
@@ -153,7 +168,7 @@ export class MatchIntents {
     const b = this.newBattle({
       seed: deriveSeed(this.seed, `preview:${this.round}:${ps.seat}`), kind: 'normal', modeId: this.modeId, round: this.round,
       stageId: this.stageId, rect: { ...GEO.NORMAL_RECT }, timeLimit: 60, players, spawns: [], routes: this.wave ? this.wave.routes : [],
-      sharedBoss: null, flags: { layerGainsEnabled: !bossRound, ...this.gd.dp }, fieldId: `n:${ps.playerId}`, recordEvents: false,
+      sharedBoss: null, flags: { layerGainsEnabled: !bossRound, ...this.gd.dp, rules: this.lobbyRules }, fieldId: `n:${ps.playerId}`, recordEvents: false,
     });
     try {
       if (typeof b.start === 'function') b.start();

@@ -1,32 +1,14 @@
-// Writes public/server-info.json (gitignored): the branch and commit this checkout is on, for the title screen's
-// "About this server" panel (public/js/ui/about.js). Static file, read only when a player opens the panel.
+// Writes public/server-info.json (gitignored): the branch, commit and latest changes of this checkout, for the title
+// screen's version line, "What's new" and "About this server" (public/js/ui/about.js). See server/serverInfo.js.
 //
 //   node scripts/server-info.mjs
 //
-// On the VPS it runs before every start (systemd `ExecStartPre=-/usr/bin/node scripts/server-info.mjs`); after a
-// `git pull` without a restart, run it by hand: cd /opt/stronghold/app && sudo -u stronghold node scripts/server-info.mjs
-// Never fails the start: without git it writes nothing and the panel shows "unknown".
-import fs from 'node:fs';
+// The server also writes it at every start. On the VPS it runs before every start too (systemd
+// `ExecStartPre=-/usr/bin/node scripts/server-info.mjs`); after a `git pull` without a restart, run it by hand:
+// cd /opt/stronghold/app && sudo -u stronghold node scripts/server-info.mjs
+// Never fails the start: without git it writes nothing and the panels show "unknown".
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { writeServerInfo } from '../server/serverInfo.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = path.join(ROOT, 'public', 'server-info.json');
-
-const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-
-try {
-  const head = git('rev-parse', '--abbrev-ref', 'HEAD');
-  const info = {
-    // a generation's release worktree is detached ("HEAD"): its branch comes from SP_BRANCH, which
-    // scripts/generations.mjs deploy writes to the generation's env file
-    branch: head === 'HEAD' && process.env.SP_BRANCH ? process.env.SP_BRANCH : head,
-    commit: git('rev-parse', 'HEAD'),
-    date: git('log', '-1', '--format=%cI'),
-  };
-  fs.writeFileSync(OUT, `${JSON.stringify(info, null, 2)}\n`);
-  console.log(`[server-info] ${info.branch} @ ${info.commit.slice(0, 7)} → ${path.relative(ROOT, OUT)}`);
-} catch (e) {
-  console.warn(`[server-info] skipped (${e?.message || e})`);
-}
+writeServerInfo(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'));

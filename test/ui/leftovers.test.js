@@ -53,6 +53,12 @@ describe('1. equip-replace dialog', () => {
     assert.deepEqual(req.options.map((o) => [o.uid, o.id, o.name]), [[11, A, getItem(A).name], [12, B, getItem(B).name]]);
   });
 
+  test('the boosterPack cheat\'s pack on a full operator asks nothing: it is never attached (GitHub #35)', () => {
+    const intent = dropIntent(ctx, 3, { area: 'board', row: 9, col: 3 });
+    const booster = (id) => (id === C ? { ...getItem(id), booster: true } : getItem(id));
+    assert.equal(replaceRequest(ctx, intent, getChess, booster), null);
+  });
+
   test('the picked item travels as replaceUid and the frame passes the protocol validator', () => {
     const intent = dropIntent(ctx, 3, { area: 'board', row: 9, col: 3 });
     const r = replaceIntent(intent, 12);

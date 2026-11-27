@@ -403,6 +403,8 @@
 .diy-tag { display: inline-flex; align-items: center; height: 1.5em; padding: 0 .4em; font-size: max(calc(.11 * var(--t)), 8px); font-weight: 700; border-radius: 1em; white-space: nowrap; }
 .diy-tag--proto { color: var(--ice-900); background: var(--ice); }
 .diy-tag--own { color: var(--text-on-mint); background: var(--mint-500); }
+/* (Fish Edition) the operator has a Mod Z / W the lobby rules can turn on (shared/modZ.js): a hint, not a choice */
+.diy-tag--modz { color: var(--text-md); background: transparent; border: 1px dashed var(--line-2); font-weight: 600; }
 
 /* the picker covers the tab: the roster's own list on the left and its detail on the right (screens/loadoutSections.js
    draws the sections; below 1000 px the detail slides over the list like the roster's) */

@@ -111,13 +111,13 @@ test('boss pool = bloodPoint[difficulty] × the players alive at the fight\'s st
   assert.equal(bossPoolHp(gd, 'boss_1'), 1800000 * 4, 'no count given: a full team');
   assert.equal(bossPoolHp(gd, 'boss_1', 9), 1800000 * 4, 'at most aliveFull (4) players');
   // (fork) a Grand Alliance room counts up to the seats it started with (docs/design/large-rooms.md, bossPoolSeats)
-  assert.equal(bossPoolHp(gd, 'boss_1', 6, 8), 1800000 * 6, 'an 8-seat room with 6 alive: × 6');
-  assert.equal(bossPoolHp(gd, 'boss_1', 8, 8), 1800000 * 8, 'an 8-seat room with 8 alive: × 8');
-  assert.equal(bossPoolHp(gd, 'boss_1', 9, 6), 1800000 * 6, 'at most the seats the room started with');
-  assert.equal(bossPoolHp(gd, 'boss_1', undefined, 6), 1800000 * 6, 'no count given: the full room');
-  assert.equal(bossPoolHp(gd, 'boss_1', 6, 3), 1800000 * 4, 'fewer seats than aliveFull never lowers the cap');
-  assert.equal(gd.bossPoolHp('boss_8', 7, 8), bossPoolHp(gd, 'boss_8', 7, 8), 'GameData agrees for the Hidden Core form');
-  assert.equal(bossPoolHp(new GameData(RAW, 'mode_single_abyss'), 'boss_5', 1, 8), 3000000, 'solo ignores seats');
+  assert.equal(bossPoolHp(gd, 'boss_1', 6, null, { seats: 8 }), 1800000 * 6, 'an 8-seat room with 6 alive: × 6');
+  assert.equal(bossPoolHp(gd, 'boss_1', 8, null, { seats: 8 }), 1800000 * 8, 'an 8-seat room with 8 alive: × 8');
+  assert.equal(bossPoolHp(gd, 'boss_1', 9, null, { seats: 6 }), 1800000 * 6, 'at most the seats the room started with');
+  assert.equal(bossPoolHp(gd, 'boss_1', undefined, null, { seats: 6 }), 1800000 * 6, 'no count given: the full room');
+  assert.equal(bossPoolHp(gd, 'boss_1', 6, null, { seats: 3 }), 1800000 * 4, 'fewer seats than aliveFull never lowers the cap');
+  assert.equal(gd.bossPoolHp('boss_8', 7, 8), bossPoolHp(gd, 'boss_8', 7, null, { seats: 8 }), 'GameData agrees for the Hidden Core form');
+  assert.equal(bossPoolHp(new GameData(RAW, 'mode_single_abyss'), 'boss_5', 1, null, { seats: 8 }), 3000000, 'solo ignores seats');
   assert.equal(bossPoolSeats({ roomScale: 1 }), undefined, 'a 4-seat room: no seats, the cap stays aliveFull');
   assert.equal(bossPoolSeats({}), undefined);
   assert.equal(bossPoolSeats({ roomScale: 1.5 }), 6);

@@ -410,6 +410,7 @@ function buildCards(gd, rng, family, n, sch, { stageId = null, bondAvailable = n
 export function cardView(c) {
   const v = { idx: c.idx, kind: c.kind, id: c.id, name: c.name, desc: c.desc, tier: c.tier ?? null };
   if (c.kind === 'bounty') Object.assign(v, { descRaw: c.descRaw ?? null, coin: c.coin, payout: c.payout, rounds: c.rounds, enemyKey: c.enemyKey, count: c.count });
+  if (c.risk) { v.risk = true; if (c.skipAtk) v.skipAtk = true; } // SPA-CC ccPatriot's card (Match.riskPatriotCard)
   if (c.kind === 'item') v.price = 0;
   if (c.kind === 'tactic') Object.assign(v, { team: c.team, tacticKind: c.tacticKind });
   return v;

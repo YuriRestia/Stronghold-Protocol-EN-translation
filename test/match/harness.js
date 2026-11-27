@@ -11,7 +11,8 @@
 // AI 队友最后选择: the drafts order every human seat before every AI seat), test (DESIGN §34.8; hostId then
 // defaults to the first human), hostId / botRehearsalDelegate /
 // botRehearsalDelegateMs (the delegated bot rehearsal, DESIGN §14: test/match/rehearsal-delegate.test.js),
-// cs / vs / requireCs (a gameplay-plugin room: host rehearsal stays off), rules (DESIGN §34.15; omitted unless set).
+// cs / vs / requireCs (a gameplay-plugin room: host rehearsal stays off), rules (DESIGN §34.15; omitted unless set),
+// lobbyRules (the Fish Edition lobby rules, shared/constants.js RULE_KEYS).
 // Combat mode: clientCombat (default false here: the legacy server-run mode most suites were written for; production
 // defaults to client-side combat, DESIGN §14). With clientCombat: true every human gets a scripted browser
 // (test/match/simClient.js SimClient: h.clients) unless clients: false; pace 'instant' | 'paced', perPlayer
@@ -95,6 +96,8 @@ export function makeMatch(o = {}) {
     // `hostId` is the executor a task is sent to, `botRehearsalDelegateMs` its answer window
     hostId: o.hostId !== undefined ? o.hostId : (o.test === true ? (seats.find((s) => s && !s.isBot)?.playerId ?? null) : undefined),
     test: o.test === true,
+    // (fork) the anonymous match record (server/match/records.js); off unless a test asks for it
+    ...(o.record !== undefined ? { record: o.record } : {}),
     botRehearsalDelegate: o.botRehearsalDelegate ?? false, // (fork) the Match default is on; tests opt in
     botRehearsalDelegateMs: o.botRehearsalDelegateMs,
     // (fork) a bot seat's whole prep on an executor (test/match/fakeBotHost.js, test/match/bot-host-parity.test.js)
@@ -112,6 +115,7 @@ export function makeMatch(o = {}) {
     // still has no kitted key.
     ...(o.kitted !== undefined ? { kitted: o.kitted } : {}),
     ...(o.rules !== undefined ? { rules: o.rules } : {}),
+    lobbyRules: o.lobbyRules,
     ...(o.largeRoom !== undefined ? { largeRoom: o.largeRoom } : {}),
     ...(o.oneForAll !== undefined ? { oneForAll: o.oneForAll } : {}),
     ...(o.rerollLock !== undefined ? { rerollLock: o.rerollLock } : {}),

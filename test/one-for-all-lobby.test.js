@@ -54,6 +54,7 @@ const roomOf = (h, s) => h.lobby.rooms.get(s.roomCode);
 function searchingGrand(h, count, extra = {}, name = 'P') {
   const ps = Array.from({ length: count }, (_, i) => h.player(`${name}${i}`));
   ok(h.lobby.create(ps[0], { mode: 'coop', difficulty: 'NORMAL', capacity: 8, ...extra }));
+  ok(h.lobby.setLock(ps[0], { on: false }));   // a Grand Alliance opens private: public takes this press
   const r = roomOf(h, ps[0]);
   for (const p of ps.slice(1)) { ok(h.lobby.join(p, { code: r.code })); ok(h.lobby.ready(p, { ready: true })); }
   ok(h.lobby.search(ps[0], { on: true }));
@@ -76,10 +77,12 @@ test('create: a Grand Alliance may start in One for All; a normal room may not; 
   try {
     const a = h.player('A');
     ok(h.lobby.create(a, { mode: 'coop', capacity: 8, oneForAll: true }));
+    ok(h.lobby.setLock(a, { on: false }));   // a Grand Alliance opens private: public takes this press
     assert.equal(h.last(a, 'room.state').oneForAll, true);
     assert.equal(roomOf(h, a).oneForAll, true);
     const b = h.player('B');
     ok(h.lobby.create(b, { mode: 'coop', capacity: 8 }));
+    ok(h.lobby.setLock(b, { on: false }));   // a Grand Alliance opens private: public takes this press
     assert.equal(h.last(b, 'room.state').oneForAll, false, 'Free pick by default');
     const c = h.player('C');
     refused(h.lobby.create(c, { mode: 'coop', oneForAll: true }), ERR.BAD_MSG);
@@ -97,6 +100,7 @@ test('room.setOneForAll: host only, before the match, Grand Alliances only; nobo
     const outsider = h.player('Out');
     refused(h.lobby.setOneForAll(outsider, { on: true }), ERR.NOT_IN_ROOM);
     ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+    ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
     const r = roomOf(h, host);
     ok(h.lobby.join(mate, { code: r.code }));
     ok(h.lobby.ready(mate, { ready: true }));
@@ -125,11 +129,13 @@ test('the match gets oneForAll beside largeRoom; a Free-pick Grand Alliance and 
   try {
     const a = h.player('A');
     ok(h.lobby.create(a, { mode: 'coop', capacity: 8, oneForAll: true }));
+    ok(h.lobby.setLock(a, { on: false }));   // a Grand Alliance opens private: public takes this press
     ok(h.lobby.start(a));
     assert.equal(Rec.last.largeRoom, true);
     assert.equal(Rec.last.oneForAll, true);
     const b = h.player('B');
     ok(h.lobby.create(b, { mode: 'coop', capacity: 8 }));
+    ok(h.lobby.setLock(b, { on: false }));   // a Grand Alliance opens private: public takes this press
     ok(h.lobby.start(b));
     assert.equal(Rec.last.largeRoom, true);
     assert.equal(Rec.last.oneForAll, undefined, 'a Free-pick match opts object does not grow the key');
@@ -146,6 +152,7 @@ test('room browser: a One for All room is marked, a switch refreshes the list; t
     const watcher = h.player('W');
     const host = h.player('Host');
     ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+    ok(h.lobby.setLock(host, { on: false }));   // a Grand Alliance opens private: public takes this press
     ok(h.lobby.watchRooms(watcher, { on: true }));
     let list = h.last(watcher, 'rooms.list');
     assert.equal(list.rooms[0].oneForAll, undefined);

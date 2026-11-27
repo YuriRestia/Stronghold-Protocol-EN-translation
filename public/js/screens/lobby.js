@@ -68,6 +68,7 @@ import { t, tc, N_ } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
 import { DiscordButton } from '../ui/discord.js';
 import { UpdateNews } from '../ui/matchSearch.js';
+import { ModsPrefButton, OpenKindDialog, useAllowMods } from '../ui/modsPref.js';
 import { OnlinePill } from '../ui/presence.js';
 import { QueuePanel, useSoloQueue } from '../ui/soloQueue.js';
 import { DifficultyDetailsButton } from '../ui/difficultyDetails.js';
@@ -77,6 +78,7 @@ import { RoomBrowser, askRoomPassword, PrivacyFields, StrategySwitch } from '../
 import { ROOM_PASSWORD_RE } from '../../../shared/largeRoom.js';
 import { RegionPing } from '../ui/regionPicker.js';
 import { contentSet, retryContentSet } from '../content.js';
+import { ChallengesPlate } from '../ui/challenges.js';
 import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, seasonOf, soloTimedOf, soloTimeMsgid, versionLabel } from '../versions.js';
 
 /** Official mode texts (activity_table act2autochess.modeDataDict), fallback when config.json is absent. */
@@ -900,18 +902,26 @@ export function LobbyScreen() {
   // (fork) a Grand Alliance room (shared/largeRoom.js): co-op, 8 seats, the default version, at the co-op difficulty shown
   // (fork) 创建大同盟 opens 选择模拟协议 first: the difficulty and 公开 / 私密 (with its password) are chosen before the room exists
   const [grandOpen, setGrandOpen] = useState(false);
-  const [grandPriv, setGrandPriv] = useState(false);
-  const [grandPw, setGrandPw] = useState('');
+  // (fork) a Grand Alliance opens private (server/lobby.js create): 4 random letters offered, public is one more press
+  const [grandPriv, setGrandPriv] = useState(true);
+  const [grandPw, setGrandPw] = useState(() => Array.from({ length: 4 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join(''));
+  const [grandAsk, setGrandAsk] = useState(false);
   const [grandOfa, setGrandOfa] = useState(false);
   const createLarge = () => setGrandOpen(true);
-  const createGrand = () => {
+  const createGrand = (kind) => {
     if (grandPriv && !ROOM_PASSWORD_RE.test(grandPw)) return;
-    run('create', () => net.request('room.create', { mode: 'coop', capacity: 8, difficulty: shownCoop, ...(grandPriv ? { password: grandPw } : {}),
-      ...(grandOfa ? { oneForAll: true } : {}), ...(testMode && asTest ? { test: true } : {}) }));
+    // public asks vanilla or modded first (ui/modsPref.js), then makes the new private room public with that answer
+    if (!grandPriv && typeof kind !== 'string') { setGrandAsk(true); return; }
+    run('create', async () => {
+      await net.request('room.create', { mode: 'coop', capacity: 8, difficulty: shownCoop, ...(grandPriv ? { password: grandPw } : {}),
+        ...(grandOfa ? { oneForAll: true } : {}), ...(testMode && asTest ? { test: true } : {}) });
+      if (!grandPriv) await net.request('room.setLock', { on: false, kind });
+    });
   };
   // (fork) 单人匹配: the queue at the co-op difficulty shown; the lobby stays on screen while queued
+  const [allowMods] = useAllowMods();
   const joinQueue = () => run('create', async () => {
-    await net.request('queue.join', { difficulty: shownCoop, ...(Array.isArray(versions) ? { versions: queueVersions } : {}), ...(queueLargeOk && queueLarge ? { large: true, ...(queueOfa ? { oneForAll: true } : {}) } : {}) });
+    await net.request('queue.join', { difficulty: shownCoop, ...(allowMods ? { mods: true } : {}), ...(Array.isArray(versions) ? { versions: queueVersions } : {}), ...(queueLargeOk && queueLarge ? { large: true, ...(queueOfa ? { oneForAll: true } : {}) } : {}) });
     if (alive.current) setMatchOpen(false);
   });
   const join = (c = code) => {
@@ -988,12 +998,14 @@ export function LobbyScreen() {
         <${UpdateNews} />
         <${AchievementCard} onOpen=${() => setAchOpen(true)} />
         <${HubTile} icon="key" label=${t('密钥加入')} en="JOIN WITH KEY" class="hub-tile--key" disabled=${queue.queued} onClick=${() => setAllyOpen(true)} />
+        <${ModsPrefButton} />
         <${TipsPanel} />
       </aside>
       <aside class="hub-right">
         <${SweepPlate} onClick=${() => setSweep({ restore: null })} />
         <${LoadoutButton} from="lobby" size="lg" class="hub-plate hub-plate--loadout lobby-loadout" label=${t('干员调配')} />
         <${AchievementPlate} onOpen=${() => setAchOpen(true)} />
+        <${ChallengesPlate} />
       </aside>
       <section class=${`hub-entries${queue.queued ? ' is-queued' : ''}`} aria-label=${t('模拟方式')}>
         ${queue.queued ? html`<div class="create-box hub-queue"><${QueuePanel} busy=${busy} online=${online} run=${run} /></div>`
@@ -1023,6 +1035,7 @@ export function LobbyScreen() {
       onClose=${() => setGrandOpen(false)} onCreate=${createGrand} busy=${busy} online=${online} difficulties=${coop}
       testMode=${testMode} asTest=${asTest} onTest=${setAsTest} action=${t('创建大同盟')} hint=${false}
       privacy=${{ priv: grandPriv, pw: grandPw, onPriv: setGrandPriv, onPw: setGrandPw }} strategy=${{ on: grandOfa, onPick: setGrandOfa }} />` : null}
+    <${OpenKindDialog} open=${grandAsk} hasRules=${false} onClose=${() => setGrandAsk(false)} onPick=${(kind) => { setGrandAsk(false); createGrand(kind); }} />
     ${sweep ? html`<${SweepReport} restore=${sweep.restore} onClose=${() => setSweep(null)} onReopen=${(restore) => setSweep({ restore })} />` : null}
     ${achOpen ? html`<${AchievementDialog} onClose=${() => setAchOpen(false)} />` : null}
   </div>`;

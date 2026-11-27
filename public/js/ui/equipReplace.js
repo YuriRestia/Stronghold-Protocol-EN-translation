@@ -37,6 +37,8 @@ export function replaceRequest(ctx, intent, getChess = () => null, getItem = () 
   if (!isObj(target) || target.kind !== 'chess' || !isObj(item) || item.kind !== 'item') return null;
   const equipped = (Array.isArray(target.items) ? target.items : []).filter((it) => isObj(it) && Number.isInteger(it.uid));
   const rec = (id) => getItem(id) || null;
+  // the boosterPack cheat's pack is never attached (it opens an offer: server/match/player/items.js openBooster)
+  if (rec(item.id)?.booster === true) return null;
   let options = equipped;
   if (ctx?.morphMode === 'plus') {
     const policy = morphSlotPolicy('plus', (it) => !!rec(typeof it === 'string' ? it : it?.id)?.canGiveBond);

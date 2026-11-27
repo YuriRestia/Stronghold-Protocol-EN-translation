@@ -88,6 +88,7 @@ describe('queue.* (单人匹配)', () => {
     assert.notEqual(validateC2S({ t: 'queue.join' }), null);
     assert.equal(validateC2S({ t: 'queue.leave' }), null);
     assert.equal(validateC2S({ t: 'queue.ai' }), null);
+    assert.equal(validateC2S({ t: 'queue.ai', lang: 'en' }), null); // (fork) #89: the AI's names
   });
 
   test('queue.state carries the wait and when AI is offered; no queue size anywhere', async () => {

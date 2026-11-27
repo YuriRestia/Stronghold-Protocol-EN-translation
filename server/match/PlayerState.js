@@ -150,6 +150,8 @@ export class PlayerState {
     this.isBot = !!seat.isBot;
     // (fork) the profile icon (a known id, server/lobby.js avatarOf; m.public players[].avatar)
     this.avatar = !this.isBot && typeof seat.avatar === 'string' ? seat.avatar : null;
+    // (fork, GitHub #118) the public name this player opted in to have in the match record (records.js finishRecord)
+    this.publicName = !this.isBot && typeof seat.publicName === 'string' && seat.publicName ? seat.publicName : null;
     this.connected = this.isBot ? true : !!seat.connected;
     this.left = false;
     this.autoplay = false;
@@ -185,6 +187,8 @@ export class PlayerState {
     this.diyStock = new DiyStock();
     /** slotted slots without stock: every bond of the operator is switched off this match */
     this.diyBanned = Object.freeze([]);
+    /** (fork, #192) the charIds of the 自选 picks this player took into ANY battle (battleInput): the result's `customSeen`; a pick taken off for the boss still counts */
+    this.diyEver = new Set();
     // A modded room's content list (Match.diyKitted) is what the lobby already accepted. Without it setDiy
     // keeps the vanilla kit list and drops a plugin operator with no error (checkDiyPicks is lenient).
     // Bots never slot 自选; they read the human's composed records once this succeeds (bot.js chessRec).
@@ -239,6 +243,10 @@ export class PlayerState {
     this.stats = {
       dmgDealt: 0, kills: 0, leaks: 0, gold: 0, refreshes: 0, merges: 0, itemMerges: 0, itemsEquipped: 0,
       bossDamage: 0, lpLost: 0, buys: 0, sells: 0, perfectRounds: 0, fundsGained: 0, healing: 0,
+      /** rlbot #197 I2: per-operator damage in a Final Assault / Hidden Core round (bossRounds.js _finishFinal),
+       * one entry per boss round reached: { round, hidden, units: fields.js unitStats shape }. [] on a game
+       * that never reached a boss round. */
+      faUnitStats: [],
     };
     this.eliminatedRound = null;
     this.creditedKills = 0;

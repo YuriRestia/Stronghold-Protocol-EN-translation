@@ -2,7 +2,7 @@
 
 《明日方舟》季节性自走棋塔防玩法「卫戍协议：盟约」的**非官方同人复刻**：浏览器即开即玩，单人或 1–4 人联机合作。
 
-![version](https://img.shields.io/badge/version-0.3.3-2ea44f)
+![version](https://img.shields.io/badge/version-0.3.4--4-2ea44f)
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)
 ![node](https://img.shields.io/badge/node-22%20%7C%2024-339933)
 
@@ -126,6 +126,7 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_NO_BROWSER` | 空 | 设为 `1` 时启动脚本不自动打开浏览器 |
 | `SP_CHAT` | 空 | 对局文字聊天（docs/design/network.md「Match chat」）；设为 `0` 时关闭，页面不显示输入框 |
 | `SP_BOT_EMOTES` | 空 | AI 队友的对局表情回应（战斗、整备、合成、联防、收礼时即刻的 `m.emote` 广播）；设为 `0` 时整体关闭 |
+| `SP_RECORDS` | 关 | （本分叉）匿名对局记录，用于统计：`on` 时每局结束在 `logs/records/` 写一个 gzip 压缩的 JSON 文件，其他值则是存放的文件夹。用 `node tools/records.mjs` 读取；见下面 |
 | `SP_ASSET_INDEX` | 空 | 素材地址带内容哈希、浏览器长期缓存（0.2.6 起默认开启，哈希存在 `.cache/asset-hashes.json`）；设为 `0` 时关闭，素材清单原样下发 |
 | `SP_VERSIONS` | 不设（四个官方版本都开，默认第二期下半） | 收窄启用的版本：不设置与 `all` 相同；`act2autochess` 只开第二期下半，大厅不显示「版本」；也可写逗号分隔的版本 id（如 `act1autochess,act2autochess@V2_1`）。`SP_VERSION_DEFAULT` 指定默认版本，`SP_MAX_VERSION_HOSTS` 限制版本模拟进程数（空闲时不额外启动进程）。详见 [DEPLOY.md](docs/DEPLOY.md) §11 |
 | `SP_BOT_STRATEGY_SEATS` | 不设（各席位都用 `SP_BOT_STRATEGY`） | 按席位覆盖 AI 策略：逗号分隔的 `席位:ID`（席位 0–3，ID 须已注册），如 `1:ioleta,3:adaptive`；未列出的席位用 `SP_BOT_STRATEGY`，启动时校验。发布包里选 `external` 的席位同样改用内置 AI。详见 [BOT_STRATEGIES.md](docs/BOT_STRATEGIES.md) |
@@ -137,6 +138,8 @@ npm start          # 启动服务器：http://localhost:3000
 `--room-code` 只接受 4 位字母或数字，不是环境变量，也不会跨重启保留；同一时间只能有一个使用该密钥的房间。固定密钥更容易被猜到，建议只在私服 / 局域网使用。
 
 设置方式：macOS / Linux `PORT=8080 npm start`；PowerShell `$env:PORT=8080; npm start`；cmd `set "PORT=8080" && npm start`。健康检查：`GET /healthz`。
+
+**对局记录**（本分叉，默认关闭）：用 `SP_RECORDS=on` 启动服务器（例如 `SP_RECORDS=on npm start`；cmd `set "SP_RECORDS=on" && npm start`）。日志会显示 `[records] match records on: <folder>`，之后除测试房间外每局结束都写入 `logs/records/<YYYY-MM-DD>/<随机 id>.json.gz`。记录不含玩家、房间或具体时刻。`node tools/records.mjs` 输出统计（`--json` 输出 JSON，`--verify` 重演记录的战斗）。分享数据时把某天的文件夹打包即可。后台服务、systemd 的设置和记录的内容见 [docs/DEPLOY.md](docs/DEPLOY.md#13-对局记录可选本分叉) 第 13 节。
 
 ### 和朋友一起玩（局域网）
 
@@ -241,7 +244,7 @@ node tools/perfbench.mjs --cpu 1,4,6 --profile             # 真实战斗的帧�
 - 游戏数据由 `npm run build-data`（`tools/build-data.mjs`）从官方数据表生成，不要手工修改 `data/*.json`。
 - 性能测试：`/dev/battle-perf.html` 在浏览器里跑一场真实战斗（对局用的战斗运行器、模拟和渲染），实时显示帧率与逐帧耗时；在手机上打开后点击「开始测量（10 秒）」，生成的报告可以复制后附在反馈中。用到的战斗来自 `node tools/capture-specs.mjs` 从固定种子的机器人对局里截取的数据（`public/dev/perf/`）。
 - 只重构、不改玩法的提交不能改变 `test/golden/*.json`；有意改变玩法时运行 `npm run golden:update`，检查差异后随改动一起提交（见 [test/golden/README.md](test/golden/README.md)）。
-- GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）在 Ubuntu 与 Windows、Node 24 上运行 `npm ci`、`npm test` 和服务器冒烟测试；另有临时的 Node 22 轻量检查（见 [docs/CI.md](docs/CI.md)）。
+- GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）分两档：推送到 main 和合入 main 的 PR 跑完整档，在 Ubuntu 与 Windows、Node 22 / 24 上运行 `npm ci`、全部测试（每种组合分 3 个运行器）和服务器冒烟测试；合入其他分支（`mini/*`、叠放的 PR）的 PR 只跑快速档：一个 Ubuntu 运行器、去掉耗时的测试文件（`npm run test:quick`）。
 - 代码怎么分层、改某个规则该从哪个文件入手，见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ## 项目结构

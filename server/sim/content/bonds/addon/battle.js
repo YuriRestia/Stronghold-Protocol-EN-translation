@@ -77,6 +77,7 @@ import { bodyKeys, bodyInRange } from '../../../body.js';
 import { isHpLoss, reserveTransfer } from '../../../attack.js';
 import { BOSS_ROW_OFFSET } from '../../../constants.js';
 import { GEO } from '../../../../../shared/constants.js';
+import { CC } from '../../../../../shared/ruleData.js';
 import {
   num, bondRecord, buffParams, bondTier, bondLayers, isMember, isElite, isGroundOp, onField, playerOps, passiveBuff,
   fxOn, N4, N8, directMods, COLS, isFirstPeriod,
@@ -323,6 +324,9 @@ function raidBoard(battle, r, c) {
 function raidTile(battle, u, e, reach) {
   const er = Math.round(e.y), ec = Math.round(e.x);
   const ranged = u.def?.position === 'RANGED';
+  const standRanged = ranged || !!u.fishRaidRanged;   // (Fish Edition) Mod V: Degenbrecher may land on ranged tiles too
+  // ... and on the plain floor tiles a boss's body stands on (low ground nobody may normally build on)
+  const stand = (r, c) => battle.grid.canStand(r, c, { ranged: standRanged }) || (!!u.fishRaidRanged && battle.grid.tile(r, c).key === 'tile_floor' && battle.grid.tile(r, c).height === 'LOW');
   const body = bodyKeys(e);
   // The window is measured to the tiles the enemy occupies, never to the tile its position rounds to: a huge unit's
   // hitArea offset and its route anchor split the same body differently (enemy_9021_acduml dx 0 from col 10 and
@@ -341,7 +345,7 @@ function raidTile(battle, u, e, reach) {
       const r = br - reach[i], c = bc - reach[i + 1], dr = r - er, dc = c - ec;
       const wr = Math.min(Math.max(r, bR0), bR1) - r, wc = Math.min(Math.max(c, bC0), bC1) - c;   // gap to the body
       if (Math.abs(wr) > RAID_SEARCH || Math.abs(wc) > RAID_SEARCH) continue;
-      if (!battle.grid.inRect(r, c) || !raidBoard(battle, r, c) || !battle.grid.canStand(r, c, { ranged }) || battle.isReservedTile(r, c)) continue;
+      if (!battle.grid.inRect(r, c) || !raidBoard(battle, r, c) || !stand(r, c) || battle.isReservedTile(r, c)) continue;
       const t = r * COLS + c;
       const p = path && battle.grid.tile(r, c).pass === 'ALL' && (path.has(t) || body.includes(t)) ? 0 : 1;   // its block applies
       const d = Math.max(Math.abs(dr), Math.abs(dc)) + 0.01 * (Math.abs(dr) + Math.abs(dc));
@@ -409,7 +413,8 @@ function raidRefreshContact(battle, u) {
 
 function raidPoll(battle, st) {
   const bb = st.bb[ID.raid];
-  const idle = num(bb.no_attack_duration, isFirstPeriod() ? Infinity : 10);
+  // (Fish Edition) Mod V Viviana with Degenbrecher on the field: this player's Raid members wait 1 s (battle.fishRaidIdle)
+  const idle = battle.fishRaidIdle?.get(st.pid) ?? num(bb.no_attack_duration, isFirstPeriod() ? Infinity : 10);
   // Ordinary and post-revive orders stay separate: one poll can hold a member of each.
   let plain = null, taunted = null;
   for (const u of st.members[ID.raid]) {
@@ -433,7 +438,8 @@ function raidPoll(battle, st) {
     // window runs — the 10 s of the reporter's footage; once it has ended only the idle trigger is left.
     const sk = u.skill;
     const deploySkillOn = !!(sk && sk.active && (sk.kind === 'passive' || sk.spType === 'none'));
-    const ready = !!(sk && !sk.noSkill && ((sk.ready && !(sk.active && sk.isTimed)) || deploySkillOn));
+    // (Fish Edition) Mod Z 傀影: his skill always counts as ready (content/modZ.js `fishRaidReady`)
+    const ready = !!u.fishRaidReady || !!(sk && !sk.noSkill && ((sk.ready && !(sk.active && sk.isTimed)) || deploySkillOn));
     const idleOk = battle.time - since >= idle - 1e-9;
     if (!(revived || ready || idleOk)) continue;
     // 「若范围内没有敌人」: a targetable enemy, or a 隐匿 ground one (the owner's decision of 2026-10-08, raidGroundEnemy)
@@ -545,7 +551,8 @@ export function install(battle) {
       if (!u || u.kind !== 'op' || c.reason === 'death' || !u.alive || !u.skill) return;
       const st = byPid[u.ownerId];
       if (!st || !st.tiers[ID.swift]) return;
-      const bb = st.bb[ID.swift];
+      // SPA-CC ccSwift (shared/rules.js): 20 + 0.25 × stacks % instead of the data's 0.35
+      const bb = battle.flags?.rules?.ccSwift > 0 ? { ...st.bb[ID.swift], prob_per_stack: CC.swiftPerStack } : st.bb[ID.swift];
       const lv = L(battle, st, ID.swift);
       const p = prob(bb, lv);
       let gained = 0;

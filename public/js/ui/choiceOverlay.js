@@ -23,6 +23,7 @@ import { itemIconUrl, enemyIconUrl, uiUrl } from './assetUrls.js';
 import { richTextPlain } from './richText.js';
 import { sortedPlayers } from './gameLogic.js';
 import { data } from '../data.js';
+import { CC } from '../../../shared/ruleData.js';
 import { t, tName, shownName } from '../../../shared/i18n.js';
 import { sentText } from './lang.js';
 
@@ -69,10 +70,15 @@ export function resolveSpCard(card, family) {
   else if ((card.tacticKind || tactic?.kind) === 'terrain') icon = uiUrl(m, 'buffIcon/icon_stage_buff');
   else if ((card.tacticKind || tactic?.kind) === 'enemyDebuff') icon = uiUrl(m, 'buffIcon/icon_enemy_debuff');
   else icon = uiUrl(m, `buffIcon/${team ? 'icon_team_buff' : 'icon_player_buff'}`);
+  // SPA-CC ccPatriot Undying 1 (server Match.riskPatriotCard): the round-9 Patriot card's text is made here
+  const name = tName(card.name) || item?.name || eff?.name || bounty?.name || tactic?.name || t('机变');
+  const riskDesc = card.risk ? (card.skipAtk
+    ? t('【{name}】加入本回合作战（无赏金，漏过时扣除{lp}点目标生命）。若无人选择，最终领袖最大生命值+{hp}%，攻击力+{atk}%', { name, lp: CC.patriot.leakLp, hp: Math.round(CC.patriot.skipHp * 100), atk: Math.round(CC.patriot.skipAtk * 100) })
+    : t('【{name}】加入本回合作战（无赏金，漏过时扣除{lp}点目标生命）。若无人选择，最终领袖最大生命值+{hp}%', { name, lp: CC.patriot.leakLp, hp: Math.round(CC.patriot.skipHp * 100) })) : null;
   return {
     kind,
-    name: tName(card.name) || item?.name || eff?.name || bounty?.name || tactic?.name || t('机变'),
-    desc: cardText(card, item?.descRaw || eff?.descRaw || '', rawRich) || item?.desc || eff?.desc || bounty?.desc || tactic?.desc || '',
+    name,
+    desc: riskDesc || cardText(card, item?.descRaw || eff?.descRaw || '', rawRich) || item?.desc || eff?.desc || bounty?.desc || tactic?.desc || '',
     tier: Number.isFinite(card.tier) ? card.tier : item?.tier ?? bounty?.tier ?? null,
     icon,
     team: !!team,
@@ -173,7 +179,7 @@ export function spMarks(sp, { solo }) {
  * @param {{ pub:any, sp:any, myId:string, solo:boolean, personal?:boolean, busyIdx?:number|null, total?:number|null, armed?:number|null,
  *   onTap?:(idx:number)=>void, onConfirm?:()=>void, onDisarm?:()=>void }} props
  */
-export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = null, total = null, armed = null, onTap = () => {}, onConfirm = () => {}, onDisarm = () => {} }) {
+export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = null, total = null, armed = null, onTap = () => {}, onConfirm = () => {}, onDisarm = () => {}, peek = false, onPeek = null }) {
   if (!sp) return null;
   const fam = data.get('choices')?.families?.[sp.family] || null;
   const rawFam = data.getRaw('choices')?.families?.[sp.family] || null;
@@ -195,6 +201,18 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
   // the official header (the event's 悬赏决策, video 9:59): 「悬赏决策 |」 with the description and the timing line stacked
   // beside the bar; on the right the player deciding (name over 正在决策…, an hourglass) or 当前轮到你决策, then the
   // countdown. The pick order lives on the team panel (✓ / ••• on the portraits, ui/teamPanel.js spMarks).
+  // (fork, GitHub #105) pulled down: the overlay slides away and lets presses through to the boards, the bonds and the
+  // team panel (a teammate's field too); the tab at the top brings it back
+  if (peek && onPeek) {
+    return html`<div class="spov is-peek" role="dialog" aria-label=${personal ? t('教鞭选择') : t('机变阶段')}>
+      <button type="button" class=${cx('spov__peekbar', myTurn && mine == null && 'is-mine')} data-testid="sp-peek-back" onClick=${() => onPeek(false)}>
+        <${Icon} name="chevronLeft" class="spov__peekicon" />
+        <span>${t('返回{name}', { name: sentText(sp.name, rawFam?.name, fam?.name) || fam?.name || t('机变') })}</span>
+        ${myTurn && mine == null ? html`<small>${personal ? t('从候选中选择一项战术特训') : t('当前轮到你决策')}</small>` : null}
+        ${timed ? html`<${Countdown} deadline=${pub?.deadline} total=${total ?? undefined} size="sm" />` : null}
+      </button>
+    </div>`;
+  }
   return html`<div class=${cx('spov', armed != null && 'has-armed', personal && 'spov--personal')} role="dialog" aria-label=${personal ? t('教鞭选择') : t('机变阶段')} onPointerDown=${onDown}>
     <div class="spov__veil" aria-hidden="true"></div>
     <div class="spov__inner">
@@ -212,6 +230,8 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
           ${armed != null ? html`<${Button} variant="primary" size="lg" icon="check" class="spov__confirm" data-testid="sp-confirm"
               title=${armedName ? t('确认选择「{armedName}」（再次点击卡牌亦可）', { armedName }) : t('确认选择')} onClick=${onConfirm}>${t('确认选择')}<//>` : null}
           ${timed ? html`<${Countdown} deadline=${pub?.deadline} total=${total ?? undefined} size="md" />` : null}
+          ${onPeek ? html`<button type="button" class="spov__peek" data-testid="sp-peek" onClick=${() => onPeek(true)}
+              title=${t('收起，查看阵地（可点击队友查看其阵地）')} aria-label=${t('收起，查看阵地（可点击队友查看其阵地）')}><${Icon} name="chevronRight" /><span>${t('查看阵地')}</span></button>` : null}
         </div>
       </header>
       <div class=${cx('spov__grid', sp.cards.length <= 3 && 'spov__grid--3')}>

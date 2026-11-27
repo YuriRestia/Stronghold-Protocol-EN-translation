@@ -5,7 +5,9 @@
 //   * at: a scheduled maintenance time (ms); the client counts down to it on the server's clock. Reaching it does nothing
 //     by itself: running matches are never cut.
 //   * closed: no new matches — Lobby.startMatch refuses (ERR.MAINTENANCE), so do room.create, solo matchmaking and
-//     「搜寻队友」; running matches play on.
+//     「搜寻队友」; running matches play on, except that nobody may hold the restart up by sitting silent on a choice
+//     screen: Lobby.sweepAfk (every poll) removes a human with no action for afkKickMs (120 s) and ends a match whose
+//     humans have all been silent for afkEndMs (150 s) — GitHub #193.
 //   * stopWhenIdle: one-shot — once no match is live (Lobby.stats().matches === 0) `onStop` runs; server/http/boot.js
 //     runMain wires it to the same clean shutdown as SIGTERM. Restarting the server is up to whatever runs it. Before it
 //     stops, players get a last frame with `stopping` and the expected return (`backAt`, from backAt or now + backIn
@@ -107,6 +109,7 @@ export class MaintenanceBoard extends FileBoard {
         await this.removeStale();
       }
       await this.read();
+      this.sweepAfk();
       await this.checkIdle();
     } finally {
       this.busy = false;
@@ -141,6 +144,12 @@ export class MaintenanceBoard extends FileBoard {
     this.log.info(r
       ? `[maintenance] ${[r.at != null ? `at ${new Date(r.at).toISOString()}` : null, r.closed ? 'closed to new matches' : null, r.stopWhenIdle ? 'stop when idle' : null].filter(Boolean).join(', ')} — sent to ${this.broadcast()} player(s)`
       : `[maintenance] cleared — sent to ${this.broadcast()} player(s)`);
+  }
+
+  /** Closed for new matches: the lobby removes players who sit silent on a choice screen (Lobby.sweepAfk, GitHub #193). */
+  sweepAfk() {
+    if (!this.closed()) return;
+    try { this.lobby.sweepAfk?.(); } catch (e) { this.log.warn(`[maintenance] AFK sweep failed: ${e?.message || e}`); }
   }
 
   /** stopWhenIdle: run onStop once as soon as no match is live. */

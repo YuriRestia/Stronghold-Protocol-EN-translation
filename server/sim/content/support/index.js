@@ -19,6 +19,8 @@
 
 import { getData } from '../../../data.js';
 import { grantedBondsByMorph } from '../../../../shared/plugins/rules.js';
+import { isoPlusBond } from '../../../../shared/ruleData.js';
+import { modZOf } from '../../../../shared/modZ.js';
 import { RECORD_MAPS } from '../../../../shared/plugins/dataUtils.js';
 import { COLS, DIRECT_BONUS_STACKING } from '../../constants.js';
 import { frontOf, offsetTile } from '../../dir.js';
@@ -187,6 +189,19 @@ export function bondTier(battle, pid, bondId) {
 export const bondActive = (battle, pid, bondId, minTier = 1) => bondTier(battle, pid, bondId) >= minTier;
 /** Live layers (also while the bond is inactive). */
 export const bondLayers = (battle, pid, bondId) => Math.max(0, num(bondState(battle, pid, bondId)?.layers, 0));
+/** A Custom Lobby Modifications rule of this battle (BattleSpec flags.rules, shared/rules.js); undefined without one. */
+export const battleRule = (battle, key) => battle.flags?.rules?.[key];
+/** 拉特兰 Mod B "<At 100 stacks>": the stacks it needs (shared/rules.js lateranoMod). */
+export const LATERANO_B_STACKS = 100;
+/**
+ * Whether `u` gets 拉特兰 Mod B's 100-stack effects now: the rule is on, its owner's 拉特兰 is active with at least
+ * LATERANO_B_STACKS stacks, and it is a 拉特兰 operator (调和 included, isMember).
+ */
+export function lateranoB100(battle, u) {
+  if (battleRule(battle, 'lateranoMod') !== 'B' || !u || u.ownerId == null) return false;
+  if (!bondActive(battle, u.ownerId, 'lateranoShip') || bondLayers(battle, u.ownerId, 'lateranoShip') < LATERANO_B_STACKS) return false;
+  return unitBonds(u).includes('lateranoShip') || isMember(battle, u, 'lateranoShip');
+}
 /** Ids of the player's active bonds. */
 export function activeBondIds(battle, pid) {
   const out = [];
@@ -259,12 +274,23 @@ export function unitBonds(u) {
   const items = itemsOf(u);
   const plus = u.player?.morphPairing === 'plus';
   // The official key stays items.join('|'), so a cached official result is unchanged.
-  const key = (plus ? 'plus|' : '') + items.join('|');
+  const iso = u.player?.isoPlus ?? null;
+  const mod = u.def?.raw?.module;
+  const free = !!(mod && mod.active !== false && modZOf(mod.id)?.isoFree);   // (Fish Edition) Mod Z Phantom: no Damazti Isomorph needed
+  const granted = Array.isArray(u.grantedBonds) ? u.grantedBonds : null;   // (Fish Edition) Mod Z Kal'tsit Esperanta
+  const key = (granted ? `grant:${granted.join(',')}|` : '') + (free ? 'free|' : '') + (plus ? 'plus|' : '') + (iso ? `${iso}|` : '') + items.join('|');
   if (cached && cached.key === key) return cached.bonds;
   const out = [...(Array.isArray(u.def?.bonds) ? u.def.bonds : Array.isArray(u.def?.raw?.bonds) ? u.def.raw.bonds : [])];
-  for (const b of grantedBondsByMorph(items, (id) => itemRecord(id), { mode: plus ? 'plus' : 'official', bondOk: (id) => !!bondRecord(id) })) {
+  // the Damazti Isomorph+ cheat: the battle's item records are the unpatched ones, so its pairs come from the rule
+  const rec = (id) => {
+    const r = itemRecord(id);
+    const b = r && !r.giveBondId && !r.canGiveBond ? isoPlusBond(id, iso) : null;
+    return b ? { ...r, morphBondId: b } : r;
+  };
+  for (const b of grantedBondsByMorph(items, rec, { mode: plus ? 'plus' : 'official', bondOk: (id) => !!bondRecord(id), free })) {
     if (!out.includes(b)) out.push(b);
   }
+  if (granted) for (const b of granted) if (!out.includes(b) && bondRecord(b)) out.push(b);
   const bonds = Object.freeze(out);
   BONDS.set(u, { key, bonds });
   return bonds;

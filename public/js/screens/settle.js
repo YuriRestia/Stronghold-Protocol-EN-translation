@@ -130,7 +130,7 @@ export function dailyPointsFor(roundsPassed, table) {
  * @param {any[]} records
  * @param {{ id?: string|null, gain?: number, rounds?: number, trophies?: number, at?: number, counted?: boolean, rewards?: any, season?: string|null }} cur
  */
-export function levelProgress(records, { id = null, gain = 0, rounds = 0, trophies = 0, at: now = Date.now(), counted = true, rewards = null, season = null } = {}) {
+export function levelProgress(records, { id = null, gain = 0, challenge = 0, rounds = 0, trophies = 0, at: now = Date.now(), counted = true, rewards = null, season = null } = {}) {
   // one season's records (DESIGN §35.23: 第一期 and 第二期 each have their own 卫戍认证 table — ui/stats.js recordsOfSeason)
   records = recordsOfSeason(records, season);
   const daily = rewards?.daily && rewards.daily.need > 0 ? rewards.daily : null;
@@ -142,7 +142,10 @@ export function levelProgress(records, { id = null, gain = 0, rounds = 0, trophi
   for (const rec of Array.isArray(records) ? records : []) {
     // a quit record had no settlement: nothing earned
     // (a 测试 match never counts: its record is not kept, and an old or imported one marked test is skipped too)
-    if (!rec || rec.id === id || !Number.isFinite(rec.t) || rec.t > now || rec.end === 'quit' || rec.test === true || isModdedRecord(rec)) continue;
+    if (!rec || rec.id === id || !Number.isFinite(rec.t) || rec.t > now || rec.end === 'quit' || rec.test === true) continue;
+    // (fork, #192) finished Challenges count in every room, modded ones too (Fish, 2026-11-26): the local records are the only ledger
+    total += int(rec.challengePts);
+    if (isModdedRecord(rec)) continue;
     const row = selfRowOf(rec);
     total += int(row?.reward);
     cups += int(row?.trophies);
@@ -153,8 +156,9 @@ export function levelProgress(records, { id = null, gain = 0, rounds = 0, trophi
   const pts = counted && daily ? dailyPointsFor(rounds, table) : 0;
   const bonus = daily && today < daily.need && today + pts >= daily.need ? int(daily.bonus) : 0;
   const g = counted ? int(gain) : 0;
+  const c = int(challenge); // this match's finished Challenges (counted whatever the room)
   return {
-    gain: g, bonus, before: total, after: total + g + bonus, trophies: cups + (counted ? int(trophies) : 0), counted,
+    gain: g, bonus, challenge: c, before: total, after: total + g + bonus + c, trophies: cups + (counted ? int(trophies) : 0), counted,
     daily: daily ? { name: daily.name, need: daily.need, today: Math.min(daily.need, today + pts) } : null,
   };
 }
@@ -414,6 +418,7 @@ function LevelStrip({ prog, milestones }) {
         ${d ? html`<span class=${cx('slv__gain', 'slv__gain--daily', prog.bonus && 'is-done')} title=${t('每日防卫目标：{today}/{need}', { today: d.today, need: d.need })}>
           <${Sprite} k="settle/reward_plus" class="slv__icon" />${t('每日防卫目标 +{n}', { n: prog.bonus })}<small class="num">${d.today}/${d.need}</small></span>` : null}`
         : html`<span class="slv__gain slv__gain--off">${prog.test ? t('测试对局不计入等级') : t('非官方对局不计入等级')}</span>`}
+      ${prog.challenge ? html`<span class="slv__gain slv__gain--challenge" data-testid="settle-challenge"><${Sprite} k="settle/reward_plus" class="slv__icon" />${t('挑战完成 +{n}', { n: prog.challenge })}</span>` : null}
     </div>
   </div>`;
 }
@@ -711,12 +716,12 @@ export function SettleFlow({ res, pub = null, myId = null, content = null, backL
     const { records } = loadStats();
     const id = recordId(res, myId);
     const own = records.find((x) => x.id === id);
-    return { records, id, at: own?.t || Date.now() };
+    return { records, id, at: own?.t || Date.now(), challenge: own?.challengePts || 0 };
   }, []);
   // a 测试 match earns nothing toward the level or the daily goal (its server reward is 0 and its record is not kept)
   const isTest = res?.test === true;
   const prog = useMemo(() => (self ? { ...levelProgress(ctx.records, {
-    id: ctx.id, gain: self.reward, rounds: self.roundsPassed, trophies: self.trophies, at: ctx.at,
+    id: ctx.id, gain: self.reward, challenge: ctx.challenge, rounds: self.roundsPassed, trophies: self.trophies, at: ctx.at,
     counted: !isTest && !isModdedRoom(content ? { content } : null), rewards: gd.config?.rewards, season: seasonOf(version),
   }), test: isTest } : null), [gd.config]);
   const rootRef = useRef(null);

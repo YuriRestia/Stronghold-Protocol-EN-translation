@@ -106,3 +106,20 @@ test('a prep update that adds layers and activates a bond plays one cue, not a c
   await flush();
   assert.equal(b.sources.length, 1);
 });
+
+test('爱国者 (fork): the revive\'s knock-out, its end and the spear impact play his animation-event sounds; others stay silent', () => {
+  const events = { reborn_1: '/s/kneel.mp3', reborn_3: '/s/rise.mp3', spear_1: '/s/spear.mp3' };
+  const a = new AudioManager({ win: null, getManifest: () => ({ audio: { sfx: { units: { enemy_1506_patrt: { events } } } } }) });
+  a.ctx = {};
+  const played = [];
+  a._playUnitUrl = (url) => { played.push(url); };
+  a.handleBattleEvents([
+    ['spawn', { id: 7, spine: 'enemy_1506_patrt', side: 'enemy', kind: 'enemy' }],
+    ['spawn', { id: 8, spine: 'enemy_1535_wlfmster', side: 'enemy', kind: 'enemy' }],
+    ['fx', 'telegraph', 1, 1, { id: 7, form: 'reborn', kind: 'reborn', dur: 60 }],
+    ['fx', 'revive', 1, 1, { id: 7, form: 'form2' }],
+    ['fx', 'patriotSpear', 2, 2, { from: 7, to: 3 }],
+    ['fx', 'telegraph', 1, 1, { id: 8, form: 'reborn', kind: 'reborn', dur: 40 }],
+  ]);
+  assert.deepEqual(played, ['/s/kneel.mp3', '/s/rise.mp3', '/s/spear.mp3'], 'his three; 扎罗 has none in the manifest');
+});

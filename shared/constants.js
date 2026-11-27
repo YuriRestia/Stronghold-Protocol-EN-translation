@@ -5,7 +5,7 @@ import { N_ } from './i18n.js';
 export const PROTOCOL_VERSION = 1;
 /** Release version shown to players (title screen, server banner, /healthz). Kept equal to package.json "version"
  * (test/version.test.js); PROTOCOL_VERSION above is the separate wire-format number. */
-export const APP_VERSION = '0.3.3';
+export const APP_VERSION = '0.3.4-4';
 /** A development build (the public `dev` branch): the title screen, the boot banner and the README say so, and
  * tools/package.mjs refuses to build a release zip from it without --allow-dev. */
 export const DEV_BUILD = /-dev$/.test(APP_VERSION);
@@ -46,10 +46,16 @@ export const ROOM_CODE_LEN = 4;
 /** Room code alphabet: uppercase letters without I and O (and no digits, so no 0/1). */
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export const NAME_MAX_LEN = 12;
+/** (fork, GitHub #118) The longest public name a player may have written into their match records (hello.publicName). */
+export const PUBLIC_NAME_MAX_LEN = 32;
 
 export const DIFFICULTIES = ['FUNNY', 'NORMAL', 'HARD', 'ABYSS'];
 export const DIFFICULTY_NAMES = { FUNNY: N_('标准模拟'), NORMAL: N_('险境模拟'), HARD: N_('绝境模拟'), ABYSS: N_('终极模拟') };
 export const DIFFICULTY_COLORS = { FUNNY: '#f6a329', NORMAL: '#e85a1a', HARD: '#e73118', ABYSS: '#ff0024' };
+
+// Lobby rules (Fish Edition): shared/rules.js (the registry, categories and labels); re-exported for older imports.
+import { RULE_BIG_STACK_CAP } from './rules.js';
+export { RULE_KEYS, DEFAULT_RULES, RULE_EXTRA_DEPLOY, RULE_EXTRA_FUNDS, RULE_BIG_STACK_CAP, normalizeRules } from './rules.js';
 
 // modeId in data/config.json = `mode_${type}_${difficulty.toLowerCase()}` with type single|multi
 export const modeIdFor = (roomMode, difficulty) =>
@@ -143,14 +149,17 @@ export function gateOf(start, leader) {
   return target >= PEN_UPPER_ROW ? 'upper' : 'lower';
 }
 
+/** The per-bond layer cap of a match: RULE_BIG_STACK_CAP under the cheat 「叠层上限 9999」 (lobby rule `bigStacks`), else BOND_LAYER_CAP. */
+export const layerCapOf = (rules) => (rules && rules.bigStacks ? RULE_BIG_STACK_CAP : BOND_LAYER_CAP);
+
 /**
- * The layers a gain of `n` actually adds to a bond holding `before` under BOND_LAYER_CAP: min(n, cap − before), never
+ * The layers a gain of `n` actually adds to a bond holding `before` under BOND_LAYER_CAP (or the `capOverride` of `layerCapOf`): min(n, cap − before), never
  * negative (a count already at or over the cap gains 0 and is never lowered); 0 for a non-positive / non-finite `n`
  * except +Infinity (= "the room left").
  */
-export function layerGainRoom(before, n) {
+export function layerGainRoom(before, n, capOverride = BOND_LAYER_CAP) {
   if (!(n > 0)) return 0;
-  const cap = BOND_LAYER_CAP > 0 ? BOND_LAYER_CAP : Infinity;
+  const cap = capOverride > 0 ? capOverride : Infinity;
   const b = Number.isFinite(before) && before > 0 ? before : 0;
   return Math.max(0, Math.min(n, cap - b));
 }
@@ -236,6 +245,7 @@ export const ERR = Object.freeze({
   TEST_CONFIRM: 'TEST_CONFIRM',
   TEST_DISABLED: 'TEST_DISABLED',
   TEST_FORBIDDEN: 'TEST_FORBIDDEN',
+  CUSTOM_RULES: 'CUSTOM_RULES',   // a room with Custom Lobby Modifications cannot search for teammates (shared/rules.js)
   // official versions (DESIGN §35.23, M1): a version this server does not enable (room.create, room.proposeVersion); a
   // version that cannot serve the room (its roomModes, or the room's gameplay plugins — they play 第二期下半 only); a room
   // action refused while the room's version vote is open (room.start, room.setPlugins, room.setMode, room.proposeVersion)
@@ -256,6 +266,7 @@ export const ERR_TEXT = {
   BAD_TILE: N_('无法部署在该位置'), BAD_TARGET: N_('无效的目标'), SOLD_OUT: N_('已售出'), MAX_LEVEL: N_('调度中心已达最高等级'),
   NOT_YOUR_TURN: N_('尚未轮到你'), ALREADY: N_('已完成该操作'), TEMP_NOT_EMPTY: N_('临时整备区不为空'), ELIMINATED: N_('你已被淘汰'),
   SPECTATOR: N_('观战中无法进行该操作'), MAINTENANCE: N_('服务器即将维护，暂时无法开始新的模拟'), INTERNAL: N_('服务器内部错误'),
+  CUSTOM_RULES: N_('使用自定义房间改动时无法搜寻队友'),
   RETIRING: N_('服务器正在更新，页面即将刷新'), // en: "The server is updating. The page will refresh."
   PLUGIN_UNKNOWN: N_('本服务器没有安装该插件'), PLUGIN_BLOCKED: N_('该插件不能在房间中启用'), PLUGIN_DEPENDENCY: N_('缺少该插件需要的其他插件'),
   PLUGIN_CONFLICT: N_('所选插件互相冲突'), PLUGIN_LIMIT: N_('所选插件的素材总量超出本服务器的上限'),

@@ -171,6 +171,8 @@ export class BattleEvents {
       for (const p of this.players) snap.dps[p.playerId] = Math.floor(p.dp);
     }
     if (this.sharedBoss) snap.boss = { hp: Math.max(0, Math.round(this.sharedBoss.hp)), max: Math.round(this.sharedBoss.maxHp) };
+    // the SPA-CC Blood Ledger (content/risk.js installFamiglia): [value, max, liquidating 0/1, permanent 0/1] — display only
+    if (this.ledger) snap.bl = [Math.round(this.ledger.value), this.ledger.max, this.ledger.liquidating ? 1 : 0, this.ledger.permanent ? 1 : 0];
     const r2 = (v) => Math.round(v * 100) / 100;
     let down = null;
     for (const u of this.allyUnits) {

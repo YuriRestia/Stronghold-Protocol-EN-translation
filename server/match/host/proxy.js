@@ -51,6 +51,8 @@ export function wireOptions(opts) {
   for (const k of ['roomCode', 'mode', 'difficulty', 'modeId', 'aiPicksLast', 'soloUnlimited', 'seats', 'spectators', 'seed', 'matchNo', 'cs', 'vs', 'requireCs', 'kitted', 'version', 'rerollLock']) {
     if (opts[k] !== undefined) out[k] = opts[k];
   }
+  // (fork) the anonymous match record: only when the lobby asks for it (server/records.js), so other payloads stay the same
+  if (opts.record === true) out.record = true;
   // A test room must arrive as a test match. Forwarding these only when the flag is set keeps every other
   // worker payload identical. Dropping the flag fails closed: the worker match refuses g.test.
   if (opts.test === true) {
@@ -193,7 +195,9 @@ export class MatchProxy {
     if (this.disposed) return;
     if (m.type === 'send') { try { this.opts.send(m.playerId, m.msg); } catch (e) { this.log.error?.(`[match ${this.roomCode}] send failed`, e); } return; }
     if (m.type === 'broadcast') { try { if (m.except) this.opts.broadcast(m.msg, null, m.except); else this.opts.broadcast(m.msg); } catch (e) { this.log.error?.(`[match ${this.roomCode}] broadcast failed`, e); } return; }
-    if (m.type === 'end') { this._end(m.summary ?? null); return; }
+    // (fork) the record comes just before the 'end' of a recorded match; the lobby takes it from the summary
+    if (m.type === 'record') { this._record = m.record; return; }
+    if (m.type === 'end') { this._end(this._record ? { ...(m.summary ?? {}), record: this._record } : (m.summary ?? null)); this._record = null; return; }
     if (m.type === 'failed') { this.crash(/** @type {any} */ (this.host).kind === 'version' ? 'version-start' : 'plugin-start', m.error); }
   }
 

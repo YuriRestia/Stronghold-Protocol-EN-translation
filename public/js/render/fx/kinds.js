@@ -53,6 +53,9 @@ export const FX_KINDS = Object.freeze({
   domain: { a: 'domain', c: 0x8a5cd0 },
   // marks
   taunt: { a: 'mark', c: 0xff9c33 }, palsy: { a: 'mark', c: 0xc77dff }, emergency: { a: 'mark', c: 0xff5a4a },
+  // 爱国者's spear (fork, SPA-CC): the reticle on its target during the wind-up, the throw, the impact
+  patriotSpearMark: { a: 'reticle', c: 0xff3b30, dur: 3 }, patriotSpear: { a: 'beam', c: 0xffd9a0 },
+  patriotSpearHit: { a: 'blast', c: 0xff8a3d, r: 0.7, heavy: true },
   lock: { a: 'reticle', c: 0xff5a4a }, droneLock: { a: 'reticle', c: 0x8fe6ff }, wanted: { a: 'reticle', c: 0xffc600 }, expose: { a: 'reticle', c: 0xff7b8a },
   reveal: { a: 'reticle', c: 0x9fd4ff }, anchor: { a: 'reticle', c: 0x9fd4ff },
   // buffs
@@ -70,7 +73,8 @@ export const FX_KINDS = Object.freeze({
   thorns: { a: 'counter', c: 0xff9aa6 }, downed: { a: 'down', c: 0xbfeee2 }, stone: { a: 'down', c: 0xc0b8a8, smoke: 0x5a5448 },
   dp: { a: 'dp', c: 0x9fd4ff }, coin: { a: 'coin', c: 0xffc600 }, steal: { a: 'coin', c: 0xffc600 }, crateBreak: { a: 'crate', c: 0xc89a5a },
   lpLoss: { a: 'lp', c: 0xff3b30 },
-  // 限伤 (sim/attack/health.js leaderHitCancelled): a leader's hit of ≥ 300000 dealt nothing — the official shows no number and
+  // 限伤 (sim/attack/health.js leaderHitCancelled): a leader's hit of ≥ 300000 dealt nothing (not from a promoted operator or its
+  // summon, fork #131) — the official shows no number and
   // no effect [ASSUMED], so nothing is drawn (`a: 'none'`)
   hitCap: { a: 'none', c: 0xffffff },
   // (fork, enemy sound audit job 3) sound-only moments (public/js/audio.js _fxSound): an official sound with no effect of

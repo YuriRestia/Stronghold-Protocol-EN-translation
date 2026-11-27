@@ -91,7 +91,7 @@ import { SpineActor } from './spine.js';
 import { skillAttackMode } from './skillAttack.js';
 import { ATTACK_CLIPS } from './vfx/wiring.js';
 import { MANIFOLD, isManifold, manifoldCopyForm, manifoldAttackForm } from './manifold.js';
-import { diamondTexture, shadowTexture, fxAtlas, tierChip, statusTexture, itemTexture, hudRings, ringArc, downLabel, uiArtTexture, CHARGE_LABEL_STYLE, HUD_DISC, RING_ARC, epRadial, EP_RADIAL_SCALE } from './textures.js';
+import { diamondTexture, shadowTexture, fxAtlas, tierChip, statusTexture, itemTexture, cursedFlameTexture, hudRings, ringArc, downLabel, uiArtTexture, CHARGE_LABEL_STYLE, HUD_DISC, RING_ARC, epRadial, EP_RADIAL_SCALE } from './textures.js';
 import { COLORS, TIER_COLORS, ENEMY_FRAME, UNIT, PROJ, statusIconKey, statusIconSuppressed, statusValueLabel } from './style.js';
 import { drawCrate, rowDepthKey, ROW_KEY, deviceBoxOf, DEVICE_BOX } from './tiles.js';
 import { startAtkInterval, nextAtkInterval, clampAtkInterval } from './attackRate.js';
@@ -242,10 +242,10 @@ const takeoffTime = (list, i) => (Array.isArray(list) && list.length ? list[Numb
 /** Share of the current HP bar a 屏障 of `r` × max HP covers: r / (1 + r) — 100 % → half, 400 % → 80 %, never all of it. */
 export const barrierShare = (r) => (r > 0 ? r / (1 + r) : 0);
 /**
- * A push / pull slide (推拉, PR #380 by @xcdoge). The sim displaces at once — server/sim/battle/displacement.js walks its
- * 0.1-tile steps inside one call — and then holds the enemy in its 失衡 (UNBALANCE) state (PR #392's idea): a push for the
+ * A push / pull slide (推拉, PR #380 by @xcdoge). The sim slides the enemy frame by frame (server/sim/battle/displacement.js:
+ * momentum and friction, GitHub #60) and holds it in its 失衡 (UNBALANCE) state (PR #392's idea): a push for the
  * 位移时间 of its 受力等级 (PRTS 游戏数据基础 推力-位移近似对应表: 0.2 … 35/30 game s), a pull for its force window (推与拉:
- * 0.5 / 1 s). The snapshots only ever show the destination, so the view slides there under a constant deceleration
+ * 0.5 / 1 s). Its `displace` fx names where the slide ends and how long it takes; the view slides there under a constant deceleration
  * (UnitView.slideTo) for that same span: the `displace` fx carries it (`dur`, game seconds) and the view divides it by the
  * playback rate (ctx.animRate — 2 game s per real second by default: a 0.8 s push slides 0.4 real s) — it lands as the
  * sim's state ends. v0 = 2D/T, a = v0/T then run the distance in exactly T. DISPLACE_SLIDE (real s per √tile, kept in
@@ -599,6 +599,10 @@ export const FORMS = Object.freeze({
   }),
   // 锏's second form keeps the skill slot's clip (anims.skills: CircleAttack2 B_Skill2 — tools/assets/spine.mjs MACE_SKILLS)
   enemy_1525_blkswb: rebirth('Revive1', 'Revive2', 'Revive3', withoutSkill(clipSet('B_Idle', 'B_Move', 'B_Die', 'B_Attack'))),
+  // 爱国者 (fork, SPA-CC): kneels into his revive and rises in 毁灭姿态; its spear throw is the Skill clip
+  enemy_1506_patrt: rebirth('revive_1', 'revive_2', 'revive_3', Object.freeze({
+    ...clipSet('Idle_2', 'Move_2', 'Die', 'Attack_2'), skill: Object.freeze({ begin: null, loop: 'Skill', end: null, index: 0, idle: null }),
+  })),
   enemy_1535_wlfmster: rebirth('A_revive_1', 'A_revive_2', 'A_revive_3', clipSet('B_Idle', 'B_Move', 'B_Die', 'B_Attack')),
   enemy_1539_reid: rebirth('Revive_Begin', 'Revive_Loop', 'Revive_End'),
   // 重生 on the skeleton's own Revive clip (PR #275 by @xcdoge; content/enemies/leaders.js kitUglyThing / kitXi): 巨大的丑东西
@@ -1033,6 +1037,7 @@ export class UnitView {
     this.body = new P.Container();
     this.root.addChild(this.body);
     this.ribbons = null;                 // the invulnerability ribbons (InvulnRibbons), made the first time it is invulnerable
+    this.officialInvuln = false;         // the official 无敌 loop plays on it (render/vfx/talentfx.js): no ribbons then
     this.fallback = new P.Sprite(P.Texture.EMPTY);
     this.fallback.anchor.set(0.5, 1);
     this.body.addChild(this.fallback);
@@ -1443,20 +1448,24 @@ export class UnitView {
     this.countText.visible = true;
   }
 
-  /** Equipped item pips (prep): list of item icon URLs. */
+  /** Equipped item pips (prep): list of item icon URLs (or { url, cursed }: the Toxic Waste's, drawn inverted). */
   setItems(urls) {
     const P = this.P;
     // morphPairing plus can carry two ordinary items and one zero-slot morph (DESIGN §34.15).
     const list = Array.isArray(urls) ? urls.slice(0, 3) : [];
     while (this.itemPips.length > list.length) this.itemPips.pop().destroy(); // loop-cap: at most three item pips
-    list.forEach((u, i) => {
+    list.forEach((entry, i) => {
+      // an entry: the icon URL, or { url, cursed } (the Toxic Waste: its pip takes the purple cast)
+      const u = entry && typeof entry === 'object' ? entry.url : entry;
       let s = this.itemPips[i];
       if (!s) { s = new P.Sprite(P.Texture.EMPTY); s.anchor.set(0.5); this.hud.addChild(s); this.itemPips[i] = s; }
-      if (s._url === u) return;
+      const invert = !!(entry && typeof entry === 'object' && entry.cursed);
+      if (s._url === u && s._invert === invert) return;
       s._url = u;
+      s._invert = invert;
       const a = this.ctx.assets;
-      s.texture = itemTexture(u || 'none', null, 0x4ed8af);
-      if (u && a?.image) a.image(u).then((img) => { if (!s.destroyed && s._url === u) s.texture = itemTexture(u, img, 0x4ed8af); }, () => {});
+      s.texture = itemTexture(u || 'none', null, 0x4ed8af, { invert });
+      if (u && a?.image) a.image(u).then((img) => { if (!s.destroyed && s._url === u) s.texture = itemTexture(u, img, 0x4ed8af, { invert }); }, () => {});
     });
   }
 
@@ -1916,8 +1925,8 @@ export class UnitView {
   /**
    * An attack by this unit is `lead` game seconds ahead in the snapshot buffer: start the Spine attack wind-up now
    * so the strike frame lines up with the attack. True once started (then stop calling for that attack). `kind` = the
-   * 'atk' projKind (a one-off cast winds up at the clip's own speed). `target` = that attack's view: a lord's melee twin,
-   * and the model faces it as the clip starts, by the same rule as onAttack.
+   * 'atk' projKind (a one-off cast winds up at the clip's own speed). `target` = that attack's view: the model faces
+   * it as the clip starts, by the same rule as onAttack, and (fork) a lord or agent picks its melee or ranged clips by it.
    */
   windUp(lead, kind, castSlot = null, interval = this.atkInterval, target = null) {
     if (!this.alive || !this.actor || !this.spineReady) return false;
@@ -2413,8 +2422,9 @@ export class UnitView {
     this.screen.top = by - headTiles * s;
     // the boss HUD `hudDx` tiles beside the model, where the official prefab puts it (BOSS_HUD_DX)
     const hx = this.hudDx ? cam.project(this.x + this.hudDx, this.y, this.z + this.hover + this.lift, HUD_P).x : bx;
-    // invulnerable (无敌, UF.INVULN): two gold ribbons spinning around the model (InvulnRibbons, made on first need)
-    if (this.flags & UF.INVULN) {
+    // invulnerable (无敌, UF.INVULN): two gold ribbons spinning around the model (InvulnRibbons, made on first need) —
+    // unless the official 无敌 loop already plays on it (`officialInvuln`, set by render/vfx/talentfx.js sync; GitHub #57)
+    if ((this.flags & UF.INVULN) && !this.officialInvuln) {
       if (!this.ribbons) this.ribbons = new InvulnRibbons(this.P, this.root, this.body);
       this.ribbons.update(t, s * this.ribbonK, -headTiles * s * RIBBON.centre);
     } else if (this.ribbons) this.ribbons.hide();
@@ -3509,9 +3519,17 @@ export class ItemView {
     ctx.layers.shadow.addChild(this.shadow);
     this.root = new P.Container();
     ctx.layers.units.addChild(this.root);
-    this.plate = new P.Sprite(itemTexture('none', null, info.color || 0x9aa5a0));
+    // the SPA-CC Toxic Waste (item record `cursed`): the plate colour-inverted and the sinking flame on top, spilling
+    // past the plate
+    this.invert = !!info.cursed;
+    this.plate = new P.Sprite(itemTexture('none', null, info.color || 0x9aa5a0, { invert: this.invert }));
     this.plate.anchor.set(0.5, 1);
     this.root.addChild(this.plate);
+    this.flame = null;
+    if (info.cursed) {
+      this.flame = new CursedFlame(P);
+      this.root.addChild(this.flame.root);
+    }
     this.info.icon = null;
     this.setIcon(info.icon);
     this.hud = null;
@@ -3521,10 +3539,10 @@ export class ItemView {
     if (this.destroyed || url === this.info.icon) return;
     this.info.icon = url;
     // Item ids are reused across official versions. Cache the resolved art, like equipped-item pips do.
-    this.plate.texture = itemTexture(url || 'none', null, this.info.color || 0x9aa5a0);
+    this.plate.texture = itemTexture(url || 'none', null, this.info.color || 0x9aa5a0, { invert: this.invert });
     if (!url) return;
     const a = this.ctx.assets;
-    if (a?.image) a.image(url).then((img) => { if (!this.destroyed && img && this.info.icon === url) this.plate.texture = itemTexture(url, img, this.info.color || 0x9aa5a0); }, () => {});
+    if (a?.image) a.image(url).then((img) => { if (!this.destroyed && img && this.info.icon === url) this.plate.texture = itemTexture(url, img, this.info.color || 0x9aa5a0, { invert: this.invert }); }, () => {});
   }
   setWorld(x, y, z = 0) { this.x = x; this.y = y; this.z = z; }
   /** A battle snapshot sample (syncBattle syncs every unit of the field): a hand item on a scouted prep board rides
@@ -3540,6 +3558,7 @@ export class ItemView {
     this.plate.scale.set(size / 128);
     this.plate.anchor.set(0.5, lifted ? 0.5 : 1);
     this.root.alpha = this.dimmed ? 0.35 : 1;
+    if (this.flame) this.flame.update(t, size, lifted ? 0 : -size / 2);
     placeOnGround(this.ctx, this.shadow, this.ctx.layers.shadow, this.y, this.z);
     const sh = cam.project(this.x, this.y, this.z, SH_P);
     this.shadow.position.set(sh.x, sh.y);
@@ -3559,7 +3578,7 @@ export class ItemView {
 // =============================================================================================================
 
 /**
- * The invulnerability ribbons (after the original game's look): two gold rings around the unit, as if in
+ * The invulnerability ribbons (Fish 2026-10-16, after the original game's look): two gold rings around the unit, as if in
  * 3D — each a short cylinder (thickness `thick` tiles, radius `radius` tiles — `giant` times both on a multi-tile boss —,
  * centred `centre` of the model's height up)
  * spinning about its own axis once per second, its near side moving left. Along a ribbon the colour fades from gold
@@ -3620,6 +3639,44 @@ class InvulnRibbons {
         g.endFill();
       }
     });
+  }
+}
+
+/** The Toxic Waste's flame: tongues, the seconds one takes to cross (5 ± 1), the height it crosses (× the plate). */
+const CURSED_TONGUES = 21, CURSED_PERIOD = 5, CURSED_SPAN = 1.5;
+
+/**
+ * The Toxic Waste's flame (Fish 2026-10-16: "a gloomy sinking effect … like a flame overlay, but moving down instead of
+ * up, dark blue instead of red-yellow, and slow — around 5 s to cross the height; on top of the icon, so it can go
+ * outside the square"): CURSED_TONGUES soft tongues (textures.js cursedFlameTexture), each sinking from above the plate
+ * to below it over its own period (CURSED_PERIOD ± 1 s) from its own phase, swaying a little, its alpha rising and
+ * falling with the crossing — so different parts move at different speeds and the transparency keeps changing. Pure
+ * functions of the clock: nothing is spawned or freed while it runs.
+ */
+class CursedFlame {
+  constructor(P) {
+    this.root = new P.Container();
+    this.tongues = [];
+    const tex = cursedFlameTexture();
+    for (let i = 0; i < CURSED_TONGUES; i++) {
+      const sp = new P.Sprite(tex);
+      sp.anchor.set(0.5);
+      this.root.addChild(sp);
+      // spread evenly: phase, column, period and size differ per tongue (fixed, so every hammer looks alike; the golden
+      // ratio and coprime steps keep 21 of them from lining up)
+      this.tongues.push({ sp, phase: (i * 0.61803) % 1, col: ((i * 0.37) % 1) - 0.5, period: CURSED_PERIOD - 1 + ((i * 0.53) % 1) * 2, scale: 0.75 + ((i * 0.29) % 1) * 0.5 });
+    }
+  }
+  /** @param {number} t seconds @param {number} size the plate's on-screen size @param {number} cy the plate centre's y in the root */
+  update(t, size, cy) {
+    for (const g of this.tongues) {
+      const u = (t / g.period + g.phase) % 1;                    // 0 → 1 over the crossing
+      const sp = g.sp;
+      sp.position.set((g.col * 0.8 + Math.sin(t * 0.7 + g.phase * 6.28) * 0.06) * size, cy + (u - 0.5) * CURSED_SPAN * size);
+      const s = (size * 0.42 * g.scale) / 128;
+      sp.scale.set(s, s * (0.9 + 0.2 * Math.sin(t * 1.3 + g.phase * 9)));
+      sp.alpha = 0.75 * Math.sin(Math.PI * u);
+    }
   }
 }
 

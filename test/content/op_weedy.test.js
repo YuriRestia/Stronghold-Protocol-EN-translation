@@ -37,6 +37,8 @@ const tokOf = (tier, elite, skill, mod) => {
   return v;
 };
 const approx = (a, b, msg, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps * Math.max(1, Math.abs(b)), `${msg}: ${a} vs ${b}`);
+/** Where `e`'s slide will end (battle/displacement.js; GitHub #60). */
+const endOf = (b, e) => (e.shift ? b._shiftPredict(e, e.shift) : { x: e.x, y: e.y });
 const dummy = (key, o = {}) => enemyRec({ key, hp: 1e9, speed: 0, mass: 0, ...o });
 const ENEMIES = {
   enemy_dummy: dummy('enemy_dummy'),
@@ -108,6 +110,7 @@ test('S1 炮管敲击 (AUTO, data DEFAULT): her next attack — 120 % / 135 % AT
       assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier}: cast on her attack`);
       // the skill arms at the cast start, its hit lands one wind-up later (official cast → hit, ai.js allyCastWindup)
       assert.ok(h.runUntil(() => from(h, u).some((c) => c.dmg.isSkill), 1), `T${tier}: the skill hit lands`);
+      h.settle(); // (Fish Edition, GitHub #60) the push is a slide: measured where it ends
       const hit = from(h, u).find((c) => c.dmg.isSkill);
       approx(hit.amount, u.s.atk * sk.bb.atk_scale, `T${tier}: ${sk.bb.atk_scale * 100} %`);
       assert.equal(hit.type, 'phys');
@@ -145,6 +148,7 @@ test('S2 水炮模式 (AUTO, SP_FULL): ATK +140 % / +170 %, interval ×3.2, rang
     assert.ok(one.some((c) => c.target === main) && one.some((c) => c.target === side), `T${tier}: target + the flyer within ${WATER_SPLASH}`);
     assert.ok(!one.some((c) => c.target === far));
     for (const c of one) approx(c.amount, u.s.atk, `T${tier}: full damage`);
+    h.settle();
     approx(main.x - 7, PUSH_TILES[0], `T${tier}: 小力 push (weight 0: 1.7 tiles)`, 0.06);
     h.run(60);
     assert.ok(u.skill.active, `T${tier}: stays on`);
@@ -169,6 +173,7 @@ test('S3 液氮大炮 (MANUAL, DEFAULT + SKILL_RANGE 4-1): 290 % / 320 % ATK art
     assert.deepEqual(shot.map((c) => c.target).sort((a, b) => a.id - b.id), [t, fly].sort((a, b) => a.id - b.id), `T${tier}: within ${NITRO_SPLASH}`);
     for (const c of shot) { assert.equal(c.type, 'arts'); approx(c.amount, u.s.atk * sk.bb.atk_scale, `T${tier}: arts`); }
     assert.ok(!shot.some((c) => c.target === out));
+    h.settle();
     const x0 = 7, moved = t.x - x0;
     approx(moved, PUSH_TILES[Math.min(3, sk.bb.force)], `T${tier}: pushed`, 0.06);
     h.run(sk.bb.duration + 0.2);
@@ -223,7 +228,8 @@ test('T1 工程蓄水炮: the placed cannon deploys with the board — untargeta
     const shot = from(h, u, 'weedy:nitro');
     assert.ok(shot.length >= 1 && shot.every((x) => Math.abs(x.amount - u.s.atk * sbb.atk_scale) < 1e-6), `${label(f)}: ${sbb.atk_scale * 100} % of 温蒂's ATK`);
     assert.ok(shot.some((x) => x.target === near), `${label(f)}: the nearest enemy`);
-    approx(near.x - 7, PUSH_TILES[Math.min(3, sbb.force + 1)], `${label(f)}: its force +1`, 0.06);
+    // where its slide ends (its next arrow, 0.2 s later, pushes again)
+    approx(endOf(h.b, near).x - 7, PUSH_TILES[Math.min(3, sbb.force + 1)], `${label(f)}: its force +1`, 0.06);
     h.run(30);
     assert.equal(c.skill.activations, 1, `${label(f)}: once per deployment`);
     void farther;
@@ -238,7 +244,7 @@ test('T1 工程蓄水炮: each attack pushes a ground target on the 3 tiles ahea
     c.skill.charges = 0;   // its forced skill spent: plain attacks only
     const g = h.spawn('enemy_dummy', { pos: [11, 6] });
     assert.ok(h.runUntil(() => from(h, c).some((x) => x.target === g), 3), `${label(f)}: attacks`);
-    h.run(0.2);
+    h.settle();
     approx(from(h, c).find((x) => x.target === g).amount, c.s.atk, `${label(f)}: its own ATK`);
     approx(g.x - 6, PUSH_TILES[1], `${label(f)}: 小力 + 1`, 0.06);
     h.b.kill(g, null);
@@ -298,6 +304,7 @@ test('S3 with the cannon beside her: it fires its own 液氮炮 too (its nearest
     const shot = from(h, u, 'weedy:nitro');
     assert.ok(shot.some((x) => x.target === a), 'hers');
     assert.equal(shot.some((x) => x.target === b), fires, `the cannon at ${tile}`);
+    h.settle();
     if (fires) approx(b.x - 7, PUSH_TILES[Math.min(3, cbb.force + 1)], 'its force +1', 0.06);
     done(h);
   }
@@ -329,7 +336,7 @@ test('PUS-X trait: redeployed on a 高台 she gets half her cost back (not at th
     assert.ok(h.runUntil(() => u.skill.activations === 1, 3));
     // the push lands with the hit, one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
     assert.ok(h.runUntil(() => from(h, u).some((c) => c.dmg.isSkill), 1), 'the skill hit lands');
-    h.step();
+    h.settle(); // (Fish Edition, GitHub #60) the pushes are slides: measured where they end
     const moved = [w1.x - xs[0], w2.x - xs[1]];
     for (const m of moved) approx(m, PUSH_TILES[mod === Y ? 2 : 1], `${mod ?? 'none'}: every blocked enemy pushed`, 0.08);
     done(h);

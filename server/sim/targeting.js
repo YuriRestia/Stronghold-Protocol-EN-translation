@@ -212,15 +212,17 @@ export function sortEnemyTargets(battle, attacker, cands, priority) {
   const pf = priority ? (PRIORITY_FNS[priority] || (priority === 'nearest' || priority === 'farthest' ? null : null)) : null;
   const airFirst = priority === 'fly';
   const ax = attacker.x, ay = attacker.y;
+  const unboundFirst = !!(attacker.fishUnboundFirst && attacker.fishUnboundFirst());
   const keyed = cands.map((e) => ({
     e,
+    ub: unboundFirst && e.findBuff('bind') ? 1 : 0,   // (Fish Edition) Mod W Rosa: enemies without Bind first
     b: e.blockedBy === attacker ? 0 : 1,
     p: pf ? pf(e) : priority === 'nearest' ? bodyDist(e, ax, ay) : priority === 'farthest' ? -bodyDist(e, ax, ay) : 0,
     t: -(e.s.taunt || 0),
     d: battle.remainingDistance(e),
     s: e.spawnSeq,
   }));
-  keyed.sort((a, b) => (airFirst ? a.p - b.p : 0) || a.b - b.b || a.p - b.p || a.t - b.t || a.d - b.d || a.s - b.s);
+  keyed.sort((a, b) => a.ub - b.ub || (airFirst ? a.p - b.p : 0) || a.b - b.b || a.p - b.p || a.t - b.t || a.d - b.d || a.s - b.s);
   for (let i = 0; i < keyed.length; i++) cands[i] = keyed[i].e;
   return cands;
 }

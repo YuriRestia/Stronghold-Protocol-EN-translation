@@ -20,7 +20,9 @@ import { decode } from './botWorld.js';
 /** The real methods the bot and the prep handlers call, by container (a live trace; the strict shadow test reports others). */
 const BORROWED = [
   [MatchInfra, ['alivePlayers', 'bossGroupOf', 'deployFieldOf', 'deployMapFor', 'dispatch', 'dispatchItem', 'nextUid',
-    'teamMedicGranted', 'humans', 'bondInPool', 'bondLive', 'scaled', 'reportError', 'guard', 'soloUntimed']],
+    'teamMedicGranted', 'humans', 'bondInPool', 'bondLive', 'scaled', 'reportError', 'guard', 'soloUntimed',
+    // (Fish Edition) the SPA-CC Risk tags' extra enemies, which every wave the bot rehearses or previews takes
+    'waveBounties', 'riskBounties', 'silencerBounties', 'vengeanceCount', 'bossSubWave', 'riskPatriotCard', 'riskLeakWeight']],
   [MatchCombat, ['newBattle', '_normalOpts', '_sanitizeSpawns']],
   [MatchSpDraft, ['autoPickPersonalChoice', 'pickPersonalChoice', 'addBounty', 'offerBountyChoice', 'rollItemId', 'rollPool', 'spCardAvailable']],
   [MatchViews, ['_bossMateOf', 'bossMateView', 'nextEnemiesFor', 'prepMapChars']],

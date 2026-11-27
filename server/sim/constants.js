@@ -140,6 +140,30 @@ export const PULL_ORIGIN = 0.5;
 export const PULL_STOP_RADIUS = 0.6708;
 export const PUSH_DIRECTIONAL_MIN_DIST = 0.25;
 /**
+ * The motion of a push / pull (GitHub #60; arknights.wiki.gg Shift): a push gives the enemy (mass 1) the momentum
+ * PUSH_MOMENTUM of its 受力等级 (≤ −3 → none, ≥ 3 → the 3 value), and ground friction μ·g = 0.5 × 9.81 (SHIFT_FRICTION,
+ * tiles/s², a tile being 1 m) takes the speed down every frame. Moved at the sim's 30 fps — the frame's speed × TICK,
+ * then the friction — it runs PUSH_TILES (1.698 / 2.140 / 2.952 / 3.527 tiles at 0 … 3); an effect push (PUSH_TILES_EFFECT)
+ * loses its first frame of travel (1.565 at 0). Pushes add up as momentum: a second one on a sliding enemy adds its
+ * velocity to the one left, so it goes farther than the two distances apart. A pull slides at a constant speed: its
+ * distance (above) over PULL_TIME_K·√(starting distance), at most PULL_UNBALANCE (the wiki's −1 row); a −2 pull over
+ * PULL_UNBALANCE_WEAK [ASSUMED: the same time for a pull ≥ 0, which the wiki gives no row for]. Walls stop the slide.
+ */
+export const PUSH_MOMENTUM = Object.freeze({ '-2': 1, '-1': 2, 0: 4, 1: 4.5, 2: 5.3, 3: 5.8 });
+export const SHIFT_FRICTION = 0.5 * 9.81;
+export const PULL_TIME_K = 0.65;
+/**
+ * Block shifting (GitHub #61; arknights.wiki.gg Shift §Block "shifting" — not a push: no weight, no 失衡). An enemy a
+ * ground unit starts blocking while it stands inside that unit's tile (the unit deployed onto it, its stun over, the
+ * enemy blocked before it defeated, a neighbour letting go) moves just outside the nearest edge — BLOCK_EDGE_OUT tiles
+ * from the centre [ASSUMED: "just outside"] — and stays blocked; not when a wall or high ground is there, nor from the
+ * exact centre (a prespawned enemy). An enemy that would stand where another one blocked from the same side stands
+ * moves BLOCK_SPREAD tiles to its left, else to its right, then twice that [ASSUMED: the wiki gives no distance or count,
+ * "slightly left or right"].
+ */
+export const BLOCK_EDGE_OUT = 0.51;
+export const BLOCK_SPREAD = 0.2;
+/**
  * 失衡 (UNBALANCE) — the state machine a force > 0 puts an enemy in (PRTS 失衡位移机制 「当一名敌方单位受到一个任意来源的力，
  * 并且受力大小 > 0 时，该敌方单位将进入失衡（UNBALANCE）状态机」; 异常效果图鉴/失衡免疫 「失衡期间无法自主移动、发动攻击、使用技能」 —
  * not an abnormal status: 异常效果 「失衡…不属于异常效果，它是一种状态机」, so it is no stun). Its length in game seconds:

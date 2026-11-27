@@ -127,6 +127,7 @@ export class BattleSpawns {
     e.hitArea = def.hitArea ?? null;   // 巨型单位 hit rectangle (body.js); null = a point
     e.lpr = def.lpr;
     e.mods = opts.mods ?? null;
+    e.routeIndex = opts.routeIndex ?? 0;   // (Fish Edition) Mod W Typhon re-adds a fallen enemy on its own route
     e.tag = opts.tag ?? null;
     e.bounty = opts.bounty ?? null;
     e.sourcePlayerId = opts.sourcePlayerId ?? null;

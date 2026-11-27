@@ -4,10 +4,33 @@ import { createBotRegistry, defineBotStrategy } from './botStrategyContract.js';
 import { EXTERNAL_BOT, llmIntegrationEnabledNow } from './llmGate.js';
 
 import { BUILTIN_BOTS } from './botStrategyList.js';
+import { BASIC_TACTICS } from './botTacticsBasic.js'; // (fork) tactics (botTactics.js)
+import { LEGACY_TACTICS } from './botTacticsLegacy.js';
+import { EVO_TACTICS } from './botTacticsEvo.js'; // (fork) evobot's tactics // (fork) the layered legacy bot's tactics
+import { defineProfile } from './botTactics.js';
 
 // Registration does not enable external IO or select an opt-in strategy.
 export const BOT_STRATEGIES = createBotRegistry([...(llmIntegrationEnabledNow && EXTERNAL_BOT ? [EXTERNAL_BOT] : []),
   ...BUILTIN_BOTS]);
+
+/** (fork) Every defined tactic by id: profiles given as data name their tactics by these. */
+export const TACTICS = Object.freeze(Object.fromEntries([...BASIC_TACTICS, ...LEGACY_TACTICS, ...EVO_TACTICS].map((t) => [t.id, t])));
+
+/**
+ * (fork) A profile from data, e.g. a tuning run's JSON (tools/botbench.mjs --profile): `{ id?, tactics: [{ tactic:
+ * 'legacy-buy', params?: { mergeHit: 40 } }, …] }`, top first, legacy implied below. Unknown tactics or parameters,
+ * and values outside a parameter's bounds, are refused.
+ * @param {{ id?: string, tactics: Array<string | { tactic: string, params?: object }> }} def
+ */
+export function profileFromData(def) {
+  if (!def || typeof def !== 'object' || !Array.isArray(def.tactics)) throw new TypeError('Profile data: { tactics: [...] } required');
+  const tactics = def.tactics.map((e, i) => {
+    const id = typeof e === 'string' ? e : e?.tactic;
+    if (!Object.hasOwn(TACTICS, id)) throw new TypeError(`Profile data: entry ${i}: unknown tactic ${JSON.stringify(id)}; known: ${Object.keys(TACTICS).join(', ')}`);
+    return { tactic: TACTICS[id], params: typeof e === 'string' ? undefined : e.params };
+  });
+  return defineProfile({ id: def.id ?? 'data-profile', tactics });
+}
 
 /** @param {string | import('./botStrategyContract.js').BotStrategyDefinition} [selection] */
 export function getBotStrategy(selection = 'legacy', registry = BOT_STRATEGIES) {

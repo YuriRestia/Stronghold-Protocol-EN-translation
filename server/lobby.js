@@ -12,9 +12,13 @@
 //     host changes it in the room — the event's 联合模拟 creates the room first (research 06 §3.2), the starting
 //     difficulty is not recorded [ASSUMED: 标准, the first one unlocked; the event room research 06 §3.2 describes shows
 //     ♜ 标准模拟 in its footer pill]. The game's own lobby always sends the remembered one.
-//   * Host-only: room.setDifficulty, room.setAiPicksLast, room.setSoloUnlimited, room.addBot, room.removeBot, room.kick,
-//     room.start, (fork) room.setOneForAll.
-//     ▸ Changing the difficulty or the AI-picks-last option (co-op only) un-readies the other humans.
+//   * Host-only: room.setDifficulty, room.setAiPicksLast, room.setRules, room.setSoloUnlimited, room.addBot,
+//     room.removeBot, room.kick, room.start; (fork, GitHub #107) room.setBot, room.fillBots; (fork) room.setOneForAll.
+//     ▸ (fork) An AI seat plays a bot profile (shared/botProfiles.js): room.addBot { bot? }, room.setBot { seat, bot },
+//       room.fillBots { preset } (every free seat). The default profile is stored as none; room.state names a seat's
+//       `bot` only when it is another, and the match's opts.botStrategySeats exist only when some seat has one (merged
+//       over SP_BOT_STRATEGY_SEATS), so a default room's state and opts keep their keys.
+//     ▸ Changing the difficulty, the AI-picks-last option (co-op only) or the lobby rules un-readies the other humans.
 //     ▸ 「不限时」 (room.setSoloUnlimited { on }, DESIGN §35.23.10): a solo room of a version whose rules.soloTimed is
 //       true, off by default. On, the match is built with opts.soloUnlimited (preparation and 机变 untimed — the existing
 //       Match opt-out). room.state carries `soloUnlimited: true` only while it is on, so a default room.state stays
@@ -235,7 +239,8 @@
 
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
-import { CODE_ALPHABET, DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
+import { CODE_ALPHABET, DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor, normalizeRules } from '../shared/constants.js';
+import { anyRule, sameRuleValue } from '../shared/rules.js';
 import { CHAT_BUSY_MS, CHAT_COOLDOWN_GRACE_MS, EMOTE_COOLDOWN_MS, ROOM_CHAT_GAP_MS, ROOM_CHAT_HISTORY_BYTES, ROOM_CHAT_HISTORY_LINES } from '../shared/constants.js';
 import { chatLine } from '../shared/text.js';
 import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes, utf8Bytes } from './match/chatLimit.js';
@@ -259,6 +264,7 @@ import { isContentHash } from '../shared/plugins/identity.js';
 import { ruleOption } from '../shared/plugins/rules.js';
 import { msg, wireMessage } from '../shared/i18n.js';
 import { DEFAULT_VERSION } from '../shared/versions.js';
+import { DEFAULT_ROOM_BOT, FILL_PRESETS, isRoomBot } from '../shared/botProfiles.js';
 import { parseTestModeEnv, testModeGate, unrecognizedTestMode } from './testMode.js';
 
 export { CODE_ALPHABET };
@@ -266,6 +272,10 @@ export { CODE_ALPHABET };
 /** Tunables. */
 export const LOBBY_DEFAULTS = Object.freeze({
   lobbyGraceMs: 60_000,   // disconnected humans keep their lobby seat this long
+  // While the server is closed for maintenance (#193): a human silent this long on a choice screen is removed from the
+  // match, and a match whose humans are all silent this long is ended (0 = off)
+  afkKickMs: 120_000,
+  afkEndMs: 150_000,
   maxRooms: 1000,
   maxRoomsPerAddr: 16,    // rooms created from one client network that may exist at once (0 = unlimited)
   maxMatchesPerAddr: 8,   // matches started from one client network that may run at once (0 = unlimited)
@@ -294,6 +304,49 @@ export const SOLO_RECONNECT_FALLBACK_SEC = 86_400;
 
 /** Display names for AI teammates (the tutorial NPCs first, then a few familiar faces). */
 export const BOT_NAMES = Object.freeze(['AI·华法琳', 'AI·阿米娅', 'AI·惊蛰', 'AI·杜宾', 'AI·凯尔希', 'AI·可露希尔']); // i18n-ignore: player names (docs/I18N.md)
+/**
+ * (fork) The same names in the other languages (GitHub #89): the host's client sends its language with room.addBot /
+ * queue.ai, and the AI is named in it once, for everyone in the room. The official names (data/i18n names; 可露希尔 isn't
+ * an operator there).
+ */
+export const BOT_NAMES_BY_LANG = Object.freeze({ // i18n-ignore: player names (docs/I18N.md)
+  en: Object.freeze(['AI·Warfarin', 'AI·Amiya', 'AI·Leizi', 'AI·Dobermann', "AI·Kal'tsit", 'AI·Closure']),
+  ja: Object.freeze(['AI·ワルファリン', 'AI·アーミヤ', 'AI·レイズ', 'AI·ドーベルマン', 'AI·ケルシー', 'AI·クロージャ']),
+  ko: Object.freeze(['AI·와파린', 'AI·아미야', 'AI·레이즈', 'AI·도베르만', 'AI·켈시', 'AI·클로저']),
+  'zh-TW': Object.freeze(['AI·華法琳', 'AI·阿米婭', 'AI·驚蟄', 'AI·杜賓', 'AI·凱爾希', 'AI·可露希爾']),  // i18n-ignore: player names
+});
+/** The AI names for a client language (`en`, `en-US`, `zh-TW` …); Chinese (BOT_NAMES) for any other. */
+export function botNames(lang) {
+  if (typeof lang !== 'string') return BOT_NAMES;
+  return BOT_NAMES_BY_LANG[lang] || (lang.startsWith('zh') ? null : BOT_NAMES_BY_LANG[lang.split('-')[0]]) || BOT_NAMES;
+}
+
+/**
+ * (fork) Seats a new AI at free seat `idx`: named in `lang` (botNames), playing `bot` (GitHub #107; the default profile is
+ * stored as none, header).
+ */
+function seatBot(room, idx, lang, bot) {
+  const used = new Set(room.seats.filter((s) => s && s.isBot).map((s) => s.name));
+  const name = botNames(lang).find((n) => !used.has(n)) || `AI·${idx + 1}`;
+  let playerId;
+  do playerId = 'ai_' + randomBytes(4).toString('hex'); while (room.seatOf(playerId));
+  room.seats[idx] = { seat: idx, playerId, name, isBot: true, ready: true, connected: true, left: false,
+    ...(isRoomBot(bot) && bot !== DEFAULT_ROOM_BOT ? { bot } : null) };
+}
+
+/**
+ * (fork, GitHub #107) Match opts.botStrategySeats for the room's AI seats that play another profile than the default,
+ * over the operator's SP_BOT_STRATEGY_SEATS (which Match reads only when the opts have none): {} when no seat has one.
+ * @returns {{ botStrategySeats?: Record<string, string> }}
+ */
+export function roomBotSeats(room, envSeats = process.env.SP_BOT_STRATEGY_SEATS) {
+  const picks = Object.fromEntries(room.seats.filter((s) => s && s.isBot && s.bot).map((s) => [String(s.seat), s.bot]));
+  if (!Object.keys(picks).length) return {};
+  const fromEnv = typeof envSeats === 'string' && envSeats.trim()
+    ? Object.fromEntries(envSeats.split(',').map((part) => part.split(':').map((x) => x.trim())).filter(([k, v]) => k && v))
+    : {};
+  return { botStrategySeats: { ...fromEnv, ...picks } };
+}
 
 const OK = Object.freeze({ ok: true });
 const fail = (code, detail) => (detail ? { error: code, detail } : { error: code });
@@ -425,6 +478,8 @@ export class Room {
      * put every human seat before every AI seat (Match opts.aiPicksLast). Kept across the room's matches.
      */
     this.aiPicksLast = false;
+    /** lobby rules (shared/constants.js RULE_KEYS), all off until the host sets them; kept across the room's matches */
+    this.rules = normalizeRules(null);
     // [ASSUMED] Remake cooperation option, approved 2026-10-24; host opt-in before the match.
     this.aiTakeoverEnabled = false;
     /**
@@ -478,6 +533,13 @@ export class Room {
     /** @type {number | null} */
     this.searchSince = null;
     /**
+     * (fork) What the room promised strangers when it opened to them (search, or a Grand Alliance made public): 'vanilla' =
+     * the original game, the lobby rules are cleared and locked (see vanillaLocked); 'modded' = the host may still change
+     * the rules, and only players who allow mods meet it. null until then. Part of the matchmaking pool (poolKey).
+     * @type {'vanilla' | 'modded' | null}
+     */
+    this.searchKind = null;
+    /**
      * (fork) the room was open to strangers before a match: it searched (搜寻队友), the solo queue formed or filled it, or
      * it was a public Grand Alliance. Its matches have no setup reroll (Lobby.rerollLock; user, 2026-11-13). Never cleared.
      */
@@ -505,6 +567,17 @@ export class Room {
 
   /** Does the room play a content set with gameplay plugins (its own cs; header "Gameplay plugins")? */
   get modded() { return !!this.content && this.content.vanilla === false; }
+
+  /**
+   * (fork) A vanilla room's rules cannot change while strangers may be in it: it searches, it is a public Grand Alliance,
+   * or another human is seated (a stranger matched in stays after the match). Alone and not searching, the host may edit again.
+   * Pure: nothing is stored, so a stopped search, a maintenance stop or a match end cannot reopen the room.
+   */
+  get vanillaLocked() {
+    if (this.searchKind !== 'vanilla') return false;
+    if (this.searching || (this.large && !this.locked)) return true;
+    return this.seats.filter((s) => s && !s.isBot && !s.left).length > 1 || this.seats.some((s) => s && s.matched);
+  }
 
   /**
    * Must every member's page load and check the room's content before ready / start (header "Gameplay plugins",
@@ -566,6 +639,7 @@ export class Room {
       mode: this.mode,
       difficulty: this.difficulty,
       aiPicksLast: this.aiPicksLast,
+      rules: { ...this.rules },
       // (fork) a Grand Alliance room's capacity and lock; the password only in the host's copy (the owner's rule: only the
       // host sees the lock settings). Omitted otherwise, so a normal room.state stays identical
       ...(this.large ? { capacity: this.capacity, locked: this.locked, oneForAll: this.oneForAll, ...(this.locked && viewerId != null && viewerId === this.hostId ? { password: this.password } : {}) } : {}),
@@ -574,6 +648,8 @@ export class Room {
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left,
           // (fork, docs/OUTFITS.md) the seat's outfit choice, when it has one
           ...(s.outfits && Object.keys(s.outfits).length ? { outfits: s.outfits } : null),
+          // (fork, GitHub #107) an AI seat's bot profile, only when it is not the default
+          ...(s.isBot && s.bot ? { bot: s.bot } : null),
           // a room with gameplay plugins (header "Gameplay plugins"): has this player's page loaded and checked its content?
           ...(this.needsContent && !s.isBot ? { content: s.content || 'loading' } : {}),
           // (fork) came by 搜寻队友 / 单人匹配: this player's page leaves the room's cosmetic plugins out (content.js)
@@ -589,6 +665,8 @@ export class Room {
       spectators: this.spectators.map((s) => ({ playerId: s.playerId, name: s.name, connected: s.connected, ...(this.needsContent ? { content: /** @type {any} */ (s).content || 'loading' } : {}), ...(s.matched ? { matched: true } : {}) })),
       searching: this.searching,
       searchSince: this.searchSince,
+      ...(this.searchKind ? { searchKind: this.searchKind } : {}),
+      ...(this.vanillaLocked ? { vanillaLock: true } : {}),
       ...(this.content ? { content: this.content.trusted ? {...this.content, trusted:{...this.content.trusted, consent:Object.fromEntries(this.seats.filter(x => x && !x.isBot).map(x => [x.seat,x.consentCs === this.content.cs]))}} : this.content } : {}),
       // another official version than 第二期下半, and its open vote (header "Official versions"): omitted otherwise, so a
       // default room's room.state stays identical
@@ -703,6 +781,8 @@ export class Lobby {
     this.matchesCreated = 0;
     /** (fork) server/altArt.js AltArtLedger: picked rooms + the journal (server/index.js sets it; null = neither) */
     this.altArt = null;
+    /** (fork) server/records.js RecordStore: the anonymous match records (server/index.js sets it with SP_RECORDS; null = off) */
+    this.records = null;
     this.peerRelay = new PeerRelay({ now, log });
     this.publicDeliveries = new WeakMap();
     /** log lines said once (warnOnce) */
@@ -883,6 +963,8 @@ export class Lobby {
     // (fork) a new profile icon (a repeated hello from the picker) shows on the seat card at once
     const avatar = this.avatarOf(session, room);
     if (!room.match && (seat.avatar ?? null) !== avatar) { seat.avatar = avatar; changed = true; }
+    // (fork, GitHub #118) the opted-in public name follows the profile until the match starts (records only: no broadcast)
+    if (!room.match) seat.publicName = session.publicName ?? null;
     if (!room.hostId) { this.migrateHost(room); changed = true; }
     if (changed) this.broadcastState(room);
     else this.sendState(room, session);
@@ -901,11 +983,11 @@ export class Lobby {
    * @returns {{ ok: true } | { error: string, detail?: string } | Promise<{ ok: true } | { error: string, detail?: string }>}
    */
   onMessage(session, msg) {
-    // (fork) a retiring generation refuses new rooms, queues and matches at once — before the room's queue, never delayed
-    if (this.retiring && RETIRED_MSGS.has(msg.t) && !this.ownRoomMsg(session, msg)) return fail(ERR.RETIRING, 'this server is being replaced');
     // Transport handshakes/leases belong to the live socket, independently of a plugin match's IPC queue.
     // In particular, an old queued enable must never opt a replacement socket into peer delivery.
     if (msg?.t === 'p2p.enable' || msg?.t === 'p2p.signal' || msg?.t === 'p2p.ready') return this.handleMessage(session, msg);
+    // (fork) a retiring generation refuses new rooms, queues and matches at once — before the room's queue, never delayed
+    if (this.retiring && RETIRED_MSGS.has(msg.t) && !this.ownRoomMsg(session, msg)) return fail(ERR.RETIRING, 'this server is being replaced');
     const room = this.queuedRoom(session);
     if (!room) return this.handleMessage(session, msg);
     // a queued room.contentReady speaks for the page that sent it: the seat and its generation now — a disconnect in
@@ -999,12 +1081,15 @@ export class Lobby {
       case 'room.ready': return this.ready(session, msg);
       case 'room.setDifficulty': return this.setDifficulty(session, msg);
       case 'room.setAiPicksLast': return this.setAiPicksLast(session, msg);
+      case 'room.setRules': return this.setRules(session, msg);
       case 'room.setSoloUnlimited': return this.setSoloUnlimited(session, msg);
       case 'room.setAiTakeover': return this.setAiTakeover(session, msg);
       case 'room.aiRequest':
       case 'room.aiVote': return aiTakeover(this, session, msg);
-      case 'room.addBot': return this.addBot(session);
+      case 'room.addBot': return this.addBot(session, msg);
       case 'room.removeBot': return this.removeBot(session, msg);
+      case 'room.setBot': return this.setBot(session, msg);
+      case 'room.fillBots': return this.fillBots(session, msg);
       case 'room.kick': return this.kick(session, msg);
       case 'room.start': return this.start(session);
       case 'room.rerollSetup': return this.rerollSetup(session, msg);
@@ -1027,7 +1112,7 @@ export class Lobby {
       case 'rooms.watch': return this.watchRooms(session, msg);
       case 'queue.join': return this.queueJoin(session, msg);
       case 'queue.leave': return this.queueLeave(session);
-      case 'queue.ai': return this.queueAi(session);
+      case 'queue.ai': return this.queueAi(session, msg);
       case 'room.setPlugins': return this.setPlugins(session, msg);
       case 'room.setMode': return this.setMode(session, msg);
       case 'room.contentReady': return this.contentReady(session, msg, ctx);
@@ -1199,9 +1284,10 @@ export class Lobby {
     const room = new Room(code, mode, difficulty, this.now(), version);
     room.test = test === true;
     if (large) { room.capacity = LARGE_ROOM_SEATS; room.seats = new Array(LARGE_ROOM_SEATS).fill(null); }
-    if (large && password != null) { room.locked = true; room.password = password.toUpperCase(); }
+    // (fork) a Grand Alliance opens private: a password (the host's, else 4 random letters) until the host makes it public
+    // (setLock on false, with the choice vanilla / modded); the browser lists it, locked
+    if (large) { room.locked = true; room.password = password != null ? password.toUpperCase() : randomPassword(); }
     if (large && oneForAll === true) room.oneForAll = true;
-    if (large && !room.locked) room.wentPublic = true;   // (fork) a public Grand Alliance (Lobby.rerollLock)
     // 「不限时」 only on a solo room of a version whose solo is timed (header). Anywhere else the key is ignored, so a
     // stray true cannot change a default or co-op create.
     if (mode === 'solo' && soloUnlimited === true && this.versionSoloTimed(version)) room.soloUnlimited = true;
@@ -1384,6 +1470,26 @@ export class Lobby {
     return OK;
   }
 
+  /** Lobby rules (Fish Edition, shared/constants.js RULE_KEYS): host-only, before the match; a partial update is merged. */
+  setRules(session, { rules }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    const next = normalizeRules(rules, room.rules);
+    // a vanilla room (it searches, is a public Grand Alliance, or has a stranger seated) plays the original game
+    // (shared/rules.js); a room that searches as 'modded' may still change its rules
+    if (room.vanillaLocked) return fail(ERR.CUSTOM_RULES, 'a vanilla room cannot change its rules');
+    if (room.searching && room.searchKind !== 'modded' && anyRule(next)) return fail(ERR.CUSTOM_RULES);
+    this.dropReplay(room, session.playerId);
+    if (Object.keys(next).some((k) => !sameRuleValue(next[k], room.rules[k]))) {
+      room.rules = next;
+      for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;
+      this.broadcastState(room);
+    }
+    return OK;
+  }
+
   /**
    * 「不限时」 (DESIGN §35.23.10): host-only, before the match, a solo room of a version whose solo is timed. `on: false`
    * clears the flag and drops the room.state key. A co-op room or a version whose solo is already untimed is BAD_TARGET.
@@ -1423,6 +1529,8 @@ export class Lobby {
     const r = this.resolveContent(room, ids, settings);
     if ('error' in r) return r;
     let content = r.content;
+    // (fork) a vanilla room (Room.vanillaLocked) takes no gameplay plugins either
+    if (content?.vanilla === false && room.vanillaLocked) return fail(ERR.PLUGIN_BLOCKED, 'a vanilla room cannot take gameplay plugins');
     const before = room.content;
     const sameSet = (before?.vs ?? null) === (content?.vs ?? null) && (before?.cs ?? null) === (content?.cs ?? null);
     const marks = (c) => JSON.stringify((c?.plugins || []).map((p) => [p.id, !!p.auto, p.settings || null]));
@@ -1819,7 +1927,7 @@ export class Lobby {
     this.broadcastState(room);
   }
 
-  addBot(session) {
+  addBot(session, msg = {}) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
@@ -1829,11 +1937,42 @@ export class Lobby {
     if (room.large) return fail(ERR.BAD_TARGET, 'large rooms are for humans only');
     const idx = room.freeSeat();
     if (idx < 0) return fail(ERR.ROOM_FULL);
-    const used = new Set(room.seats.filter((s) => s && s.isBot).map((s) => s.name));
-    const name = BOT_NAMES.find((n) => !used.has(n)) || `AI·${idx + 1}`;
-    let playerId;
-    do playerId = 'ai_' + randomBytes(4).toString('hex'); while (room.seatOf(playerId));
-    room.seats[idx] = { seat: idx, playerId, name, isBot: true, ready: true, connected: true, left: false };
+    seatBot(room, idx, msg.lang, msg.bot);
+    this.broadcastState(room);
+    return OK;
+  }
+
+  /** (fork, GitHub #107) The host gives an AI seat another bot profile (header). */
+  setBot(session, { seat, bot }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    const target = room.seats[seat];
+    if (!target || !target.isBot) return fail(ERR.BAD_TARGET, 'seat does not hold an AI');
+    if (!isRoomBot(bot)) return fail(ERR.BAD_MSG, 'unknown bot');
+    this.dropReplay(room, session.playerId);
+    if (bot === DEFAULT_ROOM_BOT) delete target.bot;
+    else target.bot = bot;
+    this.broadcastState(room);
+    return OK;
+  }
+
+  /** (fork, GitHub #107) 「用 AI 填满空位」: every free seat gets an AI of the preset (header). */
+  fillBots(session, { preset, lang }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    if (room.mode === 'solo') return fail(ERR.ROOM_FULL, 'solo rooms cannot have AI teammates');
+    if (room.large) return fail(ERR.BAD_TARGET, 'large rooms are for humans only');
+    const p = FILL_PRESETS.find((x) => x.id === preset);
+    if (!p) return fail(ERR.BAD_MSG, 'unknown preset');
+    const free = room.seats.flatMap((s, i) => (s ? [] : [i]));
+    if (!free.length) return fail(ERR.ROOM_FULL);
+    this.dropReplay(room, session.playerId);
+    const bots = p.bots(free.length);
+    free.forEach((idx, k) => seatBot(room, idx, lang, bots[k]));
     this.broadcastState(room);
     return OK;
   }
@@ -1944,13 +2083,16 @@ export class Lobby {
    * without one (`{ on: true }`) brings it back; a room that never had one gets 4 random letters. A private room still
    * shows in the room browser, marked; joining or watching it needs the password, its members are not asked again.
    */
-  setLock(session, { on, password }) {
+  setLock(session, { on, password, kind }) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (!room.large) return fail(ERR.BAD_TARGET, 'only Grand Alliance rooms lock');
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (on && password != null && !(typeof password === 'string' && ROOM_PASSWORD_RE.test(password))) return fail(ERR.BAD_MSG, 'a password of 4 letters');
     if (on) room.password = password != null ? password.toUpperCase() : room.password || randomPassword();
+    // (fork) public (on false) opens the room to strangers: it says what for (vanilla by default; Room.searchKind)
+    if (!on && room.locked) this.openToStrangers(room, kind === 'modded' ? 'modded' : 'vanilla');
+    // private again: a vanilla room stays locked while another human is seated (Room.vanillaLocked)
     room.locked = on;
     if (!on) room.wentPublic = true;   // (fork) a public Grand Alliance (Lobby.rerollLock)
     this.broadcastState(room);
@@ -2005,7 +2147,7 @@ export class Lobby {
       const host = room.seatOf(room.hostId);
       const squads = [0, 1].map((sq) => room.seats.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS).filter(Boolean).length);
       out.push({ code: room.code, host: host ? host.name : '', seats, capacity: room.capacity, difficulty: room.difficulty, squads,
-        ...(room.locked ? { locked: true } : {}), ...(room.oneForAll ? { oneForAll: true } : {}), at: room.createdAt });
+        ...(room.locked ? { locked: true } : {}), ...(room.oneForAll ? { oneForAll: true } : {}), ...(room.searchKind === 'modded' ? { modded: true } : {}), at: room.createdAt });
     }
     out.sort((x, y) => x.at - y.at);
     return out.slice(0, 50);
@@ -2508,6 +2650,49 @@ export class Lobby {
   // Match wiring
   // ---------------------------------------------------------------------------------------------------
 
+  /**
+   * GitHub #193: while the server is closed for maintenance, matches nobody plays must not hold up the restart. On a choice
+   * screen a human with no game action for `afkKickMs` is removed (as if they left: the match goes on without them, or
+   * ends when they were the last), and a match whose humans have all been silent for `afkEndMs` is ended. The clock of a
+   * screen starts when it comes up (Match.afkReport), so a battle in between gives everyone a fresh start.
+   * @returns {{ kicked: number, ended: number }}
+   */
+  sweepAfk() {
+    const out = { kicked: 0, ended: 0 };
+    if (!this.closedForMaintenance()) return out;
+    const { afkKickMs, afkEndMs } = this.opts;
+    for (const room of [...this.rooms.values()]) {
+      if (!room.match || room.disposed) continue;
+      let rep = null;
+      try { rep = room.match.afkReport?.() ?? null; } catch (e) { this.log.error(`[lobby] ${room.code} match.afkReport threw`, e); }
+      if (!rep || !rep.humans.length) continue;
+      if (afkEndMs > 0 && rep.humans.every((h) => h.idleMs >= afkEndMs)) {
+        this.log.info(`[lobby] ${room.code} ended: every player silent for ${Math.round(afkEndMs / 1000)} s on ${rep.phase} while the server is closing`);
+        this.disposeRoom(room, 'afk');
+        out.ended++;
+        continue;
+      }
+      if (!(afkKickMs > 0)) continue;
+      for (const h of rep.humans) {
+        if (room.disposed) break;
+        if (h.idleMs < afkKickMs) continue;
+        const seat = room.seatOf(h.playerId);
+        if (!seat || seat.left) continue;
+        const gone = this.registry.byId(h.playerId);
+        const wasHere = !!gone && gone.roomCode === room.code;
+        const replay = this.replayFor(room, h.playerId);
+        this.removeMember(room, h.playerId);
+        if (wasHere) {
+          if (gone.connected) sendSession(gone, { t: 'room.closed', reason: 'afk' });
+          else { gone.notice = 'afk'; gone.pendingResult = replay; }
+        }
+        this.log.info(`[lobby] ${room.code} ${seat.name} removed: silent for ${Math.round(h.idleMs / 1000)} s on ${rep.phase} while the server is closing`);
+        out.kicked++;
+      }
+    }
+    return out;
+  }
+
   /** Planned maintenance closed the server to new matches (scripts/maintenance.mjs --close). */
   closedForMaintenance() {
     return this.maintenance?.closed() === true;
@@ -2541,6 +2726,8 @@ export class Lobby {
         seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected,
         // (fork) the profile icon (PUBLIC: m.public players[].avatar)
         avatar: s.isBot ? null : s.avatar || null,
+        // (fork, GitHub #118) the opted-in public name (match records only, server/match/records.js)
+        publicName: s.isBot ? null : s.publicName || null,
         // DESIGN §16: the human's checked operator loadout and (0.2.2) per-operator 潜能 / 练度 (bots fight with the defaults)
         loadout: own ? own.loadout : null,
         ops: own ? own.ops : null,
@@ -2568,6 +2755,10 @@ export class Lobby {
         modeId: room.content?.modeId || modeIdFor(room.mode, room.difficulty),
         // 「AI 队友最后选择」 (GitHub #338): fixed for the match
         aiPicksLast: room.mode !== 'solo' && room.aiPicksLast === true,
+        // lobby rules (Fish Edition): fixed for the match
+        lobbyRules: room.rules,
+        // (fork, GitHub #107) the AI seats' bot profiles over SP_BOT_STRATEGY_SEATS; only when some seat has one
+        ...roomBotSeats(room),
         seats,
         // the spectator seats (header): watched like eliminated players, never players
         spectators: room.spectators.map((s) => s.playerId),
@@ -2586,6 +2777,8 @@ export class Lobby {
         ...(this.rerollLock(room) ? { rerollLock: this.rerollLock(room) } : {}),
         // only a room created as a test room; a normal match opts object does not grow a test key
         ...(room.test === true ? { test: true } : {}),
+        // (fork) the anonymous match record (server/records.js, SP_RECORDS); a test room's match is never recorded
+        ...(this.records && room.test !== true ? { record: true } : {}),
         seed,
         // the room's match number: with the seed it keeps battleIds unique across the room's matches (DESIGN §14)
         matchNo: room.matchCount + 1,
@@ -2655,6 +2848,12 @@ export class Lobby {
   onMatchEnd(room, ctx, summary) {
     if (ctx.ended || !ctx.live || room.matchCtx !== ctx || room.disposed) return;
     ctx.ended = true;
+    // (fork) the match record goes to its file, never into room.lastSummary
+    if (summary && summary.record) {
+      const { record, ...rest } = summary;
+      summary = rest;
+      if (this.records) void this.records.write(record);
+    }
     room.lastSummary = summary ?? null;
     resetAiTakeover(room);
     room.match = null;
@@ -2916,7 +3115,7 @@ export class Lobby {
   // 搜寻队友 (server/matchmaker.js plans, these carry it out)
   // ---------------------------------------------------------------------------------------------------
 
-  search(session, { on }) {
+  search(session, { on, kind }) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
@@ -2937,12 +3136,28 @@ export class Lobby {
     // Alliance (shared/largeRoom.js), locked or not, among Grand Alliances and opted-in queued Doctors
     if (roomSize(room) >= roomCap(room)) return fail(ERR.ROOM_FULL);
     if (!groupReady(room)) return fail(ERR.NOT_READY);
+    // (fork) what the search promises strangers: the original game (the default, also for a client that sends no kind: the
+    // lobby rules are cleared and locked) or 'modded' (the rules stay editable; only players who allow mods meet it)
+    this.openToStrangers(room, kind === 'modded' ? 'modded' : 'vanilla');
     room.searching = true;
     room.searchSince = this.now();
     room.wentPublic = true;   // (fork) Find teammates: strangers may sit down (Lobby.rerollLock)
     this.log.info(`[lobby] ${room.code} searching (${roomSize(room)}/${roomCap(room)}, ${room.difficulty}${room.version !== DEFAULT_VERSION ? `, ${room.version}` : ''})`);
     this.broadcastState(room);
     return OK;
+  }
+
+  /**
+   * (fork) A room opens to strangers (a search, a Grand Alliance made public) as 'vanilla' or 'modded' (Room.searchKind). Vanilla
+   * clears the lobby rules; Room.vanillaLocked then keeps them off. Nobody is un-readied: an empty rule set is what the
+   * others readied for, and the room.state they get says so.
+   */
+  openToStrangers(room, kind) {
+    if (kind === 'vanilla' && anyRule(room.rules)) {
+      room.rules = normalizeRules(null);
+      for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;
+    }
+    room.searchKind = kind;
   }
 
   /**
@@ -2973,9 +3188,10 @@ export class Lobby {
         // (fork) matched: the target room's cosmetic plugins are not drawn for this player (room.state seats[].matched)
         target.seats[idx] = { ...s, seat: idx, ready: true, ...(s.isBot ? {} : { matched: true }), ...(s.isBot || sameContent ? {} : { content: null }) };
         if (s.isBot) {
-          // both rooms named their AI from the start of BOT_NAMES
+          // both rooms named their AI from the start of BOT_NAMES (or its language's list: the one this name is from)
           const used = new Set(target.seats.filter((b) => b && b.isBot && b !== target.seats[idx]).map((b) => b.name));
-          if (used.has(s.name)) target.seats[idx].name = BOT_NAMES.find((n) => !used.has(n)) || `AI·${idx + 1}`;
+          const names = Object.values(BOT_NAMES_BY_LANG).find((l) => l.includes(s.name)) || BOT_NAMES;
+          if (used.has(s.name)) target.seats[idx].name = names.find((n) => !used.has(n)) || `AI·${idx + 1}`;
           while (target.seats.some((b) => b && b !== target.seats[idx] && b.playerId === target.seats[idx].playerId)) {
             target.seats[idx].playerId = 'ai_' + randomBytes(4).toString('hex');
           }
@@ -3063,7 +3279,8 @@ export class Lobby {
     const rooms = [];
     for (const r of this.rooms.values()) {
       // (fork) a One for All room matches on its own server only [ASSUMED: the digest and the arbiter carry no mode]
-      if (!isMatchable(r) || r.test || r.oneForAll || !this.matchAllowed(r)) continue;
+      // (fork) nor does a room that searches as 'modded': other servers only ever see vanilla rooms
+      if (!isMatchable(r) || r.test || r.oneForAll || r.searchKind === 'modded' || !this.matchAllowed(r)) continue;
       const humans = r.seats.filter((s) => s && !s.left && !s.isBot).length;
       rooms.push({ code: r.code, humans, bots: roomSize(r) - humans, difficulty: r.difficulty, wait: now - (r.searchSince ?? now),
         ...(r.version !== DEFAULT_VERSION ? { version: r.version } : {}), ...(r.large ? { cap: r.capacity, squads: squadCounts(r) } : {}) });
@@ -3390,7 +3607,7 @@ export class Lobby {
    * also be seated in a Grand Alliance (only while the server has them and 第二期下半 is queued for: they play it alone).
    * `oneForAll` (with `large` only): may also be seated in a One for All Grand Alliance (off by default).
    */
-  queueJoin(session, { difficulty, versions: asked, large, oneForAll }) {
+  queueJoin(session, { difficulty, versions: asked, large, oneForAll, mods }) {
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
@@ -3404,12 +3621,13 @@ export class Lobby {
     for (const v of versions) { const d = this.fallbackDifficulty(v, 'coop', difficulty); if (d !== difficulty) at[v] = d; }
     const opts = { versions, at: Object.keys(at).length ? at : null, large: large === true && this.largeRooms === true && versions.includes(DEFAULT_VERSION) };
     opts.oneForAll = opts.large && oneForAll === true;
+    opts.mods = mods === true;   // (fork) allows rooms that search as 'modded'; left out: the original game only
     if (cur) this.removeMember(cur, session.playerId);
     const e = this.soloQueue.get(session.playerId);
     // a second click keeps the wait; another difficulty starts over; other versions or opt-in keep the wait
     if (!e || e.difficulty !== difficulty) this.soloQueue.add(session.playerId, difficulty, this.now(), opts);
     else {
-      e.versions = opts.versions; e.large = opts.large; e.oneForAll = opts.oneForAll;
+      e.versions = opts.versions; e.large = opts.large; e.oneForAll = opts.oneForAll; e.mods = opts.mods;
       if (opts.at) e.at = { ...opts.at }; else delete e.at;
     }
     this.sendQueue(session);
@@ -3424,7 +3642,7 @@ export class Lobby {
   }
 
   /** queue.ai: after soloAiAfterMs, a co-op room of this Doctor and AI teammates, started at once. */
-  queueAi(session) {
+  queueAi(session, msg = {}) {
     const e = this.soloQueue.get(session.playerId);
     if (!e) return fail(ERR.NOT_READY, 'not queued');
     if (this.now() - e.since < this.matchmaker.opts.soloAiAfterMs) return fail(ERR.NOT_READY, 'still searching');
@@ -3438,7 +3656,7 @@ export class Lobby {
       const used = new Set(room.seats.filter((s) => s && s.isBot).map((s) => s.name));
       let playerId;
       do playerId = 'ai_' + randomBytes(4).toString('hex'); while (room.seatOf(playerId));
-      room.seats[idx] = { seat: idx, playerId, name: BOT_NAMES.find((n) => !used.has(n)) || `AI·${idx + 1}`, isBot: true, ready: true, connected: true, left: false };
+      room.seats[idx] = { seat: idx, playerId, name: botNames(msg.lang).find((n) => !used.has(n)) || `AI·${idx + 1}`, isBot: true, ready: true, connected: true, left: false };
     }
     this.log.info(`[lobby] ${room.code} solo queue → AI teammates (${room.difficulty})`);
     // (fork) another version's room: the page loads its data first, so the full room searches and starts once it has
@@ -3484,6 +3702,7 @@ export class Lobby {
   /** Seat queued sessions in `room`'s free seats, ready, and take them out of the queue. Sends nothing. */
   seatSolos(room, sessions) {
     if (sessions.length) room.wentPublic = true;   // (fork) the solo queue seats strangers (Lobby.rerollLock)
+    if (sessions.length && !room.searchKind) room.searchKind = 'vanilla';   // a room the queue forms plays the original game
     // (fork) new humans take seats: the version vote is void, as on a join (header "Official versions")
     if (sessions.length && room.versionVote) this.voidVersionVote(room, 'members');
     for (const s of sessions) {
@@ -3574,6 +3793,8 @@ export class Lobby {
       card,
       // (fork) the profile icon (PUBLIC: room.state seats[].avatar)
       avatar: this.avatarOf(session, room),
+      // (fork, GitHub #118) the opted-in public name for this player's match records (never in room.state)
+      publicName: session.publicName ?? null,
       // the content each was checked for (header "Gameplay plugins": filtered at the match start when it is another)
       loadoutCs: session.loadoutCs ?? null,
       notOwnedCs: session.notOwnedCs ?? null,

@@ -78,7 +78,7 @@ export function underframeRect(g, rem = 100) {
 }
 
 /**
- * @param {{ view: any, uid?: number|null, row: number, col: number, actions: { retreat: boolean, sell: number|null, destroy: boolean },
+ * @param {{ view: any, uid?: number|null, row: number, col: number, actions: { retreat: boolean, sell: number|null, destroy: boolean, destroyLocked?: boolean },
  *   name?: string, busy?: boolean, onRetreat?: () => void, onSell?: () => void, onDestroy?: () => void }} props
  */
 export function Underframe({ view, uid = null, row, col, actions, name = '', busy = false, onRetreat, onSell, onDestroy }) {
@@ -104,10 +104,12 @@ export function Underframe({ view, uid = null, row, col, actions, name = '', bus
       <span class="uframe__label">${t('出售[{key}]', { key: keys.sell })}</span>
       <${HexBadge} value=${`+${actions.sell}`} tone="gold" size="sm" class="uframe__price" />
     </button>` : null}
-    ${actions.destroy ? html`<button type="button" class=${cx('uframe__btn', 'uframe__btn--destroy')} disabled=${busy} onPointerDown=${stop}
-        onClick=${(e) => { stop(e); onDestroy?.(); }} title=${t('销毁道具')} aria-label=${t('销毁')}>
+    ${actions.destroy ? html`<button type="button" class=${cx('uframe__btn', 'uframe__btn--destroy', actions.destroyLocked && 'is-locked')}
+        disabled=${busy || !!actions.destroyLocked} onPointerDown=${stop}
+        onClick=${(e) => { stop(e); if (!actions.destroyLocked) onDestroy?.(); }}
+        title=${actions.destroyLocked ? t('无法销毁') : t('销毁道具')} aria-label=${actions.destroyLocked ? t('无法销毁') : t('销毁')}>
       <${PlateIcon} sprite="icon_destory" glyph="trash" tone="destroy" />
-      <span class="uframe__label">${t('销毁')}</span>
+      <span class="uframe__label">${actions.destroyLocked ? t('无法销毁') : t('销毁')}</span>
     </button>` : null}
   </div>`;
 }

@@ -5,7 +5,7 @@ import { createStore, useStore, selectRoute } from '../store.js';
 import { APP_VERSION } from '../../../shared/constants.js';
 import { t, getLang } from '../../../shared/i18n.js';
 import { genUrl } from '../gen.js';
-import { changelogPath, releaseSections, releaseLink } from './releaseNotesModel.js';
+import { changelogPath, forkReleaseSections, releaseLink } from './releaseNotesModel.js';
 
 const request = createStore({ serial: 0 });
 export function ReleaseNotesButton() {
@@ -66,7 +66,8 @@ export function ReleaseNotesHost() {
       if (!res.ok) throw new Error(`CHANGELOG: ${res.status}`);
       return res.text();
     }).then((text) => {
-      const entries = releaseSections(text, APP_VERSION);
+      // (fork) the unreleased section first: this server runs main
+      const entries = forkReleaseSections(text, APP_VERSION);
       if (!entries.length) throw new Error('Missing current release');
       if (cancelled) return;
       setSections(entries); setIndex(0); setFailed(false); setOpen(true);

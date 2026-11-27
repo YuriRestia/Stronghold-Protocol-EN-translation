@@ -385,6 +385,32 @@
 .bossbar { position: relative; flex: 1; min-width: 2.2rem; height: .2rem; background: rgba(0, 0, 0, .6); border: 1px solid rgba(255, 122, 51, .5); overflow: hidden; }
 .bossbar__fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #b8340d, var(--orange-hi)); box-shadow: 0 0 .1rem rgba(255, 110, 40, .8); transition: width 300ms var(--ease-out); }
 .bossbar__txt { position: absolute; inset: 0; display: grid; place-items: center; font-size: .14rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000; }
+/* the SPA-CC Blood Ledger (hud.js LedgerBar), the Siracusa event's gauge (#48): a wide thin bar centred under the top bar
+   (in the gap above the band row),
+   on a dark translucent track with a hairline border. Cream while it fills, red while an Asset Liquidation drains it. The
+   claw mark sits on its centre, greyed out until a Liquidation starts, then red; it pulses once at the start.
+   [ASSUMED] the size and placement, estimated from the screenshots (about 60% of the screen there, a little narrower here). */
+.ledger {
+  position: absolute; left: 50%; top: 1.02rem; transform: translateX(-50%);
+  width: min(52vw, 10rem); height: .32rem; display: grid; place-items: center;
+}
+.ledger__bar {
+  position: absolute; left: 0; right: 0; top: 50%; height: .11rem; transform: translateY(-50%);
+  background: rgba(10, 12, 16, .55); border: 1px solid rgba(230, 230, 230, .45); padding: 2px;
+}
+.ledger__fill { height: 100%; background: #e8dcbc; transition: width 300ms linear; }
+.ledger__mark {
+  position: relative; width: .5rem; height: .5rem; fill: none; stroke: #a8a8a8; stroke-width: 2.6; stroke-linecap: round;
+  opacity: .85; filter: drop-shadow(0 0 .03rem rgba(0, 0, 0, .9));
+}
+.ledger.is-liquidating .ledger__bar { border-color: rgba(255, 110, 110, .5); }
+.ledger.is-liquidating .ledger__fill { background: #d8333a; }
+.ledger.is-liquidating .ledger__mark {
+  stroke: #ff9a86; opacity: 1; filter: drop-shadow(0 0 .06rem rgba(255, 60, 60, .9));
+  animation: ledger-pulse 700ms var(--ease-out) 1;
+}
+@keyframes ledger-pulse { 0% { transform: scale(1); } 35% { transform: scale(1.6); filter: drop-shadow(0 0 .16rem rgba(255, 60, 60, 1)); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .ledger.is-liquidating .ledger__mark { animation: none; } }
 
 /* LP tower */
 .lp { display: inline-flex; align-items: center; gap: .05rem; color: var(--mint-400); white-space: nowrap; }
@@ -938,6 +964,10 @@
 .set-row__label .icon { width: .2rem; height: .2rem; color: var(--mint-500); }
 .set-row__label .micro { margin-left: .04rem; }
 /* a floor, not a fixed width: the %. value grows with the text step (20 px on a phone, 3 digits at 特大) */
+/* (fork, GitHub #118) 对局记录署名: the name field spans the row like the toggles */
+.set-pubname__input { grid-column: 2 / 4; min-width: 0; height: .38rem; padding: 0 .1rem; font: inherit; font-size: calc(.15 * var(--t)); color: var(--text-hi);
+  background: #0a0d0c; border: 1px solid var(--line-2); }
+.set-pubname__input:focus-visible { border-color: var(--mint-500); outline: none; }
 .set-row__val { min-width: .5rem; text-align: right; font-size: calc(.2 * var(--t)); color: var(--mint-400); }
 .set-range {
   -webkit-appearance: none; appearance: none; width: 100%; height: .08rem; background: linear-gradient(90deg, var(--mint-500) var(--pct), #0a0d0c var(--pct));
@@ -1035,6 +1065,8 @@
 .set-diag__count.is-warn { color: var(--amber); }
 .set-diag__url { min-width: 0; font-size: calc(.13 * var(--t)); color: var(--text-dim); overflow-wrap: anywhere; -webkit-user-select: all; user-select: all; }
 .set-diag__battle-hint { margin-top: -.06rem; }
+.set-diag__issues { font-size: calc(.14 * var(--t)); }
+.set-diag__issues a { color: var(--mint-400); }
 .set-diag__text {
   box-sizing: border-box; width: 100%; height: max(2rem, 32px, calc(140px * var(--sp-ui, 1))); min-height: 120px; resize: vertical;
   padding: max(.1rem, calc(8px * var(--sp-ui, 1))) max(.12rem, calc(10px * var(--sp-ui, 1)));

@@ -415,10 +415,12 @@ const modalStack = []; // open modals, topmost last: only the topmost handles ke
 /**
  * Modal dialog (declarative). Esc / backdrop click call onClose.
  * @param {{ open: boolean, title?: any, micro?: string, tone?: string, onClose?: Function, actions?: any,
- *   width?: string, closeOnBackdrop?: boolean, class?: string, veilClass?: string, children?: any }} props
+ *   width?: string, closeOnBackdrop?: boolean, closeButton?: boolean, class?: string, veilClass?: string, children?: any }} props
+ * `closeButton` (default: a closable dialog without footer `actions`) draws an × in the top-right corner, so a dialog
+ * never relies on Esc or a click outside alone (GitHub #169: in browser fullscreen, Esc leaves fullscreen instead).
  * `veilClass` styles the backdrop itself (e.g. a dialog that dims the field without blurring it).
  */
-export function Modal({ open, title, micro, tone = 'mint', onClose, actions, width, closeOnBackdrop = true, class: cls, veilClass, children }) {
+export function Modal({ open, title, micro, tone = 'mint', onClose, actions, width, closeOnBackdrop = true, closeButton = !!onClose && !actions, class: cls, veilClass, children }) {
   const boxRef = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -470,9 +472,11 @@ export function Modal({ open, title, micro, tone = 'mint', onClose, actions, wid
   if (!open) return null;
   return html`<div class=${cx('modal', veilClass)} role="presentation"
       onMouseDown=${(e) => { if (closeOnBackdrop && e.target === e.currentTarget && onClose) onClose(); }}>
-    <div ref=${boxRef} class=${cx('modal__box', 'brackets', `modal__box--${tone}`, cls)} role="dialog" aria-modal="true" tabindex="-1"
+    <div ref=${boxRef} class=${cx('modal__box', 'brackets', `modal__box--${tone}`, closeButton && onClose && 'has-close', cls)} role="dialog" aria-modal="true" tabindex="-1"
          style=${width ? `width:${width}` : undefined}>
       <div class="modal__stripe" aria-hidden="true"></div>
+      ${closeButton && onClose ? html`<button type="button" class="modal__close" data-testid="modal-close" title=${t('关闭')} aria-label=${t('关闭')}
+        onClick=${() => closeRef.current?.()}><${Icon} name="close" /></button>` : null}
       ${title || micro ? html`<header class="modal__head">
         ${micro ? html`<${MicroLabel}>${micro}<//>` : null}
         ${title ? html`<h2 class="modal__title">${title}</h2>` : null}
@@ -658,15 +662,15 @@ export function placeTooltip(r, b, { placement = 'top', vw, vh, m = 8, bounds = 
 /**
  * Hover/focus tooltip around its children. Content renders in <TooltipLayer/> (fixed, viewport-clamped).
  * `aside`: a second section in the same clamped, scrollable box; stacked on narrow screens. `tipClass`: a class on the
- * tooltip box itself (`class` goes on the anchor around the children). Where it points (placeTooltip): by default the
+ * tooltip box itself (`class` goes on the anchor around the children; (fork) `style` too). Where it points (placeTooltip): by default the
  * whole anchor; `anchor` — a selector of the element inside it the box points at instead (a row's icon); `within` — a
  * selector of an ancestor whose box bounds it too (a dialog); `avoid(anchorEl)` — the elements it must not cover.
- * @param {{ text: any, aside?: any, placement?: 'top'|'bottom', delay?: number, block?: boolean, tap?: boolean, id?: string, class?: string, tipClass?: string,
+ * @param {{ text: any, aside?: any, placement?: 'top'|'bottom', delay?: number, block?: boolean, tap?: boolean, id?: string, class?: string, style?: string, tipClass?: string,
  *   anchor?: string, within?: string, avoid?: (el: Element) => Iterable<Element>, children?: any }} props
  */
 const TOUCH_TIP_MS = 450;
 
-export function Tooltip({ text, aside = null, placement = 'top', delay = 120, block = false, tap = false, id, class: cls, tipClass = null,
+export function Tooltip({ text, aside = null, placement = 'top', delay = 120, block = false, tap = false, id, class: cls, style = undefined, tipClass = null,
   anchor = null, within = null, avoid = null, children }) {
   const ref = useRef(null);
   const idRef = useRef(0);
@@ -746,7 +750,7 @@ export function Tooltip({ text, aside = null, placement = 'top', delay = 120, bl
     if (text == null || text === '') setTip(null);
     else setTip({ ...tipState, content: text, aside: asideRef.current });
   }, [text, aside]);
-  return html`<span ref=${ref} class=${cx('tt-anchor', block && 'tt-anchor--block', cls)}
+  return html`<span ref=${ref} class=${cx('tt-anchor', block && 'tt-anchor--block', cls)} style=${style}
       onMouseEnter=${onMouseEnter} onMouseLeave=${onLeave} onFocusIn=${onFocusIn} onFocusOut=${onLeave} onPointerDown=${onPointerDown}
       onPointerUp=${onPointerEnd} onPointerCancel=${onPointerEnd} onClick=${onClick} onContextMenu=${(e) => { if (Date.now() - touchAt.current < 900) e.preventDefault(); }}>
     ${children}

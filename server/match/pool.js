@@ -36,7 +36,7 @@ import { scaleCount } from '../../shared/largeRoom.js';
  * @param {Function} rng seeded rng (createRng)
  * @returns {{ drawn: string[], staticOff: string[], banned: string[] }}
  */
-export function drawDisabledBonds(gd, rng) {
+export function drawDisabledBonds(gd, rng, { picks = [] } = {}) {
   const { core: nCore, addon: nAddon } = gd.bans(gd.difficulty);
   const staticOff = [...gd.modeInactiveBonds].filter((b) => gd.bond(b)).sort();
   const eligible = gd.bondIds.filter((b) => {
@@ -45,7 +45,15 @@ export function drawDisabledBonds(gd, rng) {
   });
   const core = eligible.filter((b) => gd.bond(b).isCore);
   const addon = eligible.filter((b) => !gd.bond(b).isCore);
-  const drawn = [...sample(core, nCore, rng), ...sample(addon, nAddon, rng)].sort();
+  // chosen bans (Custom Lobby Modifications `bans`, shared/rules.js): the eligible ones, up to the difficulty's count of
+  // each kind (in id order); the rest is drawn as usual from the alliances not chosen
+  const chosen = new Set(Array.isArray(picks) ? picks : []);
+  const pickCore = core.filter((b) => chosen.has(b)).sort().slice(0, nCore);
+  const pickAddon = addon.filter((b) => chosen.has(b)).sort().slice(0, nAddon);
+  const drawn = chosen.size
+    ? [...pickCore, ...sample(core.filter((b) => !chosen.has(b)), nCore - pickCore.length, rng),
+      ...pickAddon, ...sample(addon.filter((b) => !chosen.has(b)), nAddon - pickAddon.length, rng)].sort()
+    : [...sample(core, nCore, rng), ...sample(addon, nAddon, rng)].sort();
   const off = new Set([...drawn, ...staticOff]);
   const banned = [];
   for (const id of gd.visibleChess) {

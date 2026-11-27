@@ -22,7 +22,7 @@
 import { ReleaseNotesButton } from '../ui/releaseNotes.js';
 import { ResumeMatchButton } from '../ui/resumeMatch.js';
 import { useEffect, useMemo, useState } from '../../vendor/hooks.module.js';
-import { NAME_MAX_LEN, APP_VERSION, DEV_BUILD } from '../../../shared/constants.js';
+import { NAME_MAX_LEN, DEV_BUILD } from '../../../shared/constants.js';
 import { html, Button, Icon, MicroLabel, TextField, PingPill } from '../ui/components.js';
 import { GuideButton } from '../ui/guide.js';
 import { openStats } from './stats.js';
@@ -38,7 +38,7 @@ import { scriptOf } from '../../../shared/i18nPacks.js';
 import { GIcon, Img } from '../ui/gameComponents.js';
 import { SettingsModal } from '../ui/settings.js';
 import { PreloadCard } from '../ui/preload.js';
-import { AboutServerButton } from '../ui/about.js';
+import { AboutServerButton, VersionButton, REPO } from '../ui/about.js';
 import { DiscordButton } from '../ui/discord.js';
 import { installedCount } from '../content.js';
 import { NoticesButton } from '../ui/notices.js';
@@ -310,8 +310,8 @@ export function TitleScreen() {
       <span>${t('非官方同人复刻 · 游戏素材版权归 上海鹰角网络 / Yostar 所有')}</span>
       <span class="title-foot__meta">
         <${ReleaseNotesButton} />
-        <a class="title-repo" href="https://github.com/sganggs/Stronghold-Protocol" target="_blank" rel="noopener noreferrer">${t('项目仓库')}</a>
-        <${MicroLabel}>v${APP_VERSION} · WEB SIMULATION<//>
+        <a class="title-repo" href=${REPO} target="_blank" rel="noopener noreferrer">${t('项目仓库')}</a>
+        <${VersionButton} />
         ${DEV_BUILD ? html`<span class="title-dev" role="note">${t('开发版 · 不稳定，请勿用于公开服务器')}</span>` : null}
       </span>
     </footer>

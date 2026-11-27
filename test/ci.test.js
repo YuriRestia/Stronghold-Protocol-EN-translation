@@ -1,5 +1,6 @@
 // test/ci.test.js — tools/ci.mjs (the local run of .github/workflows/ci.yml): its step list is ci.yml's, the reader of
-// the workflow, the arguments, the env and the summary. Nothing here boots a server or runs a step.
+// the workflow, the arguments, the tiers, the env and the summary; tools/test-tier.mjs (the test step: the quick tier's
+// files, shards). Nothing here boots a server or runs a step.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,14 +8,17 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  CI_SHARD_ENV, CI_TEST_ENV, NODE22_SANDBOX_TESTS, ROOT, SKIPPED_CI_STEPS, SMOKE_PATHS, STEPS, TEST_FILES, binPath, formatDuration,
+  CI_SHARD_ENV, CI_TEST_ENV, ROOT, SKIPPED_CI_STEPS, SMOKE_PATHS, STEPS, TEST_FILES, TEST_JOBS, binPath, formatDuration,
   formatSummary, isSkippedCiStep, parseArgs, parseMatrix, parseWorkflow, selectSteps, stepEnv, runStep,
 } from '../tools/ci.mjs';
 import { SHARD_COUNT } from '../tools/ci-shards.mjs';
+import * as tier from '../tools/test-tier.mjs';
 
 const workflowText = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8').replace(/\r\n?/g, '\n');
 const workflow = parseWorkflow(workflowText);
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+/** The ci.yml jobs a local step mirrors: its own and `alsoIn`. */
+const jobsOf = (l) => [l.ci.job, ...(l.alsoIn || [])];
 
 /** ci.yml's smoke run block as smoke() in tools/ci.mjs mirrors it (lines trimmed, comments dropped). */
 const SMOKE_CI_RUN = [
@@ -37,14 +41,15 @@ const SMOKE_CI_RUN = [
 test('every ci.yml step is mirrored by a tools/ci.mjs step or skipped on purpose, and none is invented', () => {
   const ciSteps = Object.entries(workflow.jobs).flatMap(([job, j]) => j.steps.map((s) => ({ job, ...s })));
   assert.ok(ciSteps.length >= 6, 'ci.yml was read');
-  const unknown = ciSteps.filter((s) => !isSkippedCiStep(s) && !STEPS.some((l) => l.ci.job === s.job && l.ci.name === s.name));
+  const mirror = (s) => STEPS.find((l) => jobsOf(l).includes(s.job) && l.ci.name === s.name);
+  const unknown = ciSteps.filter((s) => !isSkippedCiStep(s) && !mirror(s));
   assert.deepEqual(unknown.map((s) => `${s.job}: ${s.name || s.uses}`), [], 'ci.yml steps tools/ci.mjs does not run');
   for (const l of STEPS) {
-    assert.ok(ciSteps.some((s) => s.job === l.ci.job && s.name === l.ci.name), `${l.id} mirrors no ci.yml step (${l.ci.job}: ${l.ci.name})`);
+    for (const job of jobsOf(l)) assert.ok(ciSteps.some((s) => s.job === job && s.name === l.ci.name), `${l.id} mirrors no ci.yml step (${job}: ${l.ci.name})`);
   }
   for (const k of SKIPPED_CI_STEPS) assert.ok(ciSteps.some((s) => isSkippedCiStep(s) && (k.uses ? s.uses?.startsWith(k.uses) : s.name === k.name)), `stale skip ${k.uses || k.name}`);
-  // the local order is the workflow's (job test, then job tooling)
-  const order = ciSteps.filter((s) => !isSkippedCiStep(s)).map((s) => STEPS.find((l) => l.ci.job === s.job && l.ci.name === s.name).id);
+  // the local order is the workflow's (job test, job quick, then job tooling; a step two jobs share counts once)
+  const order = [...new Set(ciSteps.filter((s) => !isSkippedCiStep(s)).map((s) => mirror(s).id))];
   assert.deepEqual(order, STEPS.map((s) => s.id));
 });
 
@@ -55,7 +60,9 @@ test('the commands match ci.yml: the run lines, the npm scripts ci.yml calls, th
     if (l.npm) {
       assert.equal(r, `npm run ${l.npm}`, l.id);
       assert.equal(pkg.scripts[l.npm], l.describe, `package.json script ${l.npm} is what ${l.id} runs`);
-    } else if (l.id !== 'smoke') assert.equal(r, l.describe, l.id);
+    } else if (l.id !== 'smoke') assert.equal(r, l.ciArgs ? `${l.describe} ${l.ciArgs}` : l.describe, l.id);
+    // a step two jobs share is the same step in both
+    for (const job of l.alsoIn || []) assert.equal(run(job, l.ci.name), r, `${l.id}: job ${job} runs it the same way as job ${l.ci.job}`);
   }
   const smokeRun = run('test', STEPS.find((s) => s.id === 'smoke').ci.name);
   const urls = [...smokeRun.matchAll(/http:\/\/127\.0\.0\.1:3000([^\s;]*)/g)].map((m) => m[1] || '/');
@@ -64,36 +71,23 @@ test('the commands match ci.yml: the run lines, the npm scripts ci.yml calls, th
   // here, so that smoke() in tools/ci.mjs is looked at and this copy updated with it.
   const normalized = smokeRun.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
   assert.deepEqual(normalized, SMOKE_CI_RUN, "ci.yml's smoke step changed: update smoke() in tools/ci.mjs and SMOKE_CI_RUN");
-  // job env: ci.yml's job test env is CI_TEST_ENV plus the matrix's shard; any other job has none (stepEnv gives the
-  // tooling steps nothing)
+  // job env: ci.yml's job test env is CI_TEST_ENV plus the matrix's shard, job quick's CI_TEST_ENV; any other job has
+  // none (stepEnv gives the tooling steps nothing)
   for (const [job, j] of Object.entries(workflow.jobs)) {
-    assert.deepEqual(j.env, job === 'test' ? { ...CI_TEST_ENV, ...CI_SHARD_ENV } : {}, `env of job ${job}`);
+    assert.deepEqual(j.env, job === 'test' ? { ...CI_TEST_ENV, ...CI_SHARD_ENV } : TEST_JOBS.includes(job) ? CI_TEST_ENV : {}, `env of job ${job}`);
   }
   // per-step config (env, if, continue-on-error, working-directory, with, …) on a mirrored step is not mirrored
   for (const l of STEPS) {
-    const s = workflow.jobs[l.ci.job].steps.find((x) => x.name === l.ci.name);
-    assert.deepEqual(s.other || [], [], `${l.id}: ci.yml step keys tools/ci.mjs does not mirror`);
-    assert.ok(!s.shell || l.id === 'smoke', `${l.id}: shell: ${s.shell}`);
+    for (const job of jobsOf(l)) {
+      const s = workflow.jobs[job].steps.find((x) => x.name === l.ci.name);
+      assert.deepEqual(s.other || [], [], `${l.id} (${job}): ci.yml step keys tools/ci.mjs does not mirror`);
+      assert.ok(!s.shell || l.id === 'smoke', `${l.id}: shell: ${s.shell}`);
+    }
   }
   assert.equal(pkg.scripts.ci, 'node tools/ci.mjs');
 });
 
-test('(fork) each test job writes its JUnit report and keeps it 3 days at most, a failed run\'s too', () => {
-  assert.equal(workflow.jobs.test.env.JUNIT, 'junit.xml');
-  const upload = workflow.jobs.test.steps.find((s) => (s.uses || '').split('@')[0] === 'actions/upload-artifact');
-  assert.ok(upload, 'the test job uploads the report');
-  const tests = workflow.jobs.test.steps.findIndex((s) => s.name === 'Unit & integration tests');
-  assert.ok(workflow.jobs.test.steps.indexOf(upload) > tests, 'after the tests');
-  // the small reader keeps step keys, not their values: read the upload step's block from the text
-  const block = workflowText.match(/- name: Upload JUnit report\n((?: {8}[^\n]*\n)+)/)?.[1] || '';
-  assert.match(block, /^ {8}if: always\(\)$/m);
-  assert.match(block, /^ {10}path: junit\.xml$/m);
-  const days = Number(block.match(/^ {10}retention-days: (\d+)$/m)?.[1]);
-  assert.ok(days >= 1 && days <= 3, `retention-days ${days}`);
-  assert.ok(!workflow.jobs.node22.steps.some((s) => (s.uses || '').startsWith('actions/upload-artifact')), 'only the test jobs upload');
-});
-
-test('the full Golden check runs independently once on Ubuntu / Node 24 and cannot update or hide differences', () => {
+test('the full Golden check runs independently once on Ubuntu / Node 22 and cannot update or hide differences', () => {
   const golden = workflow.jobs.golden;
   assert.ok(golden, 'ci.yml must have a separate golden job');
   assert.deepEqual(golden.env, {});
@@ -108,11 +102,13 @@ test('the full Golden check runs independently once on Ubuntu / Node 24 and cann
   assert.ok(jobText, 'golden job settings were read');
   assert.match(jobText, /^    runs-on: ubuntu-latest$/m);
   assert.match(jobText, /^    timeout-minutes: 15$/m);
-  assert.match(jobText, /^          node-version: 24$/m);
+  assert.match(jobText, /^          node-version: 22$/m);
   assert.match(jobText, /^          cache: npm$/m);
-  assert.doesNotMatch(jobText, /^\s*(strategy|needs|if|continue-on-error|defaults|env):/m);
+  // (fork) the full tier only, like the test shards (GitHub #43)
+  assert.match(jobText, /^    if: github\.event_name != 'pull_request' \|\| github\.base_ref == 'main'$/m);
+  assert.doesNotMatch(jobText, /^\s*(strategy|needs|continue-on-error|defaults|env):/m);
   assert.equal(pkg.scripts.golden, 'node tools/golden.mjs');
-  assert.deepEqual(STEPS.map((s) => s.id), ['setup', 'test', 'smoke', 'guards', 'lint', 'imports', 'typecheck']);
+  assert.deepEqual(STEPS.map((s) => s.id), ['setup', 'test', 'smoke', 'quick', 'guards', 'lint', 'imports', 'typecheck']);
 });
 
 test('the separate Golden skip is scoped to its job, step name and unfiltered comparison command', () => {
@@ -133,8 +129,7 @@ test('npm test runs every test file and nothing else under test/: no helper, no 
   assert.equal(pkg.scripts.test, 'node tools/test-run.mjs');
   assert.equal(STEPS.find((s) => s.id === 'test').describe, 'node tools/test-run.mjs');
   // what Node's test runner expands them to (the same glob, node_modules left out the way --test leaves it out)
-  const picked = fs.globSync(TEST_FILES, { cwd: ROOT, exclude: (p) => path.basename(String(p?.name ?? p)) === 'node_modules' })
-    .map((f) => f.split(path.sep).join('/')).sort();
+  const picked = tier.testFiles();
   const walk = (dir) => fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })
     .flatMap((d) => (d.isDirectory() ? walk(`${dir}/${d.name}`) : [`${dir}/${d.name}`]));
   const underTest = walk('test');
@@ -150,7 +145,7 @@ test('npm test runs every test file and nothing else under test/: no helper, no 
   }
 });
 
-test('the test matrix runs every shard exactly once, on both systems, for node 24', () => {
+test('the test matrix runs every shard exactly once, on both systems, for node 22', () => {
   const matrix = parseMatrix(workflowText);
   assert.deepEqual(Object.keys(matrix), ['test'], 'only the test job is a matrix');
   const m = matrix.test;
@@ -158,21 +153,14 @@ test('the test matrix runs every shard exactly once, on both systems, for node 2
   // green — the table's own guard (test/ci-shards.test.js) only proves the partition inside ci-shards.json.
   assert.deepEqual((m.shard ?? []).map(Number), [...Array(SHARD_COUNT).keys()], 'matrix.shard must list 0..SHARD_COUNT-1 once each');
   assert.deepEqual(m.os, ['ubuntu-latest', 'windows-latest']);
-  // (fork, user 2026-11-24) node 24: its JUnit names each test's file, which re-weighing ci-shards.json needs
-  assert.deepEqual((m.node ?? []).map(Number), [24], 'the full suite runs on node 24; node 22 has its own lane');
+  assert.deepEqual((m.node ?? []).map(Number), [22], 'the full suite runs on node 22; node 24 has its own lane');
   // the job hands its shard to tools/test-run.mjs, which is what turns the number into files
   assert.equal(workflow.jobs.test.env.SHARD, '${{ matrix.shard }}');
-  // (fork) the temporary node 22 lane (the live servers' version) is a job of its own: the guards and the plugin
-  // sandbox files, without the suite
-  const lane = workflow.jobs.node22;
-  assert.ok(lane, 'ci.yml has the node 22 lane');
-  assert.deepEqual(lane.env, {}, 'the node 22 lane needs no job env');
-  assert.match(workflowText.match(/^  node22:\n((?:\n| {4}[^\n]*\n)*)/m)?.[1] || '', /^          node-version: 22$/m);
-  assert.ok(lane.steps.some((s) => s.run === 'npm run test:guards'), 'the node 22 lane runs the guards');
-  assert.ok(lane.steps.some((s) => s.run === `node --test ${NODE22_SANDBOX_TESTS.join(' ')}`), 'and the plugin sandbox files');
-  for (const f of NODE22_SANDBOX_TESTS) assert.ok(fs.existsSync(path.join(ROOT, f)), `${f} exists`);
-  assert.ok(!lane.steps.some((s) => s.run === 'npm run test'), 'the node 22 lane does not run the suite');
-  assert.ok(!workflow.jobs.node24, 'no node 24 lane: the matrix is 24');
+  // the node 24 lane is a job of its own, with the guards and without the suite
+  assert.ok(workflow.jobs.node24, 'ci.yml has the node 24 lane');
+  assert.deepEqual(workflow.jobs.node24.env, {}, 'the node 24 lane needs no job env');
+  assert.ok(workflow.jobs.node24.steps.some((s) => s.run === 'npm run test:guards'), 'the node 24 lane runs the guards');
+  assert.ok(!workflow.jobs.node24.steps.some((s) => s.run === 'npm run test'), 'the node 24 lane does not run the suite');
 });
 
 test('the matrix reader: flow lists, block lists, include/exclude left out, other jobs ignored', () => {
@@ -210,10 +198,14 @@ test('the workflow reader: jobs, flat env, named and uses steps, run blocks; com
 });
 
 test('arguments: --keep-going, --only (comma list, repeated, = form) in workflow order, --list, --help; bad ones throw', () => {
-  assert.deepEqual(parseArgs([]), { keepGoing: false, only: null, list: false, help: false });
-  assert.deepEqual(parseArgs(['-k', '--only', 'lint,test', '--only=smoke']), { keepGoing: true, only: ['lint', 'test', 'smoke'], list: false, help: false });
+  assert.deepEqual(parseArgs([]), { keepGoing: false, only: null, quick: false, list: false, help: false });
+  assert.deepEqual(parseArgs(['-k', '--only', 'lint,test', '--only=smoke']), { keepGoing: true, only: ['lint', 'test', 'smoke'], quick: false, list: false, help: false });
+  assert.equal(parseArgs(['--quick']).quick, true);
   assert.deepEqual(selectSteps(['lint', 'test', 'smoke']).map((s) => s.id), ['test', 'smoke', 'lint']);
-  assert.equal(selectSteps(null).length, STEPS.length);
+  // the tiers: the full one by default (the whole suite), the quick one with --quick (the quick tests instead)
+  assert.deepEqual(selectSteps(null).map((s) => s.id), ['setup', 'test', 'smoke', 'guards', 'lint', 'imports', 'typecheck']);
+  assert.deepEqual(selectSteps(null, true).map((s) => s.id), ['setup', 'smoke', 'quick', 'lint', 'imports', 'typecheck']);
+  assert.deepEqual(selectSteps(['quick'], false).map((s) => s.id), ['quick'], '--only names any step');
   assert.equal(parseArgs(['--list']).list, true);
   assert.equal(parseArgs(['-h']).help, true);
   assert.throws(() => parseArgs(['--only', 'golden']), /unknown step "golden"/);
@@ -226,6 +218,42 @@ test("env: the job test steps get ci.yml's env for unset keys only; the tooling 
   const lint = STEPS.find((s) => s.id === 'lint');
   assert.deepEqual(stepEnv(test_, { PATH: 'p', SP_E2E: '1' }), { PATH: 'p', SP_E2E: '1', SP_REAL_E2E: '0', RENDER_E2E: '0', NO_COLOR: '1' });
   assert.deepEqual(stepEnv(lint, { PATH: 'p' }), { PATH: 'p' });
+  assert.equal(stepEnv(STEPS.find((s) => s.id === 'quick'), {}).SP_E2E, '0', 'job quick has the same env');
+});
+
+test("the workflow's tiers: the full suite in 4 shards on every OS, the quick tier and the two summary checks", () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+  /** One job block of ci.yml: from `  <id>:` to the blank line before the next job (or its comment). */
+  const job = (id) => { const at = yml.indexOf(`\n  ${id}:\n`); assert.ok(at >= 0, id); const m = /\n\n {2}(?=[#\w])/.exec(yml.slice(at + 1)); return yml.slice(at, m ? at + 1 + m.index : undefined); };
+  // push runs: main only (a pull request's branch gets its run from pull_request)
+  assert.match(yml, /\non:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n {2}workflow_dispatch:\n/);
+  const test_ = job('test');
+  assert.match(test_, /shard: \[0, 1, 2, 3\]/);
+  assert.match(test_, /SHARD: \$\{\{ matrix\.shard \}\}/);
+  assert.ok(test_.includes("if: github.event_name != 'pull_request' || github.base_ref == 'main'"), test_);
+  assert.ok(job('quick').includes("if: github.event_name == 'pull_request' && github.base_ref != 'main'"));
+  assert.match(job('full'), /name: full CI\n {4}needs: \[test, node24, golden, tooling\]/);
+  assert.ok(job('full').includes("!cancelled() && (github.event_name != 'pull_request' || github.base_ref == 'main')"));
+  assert.match(job('quick-ci'), /name: quick CI\n {4}needs: \[quick, tooling\]/);
+  assert.ok(job('quick-ci').includes("!cancelled() && github.event_name == 'pull_request' && github.base_ref != 'main'"));
+});
+
+test('test-tier: --quick leaves out the slow files (each of them a test file), --shard k/n; bad arguments throw', () => {
+  const files = tier.testFiles();
+  assert.deepEqual(tier.SLOW_TEST_FILES, [...new Set(tier.SLOW_TEST_FILES)].sort(), 'sorted, no duplicates');
+  for (const f of tier.SLOW_TEST_FILES) assert.ok(files.includes(f), `${f} is not a test file (renamed or removed?)`);
+  const quick = tier.selectFiles(files, true);
+  assert.equal(quick.length, files.length - tier.SLOW_TEST_FILES.length);
+  assert.ok(!quick.includes('test/match/fullmatch-coop.test.js') && quick.includes('test/ci.test.js'));
+  assert.deepEqual(tier.selectFiles(files, false), files);
+  assert.deepEqual(tier.parseArgs([]), { quick: false, shard: null, help: false });
+  assert.deepEqual(tier.parseArgs(['--quick', '--shard', '2/3']), { quick: true, shard: { index: 2, total: 3 }, help: false });
+  assert.deepEqual(tier.parseArgs(['--shard=1/1']).shard, { index: 1, total: 1 });
+  for (const bad of [['--shard', '0/3'], ['--shard', '4/3'], ['--shard'], ['--shard', 'x']]) assert.throws(() => tier.parseArgs(bad), /--shard needs k\/n/);
+  assert.throws(() => tier.parseArgs(['--fast']), /unknown option --fast/);
+  // the warning about a slow file outside the list
+  const ms = new Map([['test/ui/a.test.js', 25_000], ['test/ui/b.test.js', 3_000], [tier.SLOW_TEST_FILES[0], 90_000]]);
+  assert.deepEqual(tier.slowUnlisted(ms), [{ file: 'test/ui/a.test.js', s: 25 }]);
 });
 
 test('summary: one row per step (status, name, duration, note), the failed steps named; durations', () => {

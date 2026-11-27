@@ -198,6 +198,7 @@ function searchingRoom(h, count, extra = {}, name = 'P') {
   const ps = Array.from({ length: count }, (_, i) => h.player(`${name}${i}`));
   ok(h.lobby.create(ps[0], { mode: 'coop', difficulty: 'NORMAL', ...extra }));
   const r = roomOf(h, ps[0]);
+  if (r.large && !extra.password) ok(h.lobby.setLock(ps[0], { on: false }));   // a Grand Alliance opens private; this one is made public
   for (const p of ps.slice(1)) {
     ok(h.lobby.join(p, { code: r.code, ...(extra.password ? { password: extra.password } : {}) }));
     ok(h.lobby.ready(p, { ready: true }));

@@ -40,6 +40,8 @@
 import { BOSS_ROW_OFFSET, COLS, BOSS_POOL_MIN_HP } from '../sim/constants.js';
 import { mirrorDir, normDir } from '../sim/dir.js';
 import { bossPoolShareOf } from './gamedata.js';
+import { CC } from '../../shared/ruleData.js';
+import { BossRiskState } from '../sim/bossRisk.js';
 import { scaleCount, SQUAD_SEATS } from '../../shared/largeRoom.js';
 
 /**
@@ -98,18 +100,22 @@ export const bossPoolSeats = (m) => (m && m.roomScale > 1 ? Math.round(SQUAD_SEA
 
 /**
  * Shared boss HP for a boss id with `aliveCount` alive players (GameData.bossPoolShare / bossPoolShareOf; omitted ⇒ a full
- * team); `seats` (bossPoolSeats) lifts the aliveFull cap in a Grand Alliance room.
+ * team); `seats` (bossPoolSeats) lifts the aliveFull cap in a Grand Alliance room. (fork) `rules`: the lobby rules (SPA-CC
+ * ccBoss); `patriotSkipped`: ccPatriot Undying 1.
  */
-export function bossPoolHp(gd, bossId, aliveCount, seats) {
+export function bossPoolHp(gd, bossId, aliveCount, rules = null, { patriotSkipped = false, seats } = {}) {
   const boss = gd.boss(bossId);
   const diff = gd.difficulty;
   let base = boss && boss.bloodPoint && Number.isFinite(boss.bloodPoint[diff]) ? boss.bloodPoint[diff] : null;
   if (base == null && boss && boss.bloodPoint) base = Object.values(boss.bloodPoint).find((v) => Number.isFinite(v)) ?? null;
   if (base == null) base = 500000;
   const tune = typeof gd.bossHpMul === 'function' ? gd.bossHpMul(bossId) : 1;
+  // SPA-CC ccBoss (shared/rules.js): the final bosses' pool +50 / 150 / 400 % (the Hidden Core's too)
+  // and ccPatriot Undying 1: nobody took the round-9 Patriot → +200 %
+  const risk = 1 + (CC.bossHp[rules?.ccBoss || 0] || 0) + (patriotSkipped ? CC.patriot.skipHp : 0);
   const share = typeof gd.bossPoolShare === 'function' ? gd.bossPoolShare(aliveCount, seats)
     : bossPoolShareOf(gd.mode && gd.mode.bossHpScale, gd.config && gd.config.bossHpScale, !!gd.isSolo, aliveCount, seats);
-  return Math.max(1, Math.round(base * share * tune));
+  return Math.max(1, Math.round(base * share * tune * risk));
 }
 
 /**
@@ -117,24 +123,60 @@ export function bossPoolHp(gd, bossId, aliveCount, seats) {
  * Match._creditBoss (client reports, per player); the hit that would leave less than BOSS_POOL_MIN_HP takes the rest.
  */
 export class SharedBossPool {
-  constructor(hp, { onHit = null } = {}) {
+  /**
+   * @param {number} hp
+   * @param {{ onHit?: Function|null, risk?: object|null, onRisk?: ((changes: string[]) => void)|null }} [o] `risk`: the
+   *   boss-pool Risk tags (server/sim/bossRisk.js bossRiskConfig; null = none); `onRisk` hears what they changed
+   */
+  constructor(hp, { onHit = null, risk = null, onRisk = null } = {}) {
     this.maxHp = Math.max(1, hp);
     this.hp = this.maxHp;
     /** playerId → damage dealt to this pool (this boss round only; the BOSS_HIT tickers' share) */
     this.byPlayer = new Map();
     this.onHit = onHit;
+    this.risk = risk ? new BossRiskState(risk, this.maxHp) : null;
+    this.onRisk = onRisk;
   }
 
-  damage(playerId, amount) {
-    const a = Number(amount);
+  /** @param {string} [type] the damage type ('phys' / 'arts' / …; the Risk tags count Arts and Physical) */
+  damage(playerId, amount, type) {
+    let a = Number(amount);
     if (!Number.isFinite(a) || a <= 0 || this.hp <= 0) return 0;
+    if (this.risk) {
+      a = this.risk.limit(this.hp, a);
+      if (!(a > 0)) return 0;
+    }
     const dealt = this.hp - a < BOSS_POOL_MIN_HP ? this.hp : a;
     this.hp -= dealt; // exactly 0 when the rest is taken (x − x): no float dust
     if (playerId != null) this.byPlayer.set(playerId, (this.byPlayer.get(playerId) || 0) + dealt);
     if (this.onHit) {
       try { this.onHit(playerId, dealt); } catch { /* reported by the caller */ }
     }
+    if (this.risk) this._riskChanged(this.risk.after(this.hp, type, dealt));
     return dealt;
+  }
+
+  /** A client field's cumulative Arts / Physical damage to the pool (b.progress bossArts / bossPhys). */
+  noteTyped(fieldId, arts, phys) { if (this.risk) this._riskChanged(this.risk.note(fieldId, arts, phys)); }
+
+  /** Whether field `fieldId` holds the pool (United 2: a Degenbrecher alive there). */
+  setHold(fieldId, on) { if (this.risk && this.risk.hold(fieldId, !!on)) this._riskChanged(['hold']); }
+
+  /**
+   * A field's cumulative damage to its Delegation Degenbrecher (the linked HP bar: bossRisk.js). No onRisk: the next
+   * b.pool carries it (b.progress reports call _broadcastPool), and server-run fields read riskView() directly.
+   */
+  noteDegen(fieldId, dealt, gate) { if (this.risk) this.risk.noteDegen(fieldId, dealt, gate); }
+
+  /** The lockout's invulnerability ended (the match's timer). */
+  releaseLock() { if (this.risk && this.risk.inv) { this.risk.release(); this._riskChanged(['release']); } }
+
+  /** The view the fields apply (null without boss-pool Risk tags). */
+  riskView() { return this.risk ? this.risk.view() : null; }
+
+  _riskChanged(changes) {
+    if (!changes.length || !this.onRisk) return;
+    try { this.onRisk(changes); } catch { /* reported by the caller */ }
   }
 }
 
@@ -171,15 +213,18 @@ export class CreditPool {
   get hp() { return this.pool.hp; }
   set hp(v) { /* the sim's fallback path writes hp only when damage() threw; the real pool is never written here */ void v; }
   get maxHp() { return this.pool.maxHp; }
+  riskView() { return this.pool.riskView ? this.pool.riskView() : null; }
+  setHold(fieldId, on) { if (this.pool.setHold) this.pool.setHold(fieldId, on); }
+  noteDegen(fieldId, dealt, gate) { if (this.pool.noteDegen) this.pool.noteDegen(fieldId, dealt, gate); }
 
-  damage(playerId, amount) {
+  damage(playerId, amount, type) {
     const a = Number(amount);
     if (!Number.isFinite(a) || a <= 0) return 0;
     const before = this.cum;
     this.cum += a;
     const credit = Math.max(0, this.cum - Math.max(before, this.acked));
     if (credit <= 0) return 0;
-    const dealt = this.pool.damage(playerId, credit);
+    const dealt = this.pool.damage(playerId, credit, type);
     if (dealt > 0 && this.onCredit) { try { this.onCredit(playerId, dealt); } catch { /* reported by the caller */ } }
     return dealt;
   }

@@ -15,8 +15,9 @@ const pkg = JSON.parse(read('package.json'));
 const lock = JSON.parse(read('package-lock.json'));
 
 test('one release version: package.json, package-lock.json and APP_VERSION', () => {
-  // a release x.y.z, or x.y.z-dev on the public dev branch (the owner's decision of 2026-10-06)
-  assert.match(APP_VERSION, /^\d+\.\d+\.\d+(-dev)?$/);
+  // a release x.y.z (or x.y.z-N, the fork's numbered updates: 0.3.4-3, Fish's decision of 2026-11-19), or x.y.z-dev on the public
+  // dev branch (the owner's decision of 2026-10-06)
+  assert.match(APP_VERSION, /^\d+\.\d+\.\d+(-\d+|-dev)?$/);
   assert.equal(DEV_BUILD, APP_VERSION.endsWith('-dev'));
   assert.equal(pkg.version, APP_VERSION);
   assert.equal(lock.version, APP_VERSION);
@@ -27,8 +28,8 @@ test('one release version: package.json, package-lock.json and APP_VERSION', () 
 
 test('CHANGELOG.md opens with the release version, and the README links it', () => {
   const log = read('CHANGELOG.md');
-  const first = log.match(/^## (\d+\.\d+\.\d+) — (\d{4}-\d{2}-\d{2})/m);
-  assert.ok(first, 'a "## x.y.z — date" heading');
+  const first = log.match(/^## (\d+\.\d+\.\d+(?:-\d+)?) — (\d{4}-\d{2}-\d{2})/m);
+  assert.ok(first, 'a "## x.y.z — date" (or "## x.y.z-N — date") heading');
   if (DEV_BUILD) {
     // a dev build has no entry of its own yet: the newest one is the last release, older than the version in development
     const num = (v) => v.split(/[.-]/).slice(0, 3).map(Number);
@@ -43,7 +44,9 @@ test('CHANGELOG.md opens with the release version, and the README links it', () 
 });
 
 test('the release version is what players see', () => {
-  assert.match(read('public/js/screens/title.js'), /v\$\{APP_VERSION\}/, 'title screen footer');
+  // (fork, GitHub #98) the footer's version line is ui/about.js VersionButton
+  assert.match(read('public/js/screens/title.js'), /<\$\{VersionButton\} \/>/, 'title screen footer');
+  assert.match(read('public/js/ui/about.js'), /v\$\{APP_VERSION\}/, 'title screen footer');
   assert.ok(!/PROTOCOL v1/.test(read('public/js/screens/title.js')), 'no protocol number posing as a version');
   // the server's entry is server/index.js; the banner and /healthz live in server/http/ (boot.js, routes.js)
   assert.match(read('server/http/boot.js'), /Stronghold Protocol: Alliance v\$\{APP_VERSION\}/, 'boot banner');

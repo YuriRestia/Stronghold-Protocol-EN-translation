@@ -15,6 +15,8 @@ import {
 import { hypot, powi } from '../../detmath.js';
 import { bbCap } from '../../../../shared/plugins/officialBounds.js';
 import { burstLimit, stepOf, STEP_PER_TICK } from '../../../../shared/plugins/steps.js';
+import { tagHas } from '../../../../shared/rules.js';
+import { CC } from '../../../../shared/ruleData.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // constants (numbers that exist nowhere in the data)
@@ -149,7 +151,7 @@ function kitDekght(ab) {
   return partnerRage;
 }
 
-function kitLeaderMisc(key, ab, e) {
+function kitLeaderMisc(key, ab, e, b = null) {
   switch (key) {
     case 'enemy_1050_lslime': {
       const dot = { dmg: T(ab, 'dot.damage') ?? 0, iv: T(ab, 'dot.interval') ?? 1, dur: T(ab, 'dot.duration') ?? 0 };
@@ -299,12 +301,17 @@ function kitLeaderMisc(key, ab, e) {
       // the re-aim at the target's tile is not a separate move. Until 0.1.3: any unit within the blackboard's 1.5, 隐匿 / 迷彩
       // ones included, off its path too.
       const rush = ab.sk.Rush;
+      const blade2 = tagHas(b?.flags?.rules, 'ccVengeance', 'blade2') && String(e?.mods?.bountyId ?? '').startsWith('risk:vengeance');
       const prey = (b, e2) => {
         const keys = pathKeysAhead(e2);
         return targetsNear(b, e2, RUSH_RADIUS).filter((u) => u.ground && keys.has(u.tileR * COLS + u.tileC));
       };
       return [lowHpBuff(T(ab, 'atkup.hp_ratio') ?? 0.5, { atkPct: T(ab, 'AtkUp.atk', 'atkup.atk') ?? 0 }),
-        reborn({ dur: T(ab, 'Reborn.duration') ?? 0, hpRatio: T(ab, 'Reborn.hp_ratio') ?? 0.5, invincible: T(ab, 'Reborn.invincible') ?? 0 }),
+        // SPA-CC ccVengeance Invincible Blade 2: a Reid the tag added is invulnerable for 15 s after his revive — and
+        // untargetable then (#47, the owner's rule: no unit selects him, area hits deal 0, no 诱导; a source-less aura
+        // such as 莫斯提马's 主观缓时 still slows him)
+        reborn({ dur: T(ab, 'Reborn.duration') ?? 0, hpRatio: T(ab, 'Reborn.hp_ratio') ?? 0.5,
+          invincible: blade2 ? CC.vengeance.reviveInvincible : T(ab, 'Reborn.invincible') ?? 0, invincibleUntargetable: blade2 }),
         skill(rush, (b, e2) => {
           b.addBuff(e2, { key: 'ab:rush', duration: rush.bb.duration ?? 0, refresh: 'replace', visible: true, mods: { moveMul: 1 + (rush.bb.move_speed ?? 0) } });
           b.fx('charge', { x: e2.x, y: e2.y, id: e2.id, kind: 'avengerRush' });
@@ -640,7 +647,9 @@ const BLKSWB_CLEAR_FX = 'enemy_blkswb_s[effect]';
 function kitMace(ab) {
   const pen1 = T(ab, 'DefPenetrate.enemy_blkswb_t_2.def_penetrate') ?? 0, pen2 = T(ab, 'DefPenetrate.enemy_blkswb_t_2[reborn].def_penetrate') ?? pen1;
   const cs = { ratio: T(ab, 'ClearSp.hp_ratio') ?? 0, dur: T(ab, 'ClearSp.duration') ?? 0, r: T(ab, 'ClearSp.range_radius') ?? 0 };
-  const P = { form2: false, next: 1 };
+  // SPA-CC ccDelegation United 3 (spawn: the battle's rules): 【瞬息杀机】 every CC.delegation.gateRatio of max HP, and a
+  // hard HP gate at each step — no HP lost past it until the cast (CC.delegation.castSeconds) ends with the burst
+  const P = { form2: false, next: 1, gate: false, casting: false, token: 0 };
   const penOn = (c, e) => (c.target === e.blockedBy ? (P.form2 ? pen2 : pen1) : 0);
   // its blocker is hit (PRTS 技能 "对之前阻挡自身的单位造成…"); the others on the way are an area selection (areaSelectable)
   const blink = (s) => (b, e) => {
@@ -660,23 +669,61 @@ function kitMace(ab) {
   // cast with a target in the circle — the trigger selection (targetsNear: PRTS 选择器 "所有触发选择器通常不无视迷彩"): no
   // airborne (起飞) operator for a ground enemy (§21.22), no unblocking 隐匿 or 迷彩 one
   const inR = (b, e, s) => targetsNear(b, e, (s && s.bb.range_radius) || 0).length > 0;
+  const burst = (b, e) => {
+    b.fx('explode', { x: e.x, y: e.y, r: cs.r, kind: 'clearSp', id: e.id });
+    for (const u of areaAllies(b, e, e.x, e.y, cs.r)) {
+      const sk = u.skill;
+      if (sk && !sk.noSkill && sk.kind !== 'passive' && !sk.active && sk.spCost > 0) { sk.sp = 0; sk.charges = 0; }   // 清空技力 (stored charges too)
+      if (cs.dur > 0) b.applyStatus(u, 'disarm', { duration: cs.dur, source: e });
+      if (cs.dur > 0) b.fxState(u, BLKSWB_CLEAR_FX, true, { src: e, dur: cs.dur });   // (fork) its official mark while disarmed, display only
+    }
+  };
   return [resist(), {
+    spawn(b, e) {
+      if (!tagHas(b.flags?.rules, 'ccDelegation', 'united3')) return;
+      P.gate = true;
+      cs.ratio = CC.delegation.gateRatio;
+      // the linked gate (risk.js installDegenLink): her finished steps, and another field's finished cast opening hers
+      // (no burst here: that cast was on the other field)
+      const done = () => (P.form2 && cs.ratio > 0 ? Math.round((1 - P.next) / cs.ratio) : 0);
+      e.degenGate = {
+        done,
+        open(k) {
+          if (!P.form2 || !(cs.ratio > 0)) return;
+          let guard = 0;
+          while (done() < k && P.next - cs.ratio > 1e-9 && guard++ < 1000) P.next -= cs.ratio; // loop-cap: 1/gateRatio steps
+          if (P.casting) { P.casting = false; P.token++; }
+        },
+      };
+      b.on('hpDamage', (c) => {                                  // the hard gate (second form)
+        if (c.target !== e || !P.form2 || !e.alive) return;
+        if (P.casting) { c.amount = 0; return; }
+        const floor = (P.next - cs.ratio) * e.s.maxHp;
+        if (P.next - cs.ratio > 1e-9 && e.hp - c.amount < floor) c.amount = Math.max(0, e.hp - floor);
+      }, { owner: e });
+    },
     hitOut(c, b, e) { const p = penOn(c, e); if (c.dmg.isAttack && p > 0) c.dmg.defIgnorePct = Math.min(1, (c.dmg.defIgnorePct || 0) + p); },
     taken(c, b, e) {                                             // 【瞬息杀机】 every hp_ratio of max HP lost (second form)
-      if (!P.form2 || !(cs.ratio > 0)) return;
+      if (!P.form2 || !(cs.ratio > 0) || P.casting) return;
       let guard = 0;
       const ratioCap = burstLimit(1); // official crossings of one hit stay under this (hp_ratio is a fraction of max HP)
       while (e.alive && e.hpRatio <= P.next - cs.ratio + 1e-9 && P.next - cs.ratio > 1e-9 && guard++ < ratioCap) { // loop-cap: burstLimit hp_ratio
+        if (P.gate) {                                            // United 3: the cast, then the burst and the next step
+          P.casting = true;
+          const token = ++P.token;
+          b.fx('telegraph', { x: e.x, y: e.y, r: cs.r, dur: CC.delegation.castSeconds, kind: 'clearSp', id: e.id });
+          b.after(CC.delegation.castSeconds, () => {
+            if (token !== P.token) return; // another field's cast opened the gate first
+            P.casting = false;
+            P.next -= cs.ratio;
+            if (e.alive) burst(b, e);
+          }, { owner: e });
+          return;
+        }
         const prev = P.next;
         P.next -= cs.ratio;
         if (P.next === prev) break;
-        b.fx('explode', { x: e.x, y: e.y, r: cs.r, kind: 'clearSp', id: e.id });
-        for (const u of areaAllies(b, e, e.x, e.y, cs.r)) {
-          const sk = u.skill;
-          if (sk && !sk.noSkill && sk.kind !== 'passive' && !sk.active && sk.spCost > 0) { sk.sp = 0; sk.charges = 0; }   // 清空技力 (stored charges too)
-          if (cs.dur > 0) b.applyStatus(u, 'disarm', { duration: cs.dur, source: e });
-          if (cs.dur > 0) b.fxState(u, BLKSWB_CLEAR_FX, true, { src: e, dur: cs.dur });   // (fork) its official mark while disarmed, display only
-        }
+        burst(b, e);
       }
     },
   }, doubleHit(() => P.form2, (c, b, e) => ({ defIgnorePct: penOn(c, e) })),
@@ -776,6 +823,105 @@ function kitWolfLord(ab) {
       e.profile.melee = false;
       e.base.rangeRadius = Math.max(e.base.rangeRadius || 0, WOLF_RANGE);
       b.addBuff(e, { key: 'ab:wolfRage', persist: true, visible: true, mods: { atkPct: T(ab, 'Passive2.atk') ?? 0, batPct: (T(ab, 'Passive2.base_attack_time') ?? 0) / (e.base.bat || 1) } });
+    },
+  })];
+}
+
+/**
+ * 爱国者 (Patriot, enemy_1506_patrt) — a Fish Edition addition for the SPA-CC Risk tags (tools/build-data.mjs
+ * FORK_ENEMY_KEYS), not in the official mode. enemy_database talents strength / shield / taunt / reborn / immo_trigger[rage],
+ * skills Immo[Rage] / throwspear[Rage]; arknights.wiki.gg Patriot/Enemy for what the data leaves open:
+ *   * 【强化】 every other enemy on the field ATK +strength.atk, DEF +strength.def while he lives (the wiki: "all enemies on
+ *     the map", stacking per Patriot);
+ *   * 行军姿态 (first form): ATK +shield.atk, DEF +shield.def × base, RES +shield.magic_resistance × base, taunt level
+ *     +taunt.taunt_level (easier to target), every normal attack hits 4 times;
+ *   * KO ⇒ a reborn.duration s 重生 (the shared reborn(): inert, invulnerable [ASSUMED: the wiki does not say], HP back to
+ *     full), meanwhile PATRIOT_PULSE_SCALE × ATK true damage every immo_trigger[reborning].interval s to the units within
+ *     PATRIOT_PULSE_RADIUS;
+ *   * 毁灭姿态 (second form): the 行军 buffs go, ATK +immo_trigger[rage].atk, DEF +…def, ASPD from base_attack_time,
+ *     move +…move_speed, ranged (PATRIOT_RANGE); reborn_invincible s 无敌 (untargetable too, #47); immune to stun /
+ *     freeze / levitate; the same true damage pulse (Immo[Rage] atk_scale); every throwspear cd s (first after icd) a
+ *     spear at the farthest unit on high ground — a PATRIOT_SPEAR_WINDUP s telegraph, then atk_scale × ATK physical (none
+ *     without a unit on high ground).
+ */
+const PATRIOT_PULSE_RADIUS = 1.75, PATRIOT_PULSE_SCALE = 0.05, PATRIOT_RANGE = 0.85, PATRIOT_SPEAR_WINDUP = 3, PATRIOT_HITS = 4;
+/** When the spear leaves his hand in his Skill clip (data/assets.json … spine hits.Skill). */
+const PATRIOT_SPEAR_CLIP_HIT = 1.7;
+function kitPatriot(ab) {
+  const P = { form2: false, pulseAt: 0 };
+  const iv = T(ab, 'immo_trigger[rage].interval') ?? 0.8;
+  const rageScale = (ab.sk['Immo[Rage]'] && ab.sk['Immo[Rage]'].bb.atk_scale) ?? PATRIOT_PULSE_SCALE;
+  const spear = ab.sk['throwspear[Rage]'];
+  const pulse = (b, e, scale) => {
+    if (b.time < P.pulseAt) return;
+    P.pulseAt = b.time + iv;
+    for (const u of areaAllies(b, e, e.x, e.y, PATRIOT_PULSE_RADIUS)) hurt(b, e, u, e.s.atk * scale, 'true', { tags: ['patriotPulse'] });
+  };
+  return [{
+    spawn(b, e) {
+      b.addBuff(e, { key: 'ab:patriotMarch', persist: true, visible: true, mods: {
+        atkPct: T(ab, 'shield.atk') ?? 0, defPct: T(ab, 'shield.def') ?? 0, resFlat: (e.base.res || 0) * (T(ab, 'shield.magic_resistance') ?? 0),
+        taunt: T(ab, 'taunt.taunt_level') ?? 0 } });
+    },
+    iv: 0.1,
+    tick(b, e) {
+      // 【强化】: every other enemy on the field, refreshed while he is up (not while reviving — he is not "on the field")
+      if (e.mem.ab.state !== 'reborn') {
+        for (const o of b.aliveEnemies()) {
+          if (o === e) continue;
+          auraBuff(b, o, `ab:patriotStrength:${e.id}`, 0.2, { atkPct: T(ab, 'strength.atk') ?? 0, defFlat: T(ab, 'strength.def') ?? 0 }, null, true);
+        }
+      }
+      if (P.form2) pulse(b, e, rageScale);
+    },
+    dealt(c, b, e) {                                             // 行军姿态: 4 hits per normal attack
+      if (P.form2 || !c.dmg || !c.dmg.isAttack || c.dmg.tags?.includes('secondHit') || !c.target.alive) return;
+      for (let i = 1; i < PATRIOT_HITS && c.target.alive; i++) {
+        b.dealDamage(e, c.target, { amount: e.s.atk, type: c.dmg.type, canDodge: true, tags: ['enemyAbility', 'secondHit'] });
+      }
+    },
+  },
+  skill(spear, (b, e) => {
+    let far = null, best = -1;
+    for (const u of b.allies()) {
+      if (u.ground !== false || !areaSelectable(e, u)) continue;            // high ground only
+      const d = hypot(u.x - e.x, u.y - e.y);
+      if (d > best) { best = d; far = u; }
+    }
+    if (!far) return;
+    const t = far;
+    // the wind-up: a reticle on the target and a ring on its tile for PATRIOT_SPEAR_WINDUP s (the wiki's red crosshair);
+    // his throw clip (Skill, its strike PATRIOT_SPEAR_CLIP_HIT s in) is timed to land with the spear
+    b.fx('patriotSpearMark', { x: t.x, y: t.y, id: t.id, dur: PATRIOT_SPEAR_WINDUP });
+    b.fx('telegraph', { x: t.x, y: t.y, r: 0.6, dur: PATRIOT_SPEAR_WINDUP, kind: 'patriotSpear' });
+    e.skillAnimUntil = -1;
+    b.after(Math.max(0, PATRIOT_SPEAR_WINDUP - PATRIOT_SPEAR_CLIP_HIT), () => { if (e.alive) e.skillAnimUntil = b.time + PATRIOT_SPEAR_CLIP_HIT + 0.3; });
+    b.after(PATRIOT_SPEAR_WINDUP, () => {
+      if (!e.alive || !t.alive || !t.deployed) return;
+      b.fx('patriotSpear', { x: t.x, y: t.y, from: e.id, to: t.id });
+      b.fx('patriotSpearHit', { x: t.x, y: t.y, id: t.id });
+      hurt(b, e, t, e.s.atk * ((spear && spear.bb.atk_scale) ?? 1.35), 'phys', { tags: ['patriotSpear'] });
+    });
+  }, { id: 'spear', cond: (b) => P.form2 && b.allies().some((u) => u.ground === false) }),
+  reborn({
+    dur: T(ab, 'reborn.duration') ?? 0, invincible: T(ab, 'reborn.patrt_t_state_2[reborn_invincible].duration') ?? 0,
+    // his 无敌 is untargetable too (#47, the owner's rule — as Xi's, #510): no unit selects him, area hits deal 0, no
+    // 诱导; a source-less aura such as 莫斯提马's 主观缓时 still slows him
+    invincibleUntargetable: true,
+    onKo(b, e) { b.removeBuff(e, 'ab:patriotMarch'); },
+    // the HP bar fills back up over the revive (Fish's playtest: it shows how close he is to standing up)
+    during(b, e, a, t) {
+      e.hp = Math.max(1, e.s.maxHp * Math.min(1, t / Math.max(TICK, T(ab, 'reborn.duration') ?? 1)));
+      pulse(b, e, PATRIOT_PULSE_SCALE);
+    },
+    onReborn(b, e) {
+      P.form2 = true;
+      e.mem.ab.immune = new Set([...(e.mem.ab.immune || []), 'stun', 'frozen', 'levitate']);
+      e.profile.melee = false;
+      e.base.rangeRadius = Math.max(e.base.rangeRadius || 0, PATRIOT_RANGE);
+      b.addBuff(e, { key: 'ab:patriotRage', persist: true, visible: true, mods: {
+        atkPct: T(ab, 'immo_trigger[rage].atk') ?? 0, defFlat: T(ab, 'immo_trigger[rage].def') ?? 0,
+        batPct: (T(ab, 'immo_trigger[rage].base_attack_time') ?? 0) / (e.base.bat || 1), moveFlat: T(ab, 'immo_trigger[rage].move_speed') ?? 0 } });
     },
   })];
 }
@@ -911,7 +1057,7 @@ export const LEADER_KITS = Object.freeze({
   enemy_1511_mdrock: (ab, e) => kitLeaderMisc('enemy_1511_mdrock', ab, e),   // 泥岩 · stacking ATK, refreshed barrier (+HP/ASPD while up)
   enemy_1513_dekght: (ab, e) => kitLeaderMisc('enemy_1513_dekght', ab, e),   // 腐败骑士 · plus-shaped hits; rage when 凋零骑士 dies
   enemy_1513_dekght_2: (ab, e) => kitLeaderMisc('enemy_1513_dekght_2', ab, e), // 凋零骑士 · 2 targets; rage when 腐败骑士 dies
-  enemy_1539_reid: (ab, e) => kitLeaderMisc('enemy_1539_reid', ab, e),       // “复仇者” · ATK up below half; revives once at 50 %
+  enemy_1539_reid: (ab, e, b) => kitLeaderMisc('enemy_1539_reid', ab, e, b),       // “复仇者” · ATK up below half; revives once at 50 %
   enemy_2003_rockman: (ab, e) => kitLeaderMisc('enemy_2003_rockman', ab, e), // 迷路的巨像 · long-stun boulder on a non-stunned unit
   enemy_2004_balloon: (ab, e) => kitLeaderMisc('enemy_2004_balloon', ab, e), // 喷气人 · takes off when blocked: 7 s hovering, unblockable, 失衡免疫
   enemy_2005_axetro: (ab, e) => kitLeaderMisc('enemy_2005_axetro', ab, e),   // “遗弃者” · attack stacks, reset after 4 s idle
@@ -924,6 +1070,7 @@ export const LEADER_KITS = Object.freeze({
   enemy_1512_mcmstr: kitUglyThing,                                   // “巨大的丑东西” · melee ×3; KO ⇒ stun blast, fleeing 大祭司 (true HP loss/s)
   enemy_1516_jakill: kitWarden,                                      // 杰斯顿·威廉姆斯 · ranged arts + multi-stun ⇒ killer form (frees prisoners, armour piercing)
   enemy_1517_xi: kitXi,                                              // “自在” · cross arts, 破桎而出 barrier blast ⇒ form 2 (double hits, 2 crosses)
+  enemy_1506_patrt: kitPatriot,                                      // 爱国者 (fork, SPA-CC) · 强化 all enemies, 4 hits ⇒ revive ⇒ 毁灭姿态 (spear, true pulse)
   enemy_1525_blkswb: kitMace,                                        // 锏 · 抵抗, DEF pen, 速杀 blink, AoE ⇒ form 2 (stealth, double hits, SP clear)
   enemy_1535_wlfmster: kitWolfLord,                                  // 扎罗 · −30 % damage, 溶血骇惧 ⇒ 远古威慑 rebirth ⇒ ranged double hits
   enemy_10081_mpplai: kitTranslator,                                 // 转译基底·α · damage cancelled; 4th phys / 4th arts hit or blocked ⇒ 2 s change ⇒ 寻仇者 / 特战术师 / 幽灵
@@ -958,7 +1105,7 @@ export const LEADER_KITS = Object.freeze({
     const st = T(ab, 'StunAfterUnbalance.stun') ?? 0;
     if (st > 0) b.applyStatus(e, 'stun', { duration: st, source: null });
   })],
-  enemy_10138_xdsnow: (ab) => [unbalanced((b, e, a) => {             // 雪孩子 · pushed / pulled into high ground ⇒ hitWall.value damage
+  enemy_10138_xdsnow: (ab) => [unbalanced((b, e, a) => {             // 雪孩子 · pushed / pulled into high ground ⇒ hitWall.value damage (where its slide stops)
     const dx = e.x - a.lx, dy = e.y - a.ly, d = hypot(dx, dy);
     if (!(d > 0)) return;
     const r = Math.round(e.y + (dy / d) * 0.6), c = Math.round(e.x + (dx / d) * 0.6);
@@ -968,7 +1115,7 @@ export const LEADER_KITS = Object.freeze({
     // then not again for its [cd] buff's 5 s; display only (snapshot fxs; the damage above keeps its own rule)
     if (!(b.time < (a.fxCd ?? -Infinity))) { a.fxCd = b.time + XDSNOW_WALL_CD; b.fxState(e, 'enemy_xdsnow_t[wall]', true, { dur: ONE_SHOT_FX }); }
     hurt(b, null, e, T(ab, 'hitWall.value') ?? 0, 'true', { tags: ['wallHit'] });
-  })],
+  }, { atEnd: true })],
   // 拥霜羽兽 · PRTS 天赋 "不会攻击飞行单位"; unbalanced once ⇒ 失去蛋的模式 "不进行普通攻击，不可阻挡，移动速度最终提升至200%" (until
   // 0.1.3 it kept its ranged attack without the egg and stood for each attack clip — ai.js attackStand —, and shot the 炎佑 dragon)
   enemy_10141_xdpeng_2: (ab) => [noAirTargets(), unbalanced((b, e, a) => {

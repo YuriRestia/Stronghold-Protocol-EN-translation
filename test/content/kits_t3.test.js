@@ -248,6 +248,7 @@ test('3_07 见行者: 惊爆射击 pushes enemies forward + stun (wall / collisi
   const a = h.enemy('enemy_a'), c = h.enemy('enemy_c');
   fill(u);
   assert.ok(h.runUntil(() => u.skill.activations === 1, 5));
+  h.settle();
   assert.ok(a.x > 5.9, `pushed forward (${a.x})`);
   const stun = (x) => h.hooksOf('statusApplied').find((s) => s.target === x && s.status === 'stun');
   approx(stun(a).duration, bb['forcer_s_2[hit_directly].stun']);
@@ -972,6 +973,7 @@ test('3_07 见行者: 惊爆射击 fires on an enemy inside the skill range only
   assert.equal(h.b.enemiesInKeys(u.baseRangeKeys, u, u.profile).length, 0, 'outside her attack range');
   fill(u);
   assert.ok(h.runUntil(() => u.skill.activations === 1, 2), 'skill range (3 tiles ahead) triggers it');
+  h.settle();
   assert.ok(e.x > 6.9, `pushed (${e.x})`);
   approx(h.hooksOf('statusApplied').find((s) => s.target === e && s.status === 'stun').duration, bb['forcer_s_2[hit_directly].stun']);
   done(h);

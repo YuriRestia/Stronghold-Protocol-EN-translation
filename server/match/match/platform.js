@@ -10,6 +10,11 @@ import { FLOW_TICKER_PRIORITY, OK, fail } from './common.js';
 import { msg, playerParam } from '../../../shared/i18n.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
 
+/** Intents a page sends by itself (a watcher's field switch, the unit-stat query): not an action by the player (AFK watch, #193). */
+const PASSIVE_TYPES = new Set(['g.watch', 'g.unitStats']);
+/** The choice screens: nobody can be waited on by a clock there, so a silent human can hold the match up (see afkReport). */
+const AFK_PHASES = new Set([PHASE.INFO_CHECK, PHASE.BAND_DRAFT, PHASE.SP_DRAFT, PHASE.PREP]);
+
 const GAME_TYPES = new Set(Object.keys(C2S).filter((t) => Object.hasOwn(C2S, t) && (t.startsWith('g.') || t.startsWith('b.'))));
 
 export class MatchPlatform {
@@ -62,6 +67,7 @@ export class MatchPlatform {
       return this.clientCombat && msg && (msg.t === 'b.progress' || msg.t === 'b.result') ? OK : fail(ERR.WRONG_PHASE);
     }
     if (!msg || typeof msg !== 'object' || typeof msg.t !== 'string' || !GAME_TYPES.has(msg.t)) return fail(ERR.BAD_MSG);
+    if (!PASSIVE_TYPES.has(msg.t) && !msg.t.startsWith('b.')) ps.lastActionAt = this.sched.now();
     let res;
     try {
       res = this._handle(ps, msg);
@@ -133,6 +139,27 @@ export class MatchPlatform {
       this.markPublic();
     });
     return res;
+  }
+
+  /**
+   * Who is silent on a choice screen (GitHub #193: a server that is closing for maintenance must not be held up by a match
+   * nobody plays). null outside the choice screens (INFO_CHECK, BAND_DRAFT, SP_DRAFT, PREP, and a paused solo battle) —
+   * the battles run by themselves; otherwise every human the match is waiting on: `idleMs` = the time since the seat's last
+   * game action or since this screen came up, whichever is later. A human under AI 托管 is played by the bot, so not listed;
+   * a disconnected human is (its silence is the point).
+   * @returns {{ phase: string, humans: { playerId: string, idleMs: number }[] } | null}
+   */
+  afkReport() {
+    const key = this.paused ? 'paused' : AFK_PHASES.has(this.phase) ? this.phase : null;
+    if (this.disposed || this.ended || !key) { this._afkKey = null; return null; }
+    const now = this.sched.now();
+    if (this._afkKey !== key) { this._afkKey = key; this._afkSince = now; }
+    const humans = [];
+    for (const ps of this.order) {
+      if (ps.isBot || ps.left || ps.autoplay) continue;
+      humans.push({ playerId: ps.playerId, idleMs: now - Math.max(ps.lastActionAt || 0, this._afkSince) });
+    }
+    return { phase: key, humans };
   }
 
   onDisconnect(playerId) {

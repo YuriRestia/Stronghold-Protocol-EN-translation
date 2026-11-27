@@ -13,6 +13,7 @@ import { isPotential, isCultivate } from '../../../shared/potential.js';
 import { setupUnitKit } from '../content/index.js';
 import { installTraitAttackSpeed } from '../content/traitMods.js';
 import { installFxStates } from '../content/fxStates.js';
+import { installModZ } from '../content/modZ.js';
 import { clone } from './util.js';
 
 export class BattlePlayers {
@@ -43,13 +44,16 @@ export class BattlePlayers {
       input: p,
     };
     if (this.opts.morphPairing === 'plus') ps.morphPairing = 'plus';
+    // the Damazti Isomorph+ cheat (GitHub #134; support unitBonds)
+    const iso = this.flags?.rules?.isoPlus;
+    if (iso === 'plus' || iso === 'plusplus') ps.isoPlus = iso;
     this.players.push(ps);
     this._perPlayer[ps.playerId] = {
       // `killed` / `total` / `leaked` / `perfect` keep the official `counted` reading (DESIGN §5.1); `killedInTotal` /
       // `leakedInTotal` are the HUD capsule's counters of this player's own field (only enemies the round scheduled:
       // spawns.js `_queueSpawn` / `inTotal`, deploy.js), `resolved` is derived from them at result time.
       killed: 0, total: 0, leaked: [], perfect: true, killedInTotal: 0, leakedInTotal: 0,
-      layerGains: {}, coins: 0, damageDealt: 0, bossDamage: 0, healingDone: 0, deaths: 0, unitsEnd: [], unitStats: [],
+      layerGains: {}, coins: 0, damageDealt: 0, bossDamage: 0, healingDone: 0, deaths: 0, downs: 0, unitsEnd: [], unitStats: [],
     };
     const late = [];
     for (const u of p.units ?? []) {
@@ -167,6 +171,7 @@ export class BattlePlayers {
     if (def.raw?.isDiy && !def.diyFor) { this.log(`自选 slot ${inp.chessId} without a pick`); return null; }
     const u = this._makeAlly(ps, def, 'op', r, c, { uid: inp.uid, dir, skin: inp.skin });
     u.items = [...(inp.items ?? [])];
+    if (Array.isArray(inp.grantedBonds)) u.grantedBonds = inp.grantedBonds.filter((b) => typeof b === 'string').slice(0, 8); // Mod Z Kal'tsit Esperanta (match/bondsMeta.js pieceBonds)
     if (inp.itemProgress) u.itemProgress = inp.itemProgress.map(p => ({ ...p }));
     u.carry = inp.carryState ?? null;
     // 练度 (自持有, 0.2.2): the owned operator's ×ATK / ×DEF / ×max HP (units.js Πmul) — never a 补位 stand-in's nor a
@@ -244,6 +249,8 @@ export class BattlePlayers {
       if (t && typeof t.install === 'function') this._safe(() => t.install(this, u), 'talent.install', u);
     }
     if (typeof u.kit.install === 'function') this._safe(() => u.kit.install(this, u), 'kit.install', u);
+    // (Fish Edition) Mod Z / W (content/modZ.js): after the kit, so a module effect sees the kit's skill and range
+    this._safe(() => installModZ(this, u), 'modZ', u);
     // trait lines the ENGINE owns for every operator (content/traitMods.js: the module attack-speed riders whose
     // condition is a pure function of the field — 「攻击范围内存在N名及以上敌人时攻击速度+X」). Runs after kit.install:
     // a kit that implements its own line for this trait is never double-counted — traitMods.js refuses every condition

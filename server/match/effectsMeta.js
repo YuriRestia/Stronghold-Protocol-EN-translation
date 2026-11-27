@@ -526,6 +526,8 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
     difficulty: m.difficulty,
     isSolo: m.isSolo,
     isCoop: !m.isSolo,
+    /** Custom Lobby Modifications of the match (shared/rules.js), every rule at its default without any. */
+    lobbyRules: m.lobbyRules,
     data: gd.raw,
     gd,
     rng,
@@ -728,7 +730,9 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
       return true;
     },
     addDeployCap: (n) => { const v = finiteInt(n); ps.deployCapBonus += v; ps.dirty(); return ps.deployCap; },
-    setDeployCapAtLeast: (n) => { const v = finiteInt(n); if (v > ps.deployCapMin) { ps.deployCapMin = Math.min(v, 12); ps.dirty(); } return ps.deployCap; },
+    // `opts.withRule`: the floor sits above the lobby rule's bonus too (人事部文档 "becomes 9" is +1 over the normal 8, so
+    // it is still +1 over a +2 limit: GitHub #183)
+    setDeployCapAtLeast: (n, opts) => { const v = finiteInt(n) + (opts?.withRule ? ps.deployRuleBonus : 0); if (v > ps.deployCapMin) { ps.deployCapMin = Math.min(v, 12); ps.dirty(); } return ps.deployCap; },
     setBondCountBonus: (bondId, n) => { if (gd.bond(bondId) && Number.isInteger(n)) { ps.bondCountBonus[bondId] = n; ps.recompute(); } },
     setDeviceActive: (alias, on) => { if (typeof alias === 'string') { ps.deviceOverrides[alias] = !!on; ps.invalidateDeployMap(); ps.dirty(); } },
     setTileOverride: (r, c, cls) => { if (Number.isInteger(r) && Number.isInteger(c) && ['melee', 'ranged', 'none'].includes(cls)) { ps.tileOverrides[`${r},${c}`] = cls; ps.invalidateDeployMap(); ps.dirty(); } },

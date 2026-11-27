@@ -1521,6 +1521,22 @@ function enemyOverrideRecord(over, label) {
  * Collect every enemy key that can appear in a match (templates, factions, bounties, bands,
  * bosses, summons), transitively through extraEnemyKeyList and enemy blackboards.
  */
+/**
+ * Fork (Fish Edition) enemies outside the mode's own tables, for the SPA-CC Risk tags (fish-edition/FINDINGS.md §5):
+ * built like any directly spawned enemy, so the sim, the art and the translations get them too.
+ */
+export const FORK_ENEMY_KEYS = Object.freeze(['enemy_1506_patrt']);
+/** `{ level1: { maxHp, atk, def, res } }` from an enemy's Level 1 entry, or {} when it has none. */
+function level1Stats(levels, base) {
+  const lv = levels.find((l) => l.level === 1);
+  if (!lv) return {};
+  const at = mergeEnemyData(base, lv.enemyData).attributes || {};
+  return { level1: { maxHp: mv(at.maxHp, 0), atk: mv(at.atk, 0), def: mv(at.def, 0), res: cleanNum(mv(at.magicResistance, 0)) } };
+}
+
+/** Enemies whose Level 1 stats (the stronger set hard stages use) the SPA-CC Risk tags need (`level1` in their record). */
+export const LEVEL1_ENEMY_KEYS = Object.freeze(['enemy_1506_patrt', 'enemy_1525_blkswb']);
+
 function collectEnemyKeys(ctx) {
   const keys = new Set();
   const add = (k) => { if (typeof k === 'string' && /^enemy_/.test(k)) keys.add(k); };
@@ -1540,6 +1556,7 @@ function collectEnemyKeys(ctx) {
   for (const b of Object.values(ctx.ac.bossInfoDict || {})) add(b.enemyId);
   for (const k of Object.keys(templateSlots(ctx))) add(k);
   for (const m of Object.values(ctx.act.modeDataDict)) (m.inactiveEnemyKey || []).forEach(add);
+  FORK_ENEMY_KEYS.forEach((k) => { if (ctx.enemyDb.has(k)) add(k); });
   for (const buffs of Object.values(ctx.act.effectBuffInfoDataDict || {})) {
     for (const b of buffs) for (const e of b.blackboard || []) {
       if (typeof e.valueStr === 'string') for (const m of e.valueStr.matchAll(/enemy_[A-Za-z0-9_]+/g)) if (ctx.enemyDb.has(m[0])) add(m[0]);
@@ -1935,6 +1952,10 @@ function buildEnemies(ctx) {
     if (!IS_DEFAULT && !ctx.manifest?.enemies?.[mv(data.prefabKey) || key]) warn(`enemy ${key}: model ${mv(data.prefabKey) || key} not in data/assets.json, no attackAnim (sim keeps ATTACK_PAUSE) [M2]`);
     out[key] = {
       key, name, level: wantLevel, rank: mv(data.levelType, 'NORMAL'), handbookIndex: hb?.enemyIndex || null,
+      // a fork enemy (FORK_ENEMY_KEYS): not in the official mode — only Risk tags bring it (tools/golden.mjs leaves it out)
+      ...(FORK_ENEMY_KEYS.includes(key) ? { fork: true } : {}),
+      // Level 1 stats for the SPA-CC Risk tags (LEVEL1_ENEMY_KEYS; shared/ruleData.js CC)
+      ...(LEVEL1_ENEMY_KEYS.includes(key) ? level1Stats(levels, base) : {}),
       desc: stripRich(descRaw), descRaw: richRaw(descRaw),
       applyWay, stats,
       abilities,

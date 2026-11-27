@@ -20,6 +20,8 @@ import {
 import { createStore, emptyMatch } from '../../public/js/store.js';
 import { normalizeResult } from '../../public/js/ui/gameLogic.js';
 import { PHASE } from '../../shared/constants.js';
+import { DEFAULT_RULES, normalizeRules, ruleRisk } from '../../shared/rules.js';
+import { ruleBadges } from '../../public/js/ui/lobbyRules.js';
 import { LARGE_ROOM_SEATS } from '../../shared/largeRoom.js';
 
 /** A realistic m.result in the shape server/match/results.js buildResult emits (replayed byte-identically). */
@@ -145,6 +147,20 @@ describe('local stats: record building', () => {
     assert.ok(res);
     assert.equal(res.altArt, undefined);
     assert.equal(normalizeResult(res).altArt, false);
+  });
+  test('(fork) the rules in force are kept, and the history re-view shows the +N, the tags and WITH CHEATS (#78)', () => {
+    const rules = { ...DEFAULT_RULES, extraFunds: true, ccInvestorBench: 2, ccSwift: 9, bogus: 1 };
+    const rec = buildRecord(baseResult(), { myId: 'p1', now: 1, rules });
+    assert.deepEqual(rec.rules, { extraFunds: true, ccInvestorBench: 2 });
+    assert.deepEqual(compactRecord(rec).rules, rec.rules);
+    const badges = ruleBadges(normalizeRules(rec.rules));
+    assert.equal(badges.risk, ruleRisk('ccInvestorBench', 2));
+    assert.ok(badges.risk > 0);
+    assert.equal(badges.cheats, 'WITH CHEATS');
+    // no rule in force: no key at all, so the record (and its id) is the same as before
+    const plain = buildRecord(baseResult(), { myId: 'p1', now: 1, rules: { ...DEFAULT_RULES } });
+    assert.equal('rules' in plain, false);
+    assert.deepEqual(plain, buildRecord(baseResult(), { myId: 'p1', now: 1 }));
   });
   test('roomMode falls back to the modeId (single → solo, multi → coop, else null)', () => {
     assert.equal(roomModeOf('mode_multi_funny', null), 'coop');
@@ -938,4 +954,18 @@ describe('local stats: official versions (DESIGN §35.23, format v3)', () => {
     assert.equal(levelProgress(recs, { counted: false, at, season: 'act1autochess' }).before, 200, '第一期\'s levels');
     assert.equal(levelProgress(recs, { counted: false, at, season: 'act2autochess' }).before, 200);
   });
+});
+
+test('challengePts (#192): kept by normalizeRecord only as a positive integer, and setChallengePts writes it into the stored record', async () => {
+  const mem = new Map();
+  globalThis.localStorage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => { mem.set(k, String(v)); }, removeItem: (k) => { mem.delete(k); } };
+  const S = await import('../../public/js/ui/stats.js');
+  const base = { t: 1000, end: 'settled', victory: true, selfId: 'p1', players: [{ playerId: 'p1', victory: true, roundsPassed: 15, stats: {} }] };
+  assert.equal(S.normalizeRecord({ ...base, challengePts: 40 }).challengePts, 40);
+  for (const bad of [0, -3, 1.5, '40', 1e9, null]) assert.equal('challengePts' in S.normalizeRecord({ ...base, challengePts: bad }), false, String(bad));
+  const rec = S.normalizeRecord({ ...base, id: 'r1' });
+  S.saveStats({ v: S.STATS_VERSION, records: [rec] });
+  assert.equal(S.setChallengePts('r1', 55), true);
+  assert.equal(S.loadStats().records[0].challengePts, 55);
+  assert.equal(S.setChallengePts('nope', 5), false); assert.equal(S.setChallengePts('r1', 0), false);
 });

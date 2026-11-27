@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// tools/fetch-release-local.mjs — the local-client art (public/assets/local/ + data/local-assets.json) of a full
+// tools/fetch-release-local.mjs — the local-client art (public/assets/local/ + data/local-*.json) of a full
 // release zip, for an install that has no Arknights client to extract it from (a Linux server running from source or
 // from the lite package; docs/DEPLOY.md §6 says to copy these two from the full package of the same version).
 //
@@ -13,10 +13,11 @@
 // Steps:
 //   1. The release: v<package.json version> by default (the same version as this code, as DEPLOY.md asks), --tag to
 //      pick another, --latest for the newest. Its full zip is Stronghold-Protocol-<tag>.zip (not -lite / -update).
-//   2. The zip's central directory → the entries under <top>/public/assets/local/ and <top>/data/local-assets.json.
+//   2. The zip's central directory → the entries under <top>/public/assets/local/ and its <top>/data/local-*.json lists
+//      (local-assets.json; since 0.3.0 also local-fx.json, the official battle effects the server offers).
 //   3. Each entry into .cache/release-local/<tag>/ (CRC-checked; an entry already there with the right size and CRC
 //      is kept, so an interrupted run resumes), adjacent entries fetched together in ranges of up to 16 MB.
-//   4. Swapped in: a current public/assets/local/ and data/local-assets.json are moved to
+//   4. Swapped in: a current public/assets/local/ and every data/local-*.json are moved to
 //      .cache/release-local/previous-<time>/ (never deleted), then the staged ones take their place.
 //
 // Options:
@@ -124,14 +125,14 @@ export function parseCentralDirectory(cd) {
 
 /**
  * The entries to install, each with its repo-relative `rel` path: files under `<top>/public/assets/local/` and
- * `<top>/data/local-assets.json` (`<top>/` is the zip's one top folder, or none). Directories, and any name that
+ * `<top>/data/local-*.json` (`<top>/` is the zip's one top folder, or none). Directories, and any name that
  * would leave the target (`..`, absolute, backslashes), are skipped.
  */
 export function selectLocalEntries(entries) {
   const out = [];
   for (const e of entries) {
     if (e.name.endsWith('/')) continue;
-    const m = /^(?:[^/]+\/)?((?:public\/assets\/local\/.+)|(?:data\/local-assets\.json))$/.exec(e.name);
+    const m = /^(?:[^/]+\/)?((?:public\/assets\/local\/.+)|(?:data\/local-[a-z0-9-]+\.json))$/.exec(e.name);
     if (!m) continue;
     const rel = m[1];
     if (rel.includes('\\') || rel.split('/').some((s) => s === '..' || s === '.' || s === '')) continue;
@@ -284,21 +285,25 @@ export async function run(opts = {}, { root = ROOT, fetchImpl = fetch, log = con
   }
 
   // swap in: the current ones are moved aside, never deleted
-  const liveDir = path.join(root, 'public', 'assets', 'local'), liveMan = path.join(root, 'data', 'local-assets.json');
+  const liveDir = path.join(root, 'public', 'assets', 'local');
+  const dataDir = path.join(root, 'data');
+  const localLists = (dir) => { try { return fs.readdirSync(dir).filter((f) => /^local-[a-z0-9-]+\.json$/.test(f)); } catch { return []; } };
+  const liveLists = localLists(dataDir);
   let previous = null;
-  if (fs.existsSync(liveDir) || fs.existsSync(liveMan)) {
+  if (fs.existsSync(liveDir) || liveLists.length) {
     previous = path.join(root, '.cache', 'release-local', `previous-${now().toISOString().replace(/[:.]/g, '-')}`);
     fs.mkdirSync(previous, { recursive: true });
     if (fs.existsSync(liveDir)) fs.renameSync(liveDir, path.join(previous, 'public-assets-local'));
-    if (fs.existsSync(liveMan)) fs.renameSync(liveMan, path.join(previous, 'local-assets.json'));
+    for (const f of liveLists) fs.renameSync(path.join(dataDir, f), path.join(previous, f));
     say(`[local] the previous local art is kept in ${path.relative(root, previous)}`);
   }
   fs.mkdirSync(path.dirname(liveDir), { recursive: true });
   fs.renameSync(path.join(stage, 'public', 'assets', 'local'), liveDir);
-  fs.mkdirSync(path.dirname(liveMan), { recursive: true });
-  fs.renameSync(path.join(stage, 'data', 'local-assets.json'), liveMan);
+  fs.mkdirSync(dataDir, { recursive: true });
+  const lists = localLists(path.join(stage, 'data'));
+  for (const f of lists) fs.renameSync(path.join(stage, 'data', f), path.join(dataDir, f));
   fs.rmSync(stage, { recursive: true, force: true });
-  say(`[local] installed ${sel.length} files from ${tag} into public/assets/local/ and data/local-assets.json`);
+  say(`[local] installed ${sel.length} files from ${tag} into public/assets/local/ and data/ (${lists.join(', ')})`);
   return { tag, url, files: sel.length, bytes, downloaded: todo.length, fetched, installed: true, previous };
 }
 

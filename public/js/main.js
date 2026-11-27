@@ -78,6 +78,7 @@ import { CoveredVersionVote } from './ui/versionVote.js';
 import { installRehearsal } from './battle/rehearsal.js';
 import { installBotHost } from './battle/botHost.js';
 import { recordResult, installStatsRecorder } from './ui/stats.js';
+import { completeFor } from './ui/challenges.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync, installSkinsSync, installCardSync, installSettingsViews, loadoutStore } from './ui/loadoutSync.js';
 import { installOutfitSync } from './ui/outfits.js';
 import { startBuildGuard } from './ui/buildGuard.js';
@@ -297,11 +298,23 @@ const CLOSE_REASON = {
   ended: N_('模拟已结束'), expired: N_('同盟已过期'), shutdown: N_('服务器维护中，同盟已关闭'),
   // a spectator left behind by a 搜寻队友 merge (no spectator seat free in the target room)
   merged: N_('同盟已与其他同盟合并，观战席已满'),
+  // the server is closing for maintenance and nobody acted on a choice screen for a while (Lobby.sweepAfk)
+  afk: N_('服务器即将维护，你长时间没有操作，已离开本局'),
   // (fork) a 搜寻队友 match on another server: room.move follows (public/js/regions.js)
   moved: N_('已找到队友，正在连接…'), // en: "Teammates found. Connecting…"
   // (fork) a matchmade room of another version: this page could not load its data in time (server/lobby.js waitContent)
   content: N_('未能载入该版本的数据，你已离开同盟'), // en: "This game version's data did not load, so you left the Alliance"
 };
+
+// the records the match's Custom Lobby Modifications change (data.js setRules: 煌 in 凯瑟琳's slot, 塑心's alliances) are
+// shown while that match is on screen; any other state shows the files as they are
+let shownRules = null;
+store.subscribe(() => {
+  const rules = store.get().match?.public?.rules ?? null;
+  if (rules === shownRules) return;
+  shownRules = rules;
+  data.setRules(rules);
+});
 
 function wireNet() {
   net.on('status', (snap) => {
@@ -366,7 +379,11 @@ function wireNet() {
     // it arrives after the room is gone, also to a freshly loaded page; only a non-default one is written)
     const s = store.get();
     const version = s.room ? roomVersion(s.room) : matchFrameVersion({ result: res, public: s.match.public });
-    if (s.room?.test !== true && s.match.public?.test !== true) recordResult(res, { myId: s.me.playerId, roomMode: s.room?.mode ?? null, vs: s.room?.content?.vs ?? null, content: s.room?.content ?? null, version: isDefaultVersion(version) ? null : version, now: Date.now() });
+    if (s.room?.test !== true && s.match.public?.test !== true) {
+      const rec = recordResult(res, { myId: s.me.playerId, roomMode: s.room?.mode ?? null, vs: s.room?.content?.vs ?? null, content: s.room?.content ?? null, rules: s.match.public?.rules ?? null, version: isDefaultVersion(version) ? null : version, now: Date.now() });
+      // (fork, #192) Challenges: the match just stored is checked against the open cards (ui/challenges.js; local only)
+      if (rec) completeFor(rec);
+    }
   });
   net.on('m.toast', (msg) => {
     const kind = ['info', 'success', 'warn', 'error'].includes(msg.kind) ? msg.kind : 'info';

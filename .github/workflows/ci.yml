@@ -1,7 +1,14 @@
 name: CI
 
+# Two tiers (GitHub #43). The full tier (job `test`, 4 shards × Ubuntu/Windows on Node 22, plus `node24` and `golden`;
+# the `full CI` check) runs on pushes to main, pull requests into main and by hand. The quick tier (job `quick`, one
+# Ubuntu runner without the slow test files, the `quick CI` check) runs on pull requests into any other branch — a mini/*
+# branch, or the branch below in a stack: what they collect reaches main in a pull request of its own, which runs the
+# full tier. Pushes to other branches run nothing: a branch with a pull request already gets its run from
+# `pull_request` (a push run on top was the same checks twice); run one by hand from the Actions tab (workflow_dispatch).
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -15,6 +22,7 @@ permissions:
 jobs:
   test:
     name: test (${{ matrix.os }}, node ${{ matrix.node }}, shard ${{ matrix.shard }})
+    if: github.event_name != 'pull_request' || github.base_ref == 'main'
     runs-on: ${{ matrix.os }}
     # Weights: author-reported run 39617468541 (not independently remeasured here), fullmatch-coop median 235132 ms,
     # Windows shard 0 wall clock 397 s. docs/CI.md records provenance; 20 min leaves runner variance/hang margin.
@@ -23,9 +31,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        # (fork) 24 = the LTS line the whole suite runs on, one job per shard (user 2026-11-24: its JUnit names each test's
-        # file, which re-weighing ci-shards.json needs). Node 22 has its own light lane while the live servers run it (job `node22`).
-        node: [24]
+        # 22 = the LTS line the whole suite runs on, one job per shard. Node 24 has its own light lane (job `node24`).
+        node: [22]
         # the shards of ci-shards.json: together they are exactly the full `npm test`, apart they are four shorter jobs
         shard: [0, 1, 2, 3]
     env:
@@ -37,9 +44,6 @@ jobs:
       NO_COLOR: '1'
       # tools/test-run.mjs runs this shard's files: `npm run test` stays the whole suite everywhere else
       SHARD: ${{ matrix.shard }}
-      # (fork) and writes the shard's JUnit report beside the normal output: the per-file times ci-shards.json is
-      # re-weighed from (docs/CI.md「权重来源与更新」), kept by the upload step below
-      JUNIT: junit.xml
     steps:
       - uses: actions/checkout@v7
 
@@ -58,16 +62,6 @@ jobs:
       # SHARD is unset). A bare `node --test` would also run every helper and fixture under test/.
       - name: Unit & integration tests
         run: npm run test
-
-      # (fork) the JUnit report of this shard, a failed run's too, kept 3 days: tools/test-timings.mjs reads it
-      - name: Upload JUnit report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: junit-${{ matrix.os }}-shard${{ matrix.shard }}
-          path: junit.xml
-          retention-days: 3
-          if-no-files-found: warn
 
       - name: Server smoke test (boot, /healthz, index.html, doctor)
         shell: bash
@@ -89,13 +83,18 @@ jobs:
           node tools/doctor.mjs || true
           kill $pid || true
 
-  # (fork) TEMPORARY: the node 22 lane, while the live servers still run node 22; remove it once they run 24. The other
-  # LTS line gets a cheap check, not a second full suite: the CI guards (node's own test runner and glob) and the plugin
-  # sandbox tests, whose child process and --permission flags are what differs between node versions on a server.
-  node22:
-    name: node 22 (live servers, temporary)
+  # The quick tier: pull requests into a branch other than main (mini/*, a stack). One runner, the test files without tools/test-tier.mjs
+  # SLOW_TEST_FILES (about a quarter of the suite's time), the setup check and the smoke test.
+  quick:
+    name: quick (ubuntu-latest, node 22)
+    if: github.event_name == 'pull_request' && github.base_ref != 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      SP_E2E: '0'
+      SP_REAL_E2E: '0'
+      RENDER_E2E: '0'
+      NO_COLOR: '1'
     steps:
       - uses: actions/checkout@v7
 
@@ -107,13 +106,56 @@ jobs:
       - name: Install (npm ci → postinstall copies public/vendor)
         run: npm ci --no-audit --no-fund
 
+      - name: Setup check (no downloads)
+        run: node tools/setup.mjs --check --no-local
+
+      - name: Quick tests (the slow files left out)
+        run: npm run test:quick
+
+      - name: Server smoke test (boot, /healthz, index.html, doctor)
+        shell: bash
+        run: |
+          node server/index.js > server.log 2>&1 &
+          pid=$!
+          ok=
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/healthz; then ok=1; break; fi
+            sleep 1
+          done
+          echo
+          [ -n "$ok" ] || { cat server.log; exit 1; }
+          # Save the page first: piping curl into `grep -q` let grep exit on the first match, curl then failed with a
+          # write error (23) and pipefail turned that into a flaky red step.
+          curl -fsS -o index.out http://127.0.0.1:3000/
+          grep -qi '<html' index.out
+          curl -fsS -o /dev/null http://127.0.0.1:3000/vendor/pixi.min.js
+          node tools/doctor.mjs || true
+          kill $pid || true
+
+
+  # The node 24 lane: the other maintained LTS line gets a cheap check, not a second full suite. A full 24 run is the
+  # 20-minute job the shards were introduced to remove, so 24 runs the CI guards — the shard table and the wiring of
+  # this file — which are also the tests that exercise node's own test runner and glob.
+  node24:
+    name: node 24 (CI guards)
+    if: github.event_name != 'pull_request' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install (npm ci → postinstall copies public/vendor)
+        run: npm ci --no-audit --no-fund
+
       - name: CI guard tests (sharding and workflow wiring)
         run: npm run test:guards
 
-      - name: Plugin sandbox tests (the live servers' node)
-        run: node --test test/plugins/sandbox-host.test.js test/match/plugin-host.test.js test/plugin-package.test.js
-
-  # Separate from the test matrix so lint / types / import boundaries run once, outside the eight test jobs.
+  # Separate from the test matrix so lint / types / import boundaries run once per run, in both tiers.
   # Lint warnings do not fail the job (npm run lint does not pass --max-warnings=0).
   tooling:
     name: tooling (lint, imports, typecheck)
@@ -124,7 +166,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 22
           cache: npm
 
       - name: Install (npm ci → postinstall copies public/vendor)
@@ -141,7 +183,8 @@ jobs:
 
   # Compare the full corpus once, independently of the OS × Node test matrix; never update expected results here.
   golden:
-    name: golden (full corpus, ubuntu, node 24)
+    name: golden (full corpus, ubuntu, node 22)
+    if: github.event_name != 'pull_request' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -149,7 +192,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 22
           cache: npm
 
       - name: Install (npm ci → postinstall copies public/vendor)
@@ -157,3 +200,25 @@ jobs:
 
       - name: Full Golden regression check
         run: npm run golden
+
+  # The two checks a ruleset requires (one per tier): green when every job of the tier passed, red otherwise (a run
+  # cancelled by a newer push reports neither); on the other tier's events the tier's jobs are skipped and its check with them.
+  full:
+    name: full CI
+    needs: [test, node24, golden, tooling]
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.base_ref == 'main') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job of the full tier passed
+        run: test "${{ needs.test.result }}" = success && test "${{ needs.node24.result }}" = success && test "${{ needs.golden.result }}" = success && test "${{ needs.tooling.result }}" = success
+
+  quick-ci:
+    name: quick CI
+    needs: [quick, tooling]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.base_ref != 'main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job of the quick tier passed
+        run: test "${{ needs.quick.result }}" = success && test "${{ needs.tooling.result }}" = success

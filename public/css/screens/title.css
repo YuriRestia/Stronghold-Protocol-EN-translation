@@ -358,6 +358,9 @@ html[data-script="alphabetic"] .title-login .btn--xl { letter-spacing: .3em; }
 .title-foot__meta { display: flex; align-items: flex-end; gap: .16rem; flex-wrap: wrap; justify-content: flex-end; }
 .title-repo { color: inherit; text-decoration: none; border-bottom: 1px solid transparent; }
 .title-repo:hover, .title-repo:focus-visible { color: var(--text-hi); border-bottom-color: currentColor; }
+/* (fork) the version line (ui/about.js VersionButton, GitHub #98 / #99): a quiet button that opens "What's new" */
+.title-version { padding: 0; border: 0; border-bottom: 1px solid transparent; background: none; color: inherit; font: inherit; cursor: pointer; }
+.title-version:hover, .title-version:focus-visible { color: var(--text-hi); border-bottom-color: currentColor; }
 /* a development build (shared/constants.js DEV_BUILD): an unmissable tag in the footer */
 .title-dev {
   padding: .03rem .1rem;
@@ -381,6 +384,13 @@ html[data-script="alphabetic"] .title-login .btn--xl { letter-spacing: .3em; }
 .about__facts dt { color: var(--text-lo); }
 .about__facts dd { margin: 0; overflow-wrap: anywhere; }
 .about__dim { color: var(--text-lo); }
+/* What's new (ui/about.js WhatsNewModal): one commit per row, date · subject · hash; it sits in the footer, so it takes
+   back the page's text color */
+.whats-new { color: var(--text-hi); }
+.whats-new__list { list-style: none; margin: 0 0 .12rem; padding: 0; display: flex; flex-direction: column; gap: .06rem; }
+.whats-new__list li { display: grid; grid-template-columns: auto 1fr auto; gap: .12rem; align-items: baseline; }
+.whats-new__subject { overflow-wrap: anywhere; }
+.issue-links { display: inline-flex; flex-wrap: wrap; gap: .08rem; }
 
 /* Discord (ui/discord.js) in the top-right corner: a filled blurple button with a slow glow, so it stands out beside the
    ghost 统计 / language buttons; the label stays visible on phones too (the corner has the room) */

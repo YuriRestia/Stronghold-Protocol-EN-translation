@@ -71,7 +71,8 @@ export function composeUnitRecord(identity, unit, form, { skillIndex, moduleId =
   const known = new Set(form.tokens || []);
   const tokenIds = new Set([...(form.displayTokens || []), skill?.overrideTokenKey, ...(talents || []).map((t) => t?.tokenKey)]
     .filter((id) => id && known.has(id)));
-  const info = moduleId ? unit.moduleNames?.[moduleId] ?? null : null;
+  // (Fish Edition) a Mod Z / W has no moduleNames entry: its own record names it
+  const info = moduleId ? unit.moduleNames?.[moduleId] ?? (mod?.fishModZ ? { name: mod.name, typeName: mod.typeName } : null) : null;
   const golden = !!identity.isGolden;
   const a = unit.assets || {};
   Object.assign(out, {

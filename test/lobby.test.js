@@ -14,7 +14,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { startServer, parseRange, acceptsGzip, pickEncoding, parseTrustProxy } from '../server/index.js';
 import { loadData, lookup, getChess, getBond, getBand, getMode, getConfig, INDEXED_FILES } from '../server/data.js';
 import * as dataModule from '../server/data.js';
-import { CODE_ALPHABET, BOT_NAMES, DEFAULT_DIFFICULTY } from '../server/lobby.js';
+import { CODE_ALPHABET, BOT_NAMES, BOT_NAMES_BY_LANG, botNames, DEFAULT_DIFFICULTY } from '../server/lobby.js';
 import { sanitizeName, TokenBucket, SessionRegistry, clientAddress, normalizeIp, isLocalIp, limitKeyOf } from '../server/net.js';
 import { StubMatch as Match } from '../server/match/StubMatch.js';
 import { Match as RealMatch } from '../server/match/Match.js';
@@ -960,6 +960,29 @@ describe('websocket lobby', () => {
     await expectOk(host, { t: 'room.leave' });
     const probe = await pool.player('Probe');
     await expectError(probe, { t: 'room.join', code: st.code }, ERR.ROOM_NOT_FOUND);
+  });
+
+  test('(fork) #89: the AI is named in the host\'s language (room.addBot lang); Chinese without one', async () => {
+    const host = await pool.player('Host');
+    await createRoom(host);
+    await expectOk(host, { t: 'room.addBot', lang: 'en' });
+    const s1 = await host.waitFor('room.state', (s) => s.seats[1]?.isBot);
+    assert.equal(s1.seats[1].name, 'AI·Warfarin');
+    await expectOk(host, { t: 'room.addBot', lang: 'ja-JP' });
+    const s2 = await host.waitFor('room.state', (s) => s.seats[2]?.isBot);
+    assert.equal(s2.seats[2].name, BOT_NAMES_BY_LANG.ja[0]);
+    await expectOk(host, { t: 'room.addBot' });
+    const s3 = await host.waitFor('room.state', (s) => s.seats[3]?.isBot);
+    assert.equal(s3.seats[3].name, BOT_NAMES[0]);
+    await expectOk(host, { t: 'room.leave' });
+  });
+
+  test('(fork) #89: botNames by language — a region falls back to its language, Chinese (and anything unknown) to BOT_NAMES', () => {
+    assert.equal(botNames('en'), BOT_NAMES_BY_LANG.en);
+    assert.equal(botNames('en-GB'), BOT_NAMES_BY_LANG.en);
+    assert.equal(botNames('zh-TW'), BOT_NAMES_BY_LANG['zh-TW']);
+    for (const l of ['zh', 'zh-HK', 'fr', '', undefined, 3]) assert.equal(botNames(l), BOT_NAMES, String(l));
+    for (const list of Object.values(BOT_NAMES_BY_LANG)) assert.equal(list.length, BOT_NAMES.length);
   });
 
   test('start flow: readiness gate → stub INFO_CHECK → end → back to LOBBY → play again', async () => {
