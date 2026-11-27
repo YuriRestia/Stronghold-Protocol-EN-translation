@@ -158,7 +158,7 @@ because the last fx run had read only the shipped bundles.
    the client as setup.mjs does (`--game`, `SP_GAME_DIR`, the remembered one, the usual install folders on drives C–Z).
 5. The card art framing (`data/card-art-framing.json`, docs/design/client.md): a new full art shows unplaced on the
    room, result and Grand Alliance cards until it is framed. `node tools/card-art-framing.mjs --check` lists the arts
-   with no entry (fetch-assets prints it at its end too). For each, with `<name>` its file name without `.webp`:
+   with no entry (fetch-assets prints it at its end too, through `tools/assets/card-art-check.mjs`). For each, with `<name>` its file name without `.webp`:
    `node tools/card-art-framing.mjs --register <scratch> --keep-registered --keep-stills --stills --only <name>` (the face
    from its official portrait), `.venv-extract/Scripts/python.exe -I -B tools/local-extract/illust_framing.py . <CN AB
    root> --out <scratch>/frames.json --only <name>` (the client prefab's box), then `node tools/card-art-framing.mjs

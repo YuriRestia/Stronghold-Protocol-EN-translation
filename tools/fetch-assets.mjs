@@ -660,9 +660,10 @@ async function main() {
     if (res) for (const l of fxCheck.describeGaps(res, 20)) log(l);
   } catch (e) { log(`outfit effects: not checked (${e?.message || e})`); }
   // (fork) full arts the card art framing has no entry for (a new outfit: its cards show the art unplaced): a warning
-  // with the commands (tools/card-art-framing.mjs --check, docs/OUTFITS.md "Adding outfits")
+  // with the commands (tools/assets/card-art-check.mjs, which ships with this script; the full list:
+  // tools/card-art-framing.mjs --check; docs/OUTFITS.md "Adding outfits")
   try {
-    const framing = await import('./card-art-framing.mjs');
+    const framing = await import('./assets/card-art-check.mjs');
     const rows = framing.checkFraming();
     if (rows) for (const l of framing.describeUnframed(rows, 20)) log(l);
   } catch (e) { log(`card art framing: not checked (${e?.message || e})`); }
