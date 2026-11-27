@@ -7,6 +7,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-27
 
+### Dark Proton and Beneath the Bark art framed on the cards
+
+- Astgenne the Lightchaser's Dark Proton and Magallan's Beneath the Bark now show their full art framed on the room, Grand Alliance, solo room and result cards like every other outfit: on the face from the official portrait on the wide cards, where the official client places it on the tall ones.
+- Before: the two outfits added on 2026-11-27 had no framing, so their art showed unplaced.
+
 ### Two new outfits: Dark Proton and Beneath the Bark
 
 - Astgenne the Lightchaser can wear Dark Proton (Raythean Striker/IV), and Magallan can wear Beneath the Bark (EPOQUE/LX), with their avatar, portrait, full art and battle model. Magallan's drones change with her outfit.
