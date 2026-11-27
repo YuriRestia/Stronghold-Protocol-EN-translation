@@ -72,6 +72,16 @@ with tempfile.TemporaryDirectory() as d:
     assert.deepEqual(out[5], ['skinpack/a.ab']);
   });
 
+  test('(fork) outfit_skin_id: a skinpack battle prefab names its outfit (index.json skins key); token looks do not', () => {
+    const out = py(`print(json.dumps([fx.outfit_skin_id(p) for p in [
+      'dyn/battle/prefabs/skins/character/char_1047_halo2/char_1047_halo2_striker#4.prefab',
+      'dyn/battle/prefabs/skins/character/char_1033_swire2/char_1033_swire2_ambienceSynesthesia#4.prefab',
+      'dyn/battle/prefabs/skins/character/token_10005_mgllan_drone1/token_10005_mgllan_drone1_epoque#60.prefab',
+      'dyn/arts/characters/char_1047_halo2/illust_char_1047_halo2_striker#4.prefab',
+      'dyn/battle/prefabs/skins/character/char_1047_halo2/char_9999_other_x#1.prefab']]))`);
+    assert.deepEqual(out, ['char_1047_halo2@striker#4', 'char_1033_swire2@ambiencesynesthesia#4', null, null, null]);
+  });
+
   test('(fork) skin_fx_map with the skinpack pairs: the official replacement wins over the name rule (丰川祥子 S2 crosswise)', () => {
     const keys = ['s_a', 's_b', 's_a_avemujica#1', 's_b_avemujica#1', 'birth', 'x_birth_boc#1'];
     const pairs = { 'avemujica#1': { s_a: 's_b_avemujica#1', s_b: 's_a_avemujica#1' }, 'boc#1': { birth: 'x_birth_boc#1', gone: 'gone_boc#1' } };

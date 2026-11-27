@@ -126,6 +126,15 @@ An outfit's own official effects are twins of its operator's effect prefabs, `<k
 `render/vfx/wiring.js` skinKey plays the twin for a unit wearing that outfit. Without them the outfit plays the
 operator's own effects.
 
+- **Whose outfit.** An effect on another unit or on the ground plays the twin of the unit it comes from (`playOn`
+  `by`): a sim state row's src (`skillfx.js _states`: Dark Proton's S3 link on each locked enemy), a kit fx binding's
+  owner, a projectile's attacker (`flipFrom`).
+- **Its own mount points.** An outfit's model has its own Muzzle, HitPoint and Special points (Dark Proton's gun is
+  shorter: its muzzle sits at x 0.53, the default model's at 2.45). The fx index lists them under the outfit id
+  (`skins['char_1047_halo2@striker#4']`, `fx.py outfit_skins`, read from the outfit's battle prefab in
+  `skinpack/<charId>.ab`; 309 outfits on 2026-11-27) and `wiring.js skinOfView` uses them for a unit wearing it, each
+  point the outfit's prefab lacks taken from the default model's (19 outfits name fewer Special points).
+
 ## Adding outfits
 
 New outfits arrive with a CN client update. Their effects come with the client's hot update

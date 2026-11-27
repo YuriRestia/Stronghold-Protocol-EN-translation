@@ -2818,6 +2818,48 @@ def skin_points(env, rel, prefab, graphic, container=None):
     return points
 
 
+OUTFIT_PREFAB = re.compile(r'/battle/prefabs/skins/character/([^/]+)/([^/]+)\.prefab$', re.I)
+
+
+def outfit_skin_id(container):
+    """(fork) The outfit id of a skinpack battle prefab's container path — `…/battle/prefabs/skins/character/
+    char_1047_halo2/char_1047_halo2_striker#4.prefab` → 'char_1047_halo2@striker#4' (data/outfits.json ids, lower
+    case) —, else None (a token's look or anything else)."""
+    m = OUTFIT_PREFAB.search(container or '')
+    if not m:
+        return None
+    uid, model = m.group(1).lower(), m.group(2).lower()
+    if not uid.startswith('char_') or not model.startswith(uid + '_'):
+        return None
+    return f'{uid}@{model[len(uid) + 1:]}'
+
+
+def outfit_skins(ab_root, cabs, units, chars, have, log=lambda _m: None):
+    """(fork) index.json `skins` of the outfits: each outfit's own mount points (Muzzle, HitPoint …), read from its
+    battle prefab in skinpack/<charId>.ab under the operator's charpack Graphic, as its defaultskin's are
+    (skin_points). The outfit's gun or arm sits elsewhere than the default model's, so its effects need its own points
+    (溯光星源's 暗能质子 S3 cast at the muzzle). Keyed by outfit id (outfit_skin_id; render/vfx/wiring.js skinOfView);
+    `chars` limits it to those operators, `have` skips the outfits already listed."""
+    out = {}
+    for uid in sorted(chars):
+        rel = f'skinpack/{uid}.ab'
+        if uid not in units or not ab_path(ab_root, rel).exists():
+            continue
+        env = AssetEnv(ab_root, cabs)
+        try:
+            for path in sorted(env.prefabs(rel, full=True)):
+                oid = outfit_skin_id(path)
+                if not oid or oid in have or not oid.startswith(uid + '@'):
+                    continue
+                pts = skin_points(env, rel, None, units[uid].get('graphic'), container=path)
+                if pts:
+                    out[oid] = {'source': f'{rel} {path.split("/")[-1][:-len(".prefab")]}', 'graphic': units[uid].get('graphic'),
+                                'points': pts}
+        except Exception as e:  # noqa: BLE001 — one unreadable skinpack keeps its outfits on the default points
+            log(f'  skip skinpack {rel}: {e!r}')
+    return out
+
+
 def strings_of(v, out):
     """all_strings without the fields that name animations or sounds (NOT_EFFECT_FIELDS)."""
     if isinstance(v, dict):
@@ -3798,6 +3840,13 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
         groups = {g: ({**v, **(old_groups.get(g) or {})} if add_only else {**(old_groups.get(g) or {}), **v})
                   for g, v in groups.items()}
         set_name = prev.get('set') or set_name
+    # (fork) the outfits' own mount points (outfit_skins) of the operators data/outfits.json dresses, those not listed yet
+    t0 = time.time()
+    outfits = _read_json(root / 'data' / 'outfits.json') or {}
+    dressed = {r.get('charId') for r in outfits.values() if isinstance(r, dict) and r.get('charId')}
+    osk = outfit_skins(ab_root, cabs, units, dressed, set(skins), log)
+    skins = {**skins, **osk}
+    log(f'fx: {len(osk)} outfits\' own mount points ({time.time() - t0:.0f} s)')
     groups = {'fx': {'index': {'path': url('index.json'), 'kind': 'FxIndex', 'version': INDEX_VERSION, 'set': set_name,
                                'prefabs': len(summaries)},
                      'textures': {'path': url('textures.json'), 'kind': 'FxTextures', 'count': len(tex_all)}},

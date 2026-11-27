@@ -444,6 +444,28 @@ export class FxWiring {
   skinOf(u) { return u && u.skin && this.idx ? this.idx.skins[u.skin] || null : null; }
 
   /**
+   * (fork) The mount points of view v's drawn model: its outfit's own (index.json skins['<charId>@<outfit>#N'],
+   * tools/local-extract/fx.py outfit_skins — the outfit's gun or arm sits elsewhere: 暗能质子's muzzle), each point
+   * the outfit's prefab lacks taken from the unit's (19 outfits name fewer Special points than their default model);
+   * else its unit's (the default model's).
+   */
+  skinOfView(v) {
+    const base = this.skinOf(this.unitOf(v));
+    const m = v?.info?.model;
+    const id = typeof m === 'string' && m.includes('@') ? m.toLowerCase() : null;
+    const own = id && this.idx?.skins ? this.idx.skins[id] : null;
+    if (!own) return base;
+    if (!base?.points) return own;
+    this._outfitSkins ??= new Map();
+    let merged = this._outfitSkins.get(id);
+    if (!merged || merged.own !== own || merged.base !== base) {
+      merged = { own, base, skin: { ...own, points: { ...base.points, ...own.points } } };
+      this._outfitSkins.set(id, merged);
+    }
+    return merged.skin;
+  }
+
+  /**
    * (fork) The outfit suffix a view wears (its info.model: `char_4182_oblvns@avemujica#1` → 'avemujica#1'), or null — the key of index.json `skinFx` (tools/local-extract/fx.py skin_variant).
    */
   outfitOf(v) {
@@ -703,8 +725,7 @@ export class FxWiring {
       if (alt === 'common_empty') return null;
       if (alt && alt !== k && this.ofx.lib.has(alt)) { k = alt; def = this.ofx.lib.def(k); }
     }
-    const u = this.unitOf(v);
-    const skin = this.skinOf(u);
+    const skin = this.skinOfView(v);
     const pose = this.pose(v);
     pose.strike = !!o.strike;
     let P = this._placing(def, def ? null : this.idx?.prefabs?.[k] || null, o);
@@ -1288,8 +1309,7 @@ export class FxWiring {
    * time of its own (a shot flown for show, R16). Returns the battle seconds until the hit.
    */
   _fly(proj, src, tgt, kind, time, o = {}) {
-    const su = this.unitOf(src), tu = this.unitOf(tgt);
-    const sSkin = this.skinOf(su), tSkin = this.skinOf(tu);
+    const sSkin = this.skinOfView(src), tSkin = this.skinOfView(tgt);
     // the start: the mount point as the attack clip poses it at its strike frame (a follow-up shot: as it is drawn then);
     // a rope's end on the shooter follows the point as it is drawn
     const startAt = (out, strike = false) => {
@@ -1734,7 +1754,7 @@ export class FxWiring {
   /** A chain's bounce lands: its line from prev to next (kept on their HitPoints while it shows), its hit on next. */
   _bounce(c, prev, next) {
     if (!next || next.destroyed) return;
-    const ps = this.skinOf(this.unitOf(prev)), ns = this.skinOf(this.unitOf(next));
+    const ps = this.skinOfView(prev), ns = this.skinOfView(next);
     const a = unitPoint(ps, 'hit', this.pose(prev)), b = unitPoint(ns, 'hit', this.pose(next));
     if (c.line && this.ofx.lib.has(c.line)) {
       const h = this.ofx.spawn(this.skinKey(c.line, c.src), { pos: a.slice(), groundZ: -(prev.z || 0) }, {
@@ -1994,7 +2014,7 @@ export class FxWiring {
    */
   hitPoint(v) {
     if (!v || v.destroyed) return null;
-    const skin = this.skinOf(this.unitOf(v));
+    const skin = this.skinOfView(v);
     if (!skinPoint(skin, 'hit', false)) return null;
     const pose = this.pose(v);
     const o = unitPoint(skin, 'hit', pose, this._hitOut || (this._hitOut = [0, 0, 0]));
