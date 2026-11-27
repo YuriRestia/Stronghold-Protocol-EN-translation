@@ -26,6 +26,11 @@
 //   node tools/card-art-framing.mjs --official <frames.json>   (from tools/local-extract/illust_framing.py; after any
 //     --register run, which writes new stills: where the official card puts each still-only art, for the tall cards)
 //   node tools/card-art-framing.mjs --reface <frames.json>   (after --official: the faces matched wrongly, searched again)
+//   node tools/card-art-framing.mjs --check [--strict]   (the full arts with no framing yet: a new outfit; fetch-assets
+//     prints it too)
+//   A new art only (docs/OUTFITS.md "Adding outfits"): --register <scratch> --keep-registered --keep-stills --stills,
+//   then illust_framing.py, --official and --reface, each with --only <art file name> (the others are left as they are).
+//   The art files are read where data/assets.json puts them (outfit/art2k since 2026-11-24).
 // Caps: 30 pages, 20 min capture, 200 MB of captures, 25 min matching, log < 200 KB.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -281,6 +286,51 @@ export function artOfKey(assets, key) {
   const m = /^(.*)_2$/.exec(key);
   return m ? assets.outfits.defaults[m[1]]?.art || null : null;
 }
+/** Every full art's file name (the table's key) → its manifest path (data/assets.json `art`, e.g. /assets/outfit/art2k/…):
+ * the files live where the asset list says (outfit/art → outfit/art2k, 2026-11-24), never at a fixed folder. */
+export function artFiles(assets) {
+  const m = new Map();
+  for (const r of [...Object.values(assets.outfits.chars), ...Object.values(assets.outfits.defaults)]) {
+    if (r?.art) m.set(path.posix.basename(r.art), r.art);
+  }
+  return m;
+}
+
+/** How a new art gets framed (docs/OUTFITS.md "Adding outfits"): `<name>` = the art's file name without .webp. */
+export const FRAME_FILL = 'frame them (docs/OUTFITS.md "Adding outfits"), per art <name>: node tools/card-art-framing.mjs '
+  + '--register <scratch> --keep-registered --keep-stills --stills --only <name>; .venv-extract/Scripts/python.exe -I -B '
+  + 'tools/local-extract/illust_framing.py . <CN AB root> --out <scratch>/frames.json --only <name>; then --official and '
+  + '--reface <scratch>/frames.json --only <name>';
+/**
+ * The full arts of the asset list the table has no framing for (a new outfit or operator: its cards show the art
+ * unplaced until it is framed): every art --stills would frame (an outfit with its portrait, an operator's default art
+ * with an Elite portrait on disk) whose file is on disk and has no `stills` entry. `exists(url)` checks a public URL.
+ */
+export function unframedArts(table, assets, exists = () => true) {
+  const have = new Set(Object.keys(table?.stills || {}));
+  const out = [];
+  const add = (id, art) => { const b = path.posix.basename(art); if (!have.has(b) && exists(art)) out.push({ id, art: b }); };
+  for (const [id, r] of Object.entries(assets?.outfits?.chars || {})) if (r?.art && r.portrait) add(id, r.art);
+  for (const [cid, r] of Object.entries(assets?.outfits?.defaults || {})) {
+    if (r?.art && [2, 1].some((e) => exists(`/assets/char/portrait/${cid}_${e}.png`))) add(cid, r.art);
+  }
+  return out;
+}
+/** Human lines for unframedArts (fetch-assets prints at most 20 arts). */
+export function describeUnframed(rows, max = Infinity) {
+  if (!rows.length) return ['card art framing: every full art is framed'];
+  const lines = [`card art framing: ${rows.length} full arts have no framing (their cards show them unplaced); ${FRAME_FILL}`,
+    ...rows.slice(0, max).map((r) => `  ${r.id}: ${r.art}`)];
+  if (rows.length > max) lines.push(`  … ${rows.length - max} more (node tools/card-art-framing.mjs --check lists them all)`);
+  return lines;
+}
+/** The check of this checkout (null without the asset list's files: nothing to check). */
+export function checkFraming(root = ROOT) {
+  const read = (p) => { try { return JSON.parse(fs.readFileSync(path.join(root, p), 'utf8')); } catch { return null; } };
+  const assets = read('data/assets.json');
+  if (!assets || !fs.existsSync(path.join(root, 'public/assets/outfit'))) return null;
+  return unframedArts(read('data/card-art-framing.json'), assets, (u) => fs.existsSync(path.join(root, 'public', u.replace(/^\//, ''))));
+}
 
 async function build() {
   const { default: sharp } = await import('sharp');
@@ -340,7 +390,7 @@ async function build() {
       if (p.length) list.push({ art: rec.art, portraits: p, id: cid });
     }
     for (const it of list) {
-      if (only && !it.id.includes(only)) continue;
+      if (only && !it.id.includes(only) && !base(it.art).includes(only)) continue;
       if (Date.now() - T0 > LIMIT) { log('time cap'); break; }
       if (out.stills[base(it.art)] || !fs.existsSync(file(it.art))) continue;
       let best = null;
@@ -393,10 +443,11 @@ async function reframe() {
   const OUT = arg('--out', path.join(ROOT, 'data/card-art-framing.json'));
   const t = JSON.parse(fs.readFileSync(OUT, 'utf8'));
   const H = 458, W = H * STILL_AR;
+  const files = artFiles(JSON.parse(fs.readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')));
   let n = 0;
   for (const [art, e] of Object.entries(t.stills || {})) {
-    if (!Array.isArray(e.face)) continue;
-    const f = path.join(ROOT, 'public/assets/outfit/art', art);
+    if (!Array.isArray(e.face) || !files.has(art)) continue;
+    const f = path.join(ROOT, 'public', files.get(art).replace(/^\//, ''));
     if (!fs.existsSync(f)) continue;
     const am = await sharp(f).metadata();
     const alpha = await planes(sharp, f, 128, Math.max(8, Math.round(128 * am.height / am.width)));
@@ -443,7 +494,8 @@ async function reface() {
   const { default: sharp } = await import('sharp');
   const OUT = arg('--out', path.join(ROOT, 'data/card-art-framing.json'));
   const t = JSON.parse(fs.readFileSync(OUT, 'utf8')), frames = JSON.parse(fs.readFileSync(arg('--reface'), 'utf8'));
-  const assets = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).outfits;
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8'));
+  const assets = manifest.outfits, files = artFiles(manifest), only = arg('--only');
   const linked = new Set(Object.values(t.registered || {}).map((e) => e.art));
   const pub = (u) => path.join(ROOT, 'public', u.replace(/^\//, ''));
   const portraits = new Map();
@@ -452,8 +504,9 @@ async function reface() {
   const T0 = Date.now();
   const H = 458, W = H * STILL_AR;
   for (const [art, e] of Object.entries(t.stills)) {
-    const f = frames[art], file = pub(`/assets/outfit/art/${art}`);
-    if (linked.has(art) || !f || !e.official || !fs.existsSync(file)) continue;
+    if (only && !art.includes(only)) continue;
+    const f = frames[art], file = files.has(art) ? pub(files.get(art)) : null;
+    if (linked.has(art) || !f || !e.official || !file || !fs.existsSync(file)) continue;
     const ui = ((e.face[1] - e.face[2]) / (PORTRAIT_FACE - PORTRAIT_TOP)) * (f.box[3] - f.box[1]) * f.h;
     if (e.score >= REFACE_BELOW && ui >= PORTRAIT_UI[0] && ui <= PORTRAIT_UI[1]) continue;
     if (Date.now() - T0 > 12 * 60e3) throw new Error('time cap, nothing written');
@@ -502,9 +555,13 @@ function official() {
   const OUT = arg('--out', path.join(ROOT, 'data/card-art-framing.json'));
   const t = JSON.parse(fs.readFileSync(OUT, 'utf8')), frames = JSON.parse(fs.readFileSync(arg('--official'), 'utf8'));
   const linked = new Set(Object.values(t.registered || {}).map((e) => e.art));
+  // --only <text>: only the arts whose file name holds it (a frames file made with illust_framing.py --only lists just
+  // those; without this every other art would lose its official box)
+  const only = arg('--only');
   let n = 0;
   const none = [];
   for (const [art, e] of Object.entries(t.stills || {})) {
+    if (only && !art.includes(only)) continue;
     delete e.official;
     if (linked.has(art)) continue;
     if (!frames[art]) { none.push(art); continue; }
@@ -519,7 +576,11 @@ function official() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (arg('--official')) official();
+  if (has('--check')) {
+    const rows = checkFraming();
+    for (const l of rows ? describeUnframed(rows) : ['card art framing: no local art (public/assets/outfit), nothing to check']) console.log(l);
+    if (has('--strict') && rows?.length) process.exitCode = 1;
+  } else if (arg('--official')) official();
   else if (arg('--reface')) await reface();
   else if (has('--reframe')) await reframe();
   else if (arg('--capture')) await capture();

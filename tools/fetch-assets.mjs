@@ -659,6 +659,13 @@ async function main() {
     const res = await fxCheck.checkOutfitFx();
     if (res) for (const l of fxCheck.describeGaps(res, 20)) log(l);
   } catch (e) { log(`outfit effects: not checked (${e?.message || e})`); }
+  // (fork) full arts the card art framing has no entry for (a new outfit: its cards show the art unplaced): a warning
+  // with the commands (tools/card-art-framing.mjs --check, docs/OUTFITS.md "Adding outfits")
+  try {
+    const framing = await import('./card-art-framing.mjs');
+    const rows = framing.checkFraming();
+    if (rows) for (const l of framing.describeUnframed(rows, 20)) log(l);
+  } catch (e) { log(`card art framing: not checked (${e?.message || e})`); }
   // (fork) the impostor clip bounds of every model now on disk (tools/assets/clip-bounds.mjs; SP_NO_CLIP_BOUNDS=1 skips)
   if (process.env.SP_NO_CLIP_BOUNDS !== '1') {
     try { await (await import('./assets/clip-bounds.mjs')).writeClipBounds({ log }); } catch (e) { log(`[clip-bounds] not written: ${e?.message || e} (run npm run clip-bounds)`); }

@@ -478,6 +478,9 @@ version; base/E2 avatars and half-body portraits are mandatory where the data se
     ([ASSUMED] for 自在's 破桎而出). `test/enemy-skill-clips.test.js` compares every enemy slot the sim casts with the
     official animKey when the effects index is extracted. `applyRoleFix` checks every clip of a `skills` map; a fix naming
     a missing clip keeps the resolved roles.
+- **Card art framing check** (fork, `tools/card-art-framing.mjs --check`): at the end of a run, the full arts on disk
+  that `data/card-art-framing.json` has no framing for (a new outfit) are listed with the commands that frame them
+  (docs/OUTFITS.md "Adding outfits" step 5). A warning only; nothing is written.
 - **Fonts:** OTF/TTF files are converted to WOFF2 by a built-in encoder (`tools/assets/woff2.mjs`: Brotli with null transforms).
   - Its output was verified lossless against Google's reference `woff2` decoder.
   - `fonts.css` lists WOFF2 first and falls back to the original file.

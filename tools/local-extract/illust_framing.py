@@ -7,7 +7,8 @@ root's RectTransform (m_AnchoredPosition, m_SizeDelta) is the art's own place in
 
 Read (relative to the AB root; a hot update under Arknights_Data/PersistentData/Bundles wins):
   chararts/<charId>.ab, skinpack/<charId>.ab   prefab `illust_<portraitId>` and its Sprite / Texture2D `<portraitId>`
-  data/assets.json, data/outfits.json, public/assets/outfit/art/*.webp (our copies, some trimmed to their opaque box)
+  data/assets.json, data/outfits.json, the full arts where data/assets.json puts them (public/assets/outfit/art2k/*.webp
+  since 2026-11-24; our copies, some trimmed to their opaque box)
 Written (--out): { art file: { x, y, w, h, box: [l, t, r, b], err } } - the prefab's position and size in UI units (y up)
 and the part of the official canvas our file holds, in canvas fractions (top-left origin). An art is listed only when our
 file's picture matches that part (mean RGB difference at most MAX_ERR of 255); the others are printed.

@@ -156,3 +156,11 @@ because the last fx run had read only the shipped bundles.
    the outfits whose own effects the index lacks, or whose client effect bundle changed since the last fx run (the
    extractor's `.cache/fx/effects.json` against the client's files, hot update first), with the command above. It finds
    the client as setup.mjs does (`--game`, `SP_GAME_DIR`, the remembered one, the usual install folders on drives C–Z).
+5. The card art framing (`data/card-art-framing.json`, docs/design/client.md): a new full art shows unplaced on the
+   room, result and Grand Alliance cards until it is framed. `node tools/card-art-framing.mjs --check` lists the arts
+   with no entry (fetch-assets prints it at its end too). For each, with `<name>` its file name without `.webp`:
+   `node tools/card-art-framing.mjs --register <scratch> --keep-registered --keep-stills --stills --only <name>` (the face
+   from its official portrait), `.venv-extract/Scripts/python.exe -I -B tools/local-extract/illust_framing.py . <CN AB
+   root> --out <scratch>/frames.json --only <name>` (the client prefab's box), then `node tools/card-art-framing.mjs
+   --official <scratch>/frames.json --only <name>` and `--reface <scratch>/frames.json --only <name>`. `--only` leaves
+   every other entry as it is. Dark Proton and Beneath the Bark were framed this way on 2026-11-27 (scores 0.908, 0.916).
