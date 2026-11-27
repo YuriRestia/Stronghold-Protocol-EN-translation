@@ -1,7 +1,7 @@
 {
   "abTail": ["Arknights_Data", "StreamingAssets", "AB", "Windows"],
   "gameFolders": ["Arknights", "Arknights Game"],
-  "windowsDrives": ["C", "D", "E", "F", "G", "H"],
+  "windowsDrives": ["C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"],
   "windowsBases": [
     ["Program Files", "Hypergryph Launcher", "games"],
     ["Program Files (x86)", "Hypergryph Launcher", "games"],
