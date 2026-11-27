@@ -5,6 +5,27 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-11-27
+
+### Two new outfits: Dark Proton and Beneath the Bark
+
+- Astgenne the Lightchaser can wear Dark Proton (Raythean Striker/IV), and Magallan can wear Beneath the Bark (EPOQUE/LX), with their avatar, portrait, full art and battle model. Magallan's drones change with her outfit.
+- Both outfits play their own official effects when the official effects setting is on: Dark Proton's attacks, deploy, skills and talents (its S3 with its own range and aura), and Beneath the Bark's attacks, deploy and skills.
+- Outfit effects now start from the outfit's own model: a muzzle flash leaves the outfit's gun, not where the default model's gun would be (Dark Proton's S3, and every other outfit with a differently shaped weapon).
+- Effects an outfit puts on enemies use the outfit's look: Dark Proton's S3 link on each locked enemy.
+- Astgenne the Lightchaser's S3 draws its link line between the two enemies it locks, in either look.
+- Both outfits are new in the official CN client and have no official English name yet, so these names will change to the official ones once the EN client gets these outfits.
+
+### Matches with players on another server keep your custom picks
+
+- When matchmaking places you in a room on another server, your DIY squad picks, skill and module choices, potential and training, not-owned list, outfits, skins and seat card now come with you into that match.
+- Before: if your arrival filled the room, the match started without them (for example, a DIY operator never appeared in your shop), and they only applied from the next match.
+
+### Pushed and pulled enemies slide on every tick
+
+- A push or pull now always slides the enemy to where it lands.
+- Before: on game ticks whose time rounds down to the millisecond, the enemy jumped most of the way in one frame and crawled the rest. The snapshot's time is rounded to the ms while the battle's events carry the exact time, so the push's start was missed by the look-ahead in `render/app.js`.
+
 ## 2026-11-24
 
 ### Still outfit and Elite 2 art uses the official framing on the solo room and result cards
