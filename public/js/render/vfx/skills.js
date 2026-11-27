@@ -762,6 +762,15 @@ export const STATE_BUFFS = Object.freeze({
  * (fork) A plan's `state` entries a b.snap `fxs` row shows (STATE_BUFFS): that buff's, narrowed to the spec's `keys` and
  * the look's (a `byFacing` buff without a look: the carrier's side, `facing` −1 'left', else 'right').
  */
+/**
+ * (fork) A LockTargetAbility's line between the units it locks: the state buff its `_buff` puts on each (STATE_BUFFS,
+ * b.snap `fxs`) → its `_lineEffect` (official client dump: LockTargetAbility `_buff`, `_lineEffect`, `m_lineRenderers`;
+ * index.json lists the line as the ability's `unclassified` effect). SkillFx._lockLines draws it through the HitPoints
+ * of one src's carriers while two or more hold the buff, in the src's outfit twin. 溯光星源 S3's LinkEnemy: the line
+ * between her two locked enemies (the kit's damage share, kits/ops/chess_char_6_16-halo2.js).
+ */
+export const LOCK_LINES = Object.freeze({ 'halo2_s_3_link': 'halo2_skill_03_line_01' });
+
 /** (fork) Whether a use of `buff` with prefab `key` is a STATE_BUFFS row (an entry's `keys`, when listed, narrow it). */
 export const stateRow = (buff, key) => { const s = STATE_BUFFS[buff]; return !!s && (!s.keys || s.keys.includes(key)); };
 

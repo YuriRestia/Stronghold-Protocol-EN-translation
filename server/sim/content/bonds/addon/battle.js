@@ -324,6 +324,9 @@ function raidBoard(battle, r, c) {
 function raidTile(battle, u, e, reach) {
   const er = Math.round(e.y), ec = Math.round(e.x);
   const ranged = u.def?.position === 'RANGED';
+  const standRanged = ranged || !!u.fishRaidRanged;   // (Fish Edition) Mod V: Degenbrecher may land on ranged tiles too
+  // ... and on the plain floor tiles a boss's body stands on (low ground nobody may normally build on)
+  const stand = (r, c) => battle.grid.canStand(r, c, { ranged: standRanged }) || (!!u.fishRaidRanged && battle.grid.tile(r, c).key === 'tile_floor' && battle.grid.tile(r, c).height === 'LOW');
   const body = bodyKeys(e);
   // The window is measured to the tiles the enemy occupies, never to the tile its position rounds to: a huge unit's
   // hitArea offset and its route anchor split the same body differently (enemy_9021_acduml dx 0 from col 10 and
@@ -342,7 +345,7 @@ function raidTile(battle, u, e, reach) {
       const r = br - reach[i], c = bc - reach[i + 1], dr = r - er, dc = c - ec;
       const wr = Math.min(Math.max(r, bR0), bR1) - r, wc = Math.min(Math.max(c, bC0), bC1) - c;   // gap to the body
       if (Math.abs(wr) > RAID_SEARCH || Math.abs(wc) > RAID_SEARCH) continue;
-      if (!battle.grid.inRect(r, c) || !raidBoard(battle, r, c) || !battle.grid.canStand(r, c, { ranged }) || battle.isReservedTile(r, c)) continue;
+      if (!battle.grid.inRect(r, c) || !raidBoard(battle, r, c) || !stand(r, c) || battle.isReservedTile(r, c)) continue;
       const t = r * COLS + c;
       const p = path && battle.grid.tile(r, c).pass === 'ALL' && (path.has(t) || body.includes(t)) ? 0 : 1;   // its block applies
       const d = Math.max(Math.abs(dr), Math.abs(dc)) + 0.01 * (Math.abs(dr) + Math.abs(dc));
@@ -410,7 +413,8 @@ function raidRefreshContact(battle, u) {
 
 function raidPoll(battle, st) {
   const bb = st.bb[ID.raid];
-  const idle = num(bb.no_attack_duration, isFirstPeriod() ? Infinity : 10);
+  // (Fish Edition) Mod V Viviana with Degenbrecher on the field: this player's Raid members wait 1 s (battle.fishRaidIdle)
+  const idle = battle.fishRaidIdle?.get(st.pid) ?? num(bb.no_attack_duration, isFirstPeriod() ? Infinity : 10);
   // Ordinary and post-revive orders stay separate: one poll can hold a member of each.
   let plain = null, taunted = null;
   for (const u of st.members[ID.raid]) {

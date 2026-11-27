@@ -479,6 +479,7 @@ export function compactResult(res) {
       bossDamage: Math.max(0, Math.round(fnum(p.bossDamage))),
       healingDone: Math.max(0, Math.round(fnum(p.healingDone))),
       deaths: Math.max(0, Math.trunc(fnum(p.deaths))),
+      downs: Math.max(0, Math.trunc(fnum(p.downs))),
       unitsEnd: cap(p.unitsEnd, 64).filter(Boolean).map((u) => ({
         uid: uidOr(u.uid), defId: keyOr(u.defId), hpPct: Math.max(0, Math.min(1, fnum(u.hpPct))), sp: Math.max(0, Math.min(1e5, fnum(u.sp))),
         skillActive: !!u.skillActive, alive: !!u.alive,

@@ -955,3 +955,17 @@ describe('local stats: official versions (DESIGN §35.23, format v3)', () => {
     assert.equal(levelProgress(recs, { counted: false, at, season: 'act2autochess' }).before, 200);
   });
 });
+
+test('challengePts (#192): kept by normalizeRecord only as a positive integer, and setChallengePts writes it into the stored record', async () => {
+  const mem = new Map();
+  globalThis.localStorage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => { mem.set(k, String(v)); }, removeItem: (k) => { mem.delete(k); } };
+  const S = await import('../../public/js/ui/stats.js');
+  const base = { t: 1000, end: 'settled', victory: true, selfId: 'p1', players: [{ playerId: 'p1', victory: true, roundsPassed: 15, stats: {} }] };
+  assert.equal(S.normalizeRecord({ ...base, challengePts: 40 }).challengePts, 40);
+  for (const bad of [0, -3, 1.5, '40', 1e9, null]) assert.equal('challengePts' in S.normalizeRecord({ ...base, challengePts: bad }), false, String(bad));
+  const rec = S.normalizeRecord({ ...base, id: 'r1' });
+  S.saveStats({ v: S.STATS_VERSION, records: [rec] });
+  assert.equal(S.setChallengePts('r1', 55), true);
+  assert.equal(S.loadStats().records[0].challengePts, 55);
+  assert.equal(S.setChallengePts('nope', 5), false); assert.equal(S.setChallengePts('r1', 0), false);
+});

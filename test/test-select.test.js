@@ -9,9 +9,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { parseDiff, oldLinesOf, newLinesOf, newToOld, toIntervals, jsOutline, cssRules, selectInFile } from '../tools/test-select.mjs';
+import { parseDiff, oldLinesOf, newLinesOf, newToOld, toIntervals, jsOutline, cssRules, selectInFile, changeKind } from '../tools/test-select.mjs';
 import { parseJUnit, perTestMsOf, xmlText } from '../tools/test-timings.mjs';
-import { buildFailures, formatFailures, expectedMs, budgets, rerunPlan, mergeCoverage, planChanged, readHookDir, parseArgs } from '../tools/test-repro.mjs';
+import { buildFailures, formatFailures, expectedMs, budgets, rerunPlan, mergeCoverage, planChanged, readHookDir, parseArgs, coverageDir, pruneCoverage } from '../tools/test-repro.mjs';
 import { paintLines, repoPathOfUrl, blobSha } from '../tools/test-repro-hook.mjs';
 import { reweigh, ROOT } from '../tools/browser-suite.mjs';
 
@@ -170,19 +170,84 @@ test('selection: server code of a separate server process, a file never recorded
   assert.equal(selectInFile({ testFile: F, tests: LIST, coverage: null, changes: [{ file: F, hunks: [{ oldStart: 1, oldCount: 1, newStart: 1, newCount: 1 }], newText: 'not ( js' }] }).all, true);
 });
 
-test('the plan of --changed: docs ignored, harness / data changes stop everything, a file without coverage runs whole when app code changed', () => {
+test('the plan of --changed: docs ignored, a tool placed by line, package files run every file whole, a file without coverage runs whole when app code changed', () => {
   const base = { candidates: [F, 'test/ui/y.e2e.test.js'], coverageOf: (f) => (f === F ? COV : null), testsOf: () => LIST, readFile: () => '', sources: () => ({ oldSha: 'a1', oldText: '', newText: '' }) };
   const one = (file) => ({ file, hunks: [{ oldStart: 2, oldCount: 1, newStart: 2, newCount: 1 }] });
   const app = planChanged({ ...base, diff: [one('public/js/a.js'), one('README.md'), one('FORK-CHANGELOG.md')] });
   assert.deepEqual(app.ignored, ['README.md', 'FORK-CHANGELOG.md']);
   assert.deepEqual(app.files.map((f) => [f.file, f.whole, f.tests.map((t) => t.name)]), [[F, false, ['S > one', 'S > two b']], ['test/ui/y.e2e.test.js', true, []]]);
   assert.match(app.files[1].reasons[0], /no coverage recorded yet and app code changed/);
+  // (fork) a tool is placed by line like a helper: the recorded file never ran it, the unrecorded one runs whole
   const tools = planChanged({ ...base, diff: [one('tools/browser-suite.mjs')] });
-  assert.deepEqual(tools.unmapped, ['tools/browser-suite.mjs']);
-  assert.ok(tools.files.every((f) => f.whole));
+  assert.deepEqual(tools.unmapped, []);
+  assert.deepEqual(tools.files.map((f) => [f.file, f.whole]), [['test/ui/y.e2e.test.js', true]]);
+  // package files: every candidate whole (the plan never refuses: test-repro runs them, behind its 15-minute --yes)
+  const pkg = planChanged({ ...base, diff: [one('package.json')] });
+  assert.deepEqual(pkg.unmapped, ['package.json']);
+  assert.ok(pkg.files.length === 2 && pkg.files.every((f) => f.whole));
+  // timing tables and the extractor's Python: nothing to run
+  const inert = planChanged({ ...base, diff: [one('tools/browser-suite.json'), one('tools/local-extract/homebg.py')] });
+  assert.deepEqual([inert.ignored, inert.files], [['tools/browser-suite.json', 'tools/local-extract/homebg.py'], []]);
   // only a test file changed: the other candidate is not touched at all
   const own = planChanged({ ...base, diff: [{ file: F, hunks: [{ oldStart: 14, oldCount: 1, newStart: 14, newCount: 1 }] }], sources: () => ({ oldSha: 'old', newText: TEST_SRC }) });
   assert.deepEqual(own.files.map((f) => [f.file, f.tests.map((t) => t.name)]), [[F, ['S > three']]]);
+});
+
+test('(fork) changeKind: code by line, data and pages by the pages\' requests, docs and timing tables ignored, the rest unknown', () => {
+  const k = (f) => changeKind(f, { presentation: ['assets', 'dyn-card-background'] });
+  assert.deepEqual(['public/js/ui/a.js', 'tools/test-select.mjs', 'scripts/release.mjs', 'public/css/x.css'].map(k), ['code', 'code', 'code', 'code']);
+  assert.deepEqual(['data/dyn-card-background.json', 'public/i18n/en.json', 'public/dev/dyn-review.html'].map(k), ['page', 'page', 'page']);
+  assert.deepEqual(['data/chess.json', 'data/waves.json'].map(k), ['gameplay', 'gameplay']);
+  assert.deepEqual(['docs/x.md', 'changes/a.md', 'ci-shards.json', 'tools/browser-suite.json', 'tools/local-extract/homebg.py', 'tools/local-extract/client-candidates.json', 'tools/assets/lobby-voice.json'].map(k), Array(7).fill('ignored'));
+  assert.deepEqual(['package.json', 'package-lock.json', 'public/vendor/x.bin'].map(k), ['unknown', 'unknown', 'unknown']);
+});
+
+test('(fork) a data / page change: the tests whose pages requested it; whole for an old record, the setup\'s request, or game data the server read', () => {
+  const D = 'data/dyn-card-background.json';
+  const cov = (over = {}) => ({ ...COV, tests: Object.fromEntries(Object.entries(COV.tests).map(([n, c]) => [n, { ...c, req: true, loaded: n === 'S > two a' ? [...c.loaded, D] : c.loaded }])), setup: { ...COV.setup, req: true }, ...over });
+  const sel = (coverage, kind = 'page') => selectInFile({ testFile: F, tests: LIST, coverage, changes: [{ file: D, hunks: [{ oldStart: 1, oldCount: 1, newStart: 1, newCount: 1 }], kind }] });
+  assert.deepEqual(pick(sel(cov())), ['two a']);
+  assert.match(sel(cov()).tests.get('S > two a')[0], /requested it/);
+  const old = sel(COV);
+  assert.equal(old.all, true, 'recorded before requests were logged');
+  assert.match(old.reasons[0], /before page requests were logged/);
+  assert.equal(sel(cov({ setup: { ...COV.setup, req: true, loaded: [D] } })).all, true, 'the setup requested it');
+  const game = sel(cov({ setup: { ...COV.setup, req: true, used: { ...COV.setup.used, 'server/data.js': iv(1) } } }), 'gameplay');
+  assert.equal(game.all, true);
+  assert.match(game.reasons[0], /in-process server/);
+  assert.deepEqual(pick(sel(cov(), 'gameplay')), ['two a'], 'game data no in-process server read: by the requests');
+});
+
+test('(fork) the map records whether requests were logged; the hook maps hashed data and asset URLs to their files', () => {
+  const run = { file: F, at: 't', tests: { 'S > one': { used: {}, loaded: ['data/x.json'] } }, setup: { used: { [F]: [[1, 1]] }, loaded: [] }, files: {}, requests: true };
+  const m = mergeCoverage(null, run);
+  assert.equal(m.tests['S > one'].req, true);
+  assert.equal(m.setup.req, true);
+  assert.equal(mergeCoverage(null, { ...run, requests: undefined }).tests['S > one'].req, false);
+  const exists = (rel) => ['data/x.json', 'public/assets/ui/a.png', 'public/i18n/en.json'].includes(rel);
+  assert.equal(repoPathOfUrl('http://127.0.0.1:1/data/h/0123abcd/x.json', exists), 'data/x.json');
+  assert.equal(repoPathOfUrl('http://127.0.0.1:1/assets/~0123456789abcdef/ui/a.png', exists), 'public/assets/ui/a.png');
+  assert.equal(repoPathOfUrl('http://127.0.0.1:1/g/7/i18n/en.json?v=2', exists), 'public/i18n/en.json');
+});
+
+test('(fork) the map\'s folder: SP_COVERAGE_DIR; past its cap the maps recorded longest ago go', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-cov-'));
+  try {
+    const was = process.env.SP_COVERAGE_DIR;
+    process.env.SP_COVERAGE_DIR = dir;
+    try { assert.equal(coverageDir(), path.resolve(dir)); } finally { if (was === undefined) delete process.env.SP_COVERAGE_DIR; else process.env.SP_COVERAGE_DIR = was; }
+    const now = Date.now() / 1000;
+    for (const [n, age] of [['a.json', 300], ['b.json', 200], ['c.json', 100]]) {
+      const p = path.join(dir, n);
+      fs.writeFileSync(p, 'x'.repeat(100));
+      fs.utimesSync(p, now - age, now - age);
+    }
+    assert.deepEqual(pruneCoverage(dir, 1000), [], 'under the cap: nothing goes');
+    assert.deepEqual(pruneCoverage(dir, 250), ['a.json', 'b.json'], 'down to 75 % of the cap, oldest first');
+    assert.deepEqual(fs.readdirSync(dir), ['c.json']);
+    assert.equal(parseArgs(['--changed', 'a..b']).coverage, null, 'test-repro records only when asked (--coverage) or in a suite');
+    assert.equal(parseArgs(['--changed', 'a..b', '--coverage']).coverage, true);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 // ---- JUnit, the failure report, times, budgets ------------------------------------------------------------------------

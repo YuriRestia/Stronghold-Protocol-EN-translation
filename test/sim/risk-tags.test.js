@@ -74,6 +74,19 @@ test('Deep Infiltration halves DP generation; Low Efficiency: redeployment time 
   assert.ok(Math.abs(on.allies()[0].s.redeployMul / off.allies()[0].s.redeployMul - CC.redeployMul) < 1e-9);
 });
 
+test('Low Efficiency: the battle counts every operator that left the field (`downs`): the one thing the tag changes', () => {
+  const units = [{ chessId: 'chess_char_3_08_a', row: 10, col: 3 }];
+  const idle = battle({ ccLowEfficiency: 1 }, units);
+  const pid = idle.allies()[0].ownerId;
+  assert.equal(idle.b._pp(pid).downs, 0, 'nobody left: no redeploy timer ever ran, so the tag changed nothing');
+  const op = (rules) => { const h = battle(rules, units); const u = h.allies()[0]; h.b.retreat(u); return { h, u }; };
+  const on = op({ ccLowEfficiency: 1 }); const off = op({});
+  assert.equal(on.h.b._pp(on.u.ownerId).downs, 1, 'a retreat starts a redeploy timer');
+  assert.equal(off.h.b._pp(off.u.ownerId).downs, 1, 'counted with or without the tag (the result does not depend on it)');
+  assert.ok(Math.abs((on.u.respawnAt - on.u.deathAt) / (off.u.respawnAt - off.u.deathAt) - CC.redeployMul) < 1e-9, 'the tag is only visible in that timer');
+  assert.equal(on.h.b._pp(on.u.ownerId).deaths, 0, 'a retreat is not a death');
+});
+
 /** Patriot on a field with two operators (薄绿 blocks in front of him, 芬 behind), not walking. */
 function patriotField(rules) {
   const h = makeBattle({ defs: DEFS, autoFinish: false, timeLimit: 400, seed: 3, flags: { rules },

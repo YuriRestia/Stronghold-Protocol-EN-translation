@@ -20,21 +20,27 @@
 //   --own-flags  Chrome with the file's own flags only (no added GPU flags), as `npm run test:browser` starts it
 //   --budget K   each test with a measured time gets the timeout max(floor, K × that time) (--budget-floor, seconds,
 //                default 20); a test it stops is reported as "stopped by budget", not as a failure
-//   --no-coverage  do not record which code each test ran (the coverage map --changed reads)
+//   --coverage   record which code each test ran into the coverage map --changed reads. (fork) Off by default: the map
+//                is recorded by the suite (tools/browser-suite.mjs, unless its --no-coverage), never by an extra run;
+//                `--report … --hook DIR` merges a suite's records unless --no-coverage. The map's folder:
+//                SP_COVERAGE_DIR, else test/e2e/out/coverage; capped (COVERAGE_FILE_CAP a file, coverageDirCap() in
+//                all: the maps recorded longest ago go first)
 //   --lanes      the folder of the lane locks (default $SP_LANE_DIR): fix-browser-3.lock (and fix-browser-2.lock for a
 //                two-slot file, tools/browser-suite.mjs --slots); waits while perf-quiet exists there
 //
 // How a run works: `node --test` with a --test-name-pattern anchored on the run's full test names, so node runs just
 // those tests, in the file's order, with the file's own before / after hooks, server and browser. Through
 // tools/test-repro-hook.mjs every run records each test's start and end, a failed test's screenshots and console, and
-// (unless --no-coverage) which lines of which repository files each test ran, merged into the coverage map
-// test/e2e/out/coverage/<file>.json. Before a run the expected time (the file's setup plus the measured time of each
+// (with --coverage) which lines of which repository files each test ran, merged into the coverage map
+// <coverageDir()>/<file>.json. Before a run the expected time (the file's setup plus the measured time of each
 // selected test, tools/browser-suite.json) is printed, after it the actual time. After every run: the failure report,
 // a table plus failures.json (per failed test: file, full name, first error line, when it started counted from the
 // file's start, how long it ran, the file's total, the tests that ran before it in that file, screenshots and console).
 // --rerun-failed reads that file: each failed test alone; one that passes alone is "depends on earlier tests" and runs
 // again after exactly the tests that ran before it. --changed: the selection of tools/test-select.mjs (every choice
-// printed with its reason; a file with no coverage yet, or a change to shared setup, runs whole).
+// printed with its reason; a file with no coverage yet, or a change to shared setup, runs whole; (fork) a change to a
+// data file or page is placed by the pages' requests, docs and timing tables by nothing, package files run everything
+// whole — test-select.mjs changeKind).
 // Exit code: 1 when a test failed (or a budget stopped one), 2 on a usage error.
 
 import fs from 'node:fs';
@@ -44,11 +50,25 @@ import { spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ROOT, BROWSER_ENV, slotsOfFile, loadTable, browserFileList } from './browser-suite.mjs';
 import { parseJUnit } from './test-timings.mjs';
-import { parseDiff, selectInFile, MAPPED, isTestFile } from './test-select.mjs';
+import { parseDiff, selectInFile, changeKind, isTestFile } from './test-select.mjs';
+import { PRESENTATION_DATA } from '../server/plugins/identity.js';
 
 const HOOK = path.join(ROOT, 'tools/test-repro-hook.mjs');
 const LANES = ['fix-browser-3.lock', 'fix-browser-2.lock', 'fix-browser.lock'];
 export const COVERAGE_DIR = 'test/e2e/out/coverage';
+/**
+ * (fork) Where the coverage map lives: SP_COVERAGE_DIR (absolute, or relative to the checkout) when set — the crew keeps
+ * one map for every worktree outside the checkouts —, else COVERAGE_DIR in this checkout.
+ */
+export const coverageDir = () => path.resolve(ROOT, process.env.SP_COVERAGE_DIR || COVERAGE_DIR);
+/**
+ * (fork) The map's caps: one test file's map above COVERAGE_FILE_CAP is not saved (the file then runs whole, as with no
+ * record); past COVERAGE_DIR_CAP in all, the maps recorded longest ago are deleted down to COVERAGE_DIR_KEEP of it. Their
+ * files run whole again until the next suite records them. SP_COVERAGE_CAP_MB overrides the total.
+ */
+export const COVERAGE_FILE_CAP = 16 * 1024 * 1024;
+export const coverageDirCap = () => (Number(process.env.SP_COVERAGE_CAP_MB) > 0 ? Number(process.env.SP_COVERAGE_CAP_MB) : 400) * 1024 * 1024;
+export const COVERAGE_DIR_KEEP = 0.75;
 
 export const USAGE = `usage: node tools/test-repro.mjs <file> --list
        node tools/test-repro.mjs <file> --test "<pattern>" [--runs N] [--before "<pattern>"]… [--orders]
@@ -62,7 +82,7 @@ export function parseArgs(argv) {
   const o = {
     mode: 'cases', file: null, files: [], test: null, runs: null, before: [], orders: false, cpu: 1, out: null, list: false,
     lanes: undefined, lock: true, ownFlags: false, report: null, hook: null, rerun: null, changed: null, dryRun: false,
-    budget: null, budgetFloor: 20, coverage: true, yes: false,
+    budget: null, budgetFloor: 20, coverage: null, yes: false,
   };
   const value = (i, flag) => {
     const v = argv[i + 1];
@@ -83,6 +103,7 @@ export function parseArgs(argv) {
     else if (a === '--dry-run') o.dryRun = true;
     else if (a === '--yes') o.yes = true;
     else if (a === '--no-coverage') o.coverage = false;
+    else if (a === '--coverage') o.coverage = true;
     else if (a === '--no-lock') o.lock = false;
     else if (a === '--orders') o.orders = true;
     else if (a === '--own-flags') o.ownFlags = true;
@@ -305,7 +326,7 @@ function writeFailures(dir, failures, notes = []) {
 
 // ---- coverage map -----------------------------------------------------------------------------------------------------
 
-const covPath = (file) => path.join(ROOT, COVERAGE_DIR, `${file.replace(/[\\/]/g, '__')}.json`);
+const covPath = (file) => path.join(coverageDir(), `${file.replace(/[\\/]/g, '__')}.json`);
 export const loadCoverage = (file) => { try { return JSON.parse(fs.readFileSync(covPath(file), 'utf8')); } catch { return null; } };
 
 /** Whether a test file starts a separate server process (whose code the map cannot see). */
@@ -322,8 +343,10 @@ export function mergeCoverage(prev, run, { separateServer = false } = {}) {
     return out;
   };
   const map = prev ? JSON.parse(JSON.stringify(prev)) : { file: run.file, tests: {}, setup: null };
-  for (const [n, c] of Object.entries(run.tests ?? {})) map.tests[n] = { at: run.at, used: c.used, loaded: c.loaded, sha: shaOf(c) };
-  if (run.setup && (Object.keys(run.setup.used ?? {}).length || run.setup.loaded?.length)) map.setup = { at: run.at, used: run.setup.used, loaded: run.setup.loaded, sha: shaOf(run.setup) };
+  // (fork) `req`: recorded with the pages' requests logged (tools/test-select.mjs places data / page changes by them)
+  const req = run.requests === true;
+  for (const [n, c] of Object.entries(run.tests ?? {})) map.tests[n] = { at: run.at, used: c.used, loaded: c.loaded, sha: shaOf(c), req };
+  if (run.setup && (Object.keys(run.setup.used ?? {}).length || run.setup.loaded?.length)) map.setup = { at: run.at, used: run.setup.used, loaded: run.setup.loaded, sha: shaOf(run.setup), req };
   map.unmapped = [...new Set([...(map.unmapped ?? []), ...(run.unmapped ?? [])])].sort();
   const differs = Object.entries(run.files ?? {}).filter(([, i]) => i.status === 'differs').map(([f]) => f);
   map.differs = [...new Set([...(map.differs ?? []).filter((f) => !(f in (run.files ?? {}))), ...differs])].sort();
@@ -337,9 +360,30 @@ function saveCoverage(runDir) {
   if (!fs.existsSync(f)) return null;
   const run = JSON.parse(fs.readFileSync(f, 'utf8'));
   const map = mergeCoverage(loadCoverage(run.file), run, { separateServer: separateServerOf(run.file) });
-  fs.mkdirSync(path.join(ROOT, COVERAGE_DIR), { recursive: true });
-  fs.writeFileSync(covPath(run.file), JSON.stringify(map));
+  const text = JSON.stringify(map);
+  if (Buffer.byteLength(text) > COVERAGE_FILE_CAP) { console.log(`coverage map of ${run.file}: ${Buffer.byteLength(text)} B, over the ${COVERAGE_FILE_CAP} B cap — not saved (the file runs whole)`); return null; }
+  fs.mkdirSync(coverageDir(), { recursive: true });
+  // written whole, then renamed: a reader never sees half a map
+  const tmp = `${covPath(run.file)}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, text);
+  fs.renameSync(tmp, covPath(run.file));
+  pruneCoverage();
   return Object.keys(run.tests ?? {}).length;
+}
+
+/** (fork) Past the folder's cap: the maps recorded longest ago go, down to COVERAGE_DIR_KEEP of the cap. */
+export function pruneCoverage(dir = coverageDir(), cap = coverageDirCap()) {
+  let files;
+  try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => { const p = path.join(dir, f); const s = fs.statSync(p); return { p, size: s.size, t: s.mtimeMs }; }); } catch { return []; }
+  let total = files.reduce((a, f) => a + f.size, 0);
+  if (total <= cap) return [];
+  const gone = [];
+  for (const f of files.sort((a, b) => a.t - b.t)) {
+    if (total <= cap * COVERAGE_DIR_KEEP) break;
+    try { fs.unlinkSync(f.p); total -= f.size; gone.push(path.basename(f.p)); } catch { /* in use: next one */ }
+  }
+  if (gone.length) console.log(`coverage map: over its ${cap} B cap, removed the ${gone.length} oldest map(s)`);
+  return gone;
 }
 
 // ---- running ----------------------------------------------------------------------------------------------------------
@@ -518,7 +562,7 @@ export function reportFromSuite({ junit, hookDir, out, table, coverage }) {
       if (coverage && saveCoverage(dir) != null) merged++;
     }
   }
-  if (coverage) console.log(`coverage map: ${merged} file(s) recorded (${COVERAGE_DIR})`);
+  if (coverage) console.log(`coverage map: ${merged} file(s) recorded (${coverageDir()})`);
   return writeFailures(out, buildFailures(cases, hooks, table));
 }
 
@@ -527,7 +571,7 @@ function reportMode(o, table) {
   const failed = cases.filter((c) => c.status === 'fail').length;
   console.log(`${o.report}: ${cases.length} tests in ${new Set(cases.map((c) => c.file)).size} files, ${failed} failed`);
   // a suite run's hook folder (tools/browser-suite.mjs <out>/hook): exact times, artifacts, and its coverage merged
-  reportFromSuite({ junit: o.report, hookDir: o.hook ?? '', out: path.resolve(o.out ?? path.dirname(o.report)), table, coverage: !!o.hook && o.coverage });
+  reportFromSuite({ junit: o.report, hookDir: o.hook ?? '', out: path.resolve(o.out ?? path.dirname(o.report)), table, coverage: !!o.hook && o.coverage !== false });
   return failed ? 1 : 0;
 }
 
@@ -604,15 +648,18 @@ const gitTry = (args) => { try { return git(args); } catch { return null; } };
  * The selection of a change: per candidate test file, the tests to run (with reasons) or the whole file (with the
  * reason), the files with no coverage record, and the changed files nothing maps.
  */
-export function planChanged({ diff, candidates, coverageOf, testsOf, sources, readFile }) {
+export function planChanged({ diff, candidates, coverageOf, testsOf, sources, readFile, presentation = PRESENTATION_DATA }) {
   const ignored = [];
   const unmapped = [];
   const changes = [];
   for (const d of diff) {
     const f = d.file;
-    if (/\.(md|txt)$/i.test(f) || /^(docs|\.github|\.claude)\//.test(f) || /^(LICENSE|NOTICE)/.test(f)) { ignored.push(f); continue; }
-    if (!MAPPED(f)) { unmapped.push(f); continue; }
-    changes.push({ file: f, hunks: d.hunks, ...sources(f) });
+    // (fork) test-select.mjs changeKind: tools / scripts by line, data and pages by the pages' requests, docs and timing
+    // tables ignored, anything else (package files) every file whole
+    const kind = changeKind(f, { presentation });
+    if (kind === 'ignored') { ignored.push(f); continue; }
+    if (kind === 'unknown') { unmapped.push(f); continue; }
+    changes.push({ file: f, hunks: d.hunks, kind, ...(kind === 'code' ? sources(f) : {}) });
   }
   const files = [];
   const appChanged = changes.some((c) => !c.file.startsWith('test/') && !c.file.startsWith('plugins/'));
@@ -620,7 +667,7 @@ export function planChanged({ diff, candidates, coverageOf, testsOf, sources, re
   const changedTests = changes.filter((c) => isTestFile(c.file)).map((c) => c.file);
   const set = candidates.length ? candidates : changedTests;
   for (const file of [...new Set([...set, ...changedTests.filter((f) => set.includes(f) || !candidates.length)])]) {
-    if (unmapped.length) { files.push({ file, whole: true, reasons: [`not mapped to tests: ${unmapped.join(', ')} (harness, data or settings)`], tests: [] }); continue; }
+    if (unmapped.length) { files.push({ file, whole: true, reasons: [`not mapped to tests: ${unmapped.join(', ')} (package files, vendored code or the like)`], tests: [] }); continue; }
     const cov = coverageOf(file);
     const own = changedTests.includes(file);
     if (!cov && !own) {
@@ -663,10 +710,9 @@ async function changedMode(o, table) {
   const plan = planChanged({ diff, candidates, coverageOf: loadCoverage, testsOf, sources, readFile });
   console.log(`--changed ${range}: ${diff.length} changed file(s): ${diff.map((d) => d.file).join(', ') || 'none'}`);
   if (plan.ignored.length) console.log(`  not code (no test runs it): ${plan.ignored.join(', ')}`);
-  if (plan.unmapped.length) {
-    console.log(`a change to ${plan.unmapped.join(', ')} (harness, data or settings) can affect every test: nothing started. Run the suite (npm run test:browser) or name the files to run.`);
-    return 2;
-  }
+  // (fork) a change no rule places runs every candidate file whole (it used to start nothing); the 15-minute --yes gate
+  // below still holds a long selection
+  if (plan.unmapped.length) console.log(`  a change to ${plan.unmapped.join(', ')} can affect every test: every candidate file runs whole`);
   let expect = 0;
   const runs = [];
   const lines = [];

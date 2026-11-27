@@ -28,6 +28,7 @@ export const AWARD_EVENTS = Object.freeze({
   barge: N_('有博士的调度中心升到了5级（这个标签会让这次升级更贵）'),
   lastLine: N_('如果每回合多扣2点目标生命值，会有博士被淘汰，或最终攻势提前失败'),
   junk: N_('有博士的手牌区满了（这个标签的【{item}】会占用一个位置）'),
+  lowEfficiency: N_('有博士的干员离开了战场，需要等待再部署（这个标签会让这段等待延长75%）'),
 });
 
 /** The conditions, by id: their text (msgid) for the room dialog's list. */
@@ -42,6 +43,7 @@ export const AWARD_CONDITIONS = Object.freeze({
   barge: N_('没有博士的调度中心升到过5级'),
   lastLine: N_('每回合多扣2点目标生命值也不会淘汰任何博士，也不会让最终攻势提前失败'),
   junk: N_('每位博士的手牌区始终至少有1个空位'),
+  lowEfficiency: N_('没有博士的干员在任何作战中离开过战场（被击倒或撤退，没有再部署计时）'),
 });
 
 /**
@@ -60,6 +62,7 @@ export const AWARDABLE = Object.freeze([
   { key: 'ccUpgrade', level: 2, needs: ['barge'], aiOk: false },
   { key: 'ccLastLine', level: 1, needs: ['lastLine'], aiOk: false },
   { key: 'ccJunk', level: 1, needs: ['junk'], aiOk: false },
+  { key: 'ccLowEfficiency', level: 1, needs: ['lowEfficiency'], aiOk: false },
 ].map((a) => Object.freeze({ ...a, needs: Object.freeze(a.needs) })));
 
 /** The Strategies Strategy 2 adds to Strategy 1's (shared/ruleData.js CC.strategy2: their own changes). */

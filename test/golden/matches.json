@@ -40,7 +40,35 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 0,
           "reward": 113,
-          "stats": {"activatedLayers":120,"bossDamage":200000,"dmgDealt":718253,"gold":76,"itemsEquipped":2,"kills":165,"leaks":0,"lpLost":0,"merges":1,"perfectRounds":8,"refreshes":19},
+          "stats": {
+            "activatedLayers": 120,
+            "bossDamage": 200000,
+            "dmgDealt": 718253,
+            "faUnitStats": [
+              {
+                "round": 9,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":7,"defId":"chess_char_3_20_a","kind":"op","dmg":44115,"kills":0,"heal":0,"taken":4449,"attacks":77},
+                  {"id":2,"uid":23,"defId":"chess_char_5_02_a","kind":"op","dmg":126009,"kills":9,"heal":4380,"taken":1981,"attacks":128},
+                  {"id":3,"uid":15,"defId":"chess_char_4_24_a","kind":"op","dmg":76998,"kills":3,"heal":0,"taken":1489,"attacks":78},
+                  {"id":4,"uid":22,"defId":"chess_char_5_11_a","kind":"op","dmg":1022,"kills":0,"heal":2107,"taken":127,"attacks":29},
+                  {"id":5,"uid":18,"defId":"chess_char_2_06_a","kind":"op","dmg":0,"kills":0,"heal":4783,"taken":1716,"attacks":38},
+                  {"id":6,"uid":21,"defId":"chess_char_1_12_b","kind":"op","dmg":48678,"kills":1,"heal":35,"taken":1271,"attacks":79},
+                  {"id":7,"uid":5,"defId":"chess_char_2_08_a","kind":"op","dmg":1617,"kills":1,"heal":0,"taken":198,"attacks":14},
+                  {"id":8,"uid":11,"defId":"chess_char_3_06_a","kind":"op","dmg":9561,"kills":1,"heal":0,"taken":69,"attacks":6}
+                ]
+              }
+            ],
+            "gold": 76,
+            "itemsEquipped": 2,
+            "kills": 165,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 1,
+            "perfectRounds": 8,
+            "refreshes": 19
+          },
           "lineup": ["3_20_a@12,4","5_02_a@12,5","4_24_a@12,6","5_11_a@11,4","2_06_a@11,6","1_12_b@10,4","2_08_a@9,3[5_02_e_a]","3_06_a@9,4[3_05_e_a]"],
           "bonds": ["deputShip 1/24","kjeragShip 0/7","preciShip 0/7","sargonShip 2/49","steadShip 1/47"]
         }
@@ -80,7 +108,35 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 0,
           "reward": 113,
-          "stats": {"activatedLayers":69,"bossDamage":200000,"dmgDealt":631554,"gold":83,"itemsEquipped":3,"kills":131,"leaks":0,"lpLost":0,"merges":3,"perfectRounds":8,"refreshes":32},
+          "stats": {
+            "activatedLayers": 69,
+            "bossDamage": 200000,
+            "dmgDealt": 631554,
+            "faUnitStats": [
+              {
+                "round": 9,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":8,"defId":"chess_char_3_08_a","kind":"op","dmg":5420,"kills":1,"heal":0,"taken":203,"attacks":10},
+                  {"id":2,"uid":23,"defId":"chess_char_4_22_b","kind":"op","dmg":74738,"kills":2,"heal":0,"taken":500,"attacks":63},
+                  {"id":3,"uid":27,"defId":"chess_char_6_02_a","kind":"op","dmg":69041,"kills":2,"heal":0,"taken":279,"attacks":27},
+                  {"id":4,"uid":24,"defId":"chess_char_5_03_a","kind":"op","dmg":40087,"kills":2,"heal":189,"taken":1326,"attacks":72},
+                  {"id":5,"uid":9,"defId":"chess_char_3_14_a","kind":"op","dmg":22473,"kills":1,"heal":0,"taken":1031,"attacks":55},
+                  {"id":6,"uid":18,"defId":"chess_char_4_13_a","kind":"op","dmg":20827,"kills":1,"heal":0,"taken":936,"attacks":37},
+                  {"id":7,"uid":15,"defId":"chess_char_3_20_a","kind":"op","dmg":35664,"kills":2,"heal":0,"taken":494,"attacks":56},
+                  {"id":8,"uid":5,"defId":"chess_char_2_05_a","kind":"op","dmg":0,"kills":0,"heal":4248,"taken":2338,"attacks":22}
+                ]
+              }
+            ],
+            "gold": 83,
+            "itemsEquipped": 3,
+            "kills": 131,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 3,
+            "perfectRounds": 8,
+            "refreshes": 32
+          },
           "lineup": ["3_08_a@12,3","4_22_b@12,4[3_09_e_a]","6_02_a@11,3","5_03_a@11,6","3_14_a@11,7[5_02_e_a]","4_13_a@10,3","3_20_a@10,7","2_05_a@9,3"],
           "bonds": ["kjeragShip 2/20","steadShip 0/2","victoriaShip 1/39","visiShip 1/10","yanShip 0/6"]
         }
@@ -149,7 +205,35 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 0,
           "reward": 400,
-          "stats": {"activatedLayers":240,"bossDamage":390000,"dmgDealt":2366295,"gold":144,"itemsEquipped":5,"kills":381,"leaks":11,"lpLost":11,"merges":4,"perfectRounds":11,"refreshes":51},
+          "stats": {
+            "activatedLayers": 240,
+            "bossDamage": 390000,
+            "dmgDealt": 2366295,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":32,"defId":"chess_char_6_20_a","kind":"op","dmg":0,"kills":0,"heal":15588,"taken":5835,"attacks":62},
+                  {"id":2,"uid":16,"defId":"chess_char_4_21_a","kind":"op","dmg":0,"kills":0,"heal":9174,"taken":4338,"attacks":86},
+                  {"id":3,"uid":35,"defId":"chess_char_3_13_a","kind":"op","dmg":146098,"kills":4,"heal":0,"taken":7657,"attacks":160},
+                  {"id":4,"uid":33,"defId":"chess_char_4_24_a","kind":"op","dmg":135843,"kills":1,"heal":0,"taken":1122,"attacks":125},
+                  {"id":5,"uid":6,"defId":"chess_char_1_12_b","kind":"op","dmg":189314,"kills":5,"heal":277,"taken":4228,"attacks":139},
+                  {"id":6,"uid":24,"defId":"chess_char_2_08_b","kind":"op","dmg":19195,"kills":0,"heal":0,"taken":272,"attacks":48},
+                  {"id":7,"uid":31,"defId":"chess_char_3_06_b","kind":"op","dmg":98146,"kills":1,"heal":0,"taken":1106,"attacks":33},
+                  {"id":8,"uid":37,"defId":"chess_char_4_23_b","kind":"op","dmg":87685,"kills":7,"heal":0,"taken":531,"attacks":45}
+                ]
+              }
+            ],
+            "gold": 144,
+            "itemsEquipped": 5,
+            "kills": 381,
+            "leaks": 11,
+            "lpLost": 11,
+            "merges": 4,
+            "perfectRounds": 11,
+            "refreshes": 51
+          },
           "lineup": ["6_20_a@11,8","4_21_a@10,4","3_13_a@10,6","4_24_a@10,7","1_12_b@9,3","2_08_b@9,4[4_10_e_b]","3_06_b@9,5[3_05_e_a]","4_23_b@9,6"],
           "bonds": ["deputShip 2/18","kazimierzShip 0/16","kjeragShip 0/10","sargonShip 2/186","skillfulShip 1/18","soloShip 0/11","steadShip 0/46","suntShip 1/18","swiftShip 0/30"]
         }
@@ -215,7 +299,35 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 0,
           "reward": 400,
-          "stats": {"activatedLayers":210,"bossDamage":390000,"dmgDealt":2626828,"gold":163,"itemsEquipped":4,"kills":277,"leaks":0,"lpLost":0,"merges":7,"perfectRounds":13,"refreshes":46},
+          "stats": {
+            "activatedLayers": 210,
+            "bossDamage": 390000,
+            "dmgDealt": 2626828,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":39,"defId":"chess_char_4_25_b","kind":"op","dmg":0,"kills":0,"heal":65,"taken":0,"attacks":0},
+                  {"id":2,"uid":36,"defId":"chess_char_2_01_b","kind":"op","dmg":54732,"kills":0,"heal":942,"taken":790,"attacks":14},
+                  {"id":3,"uid":45,"defId":"chess_char_4_02_b","kind":"op","dmg":63578,"kills":3,"heal":2648,"taken":3280,"attacks":15},
+                  {"id":4,"uid":40,"defId":"chess_char_6_01_a","kind":"op","dmg":17817,"kills":0,"heal":0,"taken":1274,"attacks":7},
+                  {"id":5,"uid":29,"defId":"chess_char_3_01_b","kind":"op","dmg":208310,"kills":1,"heal":1350,"taken":1219,"attacks":46},
+                  {"id":6,"uid":48,"defId":"chess_char_3_11_b","kind":"op","dmg":153104,"kills":3,"heal":845,"taken":720,"attacks":27},
+                  {"id":7,"uid":50,"defId":"chess_char_4_01_a","kind":"op","dmg":4469,"kills":0,"heal":160,"taken":0,"attacks":6},
+                  {"id":8,"uid":41,"defId":"chess_char_5_01_a","kind":"op","dmg":7430,"kills":0,"heal":856,"taken":856,"attacks":22}
+                ]
+              }
+            ],
+            "gold": 163,
+            "itemsEquipped": 4,
+            "kills": 277,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 7,
+            "perfectRounds": 13,
+            "refreshes": 46
+          },
           "lineup": ["4_25_b@11,4","2_01_b@11,5","4_02_b@11,6","6_01_a@11,7","3_01_b@10,4","3_11_b@10,5","4_01_a@9,3","5_01_a@9,4"],
           "bonds": ["arcaneShip 0/2","kjeragShip 0/22","lateranoShip 2/94","preciShip 2/116","steadShip 0/10","suntShip 2/0","swiftShip 0/21","yanShip 0/1"]
         }
@@ -284,7 +396,35 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 0,
           "reward": 425,
-          "stats": {"activatedLayers":309,"bossDamage":780000,"dmgDealt":2501251,"gold":146,"itemsEquipped":5,"kills":406,"leaks":0,"lpLost":0,"merges":6,"perfectRounds":13,"refreshes":55},
+          "stats": {
+            "activatedLayers": 309,
+            "bossDamage": 780000,
+            "dmgDealt": 2501251,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":25,"defId":"chess_char_5_11_a","kind":"op","dmg":0,"kills":0,"heal":3834,"taken":0,"attacks":0},
+                  {"id":2,"uid":43,"defId":"chess_char_4_21_b","kind":"op","dmg":0,"kills":0,"heal":4661,"taken":1309,"attacks":31},
+                  {"id":3,"uid":45,"defId":"chess_char_6_05_a","kind":"op","dmg":137197,"kills":1,"heal":0,"taken":1841,"attacks":51},
+                  {"id":4,"uid":39,"defId":"chess_char_3_13_b","kind":"op","dmg":144813,"kills":1,"heal":0,"taken":1383,"attacks":89},
+                  {"id":5,"uid":22,"defId":"chess_char_5_02_a","kind":"op","dmg":126688,"kills":3,"heal":6473,"taken":3035,"attacks":72},
+                  {"id":6,"uid":31,"defId":"chess_char_4_23_b","kind":"op","dmg":270180,"kills":1,"heal":0,"taken":3622,"attacks":101},
+                  {"id":7,"uid":32,"defId":"chess_char_6_06_a","kind":"op","dmg":188934,"kills":1,"heal":0,"taken":3064,"attacks":49},
+                  {"id":8,"uid":21,"defId":"chess_char_2_08_b","kind":"op","dmg":4078,"kills":1,"heal":0,"taken":714,"attacks":6}
+                ]
+              }
+            ],
+            "gold": 146,
+            "itemsEquipped": 5,
+            "kills": 406,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 6,
+            "perfectRounds": 13,
+            "refreshes": 55
+          },
           "lineup": ["5_11_a@11,6","4_21_b@10,3","6_05_a@10,4[2_04_e_a]","3_13_b@10,5","5_02_a@10,7[6_07_e_a]","4_23_b@9,4[1_01_e_a]","6_06_a@9,5","2_08_b@9,6"],
           "bonds": ["deputShip 0/8","kazimierzShip 0/8","kjeragShip 0/7","preciShip 1/21","sargonShip 2/257","skillfulShip 1/8","soloShip 1/5","steadShip 1/10","suntShip 1/8","swiftShip 0/8"]
         }
@@ -350,7 +490,35 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 0,
           "reward": 425,
-          "stats": {"activatedLayers":212,"bossDamage":780000,"dmgDealt":3055824,"gold":175,"itemsEquipped":2,"kills":292,"leaks":0,"lpLost":0,"merges":6,"perfectRounds":13,"refreshes":56},
+          "stats": {
+            "activatedLayers": 212,
+            "bossDamage": 780000,
+            "dmgDealt": 3055824,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":30,"defId":"chess_char_6_08_a","kind":"op","dmg":40672,"kills":2,"heal":5331,"taken":503,"attacks":40},
+                  {"id":2,"uid":34,"defId":"chess_char_4_02_a","kind":"op","dmg":50532,"kills":0,"heal":0,"taken":3538,"attacks":23},
+                  {"id":3,"uid":50,"defId":"chess_char_6_12_a","kind":"op","dmg":90251,"kills":1,"heal":0,"taken":772,"attacks":35},
+                  {"id":4,"uid":41,"defId":"chess_char_3_21_b","kind":"op","dmg":244723,"kills":3,"heal":0,"taken":280,"attacks":74},
+                  {"id":5,"uid":16,"defId":"chess_char_2_01_b","kind":"op","dmg":92801,"kills":1,"heal":0,"taken":1248,"attacks":23},
+                  {"id":6,"uid":27,"defId":"chess_char_3_01_b","kind":"op","dmg":325632,"kills":2,"heal":0,"taken":1890,"attacks":82},
+                  {"id":7,"uid":49,"defId":"chess_char_4_01_b","kind":"op","dmg":13956,"kills":0,"heal":0,"taken":0,"attacks":13},
+                  {"id":8,"uid":35,"defId":"chess_char_5_01_b","kind":"op","dmg":67415,"kills":1,"heal":219,"taken":219,"attacks":44}
+                ]
+              }
+            ],
+            "gold": 175,
+            "itemsEquipped": 2,
+            "kills": 292,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 6,
+            "perfectRounds": 13,
+            "refreshes": 56
+          },
           "lineup": ["6_08_a@12,5","4_02_a@11,6","6_12_a@11,7","3_21_b@10,4","2_01_b@10,5","3_01_b@10,7","4_01_b@9,5","5_01_b@9,6"],
           "bonds": ["arcaneShip 0/2","kjeragShip 0/2","lateranoShip 2/116","miraShip 1/12","preciShip 2/65","raidShip 0/10","steadShip 0/11","suntShip 2/0","visiShip 1/19","yanShip 0/7"]
         }
@@ -419,7 +587,49 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 0,
           "reward": 425,
-          "stats": {"activatedLayers":397,"bossDamage":4632358,"dmgDealt":8123903,"gold":165,"itemsEquipped":9,"kills":392,"leaks":25,"lpLost":11,"merges":8,"perfectRounds":11,"refreshes":44},
+          "stats": {
+            "activatedLayers": 397,
+            "bossDamage": 4632358,
+            "dmgDealt": 8123903,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":64,"defId":"chess_char_2_05_b","kind":"op","dmg":0,"kills":0,"heal":35954,"taken":759,"attacks":43},
+                  {"id":2,"uid":39,"defId":"chess_char_3_20_b","kind":"op","dmg":1305696,"kills":4,"heal":0,"taken":2313,"attacks":107},
+                  {"id":3,"uid":53,"defId":"chess_char_6_16_a","kind":"op","dmg":146901,"kills":0,"heal":0,"taken":5263,"attacks":103},
+                  {"id":4,"uid":28,"defId":"chess_char_3_14_b","kind":"op","dmg":497593,"kills":3,"heal":0,"taken":6972,"attacks":97},
+                  {"id":5,"uid":47,"defId":"chess_char_6_19_a","kind":"op","dmg":431252,"kills":2,"heal":0,"taken":2106,"attacks":22},
+                  {"id":6,"uid":52,"defId":"chess_char_5_12_b","kind":"op","dmg":252976,"kills":1,"heal":0,"taken":3323,"attacks":50},
+                  {"id":7,"uid":59,"defId":"chess_char_4_13_b","kind":"op","dmg":665479,"kills":2,"heal":0,"taken":12740,"attacks":97},
+                  {"id":8,"uid":50,"defId":"chess_char_3_11_a","kind":"op","dmg":106436,"kills":2,"heal":0,"taken":3927,"attacks":26}
+                ]
+              },
+              {
+                "round": 15,
+                "hidden": true,
+                "units": [
+                  {"id":1,"uid":64,"defId":"chess_char_2_05_b","kind":"op","dmg":0,"kills":0,"heal":15593,"taken":18228,"attacks":16},
+                  {"id":2,"uid":28,"defId":"chess_char_3_14_b","kind":"op","dmg":630931,"kills":3,"heal":0,"taken":7106,"attacks":47},
+                  {"id":3,"uid":59,"defId":"chess_char_4_13_b","kind":"op","dmg":443047,"kills":1,"heal":0,"taken":12799,"attacks":48},
+                  {"id":4,"uid":52,"defId":"chess_char_5_12_b","kind":"op","dmg":70852,"kills":0,"heal":0,"taken":8327,"attacks":16},
+                  {"id":5,"uid":39,"defId":"chess_char_3_20_b","kind":"op","dmg":485378,"kills":1,"heal":0,"taken":4785,"attacks":64},
+                  {"id":6,"uid":53,"defId":"chess_char_6_16_a","kind":"op","dmg":70859,"kills":0,"heal":0,"taken":4735,"attacks":53},
+                  {"id":7,"uid":73,"defId":"chess_char_4_22_a","kind":"op","dmg":151872,"kills":1,"heal":0,"taken":8518,"attacks":54},
+                  {"id":8,"uid":47,"defId":"chess_char_6_19_a","kind":"op","dmg":26247,"kills":0,"heal":0,"taken":6213,"attacks":44}
+                ]
+              }
+            ],
+            "gold": 165,
+            "itemsEquipped": 9,
+            "kills": 392,
+            "leaks": 25,
+            "lpLost": 11,
+            "merges": 8,
+            "perfectRounds": 11,
+            "refreshes": 44
+          },
           "lineup": ["2_05_b@12,7","3_14_b@12,8[5_02_e_b+5_02_e_b]","4_13_b@11,7","5_12_b@11,8","3_20_b@10,5","6_16_a@10,6","4_22_a@10,7","6_19_a@10,8[3_07_e_a]"],
           "bonds": ["arcaneShip 1/124","deputShip 0/6","kazimierzShip 0/16","kjeragShip 2/204","preciShip 0/15","sargonShip 0/8","skillfulShip 1/65","soloShip 0/3","steadShip 0/13","suntShip 2/4","swiftShip 0/32","visiShip 1/0"]
         }
@@ -485,7 +695,35 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 0,
           "reward": 425,
-          "stats": {"activatedLayers":182,"bossDamage":3000000,"dmgDealt":6881567,"gold":152,"itemsEquipped":4,"kills":286,"leaks":7,"lpLost":7,"merges":5,"perfectRounds":11,"refreshes":40},
+          "stats": {
+            "activatedLayers": 182,
+            "bossDamage": 3000000,
+            "dmgDealt": 6881567,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":37,"defId":"chess_char_6_01_b","kind":"op","dmg":2250174,"kills":5,"heal":3148,"taken":2373,"attacks":55},
+                  {"id":2,"uid":44,"defId":"chess_char_4_25_a","kind":"op","dmg":0,"kills":0,"heal":3180,"taken":4597,"attacks":0},
+                  {"id":3,"uid":34,"defId":"chess_char_3_01_b","kind":"op","dmg":533854,"kills":2,"heal":0,"taken":3677,"attacks":68},
+                  {"id":4,"uid":17,"defId":"chess_char_2_01_b","kind":"op","dmg":245645,"kills":1,"heal":0,"taken":4721,"attacks":35},
+                  {"id":5,"uid":36,"defId":"chess_char_1_01_b","kind":"op","dmg":214549,"kills":1,"heal":3217,"taken":4258,"attacks":89},
+                  {"id":6,"uid":24,"defId":"chess_char_4_14_a","kind":"op","dmg":48211,"kills":1,"heal":2545,"taken":4325,"attacks":22},
+                  {"id":7,"uid":39,"defId":"chess_char_5_01_a","kind":"op","dmg":24551,"kills":0,"heal":800,"taken":5127,"attacks":21},
+                  {"id":8,"uid":42,"defId":"chess_char_4_01_b","kind":"op","dmg":55668,"kills":1,"heal":0,"taken":1821,"attacks":30}
+                ]
+              }
+            ],
+            "gold": 152,
+            "itemsEquipped": 4,
+            "kills": 286,
+            "leaks": 7,
+            "lpLost": 7,
+            "merges": 5,
+            "perfectRounds": 11,
+            "refreshes": 40
+          },
           "lineup": ["6_01_b@11,7[5_07_e_b]","4_25_a@11,8","3_01_b@10,4","2_01_b@10,5","1_01_b@10,7","4_14_a@10,8","5_01_a@9,5","4_01_b@9,6"],
           "bonds": ["arcaneShip 0/4","kjeragShip 0/2","lateranoShip 2/56","preciShip 2/91","steadShip 0/2","suntShip 2/0","swiftShip 1/25","visiShip 1/10","yanShip 0/1"]
         }
@@ -582,7 +820,37 @@
           "title": {"id":"comment_3","name":"坚若磐石","picId":"comment_icon_3","text":"目标生命值损失最少"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":202,"bossDamage":600215,"dmgDealt":3461708,"gold":150,"itemsEquipped":1,"kills":328,"leaks":1,"lpLost":0,"merges":6,"perfectRounds":12,"refreshes":49},
+          "stats": {
+            "activatedLayers": 202,
+            "bossDamage": 600215,
+            "dmgDealt": 3461708,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":9,"uid":76,"defId":"chess_char_1_04_b","kind":"op","dmg":169642,"kills":1,"heal":0,"taken":0,"attacks":31},
+                  {"id":10,"uid":98,"defId":"chess_char_2_07_b","kind":"op","dmg":89601,"kills":0,"heal":9068,"taken":9068,"attacks":17},
+                  {"id":11,"uid":67,"defId":"chess_char_6_04_a","kind":"op","dmg":27088,"kills":0,"heal":4567,"taken":4567,"attacks":0},
+                  {"id":12,"uid":65,"defId":"chess_char_3_09_b","kind":"op","dmg":136723,"kills":1,"heal":2023,"taken":7852,"attacks":20},
+                  {"id":13,"uid":68,"defId":"token_10017_skadi2_dedant","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":14,"uid":80,"defId":"token_10017_skadi2_dedant","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":15,"uid":73,"defId":"chess_char_4_12_b","kind":"op","dmg":96084,"kills":2,"heal":0,"taken":8480,"attacks":18},
+                  {"id":16,"uid":101,"defId":"chess_char_3_05_b","kind":"op","dmg":79234,"kills":0,"heal":0,"taken":20034,"attacks":20},
+                  {"id":17,"uid":90,"defId":"chess_char_5_11_a","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":18,"uid":79,"defId":"chess_char_6_04_a","kind":"op","dmg":24634,"kills":0,"heal":6531,"taken":6531,"attacks":0}
+                ]
+              }
+            ],
+            "gold": 150,
+            "itemsEquipped": 1,
+            "kills": 328,
+            "leaks": 1,
+            "lpLost": 0,
+            "merges": 6,
+            "perfectRounds": 12,
+            "refreshes": 49
+          },
           "lineup": ["1_04_b@12,7","2_07_b@12,8[3_07_e_a]","6_04_a@11,7","3_09_b@11,8","4_12_b@10,7","3_05_b@10,8","5_11_a@9,5","6_04_a@9,8"],
           "bonds": ["arcaneShip 0/2","deputShip 0/2","egirShip 2/171","indomShip 0/5","kjeragShip 0/2","preciShip 0/12","raidShip 0/4","sargonShip 0/10","soloShip 1/17","steadShip 1/12","suntShip 2/2","visiShip 1/0"]
         },
@@ -596,7 +864,42 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":328,"bossDamage":817285,"dmgDealt":3735448,"gold":173,"itemsEquipped":3,"kills":338,"leaks":0,"lpLost":0,"merges":6,"perfectRounds":13,"refreshes":39},
+          "stats": {
+            "activatedLayers": 328,
+            "bossDamage": 817285,
+            "dmgDealt": 3735448,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":82,"defId":"chess_char_3_04_b","kind":"op","dmg":89205,"kills":0,"heal":0,"taken":1730,"attacks":32},
+                  {"id":2,"uid":32,"defId":"chess_char_2_04_a","kind":"op","dmg":52346,"kills":0,"heal":0,"taken":808,"attacks":25},
+                  {"id":3,"uid":69,"defId":"chess_char_5_12_a","kind":"op","dmg":105805,"kills":0,"heal":0,"taken":761,"attacks":16},
+                  {"id":4,"uid":93,"defId":"chess_char_5_12_a","kind":"op","dmg":120836,"kills":0,"heal":0,"taken":0,"attacks":16},
+                  {"id":5,"uid":62,"defId":"chess_char_4_17_b","kind":"op","dmg":30898,"kills":0,"heal":0,"taken":0,"attacks":26},
+                  {"id":6,"uid":83,"defId":"chess_char_6_16_a","kind":"op","dmg":27176,"kills":1,"heal":0,"taken":0,"attacks":29},
+                  {"id":7,"uid":48,"defId":"chess_char_3_03_b","kind":"op","dmg":145579,"kills":0,"heal":0,"taken":0,"attacks":43},
+                  {"id":8,"uid":63,"defId":"chess_char_6_15_a","kind":"op","dmg":201858,"kills":0,"heal":0,"taken":982,"attacks":25},
+                  {"id":19,"uid":null,"defId":"enemy_9012_acloon","kind":"token","dmg":141412,"kills":0,"heal":0,"taken":0,"attacks":3},
+                  {"id":21,"uid":null,"defId":"token_10031_swire2_gdtrap","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":29,"uid":null,"defId":"token_10031_swire2_gdtrap","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":30,"uid":null,"defId":"token_10031_swire2_gdtrap","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":31,"uid":null,"defId":"token_10031_swire2_gdtrap","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":32,"uid":null,"defId":"token_10031_swire2_gdtrap","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":33,"uid":null,"defId":"token_10031_swire2_gdtrap","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0}
+                ]
+              }
+            ],
+            "gold": 173,
+            "itemsEquipped": 3,
+            "kills": 338,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 6,
+            "perfectRounds": 13,
+            "refreshes": 39
+          },
           "lineup": ["3_04_b@12,8","2_04_a@11,7","5_12_a@11,8","5_12_a@10,7","4_17_b@10,8","6_16_a@9,7","3_03_b@9,8","6_15_a@9,9"],
           "bonds": ["arcaneShip 1/96","kazimierzShip 0/10","miraShip 0/3","preciShip 0/12","sargonShip 0/18","siracusaShip 0/6","skillfulShip 1/38","suntShip 1/0","swiftShip 0/16","yanShip 2/194"]
         }
@@ -707,7 +1010,35 @@
           "title": {"id":"comment_2","name":"不朽盟约","picId":"comment_icon_2","text":"激活的盟约层数总和最高"},
           "trophies": 3,
           "reward": 340,
-          "stats": {"activatedLayers":126,"bossDamage":240624,"dmgDealt":3274434,"gold":153,"itemsEquipped":4,"kills":204,"leaks":80,"lpLost":27,"merges":8,"perfectRounds":9,"refreshes":44},
+          "stats": {
+            "activatedLayers": 126,
+            "bossDamage": 240624,
+            "dmgDealt": 3274434,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":79,"defId":"chess_char_3_17_b","kind":"op","dmg":164471,"kills":0,"heal":0,"taken":4406,"attacks":47},
+                  {"id":2,"uid":98,"defId":"chess_char_4_19_b","kind":"op","dmg":89965,"kills":0,"heal":0,"taken":2940,"attacks":48},
+                  {"id":3,"uid":82,"defId":"chess_char_1_19_b","kind":"op","dmg":50931,"kills":0,"heal":0,"taken":2736,"attacks":38},
+                  {"id":4,"uid":62,"defId":"chess_char_6_17_a","kind":"op","dmg":28982,"kills":0,"heal":0,"taken":3745,"attacks":12},
+                  {"id":5,"uid":71,"defId":"chess_char_3_05_a","kind":"op","dmg":5540,"kills":0,"heal":0,"taken":4079,"attacks":10},
+                  {"id":6,"uid":59,"defId":"chess_char_2_18_b","kind":"op","dmg":43059,"kills":0,"heal":0,"taken":4380,"attacks":8},
+                  {"id":7,"uid":24,"defId":"chess_char_1_19_b","kind":"op","dmg":27904,"kills":0,"heal":0,"taken":2736,"attacks":14},
+                  {"id":8,"uid":95,"defId":"chess_char_6_19_a","kind":"op","dmg":12083,"kills":0,"heal":0,"taken":3010,"attacks":5}
+                ]
+              }
+            ],
+            "gold": 153,
+            "itemsEquipped": 4,
+            "kills": 204,
+            "leaks": 80,
+            "lpLost": 27,
+            "merges": 8,
+            "perfectRounds": 9,
+            "refreshes": 44
+          },
           "lineup": ["3_17_b@11,5","4_19_b@11,7","1_19_b@11,8","6_17_a@10,7","3_05_a@10,8","2_18_b@9,4[5_07_e_b]","1_19_b@9,8[6_09_e_a]","6_19_a@9,9"],
           "bonds": ["kazimierzShip 2/27","kjeragShip 0/8","miraShip 0/3","raidShip 1/1","siracusaShip 0/18","skillfulShip 0/16","soloShip 1/0","steadShip 1/1","suntShip 2/0","swiftShip 1/97","yanShip 0/6"]
         }
@@ -968,7 +1299,37 @@
           "title": {"id":"comment_3","name":"坚若磐石","picId":"comment_icon_3","text":"目标生命值损失最少"},
           "trophies": 3,
           "reward": 250,
-          "stats": {"activatedLayers":148,"bossDamage":252538,"dmgDealt":1708711,"gold":169,"itemsEquipped":10,"kills":280,"leaks":10,"lpLost":0,"merges":8,"perfectRounds":11,"refreshes":59},
+          "stats": {
+            "activatedLayers": 148,
+            "bossDamage": 252538,
+            "dmgDealt": 1708711,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":231,"defId":"chess_char_5_23_a","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":2,"uid":212,"defId":"chess_char_4_01_b","kind":"op","dmg":340,"kills":0,"heal":0,"taken":0,"attacks":12},
+                  {"id":3,"uid":139,"defId":"chess_char_3_04_b","kind":"op","dmg":64546,"kills":0,"heal":0,"taken":0,"attacks":34},
+                  {"id":4,"uid":236,"defId":"chess_char_3_03_b","kind":"op","dmg":53796,"kills":0,"heal":0,"taken":1822,"attacks":32},
+                  {"id":5,"uid":243,"defId":"chess_char_5_12_a","kind":"op","dmg":43395,"kills":1,"heal":0,"taken":0,"attacks":12},
+                  {"id":6,"uid":103,"defId":"chess_char_2_04_b","kind":"op","dmg":22439,"kills":0,"heal":0,"taken":0,"attacks":23},
+                  {"id":7,"uid":121,"defId":"chess_char_6_03_a","kind":"op","dmg":21256,"kills":0,"heal":394,"taken":689,"attacks":21},
+                  {"id":8,"uid":120,"defId":"chess_char_4_21_b","kind":"op","dmg":0,"kills":0,"heal":2093,"taken":0,"attacks":11},
+                  {"id":23,"uid":null,"defId":"enemy_9012_acloon","kind":"token","dmg":67707,"kills":2,"heal":0,"taken":0,"attacks":6},
+                  {"id":25,"uid":null,"defId":"token_10031_swire2_gdtrap","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0}
+                ]
+              }
+            ],
+            "gold": 169,
+            "itemsEquipped": 10,
+            "kills": 280,
+            "leaks": 10,
+            "lpLost": 0,
+            "merges": 8,
+            "perfectRounds": 11,
+            "refreshes": 59
+          },
           "lineup": ["5_23_a@12,3","4_01_b@12,6","3_04_b@12,7","3_03_b@12,8[1_01_e_a]","5_12_a@11,6","2_04_b@11,7","6_03_a@11,8[3_02_e_b]","4_21_b@10,7"],
           "bonds": ["deputShip 0/38","kjeragShip 0/2","preciShip 0/19","steadShip 1/2","victoriaShip 0/5","visiShip 0/38","yanShip 2/146"]
         },
@@ -982,7 +1343,37 @@
           "title": {"id":"comment_5","name":"万事俱备","picId":"comment_icon_5","text":"装备配发数量最多"},
           "trophies": 3,
           "reward": 250,
-          "stats": {"activatedLayers":169,"bossDamage":146518,"dmgDealt":1620296,"gold":142,"itemsEquipped":14,"kills":283,"leaks":0,"lpLost":0,"merges":5,"perfectRounds":13,"refreshes":48},
+          "stats": {
+            "activatedLayers": 169,
+            "bossDamage": 146518,
+            "dmgDealt": 1620296,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":9,"uid":183,"defId":"chess_char_6_20_a","kind":"op","dmg":0,"kills":0,"heal":925,"taken":475,"attacks":5},
+                  {"id":10,"uid":247,"defId":"token_10041_cathy_catsld","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":11,"uid":221,"defId":"chess_char_2_05_a","kind":"op","dmg":0,"kills":0,"heal":0,"taken":261,"attacks":5},
+                  {"id":12,"uid":71,"defId":"chess_char_3_08_a","kind":"op","dmg":1904,"kills":0,"heal":0,"taken":189,"attacks":5},
+                  {"id":13,"uid":82,"defId":"chess_char_1_06_b","kind":"op","dmg":31350,"kills":0,"heal":211,"taken":0,"attacks":20},
+                  {"id":14,"uid":151,"defId":"chess_char_2_10_b","kind":"op","dmg":73127,"kills":0,"heal":0,"taken":211,"attacks":37},
+                  {"id":15,"uid":248,"defId":"token_10041_cathy_catsld","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":16,"uid":246,"defId":"chess_char_4_07_a","kind":"op","dmg":21367,"kills":0,"heal":0,"taken":0,"attacks":36},
+                  {"id":17,"uid":107,"defId":"chess_char_1_13_b","kind":"op","dmg":5962,"kills":1,"heal":0,"taken":0,"attacks":18},
+                  {"id":18,"uid":124,"defId":"chess_char_4_11_a","kind":"op","dmg":18572,"kills":1,"heal":0,"taken":1997,"attacks":13}
+                ]
+              }
+            ],
+            "gold": 142,
+            "itemsEquipped": 14,
+            "kills": 283,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 5,
+            "perfectRounds": 13,
+            "refreshes": 48
+          },
           "lineup": ["6_20_a@12,3","2_05_a@11,3","3_08_a@11,6","1_06_b@11,7[3_03_e_a+5_07_e_a]","2_10_b@11,8[1_01_e_b+3_10_e_a]","4_07_a@10,8[4_03_e_a]","1_13_b@9,8","4_11_a@9,9[5_02_e_a+4_09_e_b]"],
           "bonds": ["deputShip 2/87","emptyShip 0/8","indomShip 0/10","preciShip 0/16","sargonShip 0/2","steadShip 0/21","victoriaShip 2/78","visiShip 1/4"]
         },
@@ -996,7 +1387,35 @@
           "title": {"id":"comment_4","name":"精英云集","picId":"comment_icon_4","text":"晋升精锐次数最多"},
           "trophies": 3,
           "reward": 250,
-          "stats": {"activatedLayers":239,"bossDamage":245175,"dmgDealt":1749146,"gold":145,"itemsEquipped":7,"kills":293,"leaks":0,"lpLost":0,"merges":7,"perfectRounds":13,"refreshes":63},
+          "stats": {
+            "activatedLayers": 239,
+            "bossDamage": 245175,
+            "dmgDealt": 1749146,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":9,"uid":157,"defId":"chess_char_2_08_b","kind":"op","dmg":1360,"kills":1,"heal":0,"taken":1529,"attacks":39},
+                  {"id":10,"uid":230,"defId":"chess_char_6_12_a","kind":"op","dmg":40610,"kills":1,"heal":0,"taken":0,"attacks":14},
+                  {"id":11,"uid":51,"defId":"chess_char_1_12_b","kind":"op","dmg":21988,"kills":0,"heal":441,"taken":441,"attacks":39},
+                  {"id":12,"uid":78,"defId":"chess_char_4_23_a","kind":"op","dmg":53857,"kills":0,"heal":0,"taken":0,"attacks":58},
+                  {"id":13,"uid":160,"defId":"chess_char_6_06_a","kind":"op","dmg":50249,"kills":0,"heal":0,"taken":0,"attacks":25},
+                  {"id":14,"uid":229,"defId":"chess_char_3_06_b","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":15,"uid":197,"defId":"chess_char_3_13_b","kind":"op","dmg":40443,"kills":1,"heal":0,"taken":0,"attacks":37},
+                  {"id":16,"uid":198,"defId":"chess_char_6_05_a","kind":"op","dmg":73403,"kills":2,"heal":0,"taken":1091,"attacks":21}
+                ]
+              }
+            ],
+            "gold": 145,
+            "itemsEquipped": 7,
+            "kills": 293,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 7,
+            "perfectRounds": 13,
+            "refreshes": 63
+          },
           "lineup": ["2_08_b@12,8","6_12_a@11,7","1_12_b@11,8","4_23_a@10,7[5_01_e_a+4_03_e_b]","6_06_a@10,8","3_06_b@9,4","3_13_b@9,8","6_05_a@9,9[2_04_e_b]"],
           "bonds": ["deputShip 0/18","kjeragShip 0/5","preciShip 1/46","sargonShip 2/193","steadShip 0/15","visiShip 1/0","yanShip 0/8"]
         },
@@ -1010,7 +1429,35 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 3,
           "reward": 250,
-          "stats": {"activatedLayers":374,"bossDamage":495770,"dmgDealt":1947497,"gold":136,"itemsEquipped":15,"kills":290,"leaks":0,"lpLost":0,"merges":7,"perfectRounds":13,"refreshes":53},
+          "stats": {
+            "activatedLayers": 374,
+            "bossDamage": 495770,
+            "dmgDealt": 1947497,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":201,"defId":"chess_char_4_10_b","kind":"op","dmg":20092,"kills":0,"heal":0,"taken":0,"attacks":32},
+                  {"id":2,"uid":252,"defId":"chess_char_4_16_b","kind":"op","dmg":71803,"kills":0,"heal":0,"taken":0,"attacks":104},
+                  {"id":3,"uid":162,"defId":"chess_char_3_18_b","kind":"op","dmg":106977,"kills":1,"heal":0,"taken":0,"attacks":102},
+                  {"id":4,"uid":169,"defId":"chess_char_6_18_a","kind":"op","dmg":46606,"kills":1,"heal":0,"taken":0,"attacks":55},
+                  {"id":5,"uid":253,"defId":"chess_char_6_18_a","kind":"op","dmg":43667,"kills":1,"heal":0,"taken":0,"attacks":55},
+                  {"id":6,"uid":164,"defId":"chess_char_6_19_b","kind":"op","dmg":50575,"kills":1,"heal":0,"taken":264,"attacks":20},
+                  {"id":7,"uid":113,"defId":"chess_char_1_07_b","kind":"op","dmg":122283,"kills":0,"heal":0,"taken":0,"attacks":58},
+                  {"id":8,"uid":65,"defId":"chess_char_1_08_b","kind":"op","dmg":69935,"kills":2,"heal":185,"taken":185,"attacks":84}
+                ]
+              }
+            ],
+            "gold": 136,
+            "itemsEquipped": 15,
+            "kills": 290,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 7,
+            "perfectRounds": 13,
+            "refreshes": 53
+          },
           "lineup": ["4_10_b@12,3[6_03_e_a]","4_16_b@12,7","3_18_b@12,8","6_18_a@11,6","6_18_a@11,7","6_19_b@11,8","1_07_b@10,7","1_08_b@10,8[1_01_e_a+4_06_e_a]"],
           "bonds": ["kjeragShip 0/42","preciShip 0/17","sargonShip 0/2","siracusaShip 2/226","steadShip 0/11","swiftShip 1/148","yanShip 0/8"]
         }
@@ -1133,7 +1580,56 @@
           "title": {"id":"comment_2","name":"不朽盟约","picId":"comment_icon_2","text":"激活的盟约层数总和最高"},
           "trophies": 6,
           "reward": 425,
-          "stats": {"activatedLayers":544,"bossDamage":7653619,"dmgDealt":21712976,"gold":167,"itemsEquipped":1,"kills":362,"leaks":13,"lpLost":5,"merges":8,"perfectRounds":11,"refreshes":51},
+          "stats": {
+            "activatedLayers": 544,
+            "bossDamage": 7653619,
+            "dmgDealt": 21712976,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":11,"uid":209,"defId":"chess_char_6_17_a","kind":"op","dmg":666844,"kills":1,"heal":0,"taken":8328,"attacks":193},
+                  {"id":12,"uid":208,"defId":"chess_char_1_19_b","kind":"op","dmg":558564,"kills":0,"heal":0,"taken":6373,"attacks":298},
+                  {"id":13,"uid":127,"defId":"chess_char_4_20_b","kind":"op","dmg":742091,"kills":2,"heal":0,"taken":5439,"attacks":35},
+                  {"id":14,"uid":185,"defId":"chess_char_3_12_a","kind":"op","dmg":515031,"kills":1,"heal":7047,"taken":10820,"attacks":128},
+                  {"id":15,"uid":210,"defId":"chess_char_4_14_a","kind":"op","dmg":654981,"kills":2,"heal":0,"taken":7626,"attacks":56},
+                  {"id":16,"uid":27,"defId":"chess_char_2_12_b","kind":"op","dmg":413544,"kills":2,"heal":0,"taken":13967,"attacks":239},
+                  {"id":17,"uid":158,"defId":"chess_char_4_21_b","kind":"op","dmg":0,"kills":0,"heal":47356,"taken":6967,"attacks":101},
+                  {"id":18,"uid":182,"defId":"chess_char_4_19_b","kind":"op","dmg":535936,"kills":1,"heal":0,"taken":13180,"attacks":202},
+                  {"id":20,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":3407,"taken":1314,"attacks":6},
+                  {"id":30,"uid":null,"defId":"token_10019_nearl2_sword","kind":"token","dmg":0,"kills":0,"heal":0,"taken":1115,"attacks":0},
+                  {"id":46,"uid":null,"defId":"token_10019_nearl2_sword","kind":"token","dmg":0,"kills":0,"heal":0,"taken":120,"attacks":0},
+                  {"id":51,"uid":null,"defId":"token_10019_nearl2_sword","kind":"token","dmg":0,"kills":0,"heal":0,"taken":200,"attacks":0}
+                ]
+              },
+              {
+                "round": 15,
+                "hidden": true,
+                "units": [
+                  {"id":1,"uid":210,"defId":"chess_char_4_14_a","kind":"op","dmg":1393872,"kills":2,"heal":0,"taken":5380,"attacks":42},
+                  {"id":2,"uid":127,"defId":"chess_char_4_20_b","kind":"op","dmg":627290,"kills":1,"heal":0,"taken":4683,"attacks":11},
+                  {"id":3,"uid":158,"defId":"chess_char_4_21_b","kind":"op","dmg":0,"kills":0,"heal":36876,"taken":18089,"attacks":122},
+                  {"id":4,"uid":182,"defId":"chess_char_4_19_b","kind":"op","dmg":655871,"kills":0,"heal":0,"taken":22256,"attacks":228},
+                  {"id":5,"uid":209,"defId":"chess_char_6_17_a","kind":"op","dmg":1187288,"kills":0,"heal":0,"taken":53636,"attacks":224},
+                  {"id":6,"uid":185,"defId":"chess_char_3_12_a","kind":"op","dmg":145751,"kills":1,"heal":8723,"taken":13138,"attacks":63},
+                  {"id":7,"uid":27,"defId":"chess_char_2_12_b","kind":"op","dmg":58709,"kills":2,"heal":0,"taken":23318,"attacks":21},
+                  {"id":8,"uid":208,"defId":"chess_char_1_19_b","kind":"op","dmg":379646,"kills":0,"heal":0,"taken":12408,"attacks":136},
+                  {"id":17,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":0,"taken":1314,"attacks":0},
+                  {"id":67,"uid":null,"defId":"token_10019_nearl2_sword","kind":"token","dmg":9197,"kills":0,"heal":0,"taken":1466,"attacks":0},
+                  {"id":80,"uid":null,"defId":"token_10019_nearl2_sword","kind":"token","dmg":9197,"kills":0,"heal":0,"taken":1164,"attacks":0}
+                ]
+              }
+            ],
+            "gold": 167,
+            "itemsEquipped": 1,
+            "kills": 362,
+            "leaks": 13,
+            "lpLost": 5,
+            "merges": 8,
+            "perfectRounds": 11,
+            "refreshes": 51
+          },
           "lineup": ["4_14_a@12,8","4_20_b@11,8","4_21_b@10,4","4_19_b@10,7","6_17_a@10,8","3_12_a@9,4","2_12_b@9,5","1_19_b@9,9"],
           "bonds": ["deputShip 0/10","indomShip 0/25","kazimierzShip 2/286","kjeragShip 0/8","preciShip 1/105","raidShip 1/30","siracusaShip 0/18","soloShip 0/6","suntShip 2/6","swiftShip 1/117"]
         },
@@ -1147,7 +1643,51 @@
           "title": {"id":"comment_6","name":"挥金如土","picId":"comment_icon_6","text":"消耗资金最多"},
           "trophies": 6,
           "reward": 425,
-          "stats": {"activatedLayers":322,"bossDamage":2800084,"dmgDealt":10797934,"gold":162,"itemsEquipped":7,"kills":238,"leaks":39,"lpLost":4,"merges":5,"perfectRounds":7,"refreshes":47},
+          "stats": {
+            "activatedLayers": 322,
+            "bossDamage": 2800084,
+            "dmgDealt": 10797934,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":161,"defId":"chess_char_3_06_b","kind":"op","dmg":175276,"kills":3,"heal":0,"taken":7491,"attacks":13},
+                  {"id":2,"uid":240,"defId":"chess_char_5_02_a","kind":"op","dmg":118444,"kills":0,"heal":13583,"taken":5315,"attacks":68},
+                  {"id":3,"uid":162,"defId":"chess_char_6_14_a","kind":"op","dmg":0,"kills":0,"heal":25610,"taken":5963,"attacks":82},
+                  {"id":4,"uid":67,"defId":"chess_char_4_13_a","kind":"op","dmg":161540,"kills":3,"heal":0,"taken":12962,"attacks":159},
+                  {"id":5,"uid":213,"defId":"chess_char_4_24_b","kind":"op","dmg":574194,"kills":1,"heal":2412,"taken":4126,"attacks":163},
+                  {"id":6,"uid":92,"defId":"chess_char_3_13_a","kind":"op","dmg":117710,"kills":1,"heal":0,"taken":2229,"attacks":81},
+                  {"id":7,"uid":191,"defId":"chess_char_1_12_b","kind":"op","dmg":244903,"kills":1,"heal":559,"taken":19628,"attacks":254},
+                  {"id":8,"uid":220,"defId":"chess_char_4_23_a","kind":"op","dmg":246051,"kills":1,"heal":0,"taken":10186,"attacks":289},
+                  {"id":18,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":6637,"taken":1314,"attacks":6}
+                ]
+              },
+              {
+                "round": 15,
+                "hidden": true,
+                "units": [
+                  {"id":9,"uid":162,"defId":"chess_char_6_14_a","kind":"op","dmg":0,"kills":0,"heal":18573,"taken":10669,"attacks":58},
+                  {"id":10,"uid":240,"defId":"chess_char_5_02_a","kind":"op","dmg":332928,"kills":1,"heal":23835,"taken":9292,"attacks":259},
+                  {"id":11,"uid":92,"defId":"chess_char_3_13_a","kind":"op","dmg":47255,"kills":0,"heal":0,"taken":4882,"attacks":61},
+                  {"id":12,"uid":213,"defId":"chess_char_4_24_b","kind":"op","dmg":802662,"kills":1,"heal":0,"taken":10404,"attacks":126},
+                  {"id":13,"uid":67,"defId":"chess_char_4_13_a","kind":"op","dmg":610806,"kills":1,"heal":0,"taken":15675,"attacks":76},
+                  {"id":14,"uid":220,"defId":"chess_char_4_23_a","kind":"op","dmg":102998,"kills":1,"heal":0,"taken":16308,"attacks":234},
+                  {"id":15,"uid":191,"defId":"chess_char_1_12_b","kind":"op","dmg":82710,"kills":0,"heal":0,"taken":12037,"attacks":317},
+                  {"id":16,"uid":161,"defId":"chess_char_3_06_b","kind":"op","dmg":5828,"kills":0,"heal":0,"taken":15315,"attacks":7},
+                  {"id":18,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":5779,"taken":1314,"attacks":17}
+                ]
+              }
+            ],
+            "gold": 162,
+            "itemsEquipped": 7,
+            "kills": 238,
+            "leaks": 39,
+            "lpLost": 4,
+            "merges": 5,
+            "perfectRounds": 7,
+            "refreshes": 47
+          },
           "lineup": ["6_14_a@12,4","5_02_a@12,8","3_13_a@11,4","4_24_b@11,8","4_13_a@10,4","4_23_a@10,7[3_05_e_a+3_05_e_b]","1_12_b@10,8[4_03_e_a]","3_06_b@9,5[3_05_e_b+6_09_e_a]"],
           "bonds": ["deputShip 1/79","indomShip 0/18","kazimierzShip 0/2","kjeragShip 0/10","sargonShip 2/165","skillfulShip 1/50","soloShip 0/6","steadShip 0/16","suntShip 1/28","swiftShip 0/2","yanShip 0/1"]
         },
@@ -1161,7 +1701,55 @@
           "title": {"id":"comment_3","name":"坚若磐石","picId":"comment_icon_3","text":"目标生命值损失最少"},
           "trophies": 6,
           "reward": 425,
-          "stats": {"activatedLayers":191,"bossDamage":6712205,"dmgDealt":13304723,"gold":161,"itemsEquipped":14,"kills":249,"leaks":64,"lpLost":3,"merges":4,"perfectRounds":7,"refreshes":52},
+          "stats": {
+            "activatedLayers": 191,
+            "bossDamage": 6712205,
+            "dmgDealt": 13304723,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":243,"defId":"chess_char_2_05_a","kind":"op","dmg":0,"kills":0,"heal":59713,"taken":6270,"attacks":127},
+                  {"id":2,"uid":246,"defId":"token_10041_cathy_catsld","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":3,"uid":44,"defId":"chess_char_1_06_b","kind":"op","dmg":833840,"kills":2,"heal":262178,"taken":4459,"attacks":222},
+                  {"id":4,"uid":72,"defId":"chess_char_4_21_a","kind":"op","dmg":0,"kills":0,"heal":34983,"taken":4180,"attacks":106},
+                  {"id":5,"uid":227,"defId":"chess_char_5_07_a","kind":"op","dmg":461707,"kills":1,"heal":0,"taken":262011,"attacks":165},
+                  {"id":6,"uid":194,"defId":"chess_char_5_03_a","kind":"op","dmg":784656,"kills":7,"heal":0,"taken":3762,"attacks":252},
+                  {"id":7,"uid":167,"defId":"chess_char_2_10_b","kind":"op","dmg":1175824,"kills":0,"heal":0,"taken":3344,"attacks":265},
+                  {"id":8,"uid":245,"defId":"token_10041_cathy_catsld","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":9,"uid":225,"defId":"chess_char_4_11_b","kind":"op","dmg":109348,"kills":1,"heal":0,"taken":43022,"attacks":118},
+                  {"id":10,"uid":221,"defId":"chess_char_4_07_a","kind":"op","dmg":69583,"kills":0,"heal":0,"taken":36129,"attacks":358},
+                  {"id":19,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":41,"taken":1314,"attacks":1}
+                ]
+              },
+              {
+                "round": 15,
+                "hidden": true,
+                "units": [
+                  {"id":1,"uid":72,"defId":"chess_char_4_21_a","kind":"op","dmg":0,"kills":0,"heal":812,"taken":11385,"attacks":5},
+                  {"id":2,"uid":44,"defId":"chess_char_1_06_b","kind":"op","dmg":774344,"kills":0,"heal":128474,"taken":17488,"attacks":268},
+                  {"id":3,"uid":268,"defId":"chess_char_2_05_a","kind":"op","dmg":0,"kills":0,"heal":17197,"taken":22797,"attacks":49},
+                  {"id":4,"uid":194,"defId":"chess_char_5_03_a","kind":"op","dmg":1111261,"kills":2,"heal":4804,"taken":21119,"attacks":120},
+                  {"id":5,"uid":167,"defId":"chess_char_2_10_b","kind":"op","dmg":1816588,"kills":4,"heal":0,"taken":10060,"attacks":35},
+                  {"id":6,"uid":271,"defId":"token_10041_cathy_catsld","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":7,"uid":221,"defId":"chess_char_4_07_a","kind":"op","dmg":191273,"kills":0,"heal":0,"taken":19931,"attacks":238},
+                  {"id":8,"uid":225,"defId":"chess_char_4_11_b","kind":"op","dmg":4500,"kills":0,"heal":0,"taken":12993,"attacks":3},
+                  {"id":9,"uid":270,"defId":"token_10041_cathy_catsld","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":10,"uid":227,"defId":"chess_char_5_07_a","kind":"op","dmg":271854,"kills":0,"heal":7934,"taken":102901,"attacks":82},
+                  {"id":20,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":5325,"taken":1314,"attacks":8}
+                ]
+              }
+            ],
+            "gold": 161,
+            "itemsEquipped": 14,
+            "kills": 249,
+            "leaks": 64,
+            "lpLost": 3,
+            "merges": 4,
+            "perfectRounds": 7,
+            "refreshes": 52
+          },
           "lineup": ["4_21_a@12,4","1_06_b@12,8[4_03_e_a]","2_05_a@11,4","5_03_a@11,8[3_09_e_a]","2_10_b@10,4[3_03_e_b+2_04_e_a]","4_07_a@10,8[4_04_e_a+4_09_e_a]","4_11_b@9,4[4_11_e_b+4_05_e_a]","5_07_a@9,9"],
           "bonds": ["arcaneShip 1/12","deputShip 1/39","kjeragShip 0/7","preciShip 0/2","sargonShip 0/2","skillfulShip 1/48","soloShip 0/25","steadShip 0/88","suntShip 1/32","victoriaShip 2/60","yanShip 0/11"]
         },
@@ -1175,7 +1763,54 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 6,
           "reward": 425,
-          "stats": {"activatedLayers":315,"bossDamage":18252436,"dmgDealt":28090487,"gold":161,"itemsEquipped":14,"kills":202,"leaks":49,"lpLost":13,"merges":7,"perfectRounds":7,"refreshes":55},
+          "stats": {
+            "activatedLayers": 315,
+            "bossDamage": 18252436,
+            "dmgDealt": 28090487,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":9,"uid":258,"defId":"token_10028_vigil_wolf","kind":"token","dmg":1612,"kills":0,"heal":0,"taken":3734,"attacks":7},
+                  {"id":10,"uid":256,"defId":"chess_char_6_16_a","kind":"op","dmg":656234,"kills":2,"heal":363,"taken":2862,"attacks":71},
+                  {"id":11,"uid":108,"defId":"chess_char_5_10_b","kind":"op","dmg":271953,"kills":0,"heal":1045,"taken":1045,"attacks":133},
+                  {"id":12,"uid":106,"defId":"chess_char_3_19_b","kind":"op","dmg":1362642,"kills":1,"heal":0,"taken":2958,"attacks":537},
+                  {"id":13,"uid":255,"defId":"chess_char_6_18_a","kind":"op","dmg":1798141,"kills":2,"heal":0,"taken":1256,"attacks":221},
+                  {"id":14,"uid":257,"defId":"chess_char_6_18_a","kind":"op","dmg":1647114,"kills":4,"heal":1115,"taken":2229,"attacks":249},
+                  {"id":15,"uid":248,"defId":"chess_char_4_10_b","kind":"op","dmg":575138,"kills":1,"heal":0,"taken":2320,"attacks":175},
+                  {"id":16,"uid":200,"defId":"chess_char_1_08_b","kind":"op","dmg":739144,"kills":3,"heal":1097,"taken":16111,"attacks":487},
+                  {"id":17,"uid":252,"defId":"chess_char_4_16_b","kind":"op","dmg":434319,"kills":0,"heal":975,"taken":975,"attacks":541},
+                  {"id":19,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":13267,"taken":1314,"attacks":16}
+                ]
+              },
+              {
+                "round": 15,
+                "hidden": true,
+                "units": [
+                  {"id":11,"uid":248,"defId":"chess_char_4_10_b","kind":"op","dmg":2359706,"kills":2,"heal":0,"taken":3661,"attacks":322},
+                  {"id":12,"uid":252,"defId":"chess_char_4_16_b","kind":"op","dmg":1309529,"kills":1,"heal":1198,"taken":6541,"attacks":1396},
+                  {"id":13,"uid":106,"defId":"chess_char_3_19_b","kind":"op","dmg":2397456,"kills":3,"heal":1608,"taken":3585,"attacks":929},
+                  {"id":14,"uid":257,"defId":"chess_char_6_18_a","kind":"op","dmg":3486879,"kills":8,"heal":0,"taken":2512,"attacks":172},
+                  {"id":15,"uid":255,"defId":"chess_char_6_18_a","kind":"op","dmg":2859001,"kills":5,"heal":349,"taken":2861,"attacks":470},
+                  {"id":16,"uid":256,"defId":"chess_char_6_16_a","kind":"op","dmg":35820,"kills":1,"heal":0,"taken":6204,"attacks":76},
+                  {"id":17,"uid":108,"defId":"chess_char_5_10_b","kind":"op","dmg":522550,"kills":1,"heal":916,"taken":4172,"attacks":268},
+                  {"id":18,"uid":258,"defId":"token_10028_vigil_wolf","kind":"token","dmg":272,"kills":0,"heal":1457,"taken":6931,"attacks":2},
+                  {"id":19,"uid":200,"defId":"chess_char_1_08_b","kind":"op","dmg":529553,"kills":1,"heal":446,"taken":13316,"attacks":563},
+                  {"id":21,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":1206,"taken":1314,"attacks":1},
+                  {"id":61,"uid":null,"defId":"token_10028_vigil_wolf","kind":"token","dmg":0,"kills":0,"heal":3296,"taken":9307,"attacks":0}
+                ]
+              }
+            ],
+            "gold": 161,
+            "itemsEquipped": 14,
+            "kills": 202,
+            "leaks": 49,
+            "lpLost": 13,
+            "merges": 7,
+            "perfectRounds": 7,
+            "refreshes": 55
+          },
           "lineup": ["4_10_b@12,4[5_02_e_b]","4_16_b@12,7","3_19_b@12,8","6_18_a@11,4","6_18_a@11,8","6_16_a@10,4","5_10_b@10,8","1_08_b@9,9"],
           "bonds": ["arcaneShip 1/54","deputShip 0/14","kazimierzShip 0/8","kjeragShip 0/12","miraShip 0/18","siracusaShip 2/236","skillfulShip 0/5","soloShip 1/21","steadShip 0/4","suntShip 2/4","swiftShip 0/46"]
         }
@@ -1272,7 +1907,36 @@
           "title": {"id":"comment_3","name":"坚若磐石","picId":"comment_icon_3","text":"目标生命值损失最少"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":256,"bossDamage":499114,"dmgDealt":3691931,"gold":141,"itemsEquipped":3,"kills":267,"leaks":9,"lpLost":1,"merges":5,"perfectRounds":9,"refreshes":50},
+          "stats": {
+            "activatedLayers": 256,
+            "bossDamage": 499114,
+            "dmgDealt": 3691931,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":106,"defId":"token_10028_vigil_wolf","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":2,"uid":108,"defId":"chess_char_6_18_a","kind":"op","dmg":44464,"kills":2,"heal":0,"taken":0,"attacks":0},
+                  {"id":3,"uid":105,"defId":"chess_char_3_19_b","kind":"op","dmg":159455,"kills":0,"heal":0,"taken":0,"attacks":111},
+                  {"id":4,"uid":60,"defId":"chess_char_1_07_b","kind":"op","dmg":88543,"kills":1,"heal":0,"taken":0,"attacks":74},
+                  {"id":5,"uid":21,"defId":"chess_char_1_08_b","kind":"op","dmg":90029,"kills":0,"heal":0,"taken":2640,"attacks":111},
+                  {"id":6,"uid":87,"defId":"chess_char_6_18_a","kind":"op","dmg":85962,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":7,"uid":96,"defId":"chess_char_4_10_a","kind":"op","dmg":54460,"kills":0,"heal":0,"taken":0,"attacks":41},
+                  {"id":8,"uid":86,"defId":"chess_char_3_18_b","kind":"op","dmg":70868,"kills":2,"heal":0,"taken":2222,"attacks":71},
+                  {"id":9,"uid":80,"defId":"chess_char_6_05_a","kind":"op","dmg":1492,"kills":0,"heal":0,"taken":1337,"attacks":2}
+                ]
+              }
+            ],
+            "gold": 141,
+            "itemsEquipped": 3,
+            "kills": 267,
+            "leaks": 9,
+            "lpLost": 1,
+            "merges": 5,
+            "perfectRounds": 9,
+            "refreshes": 50
+          },
           "lineup": ["6_18_a@11,3","3_19_b@11,6","1_07_b@11,7","1_08_b@11,8[1_05_e_b]","6_18_a@10,3","4_10_a@10,7","3_18_b@10,8","6_05_a@9,9"],
           "bonds": ["arcaneShip 0/2","deputShip 0/32","indomShip 0/8","kjeragShip 0/2","preciShip 0/6","siracusaShip 2/184","soloShip 1/42","steadShip 0/24","suntShip 1/0","swiftShip 1/30","victoriaShip 0/8","visiShip 0/8"]
         },
@@ -1286,7 +1950,35 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":360,"bossDamage":850886,"dmgDealt":4320032,"gold":147,"itemsEquipped":18,"kills":275,"leaks":1,"lpLost":1,"merges":8,"perfectRounds":12,"refreshes":42},
+          "stats": {
+            "activatedLayers": 360,
+            "bossDamage": 850886,
+            "dmgDealt": 4320032,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":10,"uid":65,"defId":"chess_char_3_20_b","kind":"op","dmg":105358,"kills":0,"heal":0,"taken":0,"attacks":34},
+                  {"id":11,"uid":34,"defId":"chess_char_1_17_b","kind":"op","dmg":64566,"kills":1,"heal":0,"taken":0,"attacks":15},
+                  {"id":12,"uid":70,"defId":"chess_char_1_06_b","kind":"op","dmg":19492,"kills":0,"heal":1832,"taken":811,"attacks":28},
+                  {"id":13,"uid":54,"defId":"chess_char_1_02_b","kind":"op","dmg":2305,"kills":0,"heal":0,"taken":0,"attacks":37},
+                  {"id":14,"uid":72,"defId":"chess_char_2_05_b","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":15,"uid":92,"defId":"chess_char_3_11_b","kind":"op","dmg":616905,"kills":1,"heal":114,"taken":1013,"attacks":25},
+                  {"id":16,"uid":100,"defId":"chess_char_6_19_a","kind":"op","dmg":71108,"kills":2,"heal":0,"taken":0,"attacks":32},
+                  {"id":17,"uid":55,"defId":"chess_char_5_14_a","kind":"op","dmg":73927,"kills":1,"heal":301,"taken":423,"attacks":37}
+                ]
+              }
+            ],
+            "gold": 147,
+            "itemsEquipped": 18,
+            "kills": 275,
+            "leaks": 1,
+            "lpLost": 1,
+            "merges": 8,
+            "perfectRounds": 12,
+            "refreshes": 42
+          },
           "lineup": ["3_20_b@12,8[5_02_e_b+5_01_e_b]","1_17_b@11,6","1_06_b@11,7","1_02_b@11,8","2_05_b@10,3[6_05_e_a]","3_11_b@10,7[2_03_e_a+6_02_e_a]","6_19_a@10,8","5_14_a@9,8[5_02_e_b+1_02_e_b]"],
           "bonds": ["arcaneShip 0/18","deputShip 1/26","indomShip 0/8","kazimierzShip 0/18","kjeragShip 2/152","preciShip 1/94","siracusaShip 0/6","steadShip 0/21","suntShip 2/24","swiftShip 1/52","victoriaShip 0/20","visiShip 1/12"]
         }
@@ -1370,7 +2062,49 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 0,
           "reward": 425,
-          "stats": {"activatedLayers":2746,"bossDamage":4580000,"dmgDealt":6333083,"gold":190,"itemsEquipped":9,"kills":369,"leaks":0,"lpLost":0,"merges":8,"perfectRounds":13,"refreshes":120},
+          "stats": {
+            "activatedLayers": 2746,
+            "bossDamage": 4580000,
+            "dmgDealt": 6333083,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":53,"defId":"chess_char_5_23_a","kind":"op","dmg":0,"kills":0,"heal":940,"taken":0,"attacks":2},
+                  {"id":2,"uid":48,"defId":"chess_char_6_16_a","kind":"op","dmg":192934,"kills":0,"heal":0,"taken":940,"attacks":110},
+                  {"id":3,"uid":24,"defId":"chess_char_2_01_b","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":4,"uid":22,"defId":"chess_char_4_02_b","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":5,"uid":52,"defId":"chess_char_3_21_b","kind":"op","dmg":91989,"kills":1,"heal":0,"taken":0,"attacks":71},
+                  {"id":6,"uid":56,"defId":"chess_char_6_12_a","kind":"op","dmg":513926,"kills":5,"heal":0,"taken":0,"attacks":55},
+                  {"id":7,"uid":59,"defId":"chess_char_5_01_b","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":8,"uid":66,"defId":"chess_char_4_01_b","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0}
+                ]
+              },
+              {
+                "round": 15,
+                "hidden": true,
+                "units": [
+                  {"id":1,"uid":78,"defId":"chess_char_2_14_a","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":2,"uid":22,"defId":"chess_char_4_02_b","kind":"op","dmg":371619,"kills":0,"heal":0,"taken":0,"attacks":79},
+                  {"id":3,"uid":52,"defId":"chess_char_3_21_b","kind":"op","dmg":247544,"kills":5,"heal":210,"taken":1349,"attacks":225},
+                  {"id":4,"uid":24,"defId":"chess_char_2_01_b","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":5,"uid":59,"defId":"chess_char_5_01_b","kind":"op","dmg":284462,"kills":0,"heal":94,"taken":94,"attacks":356},
+                  {"id":6,"uid":48,"defId":"chess_char_6_16_a","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":7,"uid":81,"defId":"chess_char_6_12_b","kind":"op","dmg":2946046,"kills":6,"heal":0,"taken":0,"attacks":83},
+                  {"id":8,"uid":66,"defId":"chess_char_4_01_b","kind":"op","dmg":184,"kills":0,"heal":0,"taken":0,"attacks":5}
+                ]
+              }
+            ],
+            "gold": 190,
+            "itemsEquipped": 9,
+            "kills": 369,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 8,
+            "perfectRounds": 13,
+            "refreshes": 120
+          },
           "lineup": ["2_14_a@12,6","4_02_b@12,7","3_21_b@12,8[3_07_e_a]","2_01_b@11,5","5_01_b@11,8[4_03_e_b]","6_16_a@10,4[3_03_e_a]","6_12_b@10,5","4_01_b@10,6"],
           "bonds": ["arcaneShip 1/371","deputShip 0/300","egirShip 0/300","emptyShip 1/300","indomShip 0/300","investShip 0/300","kazimierzShip 0/308","kjeragShip 0/335","lateranoShip 1/339","maniShip 0/300","miraShip 1/303","preciShip 1/382","raidShip 0/362","sargonShip 0/302","siracusaShip 0/318","skillfulShip 1/415","soloShip 0/308","steadShip 0/300","suntShip 2/300","swiftShip 0/314","victoriaShip 0/300","visiShip 1/336","yanShip 0/306"]
         }
@@ -1467,8 +2201,52 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 8,
           "reward": 425,
-          "stats": {"activatedLayers":2105,"bossDamage":11347561,"dmgDealt":25020375,"gold":184,"itemsEquipped":3,"kills":271,"leaks":0,"lpLost":0,"merges":7,"perfectRounds":13,"refreshes":70},
-          "lineup": ["5_14_a@12,8","3_11_b@11,7[5_02_e_b]","4_22_a@11,8","3_14_b@10,5[5_02_e_a]","6_02_a@10,7","6_05_a@10,8","6_16_a@9,8","4_13_b@9,9"],
+          "stats": {
+            "activatedLayers": 2105,
+            "bossDamage": 12017430,
+            "dmgDealt": 26547474,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":9,"uid":74,"defId":"chess_char_3_11_b","kind":"op","dmg":1271144,"kills":1,"heal":406,"taken":754,"attacks":8},
+                  {"id":10,"uid":89,"defId":"chess_char_6_02_a","kind":"op","dmg":2536044,"kills":1,"heal":2,"taken":735,"attacks":18},
+                  {"id":11,"uid":88,"defId":"chess_char_3_14_b","kind":"op","dmg":560977,"kills":0,"heal":373,"taken":1825,"attacks":50},
+                  {"id":12,"uid":69,"defId":"chess_char_6_16_a","kind":"op","dmg":102821,"kills":0,"heal":0,"taken":0,"attacks":38},
+                  {"id":13,"uid":99,"defId":"chess_char_4_13_b","kind":"op","dmg":594259,"kills":1,"heal":0,"taken":0,"attacks":46},
+                  {"id":14,"uid":78,"defId":"chess_char_5_14_a","kind":"op","dmg":7447,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":15,"uid":80,"defId":"chess_char_6_05_a","kind":"op","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":16,"uid":90,"defId":"chess_char_3_20_a","kind":"op","dmg":612346,"kills":0,"heal":0,"taken":0,"attacks":49},
+                  {"id":18,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":2184,"taken":0,"attacks":3}
+                ]
+              },
+              {
+                "round": 15,
+                "hidden": true,
+                "units": [
+                  {"id":1,"uid":78,"defId":"chess_char_5_14_a","kind":"op","dmg":70309,"kills":0,"heal":181,"taken":3991,"attacks":4},
+                  {"id":2,"uid":74,"defId":"chess_char_3_11_b","kind":"op","dmg":4329866,"kills":1,"heal":0,"taken":2979,"attacks":54},
+                  {"id":3,"uid":115,"defId":"chess_char_4_22_a","kind":"op","dmg":766836,"kills":0,"heal":0,"taken":4448,"attacks":176},
+                  {"id":4,"uid":88,"defId":"chess_char_3_14_b","kind":"op","dmg":25353,"kills":0,"heal":0,"taken":1338,"attacks":9},
+                  {"id":5,"uid":99,"defId":"chess_char_4_13_b","kind":"op","dmg":1090435,"kills":1,"heal":86,"taken":11736,"attacks":283},
+                  {"id":6,"uid":89,"defId":"chess_char_6_02_a","kind":"op","dmg":6253511,"kills":0,"heal":125,"taken":2658,"attacks":39},
+                  {"id":7,"uid":69,"defId":"chess_char_6_16_a","kind":"op","dmg":95061,"kills":0,"heal":0,"taken":1250,"attacks":154},
+                  {"id":8,"uid":80,"defId":"chess_char_6_05_a","kind":"op","dmg":595849,"kills":0,"heal":0,"taken":1337,"attacks":109},
+                  {"id":17,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":11855,"taken":0,"attacks":14}
+                ]
+              }
+            ],
+            "gold": 184,
+            "itemsEquipped": 3,
+            "kills": 271,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 7,
+            "perfectRounds": 13,
+            "refreshes": 70
+          },
+          "lineup": ["5_14_a@12,8","3_11_b@11,7[5_02_e_b]","4_22_a@11,8","3_14_b@10,5[5_02_e_a]","4_13_b@10,7","6_02_a@10,8","6_16_a@9,8","6_05_a@9,9"],
           "bonds": ["arcaneShip 1/360","deputShip 0/310","egirShip 0/300","emptyShip 0/300","indomShip 0/300","investShip 0/300","kazimierzShip 0/300","kjeragShip 2/404","lateranoShip 0/300","maniShip 0/300","miraShip 0/300","preciShip 1/348","raidShip 0/300","sargonShip 0/300","siracusaShip 0/306","skillfulShip 1/377","soloShip 0/310","steadShip 0/349","suntShip 1/310","swiftShip 1/306","victoriaShip 0/300","visiShip 0/300","yanShip 0/300"]
         },
         "ai_1": {
@@ -1481,7 +2259,51 @@
           "title": {"id":"comment_3","name":"坚若磐石","picId":"comment_icon_3","text":"目标生命值损失最少"},
           "trophies": 8,
           "reward": 425,
-          "stats": {"activatedLayers":2050,"bossDamage":2548351,"dmgDealt":12200923,"gold":170,"itemsEquipped":4,"kills":272,"leaks":0,"lpLost":0,"merges":6,"perfectRounds":13,"refreshes":48},
+          "stats": {
+            "activatedLayers": 2050,
+            "bossDamage": 1881058,
+            "dmgDealt": 11086516,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":102,"defId":"chess_char_4_20_b","kind":"op","dmg":179338,"kills":1,"heal":0,"taken":0,"attacks":9},
+                  {"id":2,"uid":65,"defId":"chess_char_3_16_a","kind":"op","dmg":0,"kills":0,"heal":0,"taken":678,"attacks":0},
+                  {"id":3,"uid":106,"defId":"chess_char_4_19_b","kind":"op","dmg":23095,"kills":0,"heal":0,"taken":879,"attacks":10},
+                  {"id":4,"uid":86,"defId":"chess_char_6_19_a","kind":"op","dmg":177320,"kills":1,"heal":17,"taken":17,"attacks":13},
+                  {"id":5,"uid":84,"defId":"chess_char_2_18_b","kind":"op","dmg":51232,"kills":0,"heal":0,"taken":847,"attacks":10},
+                  {"id":6,"uid":94,"defId":"chess_char_1_19_b","kind":"op","dmg":0,"kills":0,"heal":0,"taken":895,"attacks":0},
+                  {"id":7,"uid":110,"defId":"chess_char_6_01_a","kind":"op","dmg":204284,"kills":1,"heal":0,"taken":1075,"attacks":8},
+                  {"id":8,"uid":45,"defId":"chess_char_3_17_a","kind":"op","dmg":73353,"kills":0,"heal":0,"taken":1299,"attacks":23},
+                  {"id":17,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":3268,"taken":0,"attacks":4}
+                ]
+              },
+              {
+                "round": 15,
+                "hidden": true,
+                "units": [
+                  {"id":9,"uid":65,"defId":"chess_char_3_16_a","kind":"op","dmg":0,"kills":0,"heal":3706,"taken":5545,"attacks":0},
+                  {"id":10,"uid":86,"defId":"chess_char_6_19_a","kind":"op","dmg":608609,"kills":1,"heal":543,"taken":14840,"attacks":32},
+                  {"id":11,"uid":106,"defId":"chess_char_4_19_b","kind":"op","dmg":89196,"kills":0,"heal":0,"taken":12939,"attacks":34},
+                  {"id":12,"uid":84,"defId":"chess_char_2_18_b","kind":"op","dmg":133736,"kills":0,"heal":0,"taken":2670,"attacks":28},
+                  {"id":13,"uid":117,"defId":"chess_char_3_17_a","kind":"op","dmg":300284,"kills":0,"heal":0,"taken":8679,"attacks":105},
+                  {"id":14,"uid":110,"defId":"chess_char_6_01_a","kind":"op","dmg":1208205,"kills":2,"heal":0,"taken":1229,"attacks":41},
+                  {"id":15,"uid":102,"defId":"chess_char_4_20_b","kind":"op","dmg":412349,"kills":0,"heal":0,"taken":5634,"attacks":35},
+                  {"id":16,"uid":94,"defId":"chess_char_1_19_b","kind":"op","dmg":18926,"kills":0,"heal":0,"taken":7236,"attacks":17},
+                  {"id":18,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":11487,"taken":1314,"attacks":18}
+                ]
+              }
+            ],
+            "gold": 170,
+            "itemsEquipped": 4,
+            "kills": 272,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 6,
+            "perfectRounds": 13,
+            "refreshes": 48
+          },
           "lineup": ["3_16_a@12,4","6_19_a@12,7","4_19_b@12,8","2_18_b@11,5","3_17_a@11,7","6_01_a@10,7[1_01_e_b]","4_20_b@10,8","1_19_b@9,9"],
           "bonds": ["arcaneShip 0/304","deputShip 0/322","egirShip 0/300","emptyShip 0/316","indomShip 0/300","investShip 0/300","kazimierzShip 2/384","kjeragShip 0/310","lateranoShip 0/300","maniShip 0/300","miraShip 0/300","preciShip 1/335","raidShip 0/300","sargonShip 0/300","siracusaShip 0/306","skillfulShip 0/314","soloShip 1/316","steadShip 1/327","suntShip 1/300","swiftShip 1/388","victoriaShip 0/300","visiShip 0/300","yanShip 0/304"]
         }
@@ -1578,7 +2400,36 @@
           "title": {"id":"comment_3","name":"坚若磐石","picId":"comment_icon_3","text":"目标生命值损失最少"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":266,"bossDamage":281661,"dmgDealt":3055323,"gold":145,"itemsEquipped":15,"kills":288,"leaks":15,"lpLost":0,"merges":5,"perfectRounds":11,"refreshes":37},
+          "stats": {
+            "activatedLayers": 266,
+            "bossDamage": 281661,
+            "dmgDealt": 3055323,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":109,"defId":"chess_char_5_23_a","kind":"op","dmg":0,"kills":0,"heal":5617,"taken":752,"attacks":9},
+                  {"id":2,"uid":77,"defId":"chess_char_3_20_b","kind":"op","dmg":57480,"kills":0,"heal":0,"taken":2800,"attacks":37},
+                  {"id":3,"uid":102,"defId":"chess_char_2_10_b","kind":"op","dmg":79553,"kills":1,"heal":35,"taken":4392,"attacks":49},
+                  {"id":4,"uid":90,"defId":"chess_char_5_03_a","kind":"op","dmg":87741,"kills":1,"heal":0,"taken":860,"attacks":45},
+                  {"id":5,"uid":44,"defId":"chess_char_1_06_b","kind":"op","dmg":45213,"kills":0,"heal":2516,"taken":760,"attacks":30},
+                  {"id":6,"uid":49,"defId":"chess_char_5_07_a","kind":"op","dmg":93384,"kills":2,"heal":2648,"taken":13027,"attacks":23},
+                  {"id":7,"uid":106,"defId":"chess_char_6_14_a","kind":"op","dmg":0,"kills":0,"heal":2049,"taken":765,"attacks":13},
+                  {"id":8,"uid":64,"defId":"chess_char_6_15_a","kind":"op","dmg":51162,"kills":2,"heal":456,"taken":853,"attacks":25},
+                  {"id":24,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":3928,"taken":0,"attacks":7}
+                ]
+              }
+            ],
+            "gold": 145,
+            "itemsEquipped": 15,
+            "kills": 288,
+            "leaks": 15,
+            "lpLost": 0,
+            "merges": 5,
+            "perfectRounds": 11,
+            "refreshes": 37
+          },
           "lineup": ["5_23_a@12,3","3_20_b@12,4","2_10_b@11,4[6_05_e_a]","5_03_a@11,6[5_02_e_b+4_03_e_a]","1_06_b@11,7[1_01_e_a+2_03_e_a]","5_07_a@10,4","6_14_a@10,7","6_15_a@9,3[4_11_e_b]"],
           "bonds": ["arcaneShip 1/36","deputShip 2/20","kazimierzShip 0/2","miraShip 0/3","preciShip 0/22","raidShip 1/130","siracusaShip 0/6","soloShip 0/8","steadShip 0/22","suntShip 1/20","swiftShip 0/12","victoriaShip 1/33","yanShip 1/27"]
         },
@@ -1592,7 +2443,37 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":284,"bossDamage":498339,"dmgDealt":3507792,"gold":148,"itemsEquipped":4,"kills":309,"leaks":0,"lpLost":0,"merges":9,"perfectRounds":13,"refreshes":53},
+          "stats": {
+            "activatedLayers": 284,
+            "bossDamage": 498339,
+            "dmgDealt": 3507792,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":9,"uid":117,"defId":"chess_char_4_10_b","kind":"op","dmg":54195,"kills":1,"heal":0,"taken":0,"attacks":35},
+                  {"id":10,"uid":37,"defId":"chess_char_2_16_b","kind":"op","dmg":72099,"kills":0,"heal":0,"taken":0,"attacks":63},
+                  {"id":11,"uid":86,"defId":"chess_char_3_18_b","kind":"op","dmg":150942,"kills":0,"heal":0,"taken":0,"attacks":106},
+                  {"id":12,"uid":19,"defId":"chess_char_1_19_b","kind":"op","dmg":13681,"kills":0,"heal":557,"taken":2122,"attacks":39},
+                  {"id":13,"uid":111,"defId":"chess_char_4_16_b","kind":"op","dmg":41637,"kills":1,"heal":822,"taken":1532,"attacks":109},
+                  {"id":14,"uid":119,"defId":"token_10028_vigil_wolf","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":15,"uid":96,"defId":"chess_char_5_20_a","kind":"op","dmg":8322,"kills":0,"heal":0,"taken":0,"attacks":23},
+                  {"id":16,"uid":98,"defId":"chess_char_3_19_b","kind":"op","dmg":112386,"kills":0,"heal":0,"taken":0,"attacks":75},
+                  {"id":17,"uid":100,"defId":"chess_char_6_18_a","kind":"op","dmg":95951,"kills":2,"heal":0,"taken":0,"attacks":44},
+                  {"id":25,"uid":null,"defId":"char_613_acmedc","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0}
+                ]
+              }
+            ],
+            "gold": 148,
+            "itemsEquipped": 4,
+            "kills": 309,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 9,
+            "perfectRounds": 13,
+            "refreshes": 53
+          },
           "lineup": ["4_10_b@12,3","2_16_b@12,4[6_02_e_a]","3_18_b@12,6","1_19_b@12,7[3_01_e_a]","4_16_b@12,8","5_20_a@11,6","3_19_b@11,7","6_18_a@10,7[3_03_e_a]"],
           "bonds": ["arcaneShip 0/2","kazimierzShip 0/8","miraShip 1/10","preciShip 0/2","raidShip 0/57","sargonShip 0/8","siracusaShip 2/236","suntShip 2/0","swiftShip 1/38","visiShip 0/5"]
         }
@@ -1699,7 +2580,37 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":284,"bossDamage":970066,"dmgDealt":4089325,"gold":155,"itemsEquipped":30,"kills":289,"leaks":0,"lpLost":0,"merges":2,"perfectRounds":13,"refreshes":57},
+          "stats": {
+            "activatedLayers": 284,
+            "bossDamage": 970066,
+            "dmgDealt": 4089325,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":10,"uid":84,"defId":"chess_char_4_11_a","kind":"op","dmg":42863,"kills":0,"heal":0,"taken":0,"attacks":17},
+                  {"id":11,"uid":83,"defId":"chess_char_5_03_a","kind":"op","dmg":204425,"kills":0,"heal":0,"taken":0,"attacks":19},
+                  {"id":12,"uid":18,"defId":"chess_char_1_06_a","kind":"op","dmg":79184,"kills":0,"heal":2469,"taken":0,"attacks":20},
+                  {"id":13,"uid":131,"defId":"token_10041_cathy_catsld","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":14,"uid":52,"defId":"chess_char_6_07_a","kind":"op","dmg":291064,"kills":0,"heal":0,"taken":0,"attacks":25},
+                  {"id":15,"uid":126,"defId":"chess_char_5_08_a","kind":"op","dmg":5387,"kills":0,"heal":0,"taken":0,"attacks":9},
+                  {"id":16,"uid":132,"defId":"token_10041_cathy_catsld","kind":"token","dmg":0,"kills":0,"heal":0,"taken":0,"attacks":0},
+                  {"id":17,"uid":130,"defId":"chess_char_6_diy2_b","kind":"op","dmg":18814,"kills":1,"heal":0,"taken":0,"attacks":28},
+                  {"id":18,"uid":99,"defId":"chess_char_5_06_a","kind":"op","dmg":55694,"kills":1,"heal":0,"taken":0,"attacks":29},
+                  {"id":19,"uid":51,"defId":"chess_char_4_07_b","kind":"op","dmg":351980,"kills":2,"heal":0,"taken":2469,"attacks":31}
+                ]
+              }
+            ],
+            "gold": 155,
+            "itemsEquipped": 30,
+            "kills": 289,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 2,
+            "perfectRounds": 13,
+            "refreshes": 57
+          },
           "lineup": ["4_11_a@12,8[3_09_e_a+2_03_e_a]","5_03_a@11,8[3_04_e_a]","1_06_a@10,6[3_10_e_a]","6_07_a@10,8[2_03_e_b+4_09_e_b]","5_08_a@9,4","6_diy2_b@9,7","4_07_b@9,9[6_01_e_a+3_09_e_b]"],
           "bonds": ["deputShip 0/8","emptyShip 0/4","indomShip 0/85","kazimierzShip 0/8","kjeragShip 0/8","miraShip 0/24","raidShip 0/6","siracusaShip 0/6","skillfulShip 0/19","steadShip 0/21","suntShip 1/0","swiftShip 0/70","victoriaShip 2/284","visiShip 0/45","yanShip 0/22"]
         },
@@ -1713,7 +2624,36 @@
           "title": {"id":"comment_4","name":"精英云集","picId":"comment_icon_4","text":"晋升精锐次数最多"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":262,"bossDamage":604934,"dmgDealt":3671144,"gold":148,"itemsEquipped":7,"kills":298,"leaks":1,"lpLost":1,"merges":6,"perfectRounds":12,"refreshes":49},
+          "stats": {
+            "activatedLayers": 262,
+            "bossDamage": 604934,
+            "dmgDealt": 3671144,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":77,"defId":"chess_char_4_10_a","kind":"op","dmg":39665,"kills":0,"heal":0,"taken":0,"attacks":23},
+                  {"id":2,"uid":57,"defId":"token_10028_vigil_wolf","kind":"token","dmg":0,"kills":0,"heal":0,"taken":1433,"attacks":0},
+                  {"id":3,"uid":106,"defId":"chess_char_6_16_a","kind":"op","dmg":8948,"kills":0,"heal":0,"taken":0,"attacks":14},
+                  {"id":4,"uid":54,"defId":"chess_char_3_19_b","kind":"op","dmg":151804,"kills":0,"heal":0,"taken":0,"attacks":67},
+                  {"id":5,"uid":136,"defId":"chess_char_6_18_a","kind":"op","dmg":117958,"kills":0,"heal":0,"taken":0,"attacks":52},
+                  {"id":6,"uid":31,"defId":"chess_char_1_08_b","kind":"op","dmg":39241,"kills":0,"heal":0,"taken":0,"attacks":61},
+                  {"id":7,"uid":36,"defId":"chess_char_2_16_b","kind":"op","dmg":160936,"kills":1,"heal":0,"taken":0,"attacks":52},
+                  {"id":8,"uid":108,"defId":"chess_char_4_16_b","kind":"op","dmg":88135,"kills":0,"heal":0,"taken":0,"attacks":73},
+                  {"id":9,"uid":135,"defId":"chess_char_3_18_b","kind":"op","dmg":80599,"kills":2,"heal":456,"taken":1233,"attacks":69}
+                ]
+              }
+            ],
+            "gold": 148,
+            "itemsEquipped": 7,
+            "kills": 298,
+            "leaks": 1,
+            "lpLost": 1,
+            "merges": 6,
+            "perfectRounds": 12,
+            "refreshes": 49
+          },
           "lineup": ["4_10_a@12,8[5_02_e_b]","6_16_a@11,8","3_19_b@10,6","6_18_a@10,7","1_08_b@10,8","2_16_b@9,7[3_05_e_a]","4_16_b@9,8","3_18_b@9,9"],
           "bonds": ["arcaneShip 1/56","deputShip 0/6","kjeragShip 0/8","miraShip 1/0","sargonShip 0/8","siracusaShip 2/194","soloShip 1/6","steadShip 0/20","suntShip 2/6","swiftShip 0/24"]
         }
@@ -1835,7 +2775,36 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":474,"bossDamage":524222,"dmgDealt":3047330,"gold":142,"itemsEquipped":4,"kills":392,"leaks":4,"lpLost":3,"merges":5,"perfectRounds":11,"refreshes":46},
+          "stats": {
+            "activatedLayers": 474,
+            "bossDamage": 524222,
+            "dmgDealt": 3047330,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":81,"defId":"chess_char_6_16_a","kind":"op","dmg":9541,"kills":0,"heal":0,"taken":0,"attacks":18},
+                  {"id":2,"uid":79,"defId":"chess_char_3_19_b","kind":"op","dmg":94534,"kills":1,"heal":0,"taken":0,"attacks":65},
+                  {"id":3,"uid":52,"defId":"chess_char_5_10_a","kind":"op","dmg":34989,"kills":0,"heal":0,"taken":0,"attacks":44},
+                  {"id":4,"uid":67,"defId":"chess_char_6_18_a","kind":"op","dmg":211386,"kills":1,"heal":0,"taken":0,"attacks":11},
+                  {"id":5,"uid":69,"defId":"chess_char_5_20_a","kind":"op","dmg":46167,"kills":1,"heal":0,"taken":0,"attacks":63},
+                  {"id":6,"uid":77,"defId":"chess_char_4_10_a","kind":"op","dmg":38092,"kills":0,"heal":0,"taken":0,"attacks":39},
+                  {"id":7,"uid":85,"defId":"chess_char_2_13_a","kind":"op","dmg":702,"kills":0,"heal":0,"taken":0,"attacks":15},
+                  {"id":8,"uid":66,"defId":"chess_char_3_18_b","kind":"op","dmg":117451,"kills":0,"heal":0,"taken":765,"attacks":49},
+                  {"id":9,"uid":80,"defId":"token_10028_vigil_wolf","kind":"token","dmg":2341,"kills":0,"heal":0,"taken":809,"attacks":6}
+                ]
+              }
+            ],
+            "gold": 142,
+            "itemsEquipped": 4,
+            "kills": 392,
+            "leaks": 4,
+            "lpLost": 3,
+            "merges": 5,
+            "perfectRounds": 11,
+            "refreshes": 46
+          },
           "lineup": ["6_16_a@11,6","3_19_b@10,4","5_10_a@10,5","6_18_a@10,6","5_20_a@10,7","4_10_a@9,3","2_13_a@9,5","3_18_b@9,6[5_02_e_a+5_03_e_a]"],
           "bonds": ["arcaneShip 1/28","deputShip 0/26","emptyShip 0/4","kazimierzShip 0/12","miraShip 1/12","sargonShip 0/10","siracusaShip 2/302","skillfulShip 1/8","soloShip 0/28","suntShip 1/24","swiftShip 1/100"]
         },
@@ -1849,7 +2818,35 @@
           "title": {"id":"comment_4","name":"精英云集","picId":"comment_icon_4","text":"晋升精锐次数最多"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":148,"bossDamage":255778,"dmgDealt":2706026,"gold":150,"itemsEquipped":2,"kills":361,"leaks":18,"lpLost":10,"merges":6,"perfectRounds":11,"refreshes":39},
+          "stats": {
+            "activatedLayers": 148,
+            "bossDamage": 255778,
+            "dmgDealt": 2706026,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":10,"uid":91,"defId":"chess_char_2_18_b","kind":"op","dmg":30353,"kills":0,"heal":0,"taken":0,"attacks":11},
+                  {"id":11,"uid":64,"defId":"chess_char_4_20_a","kind":"op","dmg":27356,"kills":0,"heal":0,"taken":0,"attacks":11},
+                  {"id":12,"uid":56,"defId":"chess_char_3_17_b","kind":"op","dmg":105252,"kills":0,"heal":0,"taken":1451,"attacks":30},
+                  {"id":13,"uid":88,"defId":"chess_char_6_19_a","kind":"op","dmg":52037,"kills":1,"heal":0,"taken":632,"attacks":12},
+                  {"id":14,"uid":71,"defId":"chess_char_2_12_b","kind":"op","dmg":9570,"kills":0,"heal":0,"taken":1773,"attacks":8},
+                  {"id":15,"uid":57,"defId":"chess_char_6_17_a","kind":"op","dmg":65384,"kills":3,"heal":0,"taken":2979,"attacks":13},
+                  {"id":16,"uid":44,"defId":"chess_char_1_19_b","kind":"op","dmg":55847,"kills":0,"heal":0,"taken":1703,"attacks":27},
+                  {"id":17,"uid":87,"defId":"chess_char_3_12_b","kind":"op","dmg":48178,"kills":3,"heal":2176,"taken":390,"attacks":13}
+                ]
+              }
+            ],
+            "gold": 150,
+            "itemsEquipped": 2,
+            "kills": 361,
+            "leaks": 18,
+            "lpLost": 10,
+            "merges": 6,
+            "perfectRounds": 11,
+            "refreshes": 39
+          },
           "lineup": ["2_18_b@12,5","4_20_a@11,7","3_17_b@10,3","6_19_a@10,6","2_12_b@9,3[4_10_e_a]","6_17_a@9,4","1_19_b@9,5","3_12_b@9,6"],
           "bonds": ["indomShip 0/12","kazimierzShip 2/72","kjeragShip 0/10","preciShip 0/31","raidShip 1/12","sargonShip 0/8","siracusaShip 0/18","soloShip 1/0","steadShip 0/30","suntShip 2/0","swiftShip 1/64"]
         }
@@ -1956,7 +2953,35 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":398,"bossDamage":823471,"dmgDealt":4275678,"gold":154,"itemsEquipped":16,"kills":313,"leaks":0,"lpLost":0,"merges":3,"perfectRounds":13,"refreshes":56},
+          "stats": {
+            "activatedLayers": 398,
+            "bossDamage": 823471,
+            "dmgDealt": 4275678,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":10,"uid":76,"defId":"chess_char_2_10_a","kind":"op","dmg":94211,"kills":0,"heal":0,"taken":201,"attacks":17},
+                  {"id":11,"uid":54,"defId":"chess_char_5_12_a","kind":"op","dmg":27303,"kills":2,"heal":0,"taken":189,"attacks":6},
+                  {"id":12,"uid":24,"defId":"chess_char_5_diy1_b","kind":"op","dmg":202561,"kills":1,"heal":283,"taken":1746,"attacks":19},
+                  {"id":13,"uid":114,"defId":"chess_char_5_08_a","kind":"op","dmg":7431,"kills":0,"heal":272,"taken":2270,"attacks":6},
+                  {"id":14,"uid":66,"defId":"chess_char_5_03_a","kind":"op","dmg":14560,"kills":0,"heal":0,"taken":201,"attacks":11},
+                  {"id":15,"uid":91,"defId":"chess_char_6_15_a","kind":"op","dmg":19925,"kills":0,"heal":0,"taken":0,"attacks":13},
+                  {"id":16,"uid":25,"defId":"chess_char_6_07_b","kind":"op","dmg":242172,"kills":0,"heal":2,"taken":1080,"attacks":18},
+                  {"id":17,"uid":90,"defId":"chess_char_4_07_b","kind":"op","dmg":251296,"kills":0,"heal":2,"taken":1116,"attacks":17}
+                ]
+              }
+            ],
+            "gold": 154,
+            "itemsEquipped": 16,
+            "kills": 313,
+            "leaks": 0,
+            "lpLost": 0,
+            "merges": 3,
+            "perfectRounds": 13,
+            "refreshes": 56
+          },
           "lineup": ["2_10_a@12,7[3_10_e_b]","5_12_a@11,7","5_diy1_b@11,8[2_03_e_a+3_10_e_b]","5_08_a@10,3","5_03_a@10,5","6_15_a@10,6[3_09_e_a]","6_07_b@10,7[3_03_e_a+3_10_e_b]","4_07_b@10,8[1_01_e_a+4_09_e_b]"],
           "bonds": ["arcaneShip 1/46","deputShip 0/10","investShip 0/8","kazimierzShip 0/2","kjeragShip 0/8","miraShip 0/12","siracusaShip 0/24","soloShip 0/4","suntShip 1/4","swiftShip 0/60","victoriaShip 2/300","yanShip 1/48"]
         },
@@ -1970,7 +2995,36 @@
           "title": {"id":"comment_2","name":"不朽盟约","picId":"comment_icon_2","text":"激活的盟约层数总和最高"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":430,"bossDamage":594029,"dmgDealt":4062259,"gold":150,"itemsEquipped":1,"kills":265,"leaks":12,"lpLost":0,"merges":4,"perfectRounds":10,"refreshes":53},
+          "stats": {
+            "activatedLayers": 430,
+            "bossDamage": 594029,
+            "dmgDealt": 4062259,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":116,"defId":"chess_char_5_10_a","kind":"op","dmg":21240,"kills":0,"heal":0,"taken":0,"attacks":35},
+                  {"id":2,"uid":96,"defId":"chess_char_6_18_a","kind":"op","dmg":108654,"kills":0,"heal":0,"taken":0,"attacks":54},
+                  {"id":3,"uid":82,"defId":"chess_char_6_18_a","kind":"op","dmg":76197,"kills":0,"heal":0,"taken":0,"attacks":54},
+                  {"id":4,"uid":71,"defId":"chess_char_5_20_a","kind":"op","dmg":51272,"kills":0,"heal":0,"taken":0,"attacks":11},
+                  {"id":5,"uid":73,"defId":"chess_char_5_10_a","kind":"op","dmg":21240,"kills":0,"heal":0,"taken":0,"attacks":35},
+                  {"id":6,"uid":84,"defId":"chess_char_4_10_a","kind":"op","dmg":68631,"kills":0,"heal":0,"taken":0,"attacks":26},
+                  {"id":7,"uid":81,"defId":"chess_char_3_18_b","kind":"op","dmg":243042,"kills":2,"heal":0,"taken":0,"attacks":73},
+                  {"id":8,"uid":95,"defId":"token_10028_vigil_wolf","kind":"token","dmg":0,"kills":0,"heal":0,"taken":189,"attacks":0},
+                  {"id":9,"uid":94,"defId":"chess_char_3_19_b","kind":"op","dmg":89876,"kills":0,"heal":0,"taken":0,"attacks":69}
+                ]
+              }
+            ],
+            "gold": 150,
+            "itemsEquipped": 1,
+            "kills": 265,
+            "leaks": 12,
+            "lpLost": 0,
+            "merges": 4,
+            "perfectRounds": 10,
+            "refreshes": 53
+          },
           "lineup": ["5_10_a@12,7","6_18_a@12,8","6_18_a@11,6[3_01_e_a]","5_20_a@11,7","5_10_a@11,8","4_10_a@10,5","3_18_b@10,7","3_19_b@9,9"],
           "bonds": ["deputShip 0/30","emptyShip 0/2","investShip 0/8","kazimierzShip 0/2","kjeragShip 0/8","miraShip 1/14","siracusaShip 2/416","soloShip 0/20","suntShip 1/0","swiftShip 0/58"]
         }
@@ -2092,7 +3146,36 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":458,"bossDamage":457967,"dmgDealt":3031775,"gold":142,"itemsEquipped":4,"kills":391,"leaks":5,"lpLost":4,"merges":5,"perfectRounds":11,"refreshes":46},
+          "stats": {
+            "activatedLayers": 458,
+            "bossDamage": 457967,
+            "dmgDealt": 3031775,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":1,"uid":81,"defId":"chess_char_6_16_a","kind":"op","dmg":8795,"kills":0,"heal":0,"taken":0,"attacks":17},
+                  {"id":2,"uid":79,"defId":"chess_char_3_19_b","kind":"op","dmg":233829,"kills":1,"heal":0,"taken":0,"attacks":112},
+                  {"id":3,"uid":52,"defId":"chess_char_5_10_a","kind":"op","dmg":19853,"kills":0,"heal":0,"taken":0,"attacks":71},
+                  {"id":4,"uid":67,"defId":"chess_char_6_18_a","kind":"op","dmg":25698,"kills":0,"heal":0,"taken":0,"attacks":27},
+                  {"id":5,"uid":69,"defId":"chess_char_5_20_a","kind":"op","dmg":47163,"kills":1,"heal":0,"taken":0,"attacks":58},
+                  {"id":6,"uid":77,"defId":"chess_char_4_10_a","kind":"op","dmg":77581,"kills":2,"heal":0,"taken":1417,"attacks":55},
+                  {"id":7,"uid":85,"defId":"chess_char_2_13_a","kind":"op","dmg":4826,"kills":0,"heal":0,"taken":612,"attacks":24},
+                  {"id":8,"uid":66,"defId":"chess_char_3_18_b","kind":"op","dmg":127937,"kills":1,"heal":0,"taken":2469,"attacks":42},
+                  {"id":9,"uid":80,"defId":"token_10028_vigil_wolf","kind":"token","dmg":1991,"kills":0,"heal":0,"taken":990,"attacks":7}
+                ]
+              }
+            ],
+            "gold": 142,
+            "itemsEquipped": 4,
+            "kills": 391,
+            "leaks": 5,
+            "lpLost": 4,
+            "merges": 5,
+            "perfectRounds": 11,
+            "refreshes": 46
+          },
           "lineup": ["6_16_a@11,6","3_19_b@10,4","5_10_a@10,5","6_18_a@10,6","5_20_a@10,7","4_10_a@9,3","2_13_a@9,5","3_18_b@9,6[5_02_e_a+5_03_e_a]"],
           "bonds": ["arcaneShip 1/28","deputShip 0/26","emptyShip 0/4","kazimierzShip 0/8","miraShip 1/12","sargonShip 0/10","siracusaShip 2/290","skillfulShip 1/8","soloShip 0/28","suntShip 1/24","swiftShip 1/96"]
         },
@@ -2106,7 +3189,35 @@
           "title": {"id":"comment_4","name":"精英云集","picId":"comment_icon_4","text":"晋升精锐次数最多"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":203,"bossDamage":322033,"dmgDealt":2777027,"gold":151,"itemsEquipped":2,"kills":364,"leaks":15,"lpLost":10,"merges":6,"perfectRounds":11,"refreshes":40},
+          "stats": {
+            "activatedLayers": 203,
+            "bossDamage": 322033,
+            "dmgDealt": 2777027,
+            "faUnitStats": [
+              {
+                "round": 14,
+                "hidden": false,
+                "units": [
+                  {"id":10,"uid":51,"defId":"chess_char_4_14_a","kind":"op","dmg":15259,"kills":0,"heal":0,"taken":0,"attacks":9},
+                  {"id":11,"uid":56,"defId":"chess_char_3_17_b","kind":"op","dmg":95567,"kills":1,"heal":0,"taken":1451,"attacks":34},
+                  {"id":12,"uid":64,"defId":"chess_char_4_20_a","kind":"op","dmg":41055,"kills":1,"heal":0,"taken":888,"attacks":11},
+                  {"id":13,"uid":91,"defId":"chess_char_2_18_b","kind":"op","dmg":73887,"kills":1,"heal":0,"taken":3471,"attacks":14},
+                  {"id":14,"uid":44,"defId":"chess_char_1_19_b","kind":"op","dmg":46134,"kills":0,"heal":0,"taken":2168,"attacks":25},
+                  {"id":15,"uid":71,"defId":"chess_char_2_12_b","kind":"op","dmg":14937,"kills":0,"heal":0,"taken":2519,"attacks":12},
+                  {"id":16,"uid":57,"defId":"chess_char_6_17_a","kind":"op","dmg":127246,"kills":4,"heal":0,"taken":5760,"attacks":24},
+                  {"id":17,"uid":87,"defId":"chess_char_3_12_b","kind":"op","dmg":67060,"kills":1,"heal":3577,"taken":2734,"attacks":28}
+                ]
+              }
+            ],
+            "gold": 151,
+            "itemsEquipped": 2,
+            "kills": 364,
+            "leaks": 15,
+            "lpLost": 10,
+            "merges": 6,
+            "perfectRounds": 11,
+            "refreshes": 40
+          },
           "lineup": ["4_14_a@11,6","3_17_b@10,4","4_20_a@10,6","2_18_b@9,4","1_19_b@9,5","2_12_b@9,6[4_10_e_a]","6_17_a@9,7","3_12_b@9,8"],
           "bonds": ["indomShip 0/12","kazimierzShip 2/78","kjeragShip 0/10","preciShip 1/40","raidShip 1/16","sargonShip 0/8","siracusaShip 0/18","soloShip 1/0","steadShip 0/30","suntShip 2/0","swiftShip 1/69"]
         }

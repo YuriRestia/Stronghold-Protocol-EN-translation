@@ -16,6 +16,8 @@
 // effect canvas). Custom vertex streams (the *(CustomData) shaders' `_HGCUSTOMVERTEXSTREAM_ON` variant) arrive packed
 // as Unity packs them after the UV: v_t0 = TEXCOORD0.zw, v_t1 = TEXCOORD1, v_t2 = TEXCOORD2.
 
+import { L2D_FAMILIES, l2dVertexExtra } from './glsl-l2d.js';
+
 const HEAD = '#version 300 es\nprecision highp float;\nprecision highp int;\n';
 
 const VARY_OUT = `out vec2 v_uv; out vec4 v_col; out vec2 v_t0; out vec4 v_t1; out vec4 v_t2; out vec3 v_wpos; out vec3 v_nrm;\n`;
@@ -26,8 +28,19 @@ export const LOC = Object.freeze({
   corner: 0, pos: 0, center: 1, ax: 2, ay: 3, m0: 2, m1: 3, color: 4, uvr: 5, t0: 6, t1: 7, t2: 8, nrm: 9, uv: 10, vcol: 11, m2: 12,
 });
 
-/** The vertex shader of a geometry kind. */
-export function vertexSource(kind) {
+/**
+ * The vertex shader of a geometry kind; `defs.vx` (a dynamic-illustration family variant, render/vfx/glsl-l2d.js)
+ * appends that variant's declarations and code after the kind's own. Without `defs.vx` the source is the kind's alone.
+ */
+export function vertexSource(kind, defs = {}) {
+  const src = kindVertexSource(kind);
+  const x = defs && defs.vx ? l2dVertexExtra(defs, kind) : null;
+  if (!x) return src;
+  const end = src.lastIndexOf('}');
+  return src.replace(VARY_OUT, VARY_OUT + x.decl).slice(0, end + x.decl.length) + x.body + '}';
+}
+
+function kindVertexSource(kind) {
   if (kind === 'quad') {
     return `${HEAD}
 layout(location=0) in vec2 a_corner;
@@ -322,7 +335,7 @@ void main() {
   vec4 ram = chan4(texture(u_RamTex, ruv), u_RamTexChannel);
   vec4 dist = vec4(0.0);
   ${d.lite ? '' : 'dist = (vec4(addI) + vec4(u_IntensityU, u_IntensityV, u_IntensityU, u_IntensityV)) * chan1(texture(u_DisturbTex, tuv), u_DisturbTexChannel);'}
-  vec2 muv2 = muv + dist.xy * u_DisturbInfluenceMainUV;
+  vec2 muv2 = muv + dist.xy${d.vx === 'vdisturb' ? '' : ' * u_DisturbInfluenceMainUV'};${d.vx === 'vdisturb' ? ' // (fork) L2D Ram/VertexDisturb: no influence factor, always moved' : ''}
   vec2 duv2 = duv + dist.zw * u_DisturbInfluenceDissolveUV;
   vec4 t = chan4(texture(u_MainTex, muv2), u_MainTexChannel) * u_MainColor * v_col * ram;
   float a = 2.0 * t.a * u_Opacity;
@@ -412,6 +425,6 @@ void main() {
 
 /** The fragment shader of a family. */
 export function fragmentSource(family, defs = {}) {
-  const f = FAMILIES[family] || FAMILIES.basic;
+  const f = FAMILIES[family] || L2D_FAMILIES[family] || FAMILIES.basic;
   return `${HEAD}${VARY_IN}${COMMON}${f.src(defs)}`;
 }

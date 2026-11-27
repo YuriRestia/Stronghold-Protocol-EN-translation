@@ -426,8 +426,10 @@ async function main() {
   const all = presentationUnion(versionSets);
   log(`[versions] planning presentation for ${versionSets.length} official versions`);
   // fork (docs/OUTFITS.md): the outfits of tools/build-outfits.mjs and the default version's roster + 自选编队
-  const [dataBackups, dataChess, dataOutfits] = await Promise.all(
-    ['data/backups.json', 'data/chess.json', 'data/outfits.json'].map((f) => readJson(f).catch(() => null)));
+  // (fork) the voice sets with lobby lines (the animated illustrations' operators and outfits) and their join lines' word
+  // counts: the committed tools/assets/lobby-voice.json (tools/assets/lobby-voice.mjs), never the disk's extraction
+  const [dataBackups, dataChess, dataOutfits, lobbyVoice] = await Promise.all(
+    ['data/backups.json', 'data/chess.json', 'data/outfits.json', 'tools/assets/lobby-voice.json'].map((f) => readJson(f).catch(() => null)));
   const extraHandbook = {};
   for (const d of versionSets) for (const b of Object.values(d.bosses || {})) {
     if (b?.enemyKey && typeof b.handbookId === 'string') extraHandbook[b.enemyKey] ??= b.handbookId;
@@ -440,6 +442,7 @@ async function main() {
     // default: only the slots a battle can play (plan.mjs VOICE_BATTLE_SLOTS); --voice-all takes the whole official set
     voiceSlots: opts.voiceAll ? null : undefined,
     optionalVoice: opts.optionalVoice,
+    lobbyVoice,
     extraEnemyIds: Object.keys(all.enemies),
     eventSfxEnemyIds: Object.keys(all.enemies).filter((k) => all.enemies[k]?.fork === true),
     extraTokenIds: Object.keys(all.tokens),
@@ -632,6 +635,13 @@ async function main() {
     log(strictLeafDropError(droppedLeaves));
     log('  a plain run downloads them again (--refresh-index if the upstream index lost them); without --strict / SP_ASSETS_STRICT this is only a warning');
   }
+  // (fork) outfits whose own official effects (fx twins) the local fx index lacks: a warning with the fill command
+  // (tools/assets/outfit-fx-check.mjs, docs/OUTFITS.md "Adding outfits"); silent without a local fx index
+  try {
+    const fxCheck = await import('./assets/outfit-fx-check.mjs');
+    const res = await fxCheck.checkOutfitFx();
+    if (res) for (const l of fxCheck.describeGaps(res, 20)) log(l);
+  } catch (e) { log(`outfit effects: not checked (${e?.message || e})`); }
   // (fork) the impostor clip bounds of every model now on disk (tools/assets/clip-bounds.mjs; SP_NO_CLIP_BOUNDS=1 skips)
   if (process.env.SP_NO_CLIP_BOUNDS !== '1') {
     try { await (await import('./assets/clip-bounds.mjs')).writeClipBounds({ log }); } catch (e) { log(`[clip-bounds] not written: ${e?.message || e} (run npm run clip-bounds)`); }

@@ -12,7 +12,7 @@ import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
 import { msg, playerParam } from '../../../shared/i18n.js';
 import { onStartUnite } from '../botEmotes.js';
 import { noteChatKills } from '../chatWallet.js';
-import { noteBattle } from '../autoAward.js';
+import { noteBattle, noteDowns } from '../autoAward.js';
 
 /** (fork) The watchdog's second stage: how long after the field closed `_afterUnite` gets to move the phase on. */
 const UNITE_SETTLE_GRACE_MS = 10_000;
@@ -41,6 +41,7 @@ export class MatchUnite {
         const res = runner.resultOf(this.fields[0]);
         this._collectSimErrors(this.fields[0], res);
         noteChatKills(this, this.fields[0], res);
+        noteDowns(this, res); // (GitHub #125) Low Efficiency
         this.fields[0].live = false;
         this.deadline = 0;
         this.markPublic();
@@ -102,6 +103,7 @@ export class MatchUnite {
     const res = f.result;
     this._collectSimErrors(f, res);
     noteChatKills(this, f, res);
+    noteDowns(this, res); // (GitHub #125) Low Efficiency
     this._stopClientCombat();
     f.live = false;
     this.deadline = 0;

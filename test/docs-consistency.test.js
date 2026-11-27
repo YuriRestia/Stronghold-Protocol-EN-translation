@@ -897,9 +897,12 @@ test('干员战斗语音 (DESIGN §21.30): the manifest data, the official prior
   };
   // a line no source has: ArknightsAssets2 lacks 锡兰's CN_028 (作战中 4) in all four languages (checked 2026-11-03, DESIGN §37.93)
   const SOURCE_GAPS = { char_348_ceylon: ['skill4'] };
+  // (fork) the animated illustrations' voice sets (tools/assets/lobby-voice.json) also carry the lobby lines, 任命队长
+  // among them: ui/lobbyVoice.js plays them in the room (crew-docs/l2d-lobby-voice-proposal.md, the user's 2026-11-23)
+  const lobbyKeys = new Set(Object.keys(JSON.parse(readFileSync(join(ROOT, 'tools/assets/lobby-voice.json'), 'utf8')).keys));
   for (const id of charIds) {
     for (const s of slots) if (!SOURCE_GAPS[id]?.includes(s)) assert.ok(voice[id][s], `${id}.${s}`);
-    for (const s of prepOnly) assert.equal(voice[id][s], undefined, `${id}.${s} is not planned by default`);
+    for (const s of prepOnly) if (!(s === 'squadFirst' && lobbyKeys.has(id))) assert.equal(voice[id][s], undefined, `${id}.${s} is not planned by default`);
     walk(voice[id]);
   }
   // a battle slot usually carries several lines (选中干员 / 部署 have two), so the battle set alone stays well above 10 each

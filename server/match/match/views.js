@@ -114,6 +114,11 @@ export class MatchViews {
       paused: !!this.paused && !this.pauseQuiet,
       // (fork) the test harness's battle hold (test/e2e/harnessControl.mjs): the clocks freeze, no 暂停中 plate
       ...(this.paused && this.pauseQuiet ? { hold: true } : {}),
+      // (fork) the last battle is over and RESULT comes after the settlement pause (DELAYS.SETTLE): set in settle() when
+      // nobody is left alive and in _finishFinal when no Hidden Core follows — `{ aces }`, results.js endingView; the page
+      // starts loading the result cards' animated illustrations here (DESIGN §10, crew-docs l2d-art-proposal D10); absent
+      // before
+      ...(this.ending ? { ending: this.ending } : {}),
       players: this.order.map((ps) => ({
         playerId: ps.playerId,
         seat: ps.seat,

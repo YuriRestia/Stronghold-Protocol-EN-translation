@@ -33,6 +33,10 @@ import { HScroll } from '../ui/hScroll.js';
 import { ResultView, resultBonds } from './result.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { t, shownName } from '../../../shared/i18n.js';
+import { aceOf } from '../../../shared/resultAce.js';
+import { IllustArt, resultCardArt, cardAnimates, useDynIllustMode, useMatchCards, startResultLoad, endResultLoad, makeEntranceGate, releaseIllusts, resultGateStore, resultWaitMs, gateWaitStore } from '../ui/dynCards.js';
+import { settingsStore } from '../ui/settingsStore.js';
+import { useCardEntrance } from '../ui/cardEntranceHook.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -126,7 +130,7 @@ export function dailyPointsFor(roundsPassed, table) {
  * @param {any[]} records
  * @param {{ id?: string|null, gain?: number, rounds?: number, trophies?: number, at?: number, counted?: boolean, rewards?: any, season?: string|null }} cur
  */
-export function levelProgress(records, { id = null, gain = 0, rounds = 0, trophies = 0, at: now = Date.now(), counted = true, rewards = null, season = null } = {}) {
+export function levelProgress(records, { id = null, gain = 0, challenge = 0, rounds = 0, trophies = 0, at: now = Date.now(), counted = true, rewards = null, season = null } = {}) {
   // one season's records (DESIGN §35.23: 第一期 and 第二期 each have their own 卫戍认证 table — ui/stats.js recordsOfSeason)
   records = recordsOfSeason(records, season);
   const daily = rewards?.daily && rewards.daily.need > 0 ? rewards.daily : null;
@@ -138,7 +142,10 @@ export function levelProgress(records, { id = null, gain = 0, rounds = 0, trophi
   for (const rec of Array.isArray(records) ? records : []) {
     // a quit record had no settlement: nothing earned
     // (a 测试 match never counts: its record is not kept, and an old or imported one marked test is skipped too)
-    if (!rec || rec.id === id || !Number.isFinite(rec.t) || rec.t > now || rec.end === 'quit' || rec.test === true || isModdedRecord(rec)) continue;
+    if (!rec || rec.id === id || !Number.isFinite(rec.t) || rec.t > now || rec.end === 'quit' || rec.test === true) continue;
+    // (fork, #192) finished Challenges count in every room, modded ones too (Fish, 2026-11-26): the local records are the only ledger
+    total += int(rec.challengePts);
+    if (isModdedRecord(rec)) continue;
     const row = selfRowOf(rec);
     total += int(row?.reward);
     cups += int(row?.trophies);
@@ -149,8 +156,9 @@ export function levelProgress(records, { id = null, gain = 0, rounds = 0, trophi
   const pts = counted && daily ? dailyPointsFor(rounds, table) : 0;
   const bonus = daily && today < daily.need && today + pts >= daily.need ? int(daily.bonus) : 0;
   const g = counted ? int(gain) : 0;
+  const c = int(challenge); // this match's finished Challenges (counted whatever the room)
   return {
-    gain: g, bonus, before: total, after: total + g + bonus, trophies: cups + (counted ? int(trophies) : 0), counted,
+    gain: g, bonus, challenge: c, before: total, after: total + g + bonus + c, trophies: cups + (counted ? int(trophies) : 0), counted,
     daily: daily ? { name: daily.name, need: daily.need, today: Math.min(daily.need, today + pts) } : null,
   };
 }
@@ -162,16 +170,8 @@ export function opLevel(rec) {
   return { phase: rec?.status?.phase, level: rec?.status?.level ?? '—' };
 }
 
-/** The ace of a lineup — the team card's art: the highest tier, elite first, the earliest on the board. */
-export function aceOf(lineup) {
-  let best = null;
-  (Array.isArray(lineup) ? lineup : []).forEach((u) => {
-    if (!u || u.kind === 'token') return;
-    const s = (Number(u.tier) || 0) * 2 + (u.golden ? 1 : 0);
-    if (!best || s > best.s) best = { u, s };
-  });
-  return best ? best.u : null;
-}
+/** The ace of a lineup — the team card's art in its 阵容最强干员 form (shared/resultAce.js, also the server's). */
+export { aceOf };
 
 /** 00时42分24秒 */
 export function fmtDuration(ms) {
@@ -418,6 +418,7 @@ function LevelStrip({ prog, milestones }) {
         ${d ? html`<span class=${cx('slv__gain', 'slv__gain--daily', prog.bonus && 'is-done')} title=${t('每日防卫目标：{today}/{need}', { today: d.today, need: d.need })}>
           <${Sprite} k="settle/reward_plus" class="slv__icon" />${t('每日防卫目标 +{n}', { n: prog.bonus })}<small class="num">${d.today}/${d.need}</small></span>` : null}`
         : html`<span class="slv__gain slv__gain--off">${prog.test ? t('测试对局不计入等级') : t('非官方对局不计入等级')}</span>`}
+      ${prog.challenge ? html`<span class="slv__gain slv__gain--challenge" data-testid="settle-challenge"><${Sprite} k="settle/reward_plus" class="slv__icon" />${t('挑战完成 +{n}', { n: prog.challenge })}</span>` : null}
     </div>
   </div>`;
 }
@@ -531,16 +532,91 @@ function titleView(p, gd) {
   };
 }
 
-function TeamCard({ p, i, gd, self, victory, raw }) {
-  const ace = aceOf(p.lineup);
+/**
+ * (fork) A result card's art (the setting 结算卡片立绘, D6: the player's room card or the ace of the final lineup) and
+ * whether it plays its animated illustration (动态立绘, D7) — the team cards and the load at m.public `ending` alike
+ * (ui/dynCards.js; crew-docs l2d-art-proposal §5).
+ * @param {any} p a result / public player row @param {any} ace its ace (m.result lineup, or m.public ending.aces)
+ * @param {{ gd: any, resultArt: 'card'|'ace', mode: 'off'|'mine'|'all', myId: string|null, cards: ReturnType<typeof useMatchCards> }} o
+ */
+export function teamCardArt(p, ace, { gd, resultArt, mode, myId, cards }) {
   const v = ace ? unitView(ace, gd) : null;
+  const art = resultCardArt(resultArt, p, { aceChess: v?.rec || null, seat: cards.seatOf(p.playerId), ctx: cards.ctx, myId, myCard: cards.myCard });
+  return { v, art, isAce: !!art && art.chess === v?.rec, animate: !!art && cardAnimates(mode, p.playerId === myId) };
+}
+
+/** The settings and room cards a result card reads (teamCardArt). */
+function useTeamCardOpts(gd, myId) {
+  const cards = useMatchCards(gd);
+  const resultArt = useStore((s) => s.resultArt, Object.is, settingsStore);
+  const mode = useDynIllustMode();
+  return { gd, resultArt, mode, myId, cards };
+}
+
+/**
+ * (fork) Follow-up A (the user's pick, 2026-11-23): as the match starts, keep the illustrations the result cards will show —
+ * the room cards (名片干员, the default) of the players whose cards animate, one's own first — and free the rest
+ * (ui/dynCards.js releaseIllusts, within its GPU cap). With 阵容最强干员 the aces are unknown until `ending`: nothing is
+ * kept. Once per match screen.
+ * @param {any} pub m.public @param {string|null} myId
+ */
+export function useKeepResultArt(pub, myId) {
+  const gd = useGameData();
+  const opts = useTeamCardOpts(gd, myId);
+  const done = useRef(false);
+  const players = Array.isArray(pub?.players) ? pub.players : null;
+  useEffect(() => {
+    if (done.current || !gd.ready || !players) return;
+    done.current = true;
+    const arts = opts.resultArt === 'ace' ? [] : players
+      .map((p) => ({ ...teamCardArt(p, null, opts), mine: p.playerId === myId }))
+      .filter((x) => x.animate && x.art && !x.isAce)
+      .sort((a, b) => Number(b.mine) - Number(a.mine))
+      .map((x) => x.art);
+    releaseIllusts(arts);
+  }, [gd.ready, !!players]);
+}
+
+/**
+ * (fork) D10: the moment m.public `ending` says the last battle is over, load the result cards' illustrations, through the
+ * settlement pause (screens/game.js holds the result screen behind a black cover for them, ui/dynCards.js resultWaitMs).
+ * Once per match.
+ * @param {any} pub m.public @param {string|null} myId
+ */
+export function useResultPreload(pub, myId) {
+  const gd = useGameData();
+  const opts = useTeamCardOpts(gd, myId);
+  const ending = pub?.ending || null;
+  const started = useRef(false);
+  useEffect(() => {
+    if (!ending) { if (started.current) { started.current = false; endResultLoad(); } return; }
+    if (started.current || !gd.ready) return;
+    started.current = true;
+    const aces = ending.aces || {};
+    const players = Array.isArray(pub.players) ? pub.players : [];
+    startResultLoad(() => players.map((p) => ({ ...teamCardArt(p, aces[p.playerId] || null, opts), mine: p.playerId === myId }))
+      .filter((x) => x.animate));
+  }, [ending, gd.ready]);
+}
+
+function TeamCard({ p, i, gd, self, victory, raw, opts, gate = null }) {
+  const ace = aceOf(p.lineup);
+  const { v, art, isAce, animate } = teamCardArt(p, ace, opts);
   const title = titleView(p, gd);
   const cleared = rowCleared(raw, p, victory);
   const band = p.bandId ? gd.band(p.bandId) : null;
-  return html`<article class=${cx('tcard', self && 'is-self', p.alive === false && 'is-dead', p.left && 'is-left', cleared ? 'is-clear' : 'is-fail')} style=${`--i:${i}`}>
+  const cardRef = useRef(null);
+  // (fork) the entrance plays once, with the illustration: it waits for the page's gate (every animating card live or
+  // failed, or the give-up; ui/dynCards.js makeEntranceGate)
+  const ce = useCardEntrance(cardRef, { index: i, kind: cleared ? 'complete' : 'normal', gate: gate?.ready || null });
+  return html`<article ref=${cardRef} class=${cx('tcard', self && 'is-self', p.alive === false && 'is-dead', p.left && 'is-left', cleared ? 'is-clear' : 'is-fail', ce && 'has-ce')} style=${`--i:${i}`}>
+    ${ce ? html`<i class="tcard__cardbg" aria-hidden="true"></i>` : null}
+    ${ce ? html`<canvas class="tcard__ce" aria-hidden="true"></canvas><canvas class="tcard__ce tcard__ce--add" aria-hidden="true"></canvas>` : null}
     <header class="tcard__head" aria-hidden="true"><i class="tcard__pin"></i><span class="tcard__code"><i></i><i></i><i></i>STRONGHOLD PROTOCOL</span><span class="tcard__seat num">${pad2(p.seat + 1)}</span></header>
     <div class="tcard__art">
-      <${OperatorImage} m=${gd.m} chess=${v?.rec} ownerId=${p.playerId} skin=${ace?.skin} portrait avatarFallback portraitClass="tcard__img is-portrait" avatarClass="tcard__img is-avatar" fallback=${html`<span class="tcard__glyph">${[...(p.name || '?')][0]}</span>`} />
+      <${IllustArt} art=${art} animate=${animate} gate=${gate} class="tcard__dyn">
+        <${OperatorImage} m=${gd.m} chess=${art ? art.chess : v?.rec} ownerId=${p.playerId} skin=${isAce || !art ? ace?.skin : null} portrait card="tall" avatarFallback portraitClass="tcard__img is-portrait" avatarClass="tcard__img is-avatar" fallback=${html`<span class="tcard__glyph">${[...(p.name || '?')][0]}</span>`} />
+      </${IllustArt}>
       ${p.left ? html`<span class="tcard__cut">${t('连接中断')}</span>` : null}
       ${title ? html`<div class="tcard__title" title=${title.text}>
         <${Img} src=${title.icon} class="tcard__ticon" fallback=${html`<${Icon} name="crown" class="tcard__ticon" />`} /><b>${title.name}</b></div>` : null}
@@ -560,18 +636,33 @@ function TeamCard({ p, i, gd, self, victory, raw }) {
   </article>`;
 }
 
-function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDetail, version = null, detailOpen = false }) {
-  const rounds = useCountUp(r.roundsPassed, { ms: 900, delay: 450 });
+/**
+ * The 同盟 page. `shown` false: mounted ahead of its turn, hidden and inert behind the intro and 个人战报 (SettleFlow), so
+ * its cards' illustrations are live by the time it shows; its entrance, its count-up, its sound and its CSS entrance all
+ * wait for `shown` (the user, 2026-11-23, through the lead: no result page waiting on screen for its L2Ds).
+ */
+function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDetail, version = null, detailOpen = false, shown = true }) {
+  const rounds = useCountUp(r.roundsPassed, { ms: 900, delay: 450, run: shown });
   const backRef = useRef(null);
   const rawOf = (pid) => (Array.isArray(res?.players) ? res.players.find((x) => x && x.playerId === pid) : null) || null;
   const self = r.players.find((p) => p.playerId === myId) || null;
+  const cardOpts = useTeamCardOpts(gd, myId);
   const bg = self?.left ? 'quit' : r.victory ? 'success' : 'fail';
+  // (fork) the cards' entrance gate: the cards join it as they render (IllustArt), before any effect runs — this page's
+  // joined() included, which ran before the cards' effects and opened an empty gate (the still art, then the
+  // illustration mid-fall); it opens when the page shows, and the entrance plays then — at once when the cards went live
+  // while it was hidden
+  const gate = useMemo(() => makeEntranceGate(), []);
+  useEffect(() => { gate.joined(); return () => gate.dispose(); }, []);
+  useEffect(() => { if (shown) gate.open(); }, [shown]);
   useEffect(() => {
+    if (!shown) return undefined;
     audio.sfx('settlementTeam');
     const id = setTimeout(() => backRef.current?.focus({ preventScroll: true }), 900);
     return () => clearTimeout(id);
-  }, []);
-  return html`<section class=${cx('steam', r.victory ? 'is-win' : 'is-lose')} data-testid="settle-team">
+  }, [shown]);
+  return html`<section class=${cx('steam', r.victory ? 'is-win' : 'is-lose', !shown && 'is-pre')} data-testid=${shown ? 'settle-team' : 'settle-team-pre'}
+    aria-hidden=${shown ? null : 'true'} inert=${!shown}>
     <div class="steam__bg" aria-hidden="true"><${Sprite} k=${`settle/settlemen_teamshow_${bg}`} /></div>
     <div class="settle__stage">
       <${Logo} />
@@ -582,7 +673,7 @@ function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDe
         ? html`<${HScroll} class="steam__cards" viewClass="steam__view" label=${t('同盟成员')} prevLabel=${t('向左滚动玩家')} nextLabel=${t('向右滚动玩家')}
             reveal=".tcard.is-self" pageKeys=${!detailOpen} deps=${[r.players.length]}>
             <div class="steam__track" style=${`--n:${r.players.length}`}>
-              ${r.players.map((p, i) => html`<${TeamCard} key=${p.playerId} p=${p} i=${i} gd=${gd} self=${p.playerId === myId} victory=${r.victory} raw=${rawOf(p.playerId)} />`)}
+              ${r.players.map((p, i) => html`<${TeamCard} key=${p.playerId} p=${p} i=${i} gd=${gd} self=${p.playerId === myId} victory=${r.victory} raw=${rawOf(p.playerId)} opts=${cardOpts} gate=${gate} />`)}
             </div>
           </${HScroll}>`
         : html`<div class="steam__cards steam__cards--none"><p class="steam__none">${t('暂无结算数据')}</p></div>`}
@@ -625,12 +716,12 @@ export function SettleFlow({ res, pub = null, myId = null, content = null, backL
     const { records } = loadStats();
     const id = recordId(res, myId);
     const own = records.find((x) => x.id === id);
-    return { records, id, at: own?.t || Date.now() };
+    return { records, id, at: own?.t || Date.now(), challenge: own?.challengePts || 0 };
   }, []);
   // a 测试 match earns nothing toward the level or the daily goal (its server reward is 0 and its record is not kept)
   const isTest = res?.test === true;
   const prog = useMemo(() => (self ? { ...levelProgress(ctx.records, {
-    id: ctx.id, gain: self.reward, rounds: self.roundsPassed, trophies: self.trophies, at: ctx.at,
+    id: ctx.id, gain: self.reward, challenge: ctx.challenge, rounds: self.roundsPassed, trophies: self.trophies, at: ctx.at,
     counted: !isTest && !isModdedRoom(content ? { content } : null), rewards: gd.config?.rewards, season: seasonOf(version),
   }), test: isTest } : null), [gd.config]);
   const rootRef = useRef(null);
@@ -639,10 +730,61 @@ export function SettleFlow({ res, pub = null, myId = null, content = null, backL
   return html`<div ref=${rootRef} class=${cx('screen', 'result', 'settle', `settle--${page}`)} data-testid="settle">
     ${page === 'intro' ? html`<${SettleIntro} players=${r.players} myId=${myId} lose=${lose} onDone=${() => setPage('self')} />` : null}
     ${page === 'self' ? html`<${SelfPage} r=${r} res=${res} raw=${rawSelf} self=${self} gd=${gd} prog=${prog} content=${content} version=${version} onNext=${() => setPage('team')} />` : null}
-    ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} content=${content} version=${version} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} detailOpen=${detail} />` : null}
+    <${TeamPage} key="team" r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} content=${content} version=${version} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} detailOpen=${detail} shown=${page === 'team'} />
     ${detail ? html`<div class="settle__detail" data-testid="settle-detail">
       <${ResultView} res=${res} pub=${pub} myId=${myId} quiet=${true} slot=${false} damage=${true} content=${content} version=${version} backLabel=${t('返回')} onBack=${() => setDetail(false)} /></div>` : null}
   </div>`;
+}
+
+/**
+ * (fork) The black cover the result screen waits behind while its cards' illustrations load past the settlement pause
+ * (screens/game.js; the user, 2026-11-23: "have a black screen or something to load when the match was ending, not half
+ * ass load the result screen only for it to awkwardly wait for the l2ds!"): it fades in over the match screen, holds
+ * black with a small spinner, and fades out over the result screen once they are in (or at the give-up), then calls
+ * `onGone`. Its fade is the result flow's own page change (RESULT_COVER_FADE_MS = LEAVE_MS); none under reduced motion.
+ * @param {{ out?: boolean, onGone?: () => void }} props
+ */
+export const RESULT_COVER_FADE_MS = LEAVE_MS;
+
+/**
+ * (fork) The result screen's hold (screens/game.js): past the settlement pause (`toResult`) the result screen waits for
+ * its cards' illustrations behind ResultCover — never on screen — at most until the give-up (ui/dynCards.js
+ * resultWaitMs); no cover when they are in by then. A cover that went up finishes fading in before the result screen
+ * replaces what is under it, and fades out over it. Returns `wait` (ms the screen under the cover stays; 0: the result
+ * screen) and `cover` (to render over the screen, or null).
+ * @param {boolean} toResult
+ */
+export function useResultHold(toResult) {
+  useStore((s) => s.n, Object.is, resultGateStore); // a card's load settled, or the give-up: look again
+  // a page whose cards are still getting their first frames (its entrance gate: a spectator's 同盟 opens first) keeps a
+  // cover that is up over it until its entrance starts
+  const gatesWaiting = useStore((s) => s.n, Object.is, gateWaitStore);
+  const loadWait = toResult ? resultWaitMs() : 0;
+  const cover = useRef(null); // { at, gone } from the moment it went up
+  if (!toResult) cover.current = null;
+  else if (loadWait > 0 && !cover.current) cover.current = { at: Date.now(), gone: false };
+  const c = cover.current;
+  const coverHold = c && !c.gone && !reducedMotion() ? Math.max(0, c.at + RESULT_COVER_FADE_MS - Date.now()) : 0;
+  const wait = Math.max(loadWait, coverHold);
+  const [, bump] = useState(0);
+  const until = wait > 0 ? Math.round((Date.now() + wait) / 50) : 0;
+  useEffect(() => {
+    if (!(wait > 0)) return undefined;
+    const id = setTimeout(() => bump((n) => n + 1), wait);
+    return () => clearTimeout(id);
+  }, [until]);
+  return { wait, cover: c && !c.gone ? html`<${ResultCover} out=${!(wait > 0) && !(gatesWaiting > 0)} onGone=${() => { c.gone = true; bump((n) => n + 1); }} />` : null };
+}
+
+export function ResultCover({ out = false, onGone }) {
+  useEffect(() => {
+    if (!out) return undefined;
+    const id = setTimeout(() => onGone?.(), reducedMotion() ? 0 : RESULT_COVER_FADE_MS);
+    return () => clearTimeout(id);
+  }, [out]);
+  // the spinner reads 加载中 to screen readers (its own status role)
+  return html`<div class=${cx('rcover', out && 'is-out')} style=${`--rcover-ms:${RESULT_COVER_FADE_MS}ms`} data-testid="result-cover">
+    ${out ? null : html`<${Spinner} size="sm" />`}</div>`;
 }
 
 /**

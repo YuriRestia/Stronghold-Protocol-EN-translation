@@ -194,3 +194,46 @@ describe('Vendela S2: the protégé glow is a state row, the counter hit a bindi
     assert.ok(played[0].stopped, 'stops with the row');
   });
 });
+
+describe('(fork) a state row\'s src and a LockTargetAbility\'s line (溯光星源 S3)', () => {
+  function rig() {
+    const played = [];
+    const views = new Map();
+    const w = {
+      ofx: { time: 0, tier: 1, lib: new Set() },
+      view: (id) => views.get(id) || null,
+      playOn: (k, v, o) => { const h = { k, id: v.id, o, alive: true, stop() { this.alive = false; h.stopped = true; } }; played.push(h); return h; },
+      skinOfView: () => null,
+      pose: (v) => ({ x: v.x, y: v.y, z: 0 }),
+      _dirIndex: () => 1,
+    };
+    const s = new SkillFx(w);
+    const plans = new Map();
+    s.of = (v) => (plans.has(v.id) ? { plan: plans.get(v.id) } : null);
+    return { s, played, views, plans };
+  }
+  const state = [{ key: 'halo2_skill_03_buff_02', buff: 'halo2_s_3_link', role: 'loop', loop: true }];
+
+  test('the link on each locked enemy names her (`by`: her outfit\'s twin); two locks draw the line through both', () => {
+    const { s, played, views, plans } = rig();
+    const her = { id: 1, alive: true, x: 2, y: 9 };
+    const a = { id: 8, alive: true, x: 6, y: 9, fxs: [['halo2_s_3_link', 1, null]] }, b = { id: 9, alive: true, x: 7, y: 8, fxs: [['halo2_s_3_link', 1, null]] };
+    views.set(1, her); views.set(8, a); views.set(9, b); plans.set(1, { state });
+    s._states([her, a]);
+    assert.deepEqual(played.map((h) => [h.k, h.id, h.o.by?.id]), [['halo2_skill_03_buff_02', 8, 1]], 'one lock: its link only, no line');
+    s._states([her, a, b]);
+    const line = played.find((h) => h.k === 'halo2_skill_03_line_01');
+    assert.ok(line, 'two locks: the line');
+    assert.equal(line.o.by, her, 'in her outfit\'s twin');
+    assert.equal(line.o.loop, true);
+    const pts = [];
+    const fx = { anchor: [0, 0, 0], setLinePoints: (p) => { pts.push(p.map((q) => q.slice())); } };
+    line.o.track(fx);
+    assert.equal(pts[0].length, 2, 'through both locked enemies\' hit points');
+    s._states([her, a, b]);
+    assert.equal(played.filter((h) => h.k === 'halo2_skill_03_line_01').length, 1, 'held, not restarted');
+    b.fxs = null;
+    s._states([her, a, b]);
+    assert.ok(line.stopped, 'down to one lock: the line goes');
+  });
+});

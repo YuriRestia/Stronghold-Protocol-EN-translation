@@ -15,7 +15,9 @@
 //         it() get that timeout (or their own, when shorter) before the file declares them;
 //       - SP_REPRO_COVERAGE=1: per test (and for the file's setup outside tests), the lines of every repository file it
 //         ran: the test process by block (node:inspector: the test file, its helpers, an in-process server), the pages'
-//         scripts by function and their style sheets by matched rule (CDP), written to coverage.json at exit.
+//         scripts by function and their style sheets by matched rule (CDP), written to coverage.json at exit; (fork)
+//         also every other repository file a page requested (data/*.json, the UI language packs, a dev page: `loaded`),
+//         marked `requests: true`, so tools/test-select.mjs can place a change to one of them.
 //     Everything goes into SP_REPRO_DIR (per file under it in a suite run).
 
 import fs from 'node:fs';
@@ -104,7 +106,10 @@ export function repoPathOfUrl(url, exists) {
   let u;
   try { u = new URL(url); } catch { return null; }
   if (!/^https?:$/.test(u.protocol)) return null;
-  const p = decodeURIComponent(u.pathname).replace(/^\/g\/[^/]+\//, '/').replace(/^\/+/, '');
+  // (fork) content-hashed URLs name the same file: /data/h/<hash>/x.json → /data/x.json (dataUrls.js), and a ~<hash>
+  // segment under /assets/, /fonts/, /media/ (shared/assetPaths.js hashedPath)
+  const p = decodeURIComponent(u.pathname).replace(/^\/g\/[^/]+\//, '/').replace(/^\/data\/h\/[^/]+\//, '/data/')
+    .replace(/^\/(assets|fonts|media)\/~[^/]+\//, '/$1/').replace(/^\/+/, '');
   if (!p) return null;
   for (const rel of [`public/${p}`, p, `server/${p}`]) if (exists(rel)) return rel;
   return null;
@@ -275,8 +280,13 @@ if (DIR) {
   const pages = new Map();
   const startPageCoverage = async (page) => {
     const s = await page.createCDPSession();
-    const st = { s, workers: [], sheets: new Map(), rules: new Set() };
+    const st = { s, workers: [], sheets: new Map(), rules: new Set(), requests: new Set() };
     pages.set(page, st);
+    // (fork) the other repository files the page asks for (data, language packs, pages): scripts and sheets come above
+    page.on('request', (req) => {
+      const rel = repoPathOfUrl(req.url(), exists);
+      if (rel && !/\.(m?js|cjs|css)$/.test(rel)) st.requests.add(rel);
+    });
     s.on('CSS.styleSheetAdded', ({ header }) => st.sheets.set(header.styleSheetId, header));
     await s.send('Profiler.enable');
     await s.send('Profiler.startPreciseCoverage', { callCount: true, detailed: false });
@@ -319,6 +329,9 @@ if (DIR) {
         addLines(b, rel, Array.from({ length: last - first + 1 }, (_, i) => first + i));
       }
       for (const h of st.sheets.values()) { const rel = h.sourceURL ? repoPathOfUrl(h.sourceURL, exists) : null; if (rel) into(b).loaded.add(rel); }
+      // the requests since the last take belong to this bucket (a test, or the file's setup)
+      for (const rel of st.requests) into(b).loaded.add(rel);
+      st.requests.clear();
     } catch (e) { if (!page.isClosed()) log({ coverageError: String(e?.message ?? e) }); }
   };
   const takeAll = async (b) => {
@@ -412,6 +425,7 @@ if (DIR) {
     fs.writeFileSync(path.join(DIR, 'coverage.json'), JSON.stringify({
       file: relOf(ME), at: new Date().toISOString(), tests, setup: cov.has(SETUP) ? dump(cov.get(SETUP)) : { used: {}, loaded: [] },
       files: Object.fromEntries([...fileInfo].map(([f, i]) => [f, { ...i, known: iv(known.get(f) ?? []) }])), unmapped: [...unmapped].sort(),
+      requests: true,
     }));
   });
 }

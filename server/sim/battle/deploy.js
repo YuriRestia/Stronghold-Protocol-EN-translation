@@ -133,7 +133,7 @@ export class BattleDeploy {
       unit.buffs = kept;
       unit.markDirty();
       if (unit.kind === 'op' && !permanent) {
-        if (reason === 'killed') { const pp = this._pp(unit.ownerId); if (pp) pp.deaths++; }
+        { const pp = this._pp(unit.ownerId); if (pp) { pp.downs++; if (reason === 'killed') pp.deaths++; } } // downs: every start of a redeploy timer (the SPA-CC auto-award of ccLowEfficiency reads it)
         const mul = unit.persist.redeployMul * unit.s.redeployMul;
         unit.respawnAt = this.time + Math.max(0, unit.base.respawnTime * mul);
         if (this.isDown(unit)) this._layBody(unit); // before `die` / `death`: the body's tile is final for them

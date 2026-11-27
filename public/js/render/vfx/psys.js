@@ -30,7 +30,7 @@
 
 import { MinMax, MinMaxColor } from './curves.js';
 import { Shape } from './shapes.js';
-import { Rng, hashRand, RF } from './rng.js';
+import { Rng, hashRand, RF, UnitySeeds } from './rng.js';
 import { mat4InvertAffine, mat4Point, mat4Dir, mat4 } from './math.js';
 
 export const MAX_STEP = 1 / 30;
@@ -46,6 +46,16 @@ const mm = (v, d = 0) => new MinMax(v, d);
 
 /** (fork) The longest prewarm simulated, seconds (see prewarmSeconds). */
 export const PREWARM_CAP = 120;
+
+/**
+ * (fork) While set, a system that starts with a prewarm hands itself to this function instead of simulating it at
+ * once, and its owner finishes it in slices (PSys.prewarmStep). The animated illustrations' staging sets it around a
+ * card's first step, so one card's prewarm no longer takes one 37–93 ms frame [src: notes dev55-renderer-flip-trace.md
+ * §1]. Battle effects never set it.
+ */
+let prewarmSink = null;
+/** @param {((sys: PSys) => void) | null} fn */
+export function setPrewarmSink(fn) { prewarmSink = fn || null; }
 
 /**
  * (fork) How long a prewarmed system is simulated before its first frame — the client engine's rule (UnityPlayer.dll
@@ -94,6 +104,8 @@ export function compileSystem(ps, psr, res = {}) {
     scalingMode: num(ps.scalingMode, 1) | 0,
     emitterVelocityMode: num(ps.emitterVelocityMode, 0) | 0,
     seed: ps.autoRandomSeed === false || ps.autoRandomSeed === 0 ? (num(ps.randomSeed, 0) >>> 0) || 1 : 0,
+    // (fork) the fixed seed as the engine takes it (rng.js UnitySeeds); null: a new one each play
+    rseed: ps.autoRandomSeed === false || ps.autoRandomSeed === 0 ? num(ps.randomSeed, 0) >>> 0 : null,
     maxParticles: Math.max(0, Math.min(SYSTEM_CAP, num(I.maxNumParticles, 1000) | 0)),
     startLifetime: mm(I.startLifetime, 5),
     startSpeed: mm(I.startSpeed, 5),
@@ -291,6 +303,10 @@ export class PSys {
     this.count = 0;
     for (const f of FIELDS) this[f] = new Float32Array(0);
     this.seed = new Uint32Array(0);
+    // (fork) each particle's seed as the engine hands it out (rng.js UnitySeeds), for the fields whose engine rule is
+    // known (geom.js sheetRect: the texture sheet's frame and row); the other fields keep hashRand of `seed`
+    this.useed = new Uint32Array(0);
+    this.useeds = this._unitySeeds();
     this.trailBuf = null;   // Float32Array(cap × TRAIL_POINTS × 4): x, y, z, time
     this.trailHead = null;  // Uint16Array: write index (ring)
     this.trailLen = null;   // Uint16Array: points kept
@@ -357,11 +373,20 @@ export class PSys {
     return false;
   }
 
+  /**
+   * (fork) The engine's particle-seed generator for a play: the system's fixed seed (autoRandomSeed off), else one
+   * taken from this system's generator state without drawing from it, so the other randoms stay as they were.
+   */
+  _unitySeeds() {
+    return new UnitySeeds(this.def.rseed ?? ((this.rng.s ^ 0x5bd1e995) >>> 0));
+  }
+
   _grow(n) {
     const cap = Math.min(Math.max(this.def.maxParticles, 1), Math.max(n, this.cap ? this.cap * 2 : 16));
     if (cap <= this.cap) return false;
     for (const f of FIELDS) { const a = new Float32Array(cap); a.set(this[f].subarray(0, this.count)); this[f] = a; }
     const s = new Uint32Array(cap); s.set(this.seed.subarray(0, this.count)); this.seed = s;
+    const us = new Uint32Array(cap); us.set(this.useed.subarray(0, this.count)); this.useed = us;
     if (this.def.trail) {
       const tb = new Float32Array(cap * TRAIL_POINTS * 4);
       if (this.trailBuf) tb.set(this.trailBuf.subarray(0, this.count * TRAIL_POINTS * 4));
@@ -377,6 +402,9 @@ export class PSys {
   /** Start (or restart) the system: start delay sampled, prewarm simulated. `frame` places it before the first step. */
   play(frame) {
     this.clear();
+    // (fork) the engine seeds the particle seeds again as a stopped, empty system plays (ParticleSystem::Play →
+    // ResetSeeds); the prewarm is one emission call per loop (it is one Update: ParticleSystem::Simulate)
+    this.useeds = this._unitySeeds();
     this.playing = true;
     this.emitting = !this.isSub;
     this.time = 0;
@@ -389,18 +417,40 @@ export class PSys {
     if (this.def.prewarm && this.emitting) {
       // as if it had already run (Unity: the start delay does not apply with prewarm)
       // (fork) prewarmS: whole loops up to the longest start lifetime, the client engine's rule (prewarmSeconds)
-      const d = this.def.prewarmS || this.def.duration;
-      let t = 0;
-      while (t < d - 1e-6) { const s = Math.min(MAX_STEP, d - t); this._step(s, true); t += s; }
-      this.prevPos = null;
+      this._prewarm = { t: 0, d: this.def.prewarmS || this.def.duration, zero: null };
+      // a staging owner (setPrewarmSink) runs it later in slices (prewarmStep); otherwise all of it now
+      if (prewarmSink) prewarmSink(this);
+      else this.prewarmStep(Infinity);
     }
   }
 
+  /**
+   * Run the pending prewarm for up to `budgetMs` (at least one step); true once it is done. The same MAX_STEP steps
+   * as one loop, in the same order, so the particles end the same. A zero-length update that came while it was
+   * pending (the owner's first step(0)) is applied after it, as it would have been.
+   */
+  prewarmStep(budgetMs) {
+    const w = this._prewarm;
+    if (!w) return true;
+    const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const t0 = budgetMs === Infinity ? 0 : now();
+    while (w.t < w.d - 1e-6) {
+      const s = Math.min(MAX_STEP, w.d - w.t);
+      this._step(s, true); w.t += s;
+      if (budgetMs !== Infinity && now() - t0 >= budgetMs && w.t < w.d - 1e-6) return false;
+    }
+    this._prewarm = null;
+    this.prevPos = null;
+    if (w.zero) this.update(0, w.zero.frame);
+    return true;
+  }
+
   /** Stop emitting; live particles finish their lives (Unity's StopEmitting). */
-  stopEmitting() { this.emitting = false; this.pending.length = 0; }
+  stopEmitting() { if (this._prewarm) this.prewarmStep(Infinity); this.emitting = false; this.pending.length = 0; }
 
   /** Kill every particle (and orphaned trail) now. */
   clear() {
+    this._prewarm = null;
     this.count = 0;
     this.orphans.length = 0;
     this.pending.length = 0;
@@ -435,6 +485,12 @@ export class PSys {
   /** Advance by dt battle seconds (frame: this frame's render matrix, see setFrame). */
   update(dt, frame) {
     if (!this.playing) return;
+    if (this._prewarm) {
+      // a zero-length update waits for the prewarm (see prewarmStep); a real one finishes it first
+      // (the frame is copied: an effect reuses one frame object for all its systems)
+      if (!(dt > 0)) { this._prewarm.zero = { frame: frame ? { m: Float64Array.from(frame.m), scale: frame.scale.slice() } : null }; return; }
+      this.prewarmStep(Infinity);
+    }
     const prev = this.prevPos ? [this.prevPos[0], this.prevPos[1], this.prevPos[2]] : null;
     if (frame) this.setFrame(frame);
     const sdt = dt * this.def.simSpeed;
@@ -445,6 +501,8 @@ export class PSys {
     this._from = prev || [this.pos[0], this.pos[1], this.pos[2]];
     const steps = Math.max(1, Math.ceil(sdt / MAX_STEP - 1e-6));
     const h = sdt / steps;
+    // (fork) one engine Update: its emission is one call per loop piece, whatever our sub-steps (rng.js UnitySeeds)
+    this.useeds.batch();
     for (let i = 0; i < steps; i++) {
       this._stepFrac0 = i / steps; this._stepFrac1 = (i + 1) / steps;
       this._step(h, false);
@@ -483,31 +541,43 @@ export class PSys {
     if (!this.started) { this.started = true; a = 0; this._burstFrom = -1e-9; }
     // a non-looping system emits during its duration only
     const D = def.duration;
+    const a0 = a;
     while (a < b) {
       const loopStart = this.loops * D;
       const segEnd = Math.min(b, loopStart + D);
       const la = a - loopStart, lb = segEnd - loopStart;
-      this._emitSpan(la, lb, b - a > 0 ? (segEnd - a) / (b - a) : 1, prewarm);
+      // (fork) a loop boundary inside the step splits the emission; what one piece emits also lives through the rest
+      // of the step (b − segEnd), as in the engine, which runs each piece's simulate → emit → start in turn [src:
+      // official UnityPlayer.dll ParticleSystem::Update1Incremental 0x1ad1616–0x1ad18b4, its loop over sub-steps].
+      // Without it a particle born at a loop's end was the rest of the step too young, outlived its successor's
+      // birth, and a one-particle system with life = duration = 1 / rate (Nightingale's Iakhu of Flows gold bars,
+      // BG_xian/jinshu: life 1, rate 1, loop 1) was empty for a whole second now and then.
+      this._emitSpan(la, lb, b - segEnd, b - a0, prewarm);
       a = segEnd;
       if (segEnd >= loopStart + D - 1e-9) {
         if (!def.looping) { this.emitting = false; break; }
         this.loops++;
+        this.useeds.batch();
         this.burstNext.fill(0);
         this._burstFrom = -1e-9;
       }
     }
   }
 
-  /** Emission inside one loop iteration from local time la to lb. */
-  _emitSpan(la, lb, _share, prewarm) {
+  /**
+   * Emission inside one loop iteration from local time la to lb; `tail`: the rest of the step after lb (its
+   * particles are that much older at the step's end), `stepLen`: the step's emitting time (for the motion fraction).
+   */
+  _emitSpan(la, lb, tail, stepLen, prewarm) {
     const def = this.def, E = def.emission, D = def.duration;
     const tau = Math.min(1, lb / D);
     const span = lb - la;
     // rate over time
     let n = 0;
     const rate = this.rate.at(tau, this.rng.next()) * this.emissionScale;
+    const toEmit = rate > 0 ? rate * span : 0;
     if (rate > 0) {
-      this.acc += rate * span;
+      this.acc += toEmit;
       n = Math.floor(this.acc);
       this.acc -= n;
     }
@@ -521,15 +591,33 @@ export class PSys {
       nd = Math.floor(this.accDist);
       this.accDist -= nd;
     }
-    const total = n + nd;
     // (fork) a full system stops trying: _spawn turns every further one down before it draws a random number, so the
     // particles are the same — 10,000,000/s emitters capped at 1 (Civilight Eterna's Condolence flowers) had looped
     // ~333,000 rejected spawns a step, seconds of prewarm and 150 ms frames
     const full = this.full();
-    for (let i = 0; i < total && !full(); i++) {
-      // spread over the step: the i-th of n is (n − i) / n of the step old, placed along the emitter's motion
-      const f = (i + 1) / total;
-      this._spawn(tau, (1 - f) * span, f, 0, 0, null);
+    // Rate over time: each particle starts when the accumulator crossed its whole number, the newest first: particle j
+    // (0 = the newest) is (j + acc) / toEmit of the step old, clamped to [1e-6, 1] of it, acc being what the
+    // accumulator keeps after the whole ones are taken out (it keeps losing them when the system is full). So a
+    // particle that dies at the step it was due to be replaced is replaced in that same step: a system with
+    // lifetime = maxParticles / rate stays full (Nightingale's Iakhu of Flows ring: 12 one-particle balls, life 2 s,
+    // rate 2 / s, which an evenly spread birth left empty for 0.5 / simulationSpeed s now and then) [src: official
+    // UnityPlayer.dll 2021.3.39 (game build, its UnityPlayer.pdb): EmissionModule::EmitCommon 0x1aebd70 (state[0] =
+    // 1 / toEmit when toEmit ≥ 1e-4, state[4] = the accumulator after the whole count is taken out);
+    // ParticleSystem::StartModules 0x1acfb65–0x1acfbb6 (time fraction = clamp((j + state[4]) × state[0], 1e-6, 1));
+    // ParticleSystem::Update1Incremental 0x1ad173a–0x1ad1864 (UpdateModulesIncremental, whose SimulateParticles kills
+    // the dead, then EmitOverTime, then StartParticles)]
+    const kOff = toEmit >= 1e-4 ? 1 / toEmit : 1;
+    const along = (age) => (stepLen > 0 ? Math.min(1, Math.max(0, 1 - age / stepLen)) : 1);
+    for (let j = 0; j < n && !full(); j++) {
+      const k = Math.min(1, Math.max(1e-6, (j + this.acc) * kOff));
+      const age = k * span + tail;
+      this._spawn(tau, age, along(age), 0, 0, null);
+    }
+    // rate over distance: spread over the step, the i-th of nd (nd − i) / nd of it old, along the emitter's motion
+    for (let i = 0; i < nd && !full(); i++) {
+      const f = (i + 1) / nd;
+      const age = (1 - f) * span + tail;
+      this._spawn(tau, age, along(age), 0, 0, null);
     }
     // bursts
     for (let bi = 0; bi < E.bursts.length; bi++) {
@@ -544,7 +632,7 @@ export class PSys {
         if (tf < la - 1e-9 && !(la === 0 && tf <= 1e-9)) continue; // passed while not emitting (a late start)
         if (B.prob < 1 && this.rng.next() >= B.prob) continue;
         const c = Math.round(B.count.at(Math.min(1, tf / D), this.rng.next()) * this.emissionScale);
-        for (let i = 0; i < c && !full(); i++) this._spawn(tau, Math.max(0, lb - tf), 1, i, c, null);
+        for (let i = 0; i < c && !full(); i++) this._spawn(tau, Math.max(0, lb - tf) + tail, 1, i, c, null);
       }
     }
   }
@@ -555,6 +643,7 @@ export class PSys {
    */
   _emitAt(count, x, y, z, inherit) {
     const full = this.full();
+    this.useeds.batch();
     for (let i = 0; i < count && !full(); i++) this._spawn(Math.min(1, this.time / this.def.duration), 0, 1, i, count, inherit, x, y, z);
   }
 
@@ -594,6 +683,7 @@ export class PSys {
     const rng = this.rng;
     const s = rng.seed();
     this.seed[i] = s;
+    this.useed[i] = this.useeds.next();
     let life = def.startLifetime.at(tau, hashRand(s, RF.LIFETIME));
     if (def.lifeBySpeed) {
       const sp = Math.hypot(this.vel[0], this.vel[1], this.vel[2]), r = def.lifeBySpeed.range;
@@ -672,6 +762,7 @@ export class PSys {
   _move(i, j) {
     for (const f of FIELDS) { const a = this[f]; a[i] = a[j]; }
     this.seed[i] = this.seed[j];
+    this.useed[i] = this.useed[j];
     if (this.trailBuf) {
       const P = TRAIL_POINTS * 4;
       this.trailBuf.copyWithin(i * P, j * P, j * P + P);

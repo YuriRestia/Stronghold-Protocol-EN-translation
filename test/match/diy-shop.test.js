@@ -357,6 +357,25 @@ test('prep scouting (m.field) and the result name the operator: a teammate\'s �
   m.dispose();
 });
 
+test('#192: the result names every 自选 operator a player took into any battle (customSeen), also one taken off the board again; absent when there was none', REAL, () => {
+  const h = diyMatch().start();
+  const m = h.m;
+  h.toPrep(1);
+  const p0 = h.ps('p_0');
+  clear(p0);
+  const a = gain(p0, T5A);
+  const tile = legalTileFor(m, p0, T5A);
+  assert.deepEqual(m.handle('p_0', { t: 'g.move', uid: a.uid, to: { area: 'board', row: tile[0], col: tile[1] } }), { ok: true });
+  p0.battleInput(); // the piece goes into a battle
+  assert.deepEqual(m.handle('p_0', { t: 'g.move', uid: a.uid, to: { area: 'hand', idx: 0 } }), { ok: true }); // and is taken off for the next one
+  const res = buildResult(m, { victory: false, hiddenReached: false, hiddenCleared: false, reason: 'test' });
+  const mine = res.players.find((p) => p.playerId === 'p_0');
+  assert.equal(mine.lineup.some((x) => x.diy), false, 'it is not on the final board');
+  assert.deepEqual(mine.customSeen, [SIEGE]);
+  assert.equal('customSeen' in res.players.find((p) => p.playerId === 'p_1'), false);
+  m.dispose();
+});
+
 test('a match keeps the picks its seat had at its start (the next match takes a change: test/lobby-diy.test.js)', REAL, () => {
   const h = diyMatch().start();
   const p1 = h.ps('p_1');

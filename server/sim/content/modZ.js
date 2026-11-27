@@ -15,6 +15,8 @@ import { hypot, powi } from '../detmath.js';
 import { gainLayers, unitBonds, bondActive as bondOn } from './support/index.js';
 
 const KEY = 'fishModZ';
+/** Viviana V: the share (per cent) of the player's boss-pool damage Glimmering Touch adds: the base and one more per combo. */
+export const VVANA_V = { base: 10, mly: 20, nearl: 60, deg: 40, delay: 25, lock: 0.7 };
 const isBursting = (e) => e.buffs.some((b) => typeof b.key === 'string' && b.key.endsWith('Burst'));
 /** ATK above base, as a fraction (0.25 = +25 %). */
 const atkGain = (u) => (u.base.atk > 0 ? Math.max(0, u.s.atk / u.base.atk - 1) : 0);
@@ -129,6 +131,22 @@ const INSTALL = {
       n.fishRevived = true;
       n.uniteRuntime = true;
       n.lpr = 0;
+    }, { owner: u });
+  },
+
+  // Kal'tsit Esperanta: Physical and Arts damage taken ×0.5 (a plain multiplier with every other damage-taken effect: she has no
+  // other damage reduction, Fish 2026-11-24); at the battle's start she and every operator of her player that shares at least one
+  // alliance with her (the alliances she was granted count; 协防干员 is no alliance) gain 10 SP. The granted alliances come from the
+  // match (grantedBonds, unitBonds).
+  uniequip_fishz_kalts2(battle, u) {
+    liveBuff(battle, u, `${KEY}:kalts2`, () => true, () => ({ physTakenMul: 0.5, artsTakenMul: 0.5 }));
+    battle.on('battleStart', () => {
+      const mine = new Set(unitBonds(u).filter((b) => b !== 'emptyShip'));
+      for (const a of battle.units) {
+        if (a.kind !== 'op' || a.side !== 'ally' || a.ownerId !== u.ownerId || !a.skill || a.skill.noSkill) continue;
+        if (a !== u && !unitBonds(a).some((b) => mine.has(b))) continue;
+        a.skill.gainSp(10, 'init');
+      }
     }, { owner: u });
   },
 
@@ -453,6 +471,175 @@ const INSTALL = {
           if (e.alive) battle.dealElementDamage({ source: u, target: e, element: 'burn', amount: u.s.atk * 3, tags: ['module', 'fishVvana'] });
         }
       }, { owner: u });
+    }, { owner: u });
+  },
+
+  // Viviana W: [Durable] + [Agile]; her damage type is Physical; every other [Kazimierz] Operator on the field has as much +ASPD as
+  // she has (all of it: Agile, the S2 steal, items; the copy is not read back); her attacks add 10 % ATK Corrosion; each Corrosion
+  // burst on an enemy takes another 150 DEF for good (no limit) and gives it a stack of Illuminated (10 at most: DEF -5 %,
+  // Physical damage taken +5 % each, for good) [DRAFT: the stacks come only while she is on the field, what is on the enemy stays;
+  // the percentage DEF applies after the flat loss, as Meteor's does (units.js: (base + flat) x (1 + pct))]
+  uniequip_fishw_vvana(battle, u) {
+    if (u.profile) u.profile.dmgType = 'phys';
+    const COPY = `${KEY}:vvanaCopy`, given = new Map();
+    battle.on('tick', () => {
+      const want = up(u) ? Math.max(0, Math.round(u.s.aspd - (u.base.aspd ?? 100))) : 0;
+      for (const a of battle.units) {
+        if (a.kind !== 'op' || a === u || a.ownerId !== u.ownerId) continue;
+        const v = want > 0 && a.alive && a.deployed && memberOf(battle, a, 'kazimierzShip') ? want : 0;
+        if ((given.get(a) ?? 0) === v) continue;
+        given.set(a, v);
+        if (v > 0) battle.addBuff(a, { key: COPY, mods: { aspd: v }, tags: ['module'] });
+        else if (a.findBuff(COPY)) battle.removeBuff(a, COPY);
+      }
+    }, { owner: u });
+    battle.on('hit', (c) => {
+      if (c.source !== u || c.target?.side !== 'enemy' || !c.target.alive || !isMainHit(c.dmg) || c.dmg.tags?.includes('fishVvanaW')) return;
+      battle.dealElementDamage({ source: u, target: c.target, element: 'erosion', amount: u.s.atk * 0.1, tags: ['module', 'fishVvanaW'] });
+    }, { owner: u });
+    const bursts = new WeakMap();
+    battle.on('elementBurst', (c) => {
+      const e = c.target;
+      if (c.element !== 'erosion' || !e || e.side !== 'enemy' || !e.alive || !up(u)) return;
+      const n = (bursts.get(e) ?? 0) + 1;
+      bursts.set(e, n);
+      const k = Math.min(10, n);
+      battle.addBuff(e, { key: `${KEY}:vvanaW`, mods: { defFlat: -150 * n, defPct: -0.05 * k, physTakenMul: powi(1.05, k) }, tags: ['module'] });
+    }, { owner: u });
+  },
+
+  // Viviana V (Kazimierz endgame): no Alliance of her own. Glimmering Touch (cooldown 50 s, ready at once): an enemy in the range
+  // of any of her player's [Kazimierz] operators (leaders first) is marked; 25 s later its tile explodes (5x5 diamond; the aim follows the enemy to its new tile until the last 0.7 s, VVANA_V.lock, and re-picks if it dies), 1500 % ATK
+  // Physical plus VVANA_V percent of the damage her player's units dealt to the boss pool meanwhile (the player's own `bossDamage`
+  // counter, the explosion's own damage excluded because the baseline is read when it is queued: nothing outside a boss round).
+  // Combos need that operator on the field this battle (alive or fallen), Viviana too; they last the whole battle:
+  //   Mlynar: always full Liberator charge; every [Kazimierz] operator +30 ASPD.   Nearl (the Radiant Knight): she and Viviana
+  //   attack what the other's range covers; every [Kazimierz] operator +30 % max HP.   Degenbrecher: Raid redeploys after 1 s
+  //   (all the player's Raid members), he may land on ranged tiles; every [Kazimierz] operator +30 % ATK.
+  // [DRAFT: the explosion still goes off if she falls meanwhile; the recorded share is computed at detonation; the free Nearl, the
+  // Alliances given to the three and the boss-body landing are match-level pieces (PlayerState), not here]
+  uniequip_fishv_vvana(battle, u) {
+    const MLY = 'char_4064_mlynar', NEARL = 'char_1014_nearl2', DEG = 'char_4116_blkkgt';
+    const charOf = (a) => a.def?.charId ?? a.def?.raw?.charId ?? null;
+    const mine = () => battle.units.filter((a) => a.kind === 'op' && a.ownerId === u.ownerId);
+    const has = {};
+    const BUFF = `${KEY}:vvanaV`, given = new Map();
+    const fieldedRaid = battle.fishRaidIdle ??= new Map();
+    let unionKey = '';
+    const syncCombos = () => {
+      const all = mine();
+      has.mly = all.find((a) => charOf(a) === MLY) ?? null;
+      has.nearl = all.find((a) => charOf(a) === NEARL) ?? null;
+      has.deg = all.find((a) => charOf(a) === DEG) ?? null;
+      const mods = {};
+      if (has.mly) mods.aspd = 30;
+      if (has.nearl) mods.hpPct = 0.3;
+      if (has.deg) mods.atkPct = 0.3;
+      const sig = JSON.stringify(mods);
+      for (const a of all) {
+        const want = a.alive && a.deployed && memberOf(battle, a, 'kazimierzShip') && sig !== '{}' ? sig : '';
+        if ((given.get(a) ?? '') === want) continue;
+        given.set(a, want);
+        if (want) battle.addBuff(a, { key: BUFF, mods, tags: ['module'] });
+        else if (a.findBuff(BUFF)) battle.removeBuff(a, BUFF);
+      }
+      // Mlynar: full charge (the trait's ramp), whenever his skill is not running
+      const m = has.mly;
+      if (m && m.alive && m.deployed && !m.skill?.active && m.trait && 'ramp' in m.trait) {
+        const full = m.profile?.rampMax ?? 2;
+        if (m.trait.ramp < full - 1e-9) { m.trait.ramp = full; battle.addBuff(m, { key: 'trait:libratorRamp', mods: { atkPct: full } }); }
+      }
+      // Raid: 1 s of idleness for all the player's Raid members; Degenbrecher may land on ranged tiles
+      if (has.deg) fieldedRaid.set(u.ownerId, 1); else fieldedRaid.delete(u.ownerId);
+      if (has.deg) has.deg.fishRaidRanged = true;
+      // Nearl and Viviana attack what the other's range covers (the union: each gets the other's own range as extra targets)
+      const a = u, b = has.nearl;
+      if (b && a.alive && a.deployed && b.alive && b.deployed) {
+        const own = (x) => x.rangeKeys.filter((k) => !x.fishUnion?.has(k));
+        const ka = own(a), kb = own(b);
+        const key = `${ka.join()}|${kb.join()}`;
+        if (key !== unionKey) {
+          unionKey = key;
+          a.fishUnion = new Set(kb); b.fishUnion = new Set(ka);
+          battle.setExtraRange(a, kb); battle.setExtraRange(b, ka);
+        }
+      } else if (unionKey) { unionKey = ''; for (const x of [a, b]) if (x?.fishUnion) { x.fishUnion = null; battle.setExtraRange(x, null); } }
+    };
+    battle.on('tick', syncCombos, { owner: u });
+    battle.on('battleStart', syncCombos, { owner: u });
+    let readyAt = 0;
+    // the enemy in the range of any of her player's Kazimierz operators with the highest gaugeMax
+    const findTarget = () => {
+      let pick = null;
+      for (const op of mine()) {
+        if (!op.alive || !op.deployed || !memberOf(battle, op, 'kazimierzShip')) continue;
+        for (const e of battle.enemiesInKeys(op.rangeKeys, op, { canHitFly: true })) {
+          if (!e.alive || (pick && (pick.gaugeMax >= e.gaugeMax))) continue;
+          pick = e;
+        }
+      }
+      return pick;
+    };
+    const diamondAt = (tx, ty) => {
+      const t = [];
+      for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) if (Math.abs(dr) + Math.abs(dc) <= 2) t.push([ty + dr, tx + dc]);
+      return t;
+    };
+    // the aim: follows its target (or, when that dies, the best enemy in range) until the last VVANA_V.lock seconds, then stays put
+    let aim = null;
+    const telegraph = () => battle.fx('telegraph', { x: aim.tx, y: aim.ty, r: 2.5, dur: Math.max(0.4, aim.at - battle.time), tiles: diamondAt(aim.tx, aim.ty), id: u.id, skill: 'fishVvanaV', key: `fishVvanaV:${u.id}` });
+    battle.on('tick', () => {
+      if (aim) {
+        if (battle.time >= aim.at - VVANA_V.lock) return;
+        if (!aim.target?.alive) aim.target = findTarget() || aim.target;
+        const t = aim.target;
+        if (!t?.alive) return;
+        const tx = Math.round(t.x), ty = Math.round(t.y);
+        if (tx !== aim.tx || ty !== aim.ty) { aim.tx = tx; aim.ty = ty; telegraph(); }
+        return;
+      }
+      if (!up(u) || battle.time < readyAt) return;
+      const pick = findTarget();
+      if (!pick) return;
+      readyAt = battle.time + 50;
+      aim = { target: pick, tx: Math.round(pick.x), ty: Math.round(pick.y), at: battle.time + VVANA_V.delay };
+      telegraph();
+      const pp = battle._pp(u.ownerId);
+      const base = pp ? pp.bossDamage : 0;
+      battle.after(VVANA_V.delay, () => {
+        const { tx, ty } = aim; aim = null;
+        const share = (VVANA_V.base + (has.mly ? VVANA_V.mly : 0) + (has.nearl ? VVANA_V.nearl : 0) + (has.deg ? VVANA_V.deg : 0)) / 100;
+        const recorded = pp ? Math.max(0, pp.bossDamage - base) * share : 0;
+        battle.fx('aoe', { x: tx, y: ty, radius: 2, id: u.id, skill: 'fishVvanaV' });
+        for (const e of battle.aliveEnemies()) {
+          if (Math.abs(Math.round(e.x) - tx) + Math.abs(Math.round(e.y) - ty) > 2) continue;
+          battle.dealDamage({ source: u, target: e, amount: u.s.atk * 15 + recorded, type: 'phys',
+            attackType: 'ADDITION', applyWay: 'NONE', calculation: 'precomputed', tags: ['module', 'fishVvanaV'] });
+        }
+      }, { owner: u });
+    }, { owner: u });
+  },
+
+  // Rosa W: [Aid] + [Marvel] (and she keeps Assist Operator). Takes Off: while her skill is active, +2 attack targets, ASPD -30,
+  // ATK scale x2, her hits inflict Bind for 5 s and she shoots enemies without Bind first (targeting.js `fishUnboundFirst`);
+  // an enemy that dies in her range gives +5 stacks to her active Alliances, 10 times per battle [DRAFT: the stacks are not
+  // tied to the skill; +5 and not +2 as asked by Fish 2026-11-25: 50 a battle = Siege W's 50 a round]
+  uniequip_fishw_poca(battle, u) {
+    liveBuff(battle, u, `${KEY}:pocaW`, () => skillBusy(u), () => ({ maxTargets: 2, aspd: -30, atkScaleMul: 2 }));
+    u.fishUnboundFirst = () => skillBusy(u);
+    battle.on('hit', (c) => {
+      if (c.source !== u || c.target?.side !== 'enemy' || !c.target.alive || !isMainHit(c.dmg) || !skillBusy(u)) return;
+      battle.applyStatus(c.target, 'bind', { duration: 5, source: u });
+    }, { owner: u });
+    // "in her range" is the engine's own test (an enemy's body covers tiles, so its centre rounded to a tile is not it): the enemies
+    // in range at the last tick, checked when one dies
+    let kills = 0, inRange = new Set();
+    battle.on('tick', () => { inRange = up(u) ? new Set(battle.enemiesInKeys(u.rangeKeys, u, { canHitFly: true })) : new Set(); }, { owner: u });
+    battle.on('death', (c) => {
+      const e = c.unit;
+      if (!e || e.side !== 'enemy' || kills >= 10 || !up(u) || !inRange.has(e)) return;
+      kills++;
+      stackOwn(battle, u, 5);
     }, { owner: u });
   },
 

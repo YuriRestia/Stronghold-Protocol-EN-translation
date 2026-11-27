@@ -9,9 +9,9 @@ import { createStore, useStore } from '../store.js';
 import { GIcon } from './gameComponents.js';
 import { useVoiceLang } from './voiceLang.js';
 import { data } from '../data.js';
-import { BASE_PACKS, VOICE_PACKS, OUTFITS_PACK, formatBytes } from '../../../shared/resources.js';
+import { BASE_PACKS, VOICE_PACKS, OUTFITS_PACK, LIVE2D_PACK, formatBytes } from '../../../shared/resources.js';
 import { preloadPref, preloadState, tickedPacks, setOutfitsPack, voicePacksOf, missingBytes, inspectPreload, inspectPreloadLight, startPreload, pausePreload,
-  clearPreload, setVoicePack, followVoiceSettings, removeVoicePacks, removeOutfitsPack, preloadImport, importPreloadZip, cancelPreloadImport } from '../resources/index.js';
+  clearPreload, setVoicePack, followVoiceSettings, removeVoicePacks, removeOutfitsPack, setLive2dPack, removeLive2dPack, preloadImport, importPreloadZip, cancelPreloadImport } from '../resources/index.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
 const ui = createStore({ open: false });
@@ -45,6 +45,9 @@ const TX = {
   outfits: N_('时装'), // en: "Outfits"
   removeOutfits: N_('删除未勾选的时装'), // en: "Remove Unticked Outfits"
   outfitsHint: N_('全部时装的立绘、头像与 Spine 模型（未勾选时只在用到时下载）'), // en: "Art, icons and Spine models of every outfit (unticked: each loads when it is used)"
+  live2d: N_('Live2D 卡面'), // en: "Live2D Card Art"
+  live2dHint: N_('动态立绘的全部文件（未勾选时只在卡面显示时下载）'), // en: "Every file of the animated illustrations (unticked: each loads when its card is shown)"
+  removeLive2d: N_('删除未勾选的 Live2D 卡面'), // en: "Remove Unticked Live2D Card Art"
   clear: N_('清理缓存'), // en: "Clear Cache"
   clearTitle: N_('清理缓存？'), // en: "Clear cache?"
   clearOk: N_('清理'), // en: "Clear"
@@ -260,11 +263,12 @@ export function PreloadHost() {
   const voice = tickedPacks();
   const working = busy(st);
   const need = missingBytes(st.packs, voice);
-  const [saved] = bytesOf(st, [...BASE_PACKS, ...VOICE_PACKS, OUTFITS_PACK]);
+  const [saved] = bytesOf(st, [...BASE_PACKS, ...VOICE_PACKS, OUTFITS_PACK, LIVE2D_PACK]);
   const [done, total] = bytesOf(st, [...BASE_PACKS, ...voice]);
   const staleVoice = VOICE_PACKS.filter((p) => !voice.includes(p) && (st.packs?.[p]?.doneFiles || 0) > 0);
   // (fork) an unticked Outfits pack with saved files: its own remove button
   const staleOutfits = !pref.outfits && (st.packs?.[OUTFITS_PACK]?.doneFiles || 0) > 0;
+  const staleLive2d = !pref.live2d && (st.packs?.[LIVE2D_PACK]?.doneFiles || 0) > 0;
   const msg = st.message === 'noRoom'
     ? t(TX.noRoom, { need: formatBytes(need), free: formatBytes(st.storage?.free ?? 0) })
     : MESSAGES[st.message] ? t(MESSAGES[st.message], { 0: st.message === 'someFailed' ? st.failed : st.detail }) : '';
@@ -295,6 +299,8 @@ export function PreloadHost() {
       <ul class="preload__packs">
         <${PackRow} st=${st} pack=${OUTFITS_PACK} name=${t(TX.outfits)} hint=${t(TX.outfitsHint)} checked=${!!pref.outfits} disabled=${working}
           onChange=${setOutfitsPack} />
+        <${PackRow} st=${st} pack=${LIVE2D_PACK} name=${t(TX.live2d)} hint=${t(TX.live2dHint)} checked=${!!pref.live2d} disabled=${working}
+          onChange=${setLive2dPack} />
       </ul>
       <${ImportZip} disabled=${!!st.unsupported} />
       <p class="preload__sum num">${t(TX.sum, { saved: formatBytes(saved), need: formatBytes(need) })}</p>
@@ -307,6 +313,8 @@ export function PreloadHost() {
           onClick=${() => removeVoicePacks(staleVoice)}>${t(TX.removeVoice)}<//>` : null}
         ${staleOutfits ? html`<${Button} variant="ghost" size="sm" disabled=${working} data-testid="preload-remove-outfits"
           onClick=${removeOutfitsPack}>${t(TX.removeOutfits)}<//>` : null}
+        ${staleLive2d ? html`<${Button} variant="ghost" size="sm" disabled=${working} data-testid="preload-remove-live2d"
+          onClick=${removeLive2dPack}>${t(TX.removeLive2d)}<//>` : null}
         <${Button} variant="danger" size="sm" disabled=${!saved} onClick=${clear}>${t(TX.clear)}<//>
       </div>
     </div>

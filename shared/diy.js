@@ -221,7 +221,7 @@ export function diyRecordOf(slot, pick, data, { potential = null } = {}) {
   // (Fish Edition) a Mod Z / W that grants alliances (shared/modZ.js `bonds`): on the elite, the module being active;
   // they replace 协防干员 (emptyShip, "no alliance")
   const z = rec.module?.active ? modZOf(rec.module.id) : null;
-  if (z && z.bonds.length) rec.bonds = [...new Set([...(rec.bonds ?? []).filter((b) => b !== 'emptyShip'), ...z.bonds])];
+  if (z && z.bonds.length) rec.bonds = [...new Set([...(rec.bonds ?? []).filter((b) => b !== 'emptyShip' || z.keepAssist), ...z.bonds])];
   rec.diyFor = slot.baseId ?? slot.chessId;
   if (proto) rec.diyProto = true;
   return rec;

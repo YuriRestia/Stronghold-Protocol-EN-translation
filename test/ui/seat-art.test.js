@@ -271,6 +271,43 @@ test('room.css: the seat cards and the picker follow 文字大小, no !important
   assert.match(block, /\.rs-clock \.room-mode \{[^}]*border: 1px solid[^}]*text-overflow: ellipsis/);
 });
 
+test('a co-op room\'s wide card (the user\'s layout I, 2026-11-22): nothing over the art, the state and buttons in the plate, ring and crown', () => {
+  const roomJs = readFileSync(path.join(ROOT, 'public/js/screens/room.js'), 'utf8');
+  const css = readFileSync(path.join(ROOT, 'public/css/screens/room.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  // co-op rooms (4 seats and Grand Alliance) only; the solo room keeps its tall card
+  assert.match(roomJs, /const wide = coop;/);
+  assert.match(roomJs, /class=\$\{`seats rs-seats\$\{coop \? ' rs-seats--wide' : ' seats--solo'\}/);
+  // the host's crown on the card's edge (named 创建者 for screen readers) in place of the clip; your own card read as 你
+  assert.match(roomJs, /\$\{wide && isHostSeat\s+\? html`<span class="rseat__crown" role="img" aria-label=\$\{t\('创建者'\)\}/);
+  assert.match(roomJs, /\$\{isMe && wide \? html`<span class="sr-only">\$\{t\('你'\)\}<\/span>` : null\}/);
+  // the state, the AI tag and the buttons in the plate; the art without the result card's background
+  assert.match(roomJs, /<span class="rseat__acts">\$\{botTag\}\$\{stateBox\}\$\{pickBtn\}\$\{seatBtns\}<\/span>/);
+  assert.match(roomJs, /\$\{wide \? null : seatBtns\}/);
+  // the wide card's framing per illustration (data/dyn-card-framing.json, the face-aware zoom); `own`: the viewer's card,
+  // which a too-slow room keeps animated (dynCards.js whenSmooth, the user's rule of 2026-11-23)
+  // `fill`: the wide card's official home background behind its art (dynCards.js FILL, the user's picks of 2026-11-23)
+  assert.match(roomJs, /wait="settled" own=\$\{isMe\} backdrop=\$\{!wide\} fill=\$\{wide\} framing=\$\{wide \? 'cover' : null\} class="rseat__dyn"/);
+  // its 2D art: the full art where the illustration draws (CardArt, data/card-art-framing.json), the portrait as fallback;
+  // the default's full art once the outfit's picture gave way (the solo room's tall card too: the art framed for its shape,
+  // CardArt `shape`)
+  assert.match(roomJs, /const fullSrc = art \? \(art === portrait \? fullArt : fullArtDefault\) : null;/);
+  assert.match(roomJs, /\$\{fullSrc \? html`<\$\{CardArt\} key=\$\{fullSrc\} src=\$\{fullSrc\} shape=\$\{wide \? 'wide' : 'tall'\} class="seat__portrait" fallback=\$\{portraitImg\} \/>` : portraitImg\}/);
+  // a squad's heading line: name, rule, its doctors' ready count
+  assert.match(roomJs, /<header class="rs-squad__head">[\s\S]*?<i class="rs-squad__rule" aria-hidden="true"><\/i>[\s\S]*?rs-squad__ready/);
+  // the card's shape and size: the art at --rs-ar, its width from the seat area (a size container)
+  // 16 : 9 in the 4-seat room, 1.6 in a Grand Alliance room
+  // (the seat area measured by room.js useSeatArea, no container query: Firefox ESR 115 / Safari < 16)
+  assert.match(css, /\.rs-seats--wide \{[^}]*--rs-ar: 16 \/ 9;[^}]*var\(--rs-cw, 100vw\)[^}]*var\(--rs-ch, 70vh\)/);
+  assert.match(roomJs, /<main ref=\$\{seatsRef\} class=\$\{`seats rs-seats/);
+  assert.match(roomJs, /el\.style\.setProperty\('--rs-cw', `\$\{w\}px`\)/);
+  assert.match(css, /\.rs-seats--large \{\s*--rs-ar: 1\.6;/);
+  assert.match(css, /\.rs-seats--wide \.rseat \{ width: var\(--rs-aw\);/);
+  assert.match(css, /\.rs-seats--wide \.rseat__art \{ flex: none; aspect-ratio: var\(--rs-ar\);/);
+  assert.match(css, /\.rs-seats--wide \.rseat\.is-lit \.rseat__art::after \{ display: none; \}/);
+  assert.match(css, /\.rs-seats--wide \.rseat\.is-me \{ outline: 2px solid #4fe8c0;/);
+  assert.match(css, /\.rs-seats--wide \.rseat__mute \{ position: static;/);
+});
+
 test('an AI teammate\'s name split for the plate: 「AI·」 + the rest; a number-only name and a human seat unsplit (botNameParts)', async () => {
   const { botNameParts } = await import('../../public/js/screens/room.js');
   assert.deepEqual(botNameParts({ isBot: true, name: 'AI·华法琳' }), ['AI·', '华法琳']);

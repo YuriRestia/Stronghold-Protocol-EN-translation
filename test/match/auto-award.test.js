@@ -16,10 +16,10 @@ test('awardedTags: only with the rule on; untaken tags; the highest level whose 
   assert.deepEqual(awardedTags({}, none, { aiSeats: false }), {}, 'rule off: nothing');
   const PHASE1 = { ccInvestorBench: 2, ccSwift: 1, ccForesight: 1, ccStrategyLate: 2 };
   assert.deepEqual(awardedTags(ON, none, { aiSeats: false }),
-    { ...PHASE1, ccTier1Price: 1, ccUpgrade: 2, ccLastLine: 1, ccJunk: 1 }, 'nothing broken, no AI seats: every awardable tag, top level');
+    { ...PHASE1, ccTier1Price: 1, ccUpgrade: 2, ccLastLine: 1, ccJunk: 1, ccLowEfficiency: 1 }, 'nothing broken, no AI seats: every awardable tag, top level');
   assert.deepEqual(awardedTags(ON, none, { aiSeats: true }), PHASE1, 'AI seats: only the versions marked aiOk');
   assert.deepEqual(awardedTags(ON, new Set(['barge', 'junk']), { aiSeats: false }),
-    { ...PHASE1, ccTier1Price: 1, ccLastLine: 1 }, 'Barge 1 and 2 share one condition; Junk 2 is never awarded');
+    { ...PHASE1, ccTier1Price: 1, ccLastLine: 1, ccLowEfficiency: 1 }, 'Barge 1 and 2 share one condition; Junk 2 is never awarded');
   assert.deepEqual(awardedTags({ ...ON, ccSwift: 1, ccStrategyLate: 1 }, none, { aiSeats: true }),
     { ccInvestorBench: 2, ccForesight: 1 }, 'a taken tag (any level) is not awarded or raised');
   assert.deepEqual(awardedTags(ON, new Set(['investorOps', 'strategy2', 'foresight']), { aiSeats: true }),
@@ -135,4 +135,23 @@ test('the "why not" notes: each untaken, unawarded version with its first break 
   assert.deepEqual(awardNotes({}, {}, why, { aiSeats: false }), [], 'rule off: nothing');
   const idle = idleMatch(ON);
   assert.deepEqual(idle.pub.awardNotes ?? null, idle.result.awardNotes ?? null, 'the result and the public view carry the same notes');
+});
+
+test('Low Efficiency: any operator that left the field in a battle breaks it; no AI seats; a result without the count counts as one', async () => {
+  const { noteDowns } = await import('../../server/match/autoAward.js');
+  assert.ok(isAwardable('ccLowEfficiency', 1) && AWARDABLE.find((a) => a.key === 'ccLowEfficiency').aiOk === false);
+  const h = makeMatch({ mode: 'solo', seed: 5, lobbyRules: ON }).start();
+  const m = h.m;
+  const broken = () => new Set(m._awardBroken || []);
+  noteDowns(m, { perPlayer: { a: { downs: 0 }, b: { downs: 0 } } });
+  assert.ok(!broken().has('lowEfficiency'), 'nobody left the field: the tag would change nothing');
+  noteDowns(m, { perPlayer: { a: { downs: 0 }, b: { downs: 2 } } });
+  assert.ok(broken().has('lowEfficiency'), 'one player\'s operator was knocked out or retreated');
+  m._awardBroken.delete('lowEfficiency'); delete m._awardWhy.lowEfficiency;
+  noteDowns(m, { perPlayer: { a: { killed: 3 } } });
+  assert.ok(broken().has('lowEfficiency'), 'a result that does not say counts as one (the safe side)');
+  assert.deepEqual(awardedTags(ON, broken(), { aiSeats: false }).ccLowEfficiency, undefined, 'broken: not awarded');
+  assert.equal(awardedTags(ON, new Set(), { aiSeats: false }).ccLowEfficiency, 1);
+  assert.equal(awardedTags(ON, new Set(), { aiSeats: true }).ccLowEfficiency, undefined, 'AI seats read redeploy timers in rehearsals');
+  h.m.dispose();
 });

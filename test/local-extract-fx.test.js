@@ -51,6 +51,37 @@ describe('fx.py encodings (no UnityPy needed)', { skip: !PY && 'no python3' }, (
     assert.deepEqual(out[3], { 'boc#1': { a_hit: 'a_hit_boc#1' } }, 'a twin without its base is not mapped');
   });
 
+  test('(fork) hot_root / ab_path / ab_glob: an install\'s PersistentData/Bundles hot update wins over StreamingAssets', () => {
+    // a throwaway client layout of a few empty files (TemporaryDirectory: removed again)
+    const out = py(`import tempfile, pathlib
+with tempfile.TemporaryDirectory() as d:
+    d = pathlib.Path(d)
+    ab = d / 'Arknights_Data/StreamingAssets/AB/Windows'
+    hot = d / 'Arknights_Data/PersistentData/Bundles'
+    for f in [ab / 'skinpack/a.ab', ab / 'skinpack/b.ab', hot / 'skinpack/b.ab', hot / 'skinpack/c.ab']:
+        f.parent.mkdir(parents=True, exist_ok=True); f.write_bytes(b'')
+    plain = d / 'ab-cn'; (plain / 'skinpack').mkdir(parents=True); (plain / 'skinpack/a.ab').write_bytes(b'')
+    rel = lambda p: p.relative_to(d).as_posix()
+    print(json.dumps([rel(fx.hot_root(ab)), fx.ab_glob(ab, 'skinpack/*.ab'), rel(fx.ab_path(ab, 'skinpack/a.ab')),
+                      rel(fx.ab_path(ab, 'skinpack/b.ab')), fx.hot_root(plain), fx.ab_glob(plain, 'skinpack/*.ab')]))`);
+    assert.equal(out[0], 'Arknights_Data/PersistentData/Bundles');
+    assert.deepEqual(out[1], ['skinpack/a.ab', 'skinpack/b.ab', 'skinpack/c.ab'], 'both roots, each bundle once');
+    assert.equal(out[2], 'Arknights_Data/StreamingAssets/AB/Windows/skinpack/a.ab', 'no hot update: the shipped bundle');
+    assert.equal(out[3], 'Arknights_Data/PersistentData/Bundles/skinpack/b.ab', 'the hot update wins');
+    assert.equal(out[4], null, 'a hand-made AB root has no hot-update root');
+    assert.deepEqual(out[5], ['skinpack/a.ab']);
+  });
+
+  test('(fork) outfit_skin_id: a skinpack battle prefab names its outfit (index.json skins key); token looks do not', () => {
+    const out = py(`print(json.dumps([fx.outfit_skin_id(p) for p in [
+      'dyn/battle/prefabs/skins/character/char_1047_halo2/char_1047_halo2_striker#4.prefab',
+      'dyn/battle/prefabs/skins/character/char_1033_swire2/char_1033_swire2_ambienceSynesthesia#4.prefab',
+      'dyn/battle/prefabs/skins/character/token_10005_mgllan_drone1/token_10005_mgllan_drone1_epoque#60.prefab',
+      'dyn/arts/characters/char_1047_halo2/illust_char_1047_halo2_striker#4.prefab',
+      'dyn/battle/prefabs/skins/character/char_1047_halo2/char_9999_other_x#1.prefab']]))`);
+    assert.deepEqual(out, ['char_1047_halo2@striker#4', 'char_1033_swire2@ambiencesynesthesia#4', null, null, null]);
+  });
+
   test('(fork) skin_fx_map with the skinpack pairs: the official replacement wins over the name rule (丰川祥子 S2 crosswise)', () => {
     const keys = ['s_a', 's_b', 's_a_avemujica#1', 's_b_avemujica#1', 'birth', 'x_birth_boc#1'];
     const pairs = { 'avemujica#1': { s_a: 's_b_avemujica#1', s_b: 's_a_avemujica#1' }, 'boc#1': { birth: 'x_birth_boc#1', gone: 'gone_boc#1' } };

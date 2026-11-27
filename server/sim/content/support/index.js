@@ -277,7 +277,8 @@ export function unitBonds(u) {
   const iso = u.player?.isoPlus ?? null;
   const mod = u.def?.raw?.module;
   const free = !!(mod && mod.active !== false && modZOf(mod.id)?.isoFree);   // (Fish Edition) Mod Z Phantom: no Damazti Isomorph needed
-  const key = (free ? 'free|' : '') + (plus ? 'plus|' : '') + (iso ? `${iso}|` : '') + items.join('|');
+  const granted = Array.isArray(u.grantedBonds) ? u.grantedBonds : null;   // (Fish Edition) Mod Z Kal'tsit Esperanta
+  const key = (granted ? `grant:${granted.join(',')}|` : '') + (free ? 'free|' : '') + (plus ? 'plus|' : '') + (iso ? `${iso}|` : '') + items.join('|');
   if (cached && cached.key === key) return cached.bonds;
   const out = [...(Array.isArray(u.def?.bonds) ? u.def.bonds : Array.isArray(u.def?.raw?.bonds) ? u.def.raw.bonds : [])];
   // the Damazti Isomorph+ cheat: the battle's item records are the unpatched ones, so its pairs come from the rule
@@ -289,6 +290,7 @@ export function unitBonds(u) {
   for (const b of grantedBondsByMorph(items, rec, { mode: plus ? 'plus' : 'official', bondOk: (id) => !!bondRecord(id), free })) {
     if (!out.includes(b)) out.push(b);
   }
+  if (granted) for (const b of granted) if (!out.includes(b) && bondRecord(b)) out.push(b);
   const bonds = Object.freeze(out);
   BONDS.set(u, { key, bonds });
   return bonds;

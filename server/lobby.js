@@ -246,7 +246,7 @@ import { chatLine } from '../shared/text.js';
 import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes, utf8Bytes } from './match/chatLimit.js';
 import { CHAT_ON } from './match/chatWallet.js';
 import { LARGE_ROOM_SEATS, IDLE_PREP_ROUNDS, SQUAD_SEATS, ROOM_PASSWORD_RE, ROOM_PASSWORD_TRIES, ROOM_PASSWORD_WINDOW_MS, squadOfSeat, squadMoveWait, squadMoveLog, SQUAD_MOVE_LOG_MAX } from '../shared/largeRoom.js';
-import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../shared/protocol.js';
+import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds, validateC2S, CROSS_CARRY_MAX_LEN } from '../shared/protocol.js';
 import { cleanOutfits } from '../shared/outfits.js';
 import { knownAvatar } from '../shared/avatars.js';
 import { encode, isErrCode, sendRaw, sendSession } from './net.js';
@@ -272,6 +272,10 @@ export { CODE_ALPHABET };
 /** Tunables. */
 export const LOBBY_DEFAULTS = Object.freeze({
   lobbyGraceMs: 60_000,   // disconnected humans keep their lobby seat this long
+  // While the server is closed for maintenance (#193): a human silent this long on a choice screen is removed from the
+  // match, and a match whose humans are all silent this long is ended (0 = off)
+  afkKickMs: 120_000,
+  afkEndMs: 150_000,
   maxRooms: 1000,
   maxRoomsPerAddr: 16,    // rooms created from one client network that may exist at once (0 = unlimited)
   maxMatchesPerAddr: 8,   // matches started from one client network that may run at once (0 = unlimited)
@@ -529,6 +533,13 @@ export class Room {
     /** @type {number | null} */
     this.searchSince = null;
     /**
+     * (fork) What the room promised strangers when it opened to them (search, or a Grand Alliance made public): 'vanilla' =
+     * the original game, the lobby rules are cleared and locked (see vanillaLocked); 'modded' = the host may still change
+     * the rules, and only players who allow mods meet it. null until then. Part of the matchmaking pool (poolKey).
+     * @type {'vanilla' | 'modded' | null}
+     */
+    this.searchKind = null;
+    /**
      * (fork) the room was open to strangers before a match: it searched (搜寻队友), the solo queue formed or filled it, or
      * it was a public Grand Alliance. Its matches have no setup reroll (Lobby.rerollLock; user, 2026-11-13). Never cleared.
      */
@@ -556,6 +567,17 @@ export class Room {
 
   /** Does the room play a content set with gameplay plugins (its own cs; header "Gameplay plugins")? */
   get modded() { return !!this.content && this.content.vanilla === false; }
+
+  /**
+   * (fork) A vanilla room's rules cannot change while strangers may be in it: it searches, it is a public Grand Alliance,
+   * or another human is seated (a stranger matched in stays after the match). Alone and not searching, the host may edit again.
+   * Pure: nothing is stored, so a stopped search, a maintenance stop or a match end cannot reopen the room.
+   */
+  get vanillaLocked() {
+    if (this.searchKind !== 'vanilla') return false;
+    if (this.searching || (this.large && !this.locked)) return true;
+    return this.seats.filter((s) => s && !s.isBot && !s.left).length > 1 || this.seats.some((s) => s && s.matched);
+  }
 
   /**
    * Must every member's page load and check the room's content before ready / start (header "Gameplay plugins",
@@ -643,6 +665,8 @@ export class Room {
       spectators: this.spectators.map((s) => ({ playerId: s.playerId, name: s.name, connected: s.connected, ...(this.needsContent ? { content: /** @type {any} */ (s).content || 'loading' } : {}), ...(s.matched ? { matched: true } : {}) })),
       searching: this.searching,
       searchSince: this.searchSince,
+      ...(this.searchKind ? { searchKind: this.searchKind } : {}),
+      ...(this.vanillaLocked ? { vanillaLock: true } : {}),
       ...(this.content ? { content: this.content.trusted ? {...this.content, trusted:{...this.content.trusted, consent:Object.fromEntries(this.seats.filter(x => x && !x.isBot).map(x => [x.seat,x.consentCs === this.content.cs]))}} : this.content } : {}),
       // another official version than 第二期下半, and its open vote (header "Official versions"): omitted otherwise, so a
       // default room's room.state stays identical
@@ -1260,9 +1284,10 @@ export class Lobby {
     const room = new Room(code, mode, difficulty, this.now(), version);
     room.test = test === true;
     if (large) { room.capacity = LARGE_ROOM_SEATS; room.seats = new Array(LARGE_ROOM_SEATS).fill(null); }
-    if (large && password != null) { room.locked = true; room.password = password.toUpperCase(); }
+    // (fork) a Grand Alliance opens private: a password (the host's, else 4 random letters) until the host makes it public
+    // (setLock on false, with the choice vanilla / modded); the browser lists it, locked
+    if (large) { room.locked = true; room.password = password != null ? password.toUpperCase() : randomPassword(); }
     if (large && oneForAll === true) room.oneForAll = true;
-    if (large && !room.locked) room.wentPublic = true;   // (fork) a public Grand Alliance (Lobby.rerollLock)
     // 「不限时」 only on a solo room of a version whose solo is timed (header). Anywhere else the key is ignored, so a
     // stray true cannot change a default or co-op create.
     if (mode === 'solo' && soloUnlimited === true && this.versionSoloTimed(version)) room.soloUnlimited = true;
@@ -1280,7 +1305,7 @@ export class Lobby {
     return OK;
   }
 
-  join(session, { code, testAck, ticket, password, squad }) {
+  join(session, { code, testAck, ticket, password, squad, carry }) {
     const norm = String(code).trim().toUpperCase();
     const room = norm.length === ROOM_CODE_LEN ? this.rooms.get(norm) : undefined;
     if (!room) return fail(ERR.ROOM_NOT_FOUND);
@@ -1309,6 +1334,8 @@ export class Lobby {
     if (room.versionVote) this.voidVersionVote(room, 'members');
     if (cur) this.removeMember(cur, session.playerId);
     this.unqueue(session);
+    // (fork) a moved Doctor's settings from its own server, before the seat copies them (crossCarry)
+    if (held && carry) this.applyCarry(session, room.code, carry);
     room.seats[idx] = this.humanSeat(idx, session, room);
     session.roomCode = room.code;
     session.notice = null;
@@ -1450,8 +1477,10 @@ export class Lobby {
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (room.match) return fail(ERR.ROOM_STARTED);
     const next = normalizeRules(rules, room.rules);
-    // searching for teammates plays the original game (shared/rules.js): stop the search before setting a rule
-    if (room.searching && anyRule(next)) return fail(ERR.CUSTOM_RULES);
+    // a vanilla room (it searches, is a public Grand Alliance, or has a stranger seated) plays the original game
+    // (shared/rules.js); a room that searches as 'modded' may still change its rules
+    if (room.vanillaLocked) return fail(ERR.CUSTOM_RULES, 'a vanilla room cannot change its rules');
+    if (room.searching && room.searchKind !== 'modded' && anyRule(next)) return fail(ERR.CUSTOM_RULES);
     this.dropReplay(room, session.playerId);
     if (Object.keys(next).some((k) => !sameRuleValue(next[k], room.rules[k]))) {
       room.rules = next;
@@ -1500,6 +1529,8 @@ export class Lobby {
     const r = this.resolveContent(room, ids, settings);
     if ('error' in r) return r;
     let content = r.content;
+    // (fork) a vanilla room (Room.vanillaLocked) takes no gameplay plugins either
+    if (content?.vanilla === false && room.vanillaLocked) return fail(ERR.PLUGIN_BLOCKED, 'a vanilla room cannot take gameplay plugins');
     const before = room.content;
     const sameSet = (before?.vs ?? null) === (content?.vs ?? null) && (before?.cs ?? null) === (content?.cs ?? null);
     const marks = (c) => JSON.stringify((c?.plugins || []).map((p) => [p.id, !!p.auto, p.settings || null]));
@@ -2052,13 +2083,16 @@ export class Lobby {
    * without one (`{ on: true }`) brings it back; a room that never had one gets 4 random letters. A private room still
    * shows in the room browser, marked; joining or watching it needs the password, its members are not asked again.
    */
-  setLock(session, { on, password }) {
+  setLock(session, { on, password, kind }) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (!room.large) return fail(ERR.BAD_TARGET, 'only Grand Alliance rooms lock');
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (on && password != null && !(typeof password === 'string' && ROOM_PASSWORD_RE.test(password))) return fail(ERR.BAD_MSG, 'a password of 4 letters');
     if (on) room.password = password != null ? password.toUpperCase() : room.password || randomPassword();
+    // (fork) public (on false) opens the room to strangers: it says what for (vanilla by default; Room.searchKind)
+    if (!on && room.locked) this.openToStrangers(room, kind === 'modded' ? 'modded' : 'vanilla');
+    // private again: a vanilla room stays locked while another human is seated (Room.vanillaLocked)
     room.locked = on;
     if (!on) room.wentPublic = true;   // (fork) a public Grand Alliance (Lobby.rerollLock)
     this.broadcastState(room);
@@ -2113,7 +2147,7 @@ export class Lobby {
       const host = room.seatOf(room.hostId);
       const squads = [0, 1].map((sq) => room.seats.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS).filter(Boolean).length);
       out.push({ code: room.code, host: host ? host.name : '', seats, capacity: room.capacity, difficulty: room.difficulty, squads,
-        ...(room.locked ? { locked: true } : {}), ...(room.oneForAll ? { oneForAll: true } : {}), at: room.createdAt });
+        ...(room.locked ? { locked: true } : {}), ...(room.oneForAll ? { oneForAll: true } : {}), ...(room.searchKind === 'modded' ? { modded: true } : {}), at: room.createdAt });
     }
     out.sort((x, y) => x.at - y.at);
     return out.slice(0, 50);
@@ -2616,6 +2650,49 @@ export class Lobby {
   // Match wiring
   // ---------------------------------------------------------------------------------------------------
 
+  /**
+   * GitHub #193: while the server is closed for maintenance, matches nobody plays must not hold up the restart. On a choice
+   * screen a human with no game action for `afkKickMs` is removed (as if they left: the match goes on without them, or
+   * ends when they were the last), and a match whose humans have all been silent for `afkEndMs` is ended. The clock of a
+   * screen starts when it comes up (Match.afkReport), so a battle in between gives everyone a fresh start.
+   * @returns {{ kicked: number, ended: number }}
+   */
+  sweepAfk() {
+    const out = { kicked: 0, ended: 0 };
+    if (!this.closedForMaintenance()) return out;
+    const { afkKickMs, afkEndMs } = this.opts;
+    for (const room of [...this.rooms.values()]) {
+      if (!room.match || room.disposed) continue;
+      let rep = null;
+      try { rep = room.match.afkReport?.() ?? null; } catch (e) { this.log.error(`[lobby] ${room.code} match.afkReport threw`, e); }
+      if (!rep || !rep.humans.length) continue;
+      if (afkEndMs > 0 && rep.humans.every((h) => h.idleMs >= afkEndMs)) {
+        this.log.info(`[lobby] ${room.code} ended: every player silent for ${Math.round(afkEndMs / 1000)} s on ${rep.phase} while the server is closing`);
+        this.disposeRoom(room, 'afk');
+        out.ended++;
+        continue;
+      }
+      if (!(afkKickMs > 0)) continue;
+      for (const h of rep.humans) {
+        if (room.disposed) break;
+        if (h.idleMs < afkKickMs) continue;
+        const seat = room.seatOf(h.playerId);
+        if (!seat || seat.left) continue;
+        const gone = this.registry.byId(h.playerId);
+        const wasHere = !!gone && gone.roomCode === room.code;
+        const replay = this.replayFor(room, h.playerId);
+        this.removeMember(room, h.playerId);
+        if (wasHere) {
+          if (gone.connected) sendSession(gone, { t: 'room.closed', reason: 'afk' });
+          else { gone.notice = 'afk'; gone.pendingResult = replay; }
+        }
+        this.log.info(`[lobby] ${room.code} ${seat.name} removed: silent for ${Math.round(h.idleMs / 1000)} s on ${rep.phase} while the server is closing`);
+        out.kicked++;
+      }
+    }
+    return out;
+  }
+
   /** Planned maintenance closed the server to new matches (scripts/maintenance.mjs --close). */
   closedForMaintenance() {
     return this.maintenance?.closed() === true;
@@ -3038,7 +3115,7 @@ export class Lobby {
   // 搜寻队友 (server/matchmaker.js plans, these carry it out)
   // ---------------------------------------------------------------------------------------------------
 
-  search(session, { on }) {
+  search(session, { on, kind }) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
@@ -3055,18 +3132,32 @@ export class Lobby {
     // (fork) a test room is joined by its code only too (strangers would skip its testAck)
     if (room.test) return fail(ERR.BAD_TARGET, 'test rooms are joined by room code only');
     if (room.searching) return OK;
-    // strangers join a search: it plays the original game (Custom Lobby Modifications are for friends' rooms)
-    if (anyRule(room.rules)) return fail(ERR.CUSTOM_RULES);
     // (fork) a room of any official version searches among rooms of its version (server/matchmaker.js poolKey); a Grand
     // Alliance (shared/largeRoom.js), locked or not, among Grand Alliances and opted-in queued Doctors
     if (roomSize(room) >= roomCap(room)) return fail(ERR.ROOM_FULL);
     if (!groupReady(room)) return fail(ERR.NOT_READY);
+    // (fork) what the search promises strangers: the original game (the default, also for a client that sends no kind: the
+    // lobby rules are cleared and locked) or 'modded' (the rules stay editable; only players who allow mods meet it)
+    this.openToStrangers(room, kind === 'modded' ? 'modded' : 'vanilla');
     room.searching = true;
     room.searchSince = this.now();
     room.wentPublic = true;   // (fork) Find teammates: strangers may sit down (Lobby.rerollLock)
     this.log.info(`[lobby] ${room.code} searching (${roomSize(room)}/${roomCap(room)}, ${room.difficulty}${room.version !== DEFAULT_VERSION ? `, ${room.version}` : ''})`);
     this.broadcastState(room);
     return OK;
+  }
+
+  /**
+   * (fork) A room opens to strangers (a search, a Grand Alliance made public) as 'vanilla' or 'modded' (Room.searchKind). Vanilla
+   * clears the lobby rules; Room.vanillaLocked then keeps them off. Nobody is un-readied: an empty rule set is what the
+   * others readied for, and the room.state they get says so.
+   */
+  openToStrangers(room, kind) {
+    if (kind === 'vanilla' && anyRule(room.rules)) {
+      room.rules = normalizeRules(null);
+      for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;
+    }
+    room.searchKind = kind;
   }
 
   /**
@@ -3188,7 +3279,8 @@ export class Lobby {
     const rooms = [];
     for (const r of this.rooms.values()) {
       // (fork) a One for All room matches on its own server only [ASSUMED: the digest and the arbiter carry no mode]
-      if (!isMatchable(r) || r.test || r.oneForAll || !this.matchAllowed(r)) continue;
+      // (fork) nor does a room that searches as 'modded': other servers only ever see vanilla rooms
+      if (!isMatchable(r) || r.test || r.oneForAll || r.searchKind === 'modded' || !this.matchAllowed(r)) continue;
       const humans = r.seats.filter((s) => s && !s.left && !s.isBot).length;
       rooms.push({ code: r.code, humans, bots: roomSize(r) - humans, difficulty: r.difficulty, wait: now - (r.searchSince ?? now),
         ...(r.version !== DEFAULT_VERSION ? { version: r.version } : {}), ...(r.large ? { cap: r.capacity, squads: squadCounts(r) } : {}) });
@@ -3319,12 +3411,14 @@ export class Lobby {
     // (fork) a Grand Alliance's squads as planned: a member who changed squad since would split one (fitSquads)
     if (large && squads && rooms.some((r) => !sameSquads(squadCounts(r), squads[r.code]))) return { ok: false, member };
     const frame = { t: 'room.move', region, code, ticket };
+    // (fork) each Doctor's own settings ride along, signed (crossCarry): the target seats a new session
+    const frameFor = (session) => { const carry = this.crossCarry(session, code, ticket); return carry ? { ...frame, carry } : frame; };
     for (const r of rooms) {
       for (const [i, s] of r.seats.entries()) {
         if (!s || s.isBot || s.left) continue;
         const session = this.registry.byId(s.playerId);
         const to = assign?.[r.code]?.[i >= SQUAD_SEATS ? 1 : 0];
-        if (session) sendSession(session, Number.isInteger(to) ? { ...frame, squad: to } : frame);
+        if (session) { const f = frameFor(session); sendSession(session, Number.isInteger(to) ? { ...f, squad: to } : f); }
       }
       this.log.info(`[cross] ${r.code} moves to ${code} on ${region}`);
       this.disposeRoom(r, 'moved');
@@ -3333,9 +3427,73 @@ export class Lobby {
       this.soloQueue.remove(s.playerId);
       this.sendQueue(s, { placed: true });
       const to = soloSquads?.[k];
-      sendSession(s, Number.isInteger(to) ? { ...frame, squad: to } : frame);
+      const f = frameFor(s);
+      sendSession(s, Number.isInteger(to) ? { ...f, squad: to } : f);
     }
     return { ok: true, member };
+  }
+
+  /**
+   * (fork) A moved Doctor's settings for the target server (DESIGN §90.2 "Arrive"): the browser joins there on a socket
+   * without a token, so the target seats a new session, and the match starts on the last moved Doctor's join — before
+   * the page could resend anything (player report 2026-11-27: a 自选 Clementia missing after a cross-region match). This
+   * server already holds them, checked, on the session: the loadout and 潜能 / 练度, 干员持有, 自选编队, outfits, skins
+   * and card, signed with the peers' secret like the ticket (`kind: 'carry'`, so neither stands in for the other), bound
+   * to the room and expiring with the ticket. The page hands it back in its room.join (applyCarry). Null without
+   * settings, without the peers' signer, or when longer than CROSS_CARRY_MAX_LEN.
+   * @param {any} session @param {string} code @param {string} ticket
+   */
+  crossCarry(session, code, ticket) {
+    if (!this.crossTicket || !this.crossVerify || !session) return null;
+    const exp = this.crossVerify(ticket)?.exp;
+    if (!Number.isFinite(exp)) return null;
+    /** @type {Record<string, any>} */
+    const s = {};
+    if (session.loadout) { s.loadout = session.loadout; if (session.ops) s.ops = session.ops; }
+    if (session.notOwned) s.notOwned = session.notOwned;
+    if (session.diy) s.diy = session.diy;
+    if (session.outfits) s.outfits = session.outfits;
+    if (session.skins) s.skins = session.skins;
+    if (session.card) s.card = session.card;
+    if (!Object.keys(s).length) return null;
+    const carry = this.crossTicket({ kind: 'carry', code, exp, s });
+    if (typeof carry !== 'string' || carry.length > CROSS_CARRY_MAX_LEN) {
+      this.log.warn(`[cross] ${session.name}'s settings left behind: ${typeof carry === 'string' ? carry.length : 0} chars`);
+      return null;
+    }
+    return carry;
+  }
+
+  /**
+   * (fork) A moved Doctor's carried settings (crossCarry), on its join with a valid ticket: each goes through its own
+   * handler — the same checks as the page's room.loadout / room.ownership / room.diy / room.outfits / room.skins /
+   * room.card — before the seat is taken, so the seat and the match have them. A forged, expired or other room's
+   * carry, or one setting the checks refuse, is left out; the page's own resend after the move still follows.
+   * @param {any} session @param {string} code @param {unknown} carry
+   */
+  applyCarry(session, code, carry) {
+    const p = carry ? this.crossVerify?.(carry) : null;
+    if (!p || p.kind !== 'carry' || p.code !== code || !p.s || typeof p.s !== 'object') return;
+    const s = p.s;
+    const msgs = [
+      s.loadout ? { t: 'room.loadout', entries: s.loadout, ...(s.ops ? { ops: s.ops } : {}) } : null,
+      s.notOwned ? { t: 'room.ownership', notOwned: s.notOwned } : null,
+      s.diy ? { t: 'room.diy', picks: s.diy } : null,
+      s.outfits ? { t: 'room.outfits', outfits: s.outfits } : null,
+      s.skins ? { t: 'room.skins', skins: s.skins } : null,
+      typeof s.card === 'string' ? { t: 'room.card', charId: s.card } : null,
+    ];
+    for (const m of msgs) {
+      if (!m || validateC2S(m)) continue;
+      try {
+        if (m.t === 'room.loadout') this.loadout(session, m);
+        else if (m.t === 'room.ownership') this.ownership(session, m);
+        else if (m.t === 'room.diy') this.diy(session, m);
+        else if (m.t === 'room.outfits') this.outfits(session, m);
+        else if (m.t === 'room.skins') this.skins(session, m);
+        else this.card(session, m);
+      } catch (e) { this.log.error(`[cross] carried ${m.t} failed`, e); }
+    }
   }
 
   /**
@@ -3449,7 +3607,7 @@ export class Lobby {
    * also be seated in a Grand Alliance (only while the server has them and 第二期下半 is queued for: they play it alone).
    * `oneForAll` (with `large` only): may also be seated in a One for All Grand Alliance (off by default).
    */
-  queueJoin(session, { difficulty, versions: asked, large, oneForAll }) {
+  queueJoin(session, { difficulty, versions: asked, large, oneForAll, mods }) {
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
@@ -3463,12 +3621,13 @@ export class Lobby {
     for (const v of versions) { const d = this.fallbackDifficulty(v, 'coop', difficulty); if (d !== difficulty) at[v] = d; }
     const opts = { versions, at: Object.keys(at).length ? at : null, large: large === true && this.largeRooms === true && versions.includes(DEFAULT_VERSION) };
     opts.oneForAll = opts.large && oneForAll === true;
+    opts.mods = mods === true;   // (fork) allows rooms that search as 'modded'; left out: the original game only
     if (cur) this.removeMember(cur, session.playerId);
     const e = this.soloQueue.get(session.playerId);
     // a second click keeps the wait; another difficulty starts over; other versions or opt-in keep the wait
     if (!e || e.difficulty !== difficulty) this.soloQueue.add(session.playerId, difficulty, this.now(), opts);
     else {
-      e.versions = opts.versions; e.large = opts.large; e.oneForAll = opts.oneForAll;
+      e.versions = opts.versions; e.large = opts.large; e.oneForAll = opts.oneForAll; e.mods = opts.mods;
       if (opts.at) e.at = { ...opts.at }; else delete e.at;
     }
     this.sendQueue(session);
@@ -3543,6 +3702,7 @@ export class Lobby {
   /** Seat queued sessions in `room`'s free seats, ready, and take them out of the queue. Sends nothing. */
   seatSolos(room, sessions) {
     if (sessions.length) room.wentPublic = true;   // (fork) the solo queue seats strangers (Lobby.rerollLock)
+    if (sessions.length && !room.searchKind) room.searchKind = 'vanilla';   // a room the queue forms plays the original game
     // (fork) new humans take seats: the version vote is void, as on a join (header "Official versions")
     if (sessions.length && room.versionVote) this.voidVersionVote(room, 'members');
     for (const s of sessions) {

@@ -89,6 +89,18 @@ export function chessPortraitUrl(m, chess, o) {
   return (chess?.isGolden ? str(byChar.portraitE2) : null) || str(byChar.portrait);
 }
 
+/**
+ * (fork) The full artwork (WebP) of a chess record as a wide room card shows it (the user's pick of 2026-11-23): the
+ * outfit's, else the operator's own (E2, else E1: the art its animated illustration is made from); null when the outfit
+ * has no full art or a `skin` picture is worn — the card keeps the portrait then.
+ */
+export function chessFullArtUrl(m, chess, o) {
+  const of = outfitArt(m, chess, 'art', o);
+  if (of) return of;
+  if (outfitArt(m, chess, 'portrait', o) || skinPicture(m, chess, o?.skin ?? null, 'portrait')) return null;
+  return str(obj(obj(obj(obj(m)?.outfits)?.defaults)?.[str(chess?.charId)])?.art);
+}
+
 /** Skill icon of a chess record (manifest `skills[iconId]`, else the empty skill sprite). */
 export function skillIconUrl(m, chess) {
   const skills = obj(obj(m)?.skills);

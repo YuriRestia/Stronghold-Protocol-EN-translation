@@ -39,9 +39,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 import { parseHosts, formatHosts, shQuote, statusCommand, prepare } from './deploy-regions.mjs';
 import {
-  SHARED_LISTS, CLIP_BOUNDS, ASK_ABOVE_BYTES, MAX_PACK_BYTES, PUBLIC_FILE_LIMIT,
+  SHARED_LISTS, CLIP_BOUNDS, ASK_ABOVE_BYTES, MAX_PACK_BYTES,
   parseFileList, neededArt, artPlan, differingLists, parseSha256, artGate, mb,
 } from './release-art.mjs';
+import { MAX_MANIFEST_FILES } from '../shared/resources.js';
 import * as sudoStore from './release-sudo.mjs';
 import { sudoLine, sudoRunners } from './ssh-sudo.mjs';
 import { fragmentFiles } from '../tools/changelog.mjs';
@@ -363,7 +364,6 @@ function serverState(r) {
   if (list.status !== 0) stop(`${r.host}: cannot list the art: ${list.stderr.trim()}`);
   const files = [...SHARED_LISTS, CLIP_BOUNDS];
   const sums = r.capture(`sudo bash -c ${shQuote(`cd ${APP} && sha256sum ${files.join(' ')} 2>/dev/null; true`)}`);
-  const count = r.capture(`sudo bash -c ${shQuote(`cd ${APP} && find public -type f | wc -l`)}`);
   // the login user's home, then the app folder under sudo (the login user cannot stat /opt/stronghold/app)
   const free = [['$HOME', `df -B1 --output=avail "$HOME"`], [APP, `sudo df -B1 --output=avail ${APP}`]].map(([path, line]) => {
     const got = parseDfAvail(r.capture(line), path);
@@ -374,7 +374,7 @@ function serverState(r) {
   const clip = r.capture(`sudo bash -c ${shQuote(`cd ${APP} && [ -f ${CLIP_BOUNDS} ] && head -c 400 ${CLIP_BOUNDS} && echo && sed ${shQuote(CLIP_STAMP_SED)} ${CLIP_BOUNDS} | sha256sum; true`)}`);
   const [clipHead = '', clipSum = ''] = clip.stdout.split('\n');
   return {
-    files: parseFileList(list.stdout), sums: parseSha256(sums.stdout), publicFiles: Number(count.stdout.trim()), homeFree, appFree,
+    files: parseFileList(list.stdout), sums: parseSha256(sums.stdout), homeFree, appFree,
     clip: { ...clipInfo(clipHead), sum: clipSum.split(/\s+/)[0] || undefined },
   };
 }
@@ -483,9 +483,9 @@ async function artStep(o, runners) {
     r.stream(unpackCommand(up.path, lists, stamp));
   }
 
-  const gate = artGate(manifest, srv.files, srv.publicFiles);
-  say(`  gate: missing ${gate.missing.length}, public/ files ${gate.publicFiles} (limit ${PUBLIC_FILE_LIMIT})`);
-  if (!gate.ok && !o.dryRun) stop(`the art gate failed; prepare would download art and rebuild the clip bounds on the live server:\n  ${gate.problems.join('\n  ')}`);
+  const gate = artGate(manifest, srv.files);
+  say(`  gate: missing ${gate.missing.length}, files the preload would list ${gate.preloadFiles} (limit ${MAX_MANIFEST_FILES})`);
+  if (!gate.ok && !o.dryRun) stop(`the art gate failed:\n  ${gate.problems.join('\n  ')}`);
   if (!gate.ok) say(`  (dry run) a real release would stop here unless the upload above fixes it:\n    ${gate.problems.join('\n    ')}`);
 
   await clipBoundsStep(o, r, srv, stamp);

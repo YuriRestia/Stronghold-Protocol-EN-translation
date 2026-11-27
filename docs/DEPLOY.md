@@ -182,6 +182,7 @@ node scripts/maintenance.mjs --status            # 正在进行的对局、房�
 node scripts/maintenance.mjs --in 15             # 所有玩家屏幕顶部出现倒计时「服务器将在 14:59 后维护」
 node scripts/maintenance.mjs --at 21:30          # 或者指定时刻（本机时间；已过则为明天）
 node scripts/maintenance.mjs --close             # 从现在起不能开始新的模拟，正在进行的对局照常打完（--open 撤销）
+# 已关闭期间：在选择界面（确认信息、选策略、机变、休整期）连续120秒没有任何操作的玩家会被移出本局；所有玩家都连续150秒没有操作的对局会被直接结束（lobby 选项 afkKickMs / afkEndMs，0 为关闭；GitHub #193）
 node scripts/maintenance.mjs --stop-when-idle    # 没有进行中的对局时自动停止服务器，只生效一次（--keep-running 撤销）
 node scripts/maintenance.mjs --back-in 20        # 告诉玩家的预计停机时间（或 --back-at 21:45）
 node scripts/maintenance.mjs --message "更新 0.2.3"   # 在玩家的提示条里加一行文字（--message "" 删除）
@@ -304,7 +305,7 @@ https / wss 说明：页面通过 https 打开时客户端自动连接 `wss://�
 
 ### 2.5 玩家导入已有素材（需要 HTTPS）
 
-> **（分支）** 本分支的标题画面没有这两个按钮。玩家使用 **设置 → 预载资源**（或标题画面的预载卡片）：它从本服务器下载素材，其中的 **导入 zip** 接收服主在别处提供的预载 zip。用 `npm run package:preload`（`tools/preload-pack.mjs`）生成这个 zip：预载清单列出的全部文件合为一个 zip，提取后的官方战斗特效也在内，约 1.6 GB，不分卷；自行托管并分享链接。导入只保留大小和 SHA-1 与本服务器预载清单一致的文件，其余照常下载。下文描述的是上游的按钮。
+> **（分支）** 本分支的标题画面没有这两个按钮。玩家使用 **设置 → 预载资源**（或标题画面的预载卡片）：它从本服务器下载素材，其中的 **导入 zip** 接收服主在别处提供的预载 zip。用 `npm run package:preload`（`tools/preload-pack.mjs`）生成这个 zip：预载清单列出的全部文件（Live2D 卡面除外）合为一个 zip，提取后的官方战斗特效也在内，约 1.6 GB，不分卷；`npm run package:preload -- --live2d` 另外生成 Live2D 卡面的 zip（约 616 MB），同一个导入 zip 按钮两种都接收；自行托管并分享链接。导入只保留大小和 SHA-1 与本服务器预载清单一致的文件，其余照常下载。下文描述的是上游的按钮。
 
 标题画面登录框下面并排有两个按钮：「下载完整素材」从这台服务器下载全部素材（打开窗口就开始）；「导入素材包」读取玩家自己的文件夹或 zip，用来少传重复的美术。打开导入窗口不会向服务器请求任何素材，也不会开始下载；真正开始导入时，浏览器只向服务器读取三份素材清单。
 

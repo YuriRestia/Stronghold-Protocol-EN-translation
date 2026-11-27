@@ -490,7 +490,7 @@ export async function createFieldView(host, options = {}) {
   // (fork, enemy sound audit) an enemy skill's impact effect starting: that skill's official impact sound
   ofx.onSpawn = (k) => ctx.audio?.fxKey?.(k);
   // (fork) a unit's official skin (index.json skins) for its sort depth (units.js skinPlaneDepth); undefined until the index is in
-  ctx.skinOfView = (v) => (wiring.idx ? wiring.skinOf(wiring.unitOf(v)) : undefined);
+  ctx.skinOfView = (v) => (wiring.idx ? wiring.skinOfView(v) : undefined);
   // Read the index only after the existing effects path loads it; role selection never calls ready()/index().
   ctx.skillAttackIndex = () => wiring.index;
   const pluginFx = new PluginFxPlayer({ P, layer: layers.vfxOver, assets, cam: () => cam, enabled: () => settings.officialFx !== 'off',
@@ -2014,8 +2014,11 @@ export async function createFieldView(host, options = {}) {
     // destination: its `displace` fx is due only when renderT reaches that snapshot, and by then sample() has already
     // lerped (≤ teleport) or snapped the enemy most of the way — no frames in between (PR #380). The fx are still queued
     // here (processEvents took only those ≤ renderT); the view holds until `at`, then eases into the sim's position.
+    // The look-ahead runs half a ms past that snapshot: its time is rounded to the ms (battle/events.js snapshot) while
+    // the local feed stamps its events with the sim's exact time (battle/simHost.js), so on a tick whose time rounds
+    // down (n/30 s: 3.0333… → 3.033) the push's fx lay just past the snapshot and the enemy jumped most of the way.
     slideAt = interp.nextSnapT(renderT);
-    if (slideAt > renderT) interp.forEachUpcoming(renderT, slideAt, startSlide);
+    if (slideAt > renderT) interp.forEachUpcoming(renderT, slideAt + 0.0005, startSlide);
     interp.sample(renderT, sample);
     for (const [id, s] of sample) {
       let v = views.get(id);

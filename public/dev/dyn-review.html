@@ -1,0 +1,65 @@
+<!doctype html>
+<!--
+  (fork) Animated illustration review (crew-docs l2d-art-proposal §8, D12): every official dynamic illustration this
+  server has, on the real screens — the result screen's team cards, the room's seat cards and the Grand Alliance room's
+  eight — group by group, on a PC window or a landscape phone frame, behaving exactly as in the game.
+  URL: ?screen=result|room|ga  &page=<n, from 1>  &device=pc|phone  &slow=<MB/s> (a throttled connection: the late
+  switch)  &ending (result: the match's end with the game's black cover and the time since it)  &hang=<n> (that card's
+  download never finishes: the 8 s give-up)  &tier=half|full (the art's page tier on any device)  &lang=en|ja|…  &shot=1 (no bar). Review-only buttons (not in the game): previous / next group, replay the
+  card entrance, play the special idle or Start now. Keyboard: ← / → groups, ` toggles the bar.
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Animated illustrations · review</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="/fonts/fonts.css" />
+  <link rel="stylesheet" href="/css/theme.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/screens/lobby.css" />
+  <link rel="stylesheet" href="/css/screens/room.css" />
+  <link rel="stylesheet" href="/css/screens/game.css" />
+  <link rel="stylesheet" href="/css/screens/game-panels.css" />
+  <link rel="stylesheet" href="/css/screens/result.css" />
+  <link rel="stylesheet" href="/css/screens/settle.css" />
+  <link rel="stylesheet" href="/css/emotes.css" />
+  <link rel="stylesheet" href="/css/devices.css" />
+  <script type="importmap">
+    { "imports": { "preact": "/vendor/preact.module.js", "preact/hooks": "/vendor/hooks.module.js", "htm": "/vendor/htm.module.js" } }
+  </script>
+  <style>
+    .rvbar { position: fixed; z-index: 200; left: 8px; bottom: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: calc(100vw - 16px);
+      padding: 6px 8px; background: rgba(6, 9, 8, .92); border: 1px solid #3e4b45; font: 12px/1.3 sans-serif; color: #c3cbc7; }
+    .rvbar b { color: #4ed8af; letter-spacing: .08em; margin-right: 4px; }
+    .rvbar button { padding: 4px 8px; background: #141816; border: 1px solid #2f3a35; color: #f2f2f2; font-size: 12px; cursor: pointer; }
+    .rvbar button:hover { border-color: #4ed8af; }
+    .rvbar button.on { background: #145443; border-color: #4ed8af; }
+    .rvbar .sep { width: 1px; height: 18px; background: #2f3a35; margin: 0 4px; }
+    .rvbar .names { flex-basis: 100%; color: #8fa39b; font-size: 11px; }
+    .rvbar.hidden { display: none; }
+    /* the zoom / unzoomed switch above each wide card (the user, 2026-11-23) */
+    .rvzoom { position: fixed; inset: 0; z-index: 190; pointer-events: none; }
+    /* the hand-framing box over each wide card: drag to move, wheel to zoom, double-click to reset (the user, 2026-11-23) */
+    /* the box itself is invisible over the art (the user, 2026-11-23: "move that control thing outside of the artwork so I can
+       have the full view"); its controls sit on the name plate under the card */
+    .rvz { position: absolute; box-sizing: border-box; pointer-events: auto; cursor: grab; touch-action: none; }
+    .rvz.is-drag { cursor: grabbing; }
+    .rvz label { position: absolute; top: calc(100% + 4px); right: 4px; display: flex; align-items: center; gap: 4px; padding: 2px 6px; background: rgba(12, 16, 14, .9); border: 1px solid #2f3a35; color: #cfd8d4; font: 600 12px/1.3 sans-serif; cursor: default; }
+    .rvz label span { color: #8fa39b; font-weight: 400; text-transform: uppercase; letter-spacing: .06em; font-size: 10px; }
+    .rvz label em { font-style: normal; display: flex; align-items: center; gap: 2px; color: #4ed8af; margin-right: 4px; }
+    .rvz label em input { width: auto; margin: 0; }
+    .rvz label input { width: 52px; padding: 1px 3px; background: #0b0e0d; border: 1px solid #3e4b45; color: #fff; font: 600 12px/1.3 sans-serif; text-align: right; }
+    .rvz label input:focus { outline: 1px solid #4ed8af; }
+    .rvz label i { font-style: normal; color: #4ed8af; }
+    .rvbar.hidden ~ .rvzoom, .rvzoom.hidden { display: none; }
+    .rvphone { position: fixed; inset: 0; display: grid; place-items: center; background: #050706; }
+    .rvphone iframe { width: 812px; height: 375px; border: 1px solid #3e4b45; transform-origin: center; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="rvbar" class="rvbar"></div>
+  <script type="module" src="/dev/dyn-review.js"></script>
+</body>
+</html>

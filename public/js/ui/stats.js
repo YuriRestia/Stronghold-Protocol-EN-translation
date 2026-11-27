@@ -154,6 +154,11 @@ const str = (v, max = 64) => (typeof v === 'string' && v.length ? v.slice(0, max
 // selfRowOf then read player 1's row as theirs (wrong win / loss and stats on the stats page)
 const MAX_PLAYERS = LARGE_ROOM_SEATS;
 const MAX_LINEUP = 12;
+/** (fork, #192) the charIds of the custom operators a player fielded in any battle (server result `customSeen`), or null. */
+const customSeenOf = (p) => {
+  const a = (Array.isArray(p.customSeen) ? p.customSeen : []).filter((x) => typeof x === 'string' && /^char_[0-9a-z_]{1,40}$/.test(x)).slice(0, 24);
+  return a.length ? a : null;
+};
 const MAX_ITEMS = 4;
 const MAX_BONDS = 24;
 const MAX_STAT_KEYS = 24;
@@ -255,6 +260,7 @@ function normalizePlayerRow(raw, quit = false) {
     trophies: int(p.trophies, 0),
     reward: int(p.reward, 0),
     lineup,
+    ...(customSeenOf(p) ? { customSeen: customSeenOf(p) } : {}),
     bonds,
     ...(Array.isArray(p.usedBondIds) ? { usedBondIds: usedBondIdsOf(p) } : {}),
     stats: normalizeStatBlock(p.stats),
@@ -293,6 +299,7 @@ export function normalizeRecord(raw) {
     hiddenBossId: str(r.hiddenBossId),
     seed: num(r.seed),
     durationMs: num(r.durationMs),
+    ...(Number.isFinite(r.bossSeconds) && r.bossSeconds >= 0 && r.bossSeconds <= 36000 ? { bossSeconds: r.bossSeconds } : {}),
     teamLp: num(r.teamLp),
     roomMode: r.roomMode === 'solo' || r.roomMode === 'coop' ? r.roomMode : null,
     selfId: str(r.selfId),
@@ -309,6 +316,8 @@ export function normalizeRecord(raw) {
   if (r.test === true) rec.test = true;
   if (rec.test === true && Number.isInteger(r.testActions) && r.testActions >= 0 && r.testActions <= 1e6) rec.testActions = r.testActions;
   if (r.compact === true) rec.compact = true;
+  // (fork, #192) the 卫戍认证 this match's finished Challenges added (ui/challenges.js completeFor); counted by settle.js levelProgress
+  if (Number.isInteger(r.challengePts) && r.challengePts > 0 && r.challengePts <= 100000) rec.challengePts = r.challengePts;
   // (fork) the alternate result background (m.result.altArt): noted in the record; the re-view (recordToResult)
   // doesn't show it, only the screen right after the match does
   if (r.altArt === true) rec.altArt = true;
@@ -442,6 +451,7 @@ export function compactRecord(rec) {
     trophies: self.trophies,
     reward: self.reward,
     ...(usedBondIds.length ? { usedBondIds } : {}),
+    ...(self.customSeen ? { customSeen: self.customSeen } : {}),
     ...(self.creditedKills != null ? { creditedKills: self.creditedKills } : {}),
   }] : [];
   return out;
@@ -715,6 +725,7 @@ export function recordToResult(rec) {
     hiddenBossId: r.hiddenBossId,
     seed: r.seed,
     durationMs: r.durationMs,
+    ...(Number.isFinite(r.bossSeconds) ? { bossSeconds: r.bossSeconds } : {}),
     teamLp: r.teamLp,
     players: r.players,
   };
@@ -747,6 +758,22 @@ function storeRecord(rec) {
   const { stats: next, added } = appendRecord(stats, rec);
   if (added && !saveStats(next)) console.warn('[stats] localStorage write failed (quota?), record not persisted');
   return added ? rec : null;
+}
+
+/**
+ * (fork, #192) Writes the Challenges points a finished match earned into its stored record, so the LV that is recomputed from the
+ * records counts them. Returns false when the record is not stored (or the envelope is newer than this build).
+ * @param {string} id the record's id @param {number} pts
+ */
+export function setChallengePts(id, pts) {
+  if (!id || !(pts > 0)) return false;
+  const stats = loadStats();
+  if (stats.newer) return false;
+  const i = stats.records.findIndex((r) => r.id === id);
+  if (i < 0) return false;
+  const records = stats.records.slice();
+  records[i] = { ...records[i], challengePts: Math.min(100000, Math.floor(pts)) };
+  return saveStats({ v: STATS_VERSION, records });
 }
 
 /**

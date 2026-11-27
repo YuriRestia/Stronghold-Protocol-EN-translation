@@ -12,7 +12,7 @@ import { DELAYS } from './common.js';
 import { previewPlayer } from '../preview.js';
 import { morphBattleOpt } from '../../../shared/plugins/rules.js';
 import { noteChatKills } from '../chatWallet.js';
-import { noteBattle } from '../autoAward.js';
+import { noteBattle, noteDowns } from '../autoAward.js';
 
 export class MatchCombat {
   /** Construct a battle; a constructor failure yields a finished stand-in (clean result) and is logged. */
@@ -154,6 +154,7 @@ export class MatchCombat {
       const res = resultOf(f);
       this._collectSimErrors(f, res);
       noteChatKills(this, f, res);
+      noteDowns(this, res); // (GitHub #125) Low Efficiency
       for (const pid of f.players) {
         const pp = res.perPlayer && res.perPlayer[pid];
         this.lastResults.set(pid, pp || { killed: 0, total: 0, leaked: [], perfect: true, layerGains: {}, coins: 0, damageDealt: 0, unitsEnd: [], unitStats: [] });

@@ -11,6 +11,8 @@
 //   barge        PlayerEconomy.levelUp: a Dispatch Center reaches level 5 (Barge 1 prices 4→5; Barge 2 also 5→6)
 //   lastLine     settle: a player's LP minus Last Line's extra so far (CC.lastLineLp per round its own battle leaked)
 //                would be 0; the boss rounds: the team LP minus the alive players' extra would be 0
+//   lowEfficiency a field's result: a player's operator left the field in a battle (`downs` > 0: knocked out, retreated or
+//                raided, so a redeploy timer started; nothing else reads the tag's ×1.75)
 //   junk         every write into a hand (PlayerPieces.stow, the temp refill, placement, items): the hand is left with
 //                no free slot, or a piece overflowed into the temp hand (the hammer would have taken that slot)
 //
@@ -93,6 +95,14 @@ export function noteTeamLp(m) {
   let ex = 0;
   for (const ps of m.alivePlayers?.() ?? []) ex += lastLineExtra(m).get(ps.playerId) || 0;
   if (m.teamLp - ex <= 0) breakAward(m, 'lastLine');
+}
+
+/** A field's result is in: any player's operator that left the field (`downs`; a result without the count counts as one) breaks `lowEfficiency`. */
+export function noteDowns(m, res) {
+  if (!on(m) || !res || !res.perPlayer) return;
+  for (const pp of Object.values(res.perPlayer)) {
+    if (pp && !(pp.downs === 0)) breakAward(m, 'lowEfficiency');
+  }
 }
 
 /** A seat was played by the AI at some point (a bot, or 托管). */

@@ -46,6 +46,8 @@ export function pieceBonds(gd, piece, rules = null) {
   for (const b of grantedBondsByMorph(items, (id) => gd.item(id), { mode, bondOk: (id) => !!gd.bond(id), free })) {
     if (!out.includes(b)) out.push(b);
   }
+  // Mod Z Kal'tsit Esperanta: the alliances this piece was granted when it became an elite (PlayerState.grantModZBonds)
+  if (Array.isArray(piece.grantedBonds)) for (const b of piece.grantedBonds) if (!out.includes(b) && (!gd.bond || gd.bond(b))) out.push(b);
   return out;
 }
 

@@ -7,6 +7,8 @@
 // that has searched longer than partialMergeAfterMs also takes opted-in Doctors who waited that long without filling
 // it, as a partial merge would: they sit in its room until it fills [ASSUMED: else 8 seats would almost never fill].
 // A One for All Grand Alliance only takes Doctors who also ticked its sub-opt-in (`oneForAll`, only with `large`).
+// (fork) A room that searches as 'modded' (Room.searchKind) only takes Doctors who allow mods (`mods`, the home screen's
+// Preference); every Doctor takes a vanilla room, and a room the queue forms itself is vanilla.
 
 import { MAX_SEATS } from '../shared/constants.js';
 import { DEFAULT_VERSION, VERSIONS } from '../shared/versions.js';
@@ -16,7 +18,7 @@ import { roomSize, roomCap, roomVersion, isLarge, isOneForAll, isMatchable } fro
 // room.create rule: 终极 → 绝境 for 第一期 and 第二期上半), each version at its own: `at` maps a version to its difficulty
 // where it differs from `difficulty`, so one Doctor waits in the 第二期下半 终极 pool and the 第二期上半 绝境 pool at once.
 
-/** @typedef {{ playerId: string, difficulty: string, since: number, versions: string[], at?: Record<string, string>, large: boolean, oneForAll: boolean }} SoloEntry */
+/** @typedef {{ playerId: string, difficulty: string, since: number, versions: string[], at?: Record<string, string>, large: boolean, oneForAll: boolean, mods: boolean }} SoloEntry */
 
 /** The versions an entry queued for (an entry without the key: the default version). @param {any} e */
 export function entryVersions(e) {
@@ -37,11 +39,11 @@ export class SoloQueue {
 
   /**
    * @param {string} playerId @param {string} difficulty @param {number} since
-   * @param {{ versions?: string[], at?: Record<string, string> | null, large?: boolean, oneForAll?: boolean }} [opts] @returns {SoloEntry}
+   * @param {{ versions?: string[], at?: Record<string, string> | null, large?: boolean, oneForAll?: boolean, mods?: boolean }} [opts] @returns {SoloEntry}
    */
-  add(playerId, difficulty, since, { versions = [DEFAULT_VERSION], at = null, large = false, oneForAll = false } = {}) {
+  add(playerId, difficulty, since, { versions = [DEFAULT_VERSION], at = null, large = false, oneForAll = false, mods = false } = {}) {
     const e = { playerId, difficulty, since, versions: [...versions], ...(at && Object.keys(at).length ? { at: { ...at } } : {}),
-      large: large === true, oneForAll: large === true && oneForAll === true };
+      large: large === true, oneForAll: large === true && oneForAll === true, mods: mods === true };
     this.entries.set(playerId, e);
     return e;
   }
@@ -86,7 +88,7 @@ export function planSolos(rooms, entries, { now = 0, partialMergeAfterMs = 0 } =
   if (!entries.length) return [];
   const left = new Set(entries);
   const takes = (e, r) => entryVersions(e).includes(roomVersion(r)) && entryDifficulty(e, roomVersion(r)) === r.difficulty && (!isLarge(r) || e.large === true)
-    && (!isOneForAll(r) || e.oneForAll === true);
+    && (!isOneForAll(r) || e.oneForAll === true) && (r.searchKind !== 'modded' || e.mods === true);
   const waiting = [...rooms].filter((r) => isMatchable(r))
     .sort((a, b) => (a.searchSince ?? 0) - (b.searchSince ?? 0) || (a.code < b.code ? -1 : 1));
   const plans = [];

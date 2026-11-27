@@ -11,6 +11,12 @@
 // factors (meant for an opaque target) are replaced so that the board shows through as the client draws it:
 // OneMinusSrcAlpha destinations accumulate coverage (One, OneMinusSrcAlpha), additive / screen-like destinations keep
 // the target alpha (Zero, One), and the Multiply family darkens by the luminance it multiplies with.
+// (fork) A dynamic illustration's target (option `rtAlpha`) is different: the official illustration camera clears its
+// render texture to alpha 1 and the card adds RT.rgb + background × RT.a, so the RT alpha is a transmittance and the
+// materials' own alpha factors are meant for it [src: official GameAssembly.dll DynIllustMgr._InitDisplay
+// set_backgroundColor (0,0,0,1); [uc]shaders.ab UI/UI_RT_DYN_ILLUST blend One SrcAlpha]. With rtAlpha the factors are
+// translated to our coverage (1 − transmittance): (Zero, OneMinusSrcAlpha) → (One, OneMinusSrcAlpha) as before,
+// (One, OneMinusSrcAlpha) → (Zero, OneMinusSrcAlpha) (Mask/Erase: the pixel becomes see-through), (Zero, One) kept.
 // Culling: Unity treats clockwise screen triangles as front faces; the effects reach the screen with the same winding
 // (the battle frame's flip is part of the camera equivalence), so frontFace(CW) + the material's cull mode.
 
@@ -24,10 +30,12 @@ export class FxGL {
   /**
    * @param {WebGL2RenderingContext} gl
    * @param {{ texture: (key: string) => { image: any, info: any } | null, mesh: (key: string) => any }} lib
+   * @param {{ rtAlpha?: boolean }} [opts] rtAlpha: the target is a dynamic illustration's (see the header)
    */
-  constructor(gl, lib) {
+  constructor(gl, lib, opts = {}) {
     this.gl = gl;
     this.lib = lib;
+    this.rtAlpha = !!opts.rtAlpha;
     this.programs = new Map();     // `${kind}|${mat.key}` → program record
     this.textures = new Map();     // `${key}|${half}` → { tex, bytes }
     this.meshes = new Map();       // mesh key → { vao, vbo, ibo, sub: [{ first, count }], type }
@@ -129,7 +137,7 @@ export class FxGL {
     if (rec !== undefined) return rec && rec.building ? this._settle(key, kind, rec, mat) : rec;
     if (this.parallel) {
       try {
-        const b = this._startLink(vertexSource(kind), fragmentSource(mat.family, mat.defs));
+        const b = this._startLink(vertexSource(kind, mat.defs), fragmentSource(mat.family, mat.defs));
         this.programs.set(key, { building: b });
         return null;
       } catch (err) {
@@ -158,7 +166,7 @@ export class FxGL {
     const gl = this.gl;
     let rec;
     try {
-      const prog = started ? this._linked(started) : this._link(vertexSource(kind), fragmentSource(mat.family, mat.defs));
+      const prog = started ? this._linked(started) : this._link(vertexSource(kind, mat.defs), fragmentSource(mat.family, mat.defs));
       const n = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
       const uniforms = [];
       let unit = 0;
@@ -167,11 +175,20 @@ export class FxGL {
         if (!info) continue;
         const loc = gl.getUniformLocation(prog, info.name);
         const name = info.name.startsWith('u') ? info.name.slice(1) : info.name;
-        const u = { name, loc, type: info.type, unit: -1 };
-        if (info.type === gl.SAMPLER_2D) u.unit = unit++;
+        const u = { name, loc, type: info.type, unit: -1, cube: info.type === gl.SAMPLER_CUBE };
+        if (info.type === gl.SAMPLER_2D || u.cube) u.unit = unit++;
         uniforms.push(u);
       }
       rec = { prog, uniforms, vp: gl.getUniformLocation(prog, 'u_vp'), time: gl.getUniformLocation(prog, 'u_Time'), camPos: gl.getUniformLocation(prog, 'u_WorldSpaceCameraPos'), pass: -1, plans: new WeakMap() };
+      // (fork) the dynamic illustrations' families (glsl-l2d.js): frame-level uniforms set by draw(); the frame copy's
+      // sampler takes the unit after the material's
+      const at = (nm) => gl.getUniformLocation(prog, nm);
+      const grab = uniforms.find((x) => x.name === '_GrabTexture');
+      if (grab) rec.grab = grab;
+      for (const [k, nm] of [['grabParams', 'u_GrabParams'], ['grabSize', 'u_GrabSize'], ['screen', 'u_ScreenParams'], ['viewRot', 'u_ViewRot'], ['invViewRot', 'u_InvViewRot'], ['psPos', 'u_ParticleSystemPositionWS']]) {
+        const l = at(nm);
+        if (l) rec[k] = l;
+      }
       this.stats.programs++;
     } catch (err) {
       console.warn('[fx] program failed', mat.family, err?.message || err);
@@ -192,15 +209,95 @@ export class FxGL {
     p = { tex: [], f: [], v: [] };
     for (const u of rec.uniforms) {
       const nm = u.name;
-      if (nm === '_vp' || nm === '_Time' || nm === '_WorldSpaceCameraPos') continue;
+      if (nm === '_vp' || nm === '_Time' || nm === '_WorldSpaceCameraPos' || FRAME_UNIFORMS.has(nm)) continue;
       if (u.unit >= 0) {
         const t = mat.textures.find((x) => x.name === nm);
-        p.tex.push({ loc: u.loc, unit: u.unit, key: t && t.key ? t.key : null, fallback: this.defaults[t?.def || 'white'] || this.defaults.white, glTex: null });
+        const fallback = u.cube ? this._defaultCube() : this.defaults[t?.def || 'white'] || this.defaults.white;
+        p.tex.push({ loc: u.loc, unit: u.unit, key: t && t.key ? t.key : null, cube: u.cube, fallback, glTex: null });
       } else if (u.type === gl.FLOAT) p.f.push({ loc: u.loc, name: nm, value: mat.floats[nm] ?? UNIFORM_DEFAULTS[nm] ?? 0 });
       else if (u.type === gl.FLOAT_VEC4) p.v.push({ loc: u.loc, name: nm, value: mat.vecs[nm] || (nm.endsWith('_ST') ? ST1 : nm.startsWith('_Rotation') ? ROT1 : V0) });
     }
     rec.plans.set(mat, p);
     return p;
+  }
+
+  /** (fork) A 1×1 black cubemap: a samplerCube whose material names no loaded cubemap. */
+  _defaultCube() {
+    if (this.defaults.cube) return this.defaults.cube;
+    const gl = this.gl, t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, t);
+    for (let f = 0; f < 6; f++) gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + f, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
+    this.defaults.cube = t;
+    return t;
+  }
+
+  /**
+   * (fork) A cubemap texture key: its image holds the six faces side by side, +X −X +Y −Y +Z −Z, each image-row-first
+   * as Unity stores a cubemap face (`info.cube`; null while the image loads).
+   */
+  _cubeTexture(key, half) {
+    const id = `${key}|${half ? 1 : 0}|cube`;
+    const t = this.textures.get(id);
+    if (t) return t.tex;
+    const src = this.lib.texture(key, half);
+    if (!src || !src.image) return null;
+    const gl = this.gl, img = src.image;
+    const size = img.height | 0;
+    // a page canvas, or an OffscreenCanvas in a Worker (the animated illustrations' render/dynillust/worker.js)
+    const hasDoc = typeof document !== 'undefined';
+    if (!size || (img.width | 0) < size * 6 || (!hasDoc && typeof OffscreenCanvas !== 'function')) return null;
+    const cv = hasDoc ? document.createElement('canvas') : new OffscreenCanvas(size, size);
+    cv.width = size; cv.height = size;
+    const cx = cv.getContext('2d');
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    for (let f = 0; f < 6; f++) {
+      cx.clearRect(0, 0, size, size);
+      cx.drawImage(img, f * size, 0, size, size, 0, 0, size, size);
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + f, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+    }
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
+    const bytes = size * size * 24;
+    this.textures.set(id, { tex, bytes });
+    this.lib.release?.(key, half);
+    this.stats.textures++;
+    this.stats.texBytes += bytes;
+    return tex;
+  }
+
+  /**
+   * (fork) Copy the bound framebuffer's viewport into the grab texture (a GrabPass: Disturb GrabPass / GrabPassOnce).
+   * @returns {number[]} the viewport [x, y, w, h]
+   */
+  _grabFrame(unit) {
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    const vp = gl.getParameter(gl.VIEWPORT);
+    const w = vp[2] | 0, h = vp[3] | 0;
+    if (!this.grabTex) {
+      this.grabTex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, this.grabTex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      this.grabW = 0; this.grabH = 0;
+    } else gl.bindTexture(gl.TEXTURE_2D, this.grabTex);
+    if (this.grabW !== w || this.grabH !== h) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      this.stats.texBytes += (w * h - this.grabW * this.grabH) * 4;
+      this.grabW = w; this.grabH = h;
+    }
+    gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, vp[0], vp[1], w, h);
+    this.grabVp = [vp[0], vp[1], w, h];
+    return this.grabVp;
   }
 
   /** The GL texture of an fx texture key (null while its image loads). */
@@ -247,12 +344,19 @@ export class FxGL {
     const gl = this.gl;
     const P = data.positions || [], nv = (P.length / 3) | 0;
     if (!nv) { this.meshes.set(key, null); return null; }
-    const v = new Float32Array(nv * 12);
+    // (fork) a mesh with tangents or a second UV set (Poker-Reflect's cards) also carries them: 18 floats a vertex
+    const T = Array.isArray(data.tangents) ? data.tangents : null, U1 = Array.isArray(data.uv1) ? data.uv1 : null;
+    const K = T || U1 ? 18 : 12;
+    const v = new Float32Array(nv * K);
     for (let i = 0; i < nv; i++) {
-      v[i * 12] = P[i * 3]; v[i * 12 + 1] = P[i * 3 + 1]; v[i * 12 + 2] = P[i * 3 + 2];
-      const N = data.normals; v[i * 12 + 3] = N ? N[i * 3] : 0; v[i * 12 + 4] = N ? N[i * 3 + 1] : 0; v[i * 12 + 5] = N ? N[i * 3 + 2] : 1;
-      const U = data.uv0; v[i * 12 + 6] = U ? U[i * 2] : 0; v[i * 12 + 7] = U ? U[i * 2 + 1] : 0;
-      const C = data.colors; v[i * 12 + 8] = C ? C[i * 4] : 1; v[i * 12 + 9] = C ? C[i * 4 + 1] : 1; v[i * 12 + 10] = C ? C[i * 4 + 2] : 1; v[i * 12 + 11] = C ? C[i * 4 + 3] : 1;
+      v[i * K] = P[i * 3]; v[i * K + 1] = P[i * 3 + 1]; v[i * K + 2] = P[i * 3 + 2];
+      const N = data.normals; v[i * K + 3] = N ? N[i * 3] : 0; v[i * K + 4] = N ? N[i * 3 + 1] : 0; v[i * K + 5] = N ? N[i * 3 + 2] : 1;
+      const U = data.uv0; v[i * K + 6] = U ? U[i * 2] : 0; v[i * K + 7] = U ? U[i * 2 + 1] : 0;
+      const C = data.colors; v[i * K + 8] = C ? C[i * 4] : 1; v[i * K + 9] = C ? C[i * 4 + 1] : 1; v[i * K + 10] = C ? C[i * 4 + 2] : 1; v[i * K + 11] = C ? C[i * 4 + 3] : 1;
+      if (K === 18) {
+        v[i * K + 12] = T ? T[i * 4] : 0; v[i * K + 13] = T ? T[i * 4 + 1] : 0; v[i * K + 14] = T ? T[i * 4 + 2] : 0; v[i * K + 15] = T ? T[i * 4 + 3] : 1;
+        v[i * K + 16] = U1 ? U1[i * 2] : 0; v[i * K + 17] = U1 ? U1[i * 2 + 1] : 0;
+      }
     }
     const subs = Array.isArray(data.submeshes) ? data.submeshes : [];
     let total = 0;
@@ -270,10 +374,15 @@ export class FxGL {
     const ibo = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(LOC.pos); gl.vertexAttribPointer(LOC.pos, 3, gl.FLOAT, false, 48, 0);
-    gl.enableVertexAttribArray(LOC.nrm); gl.vertexAttribPointer(LOC.nrm, 3, gl.FLOAT, false, 48, 12);
-    gl.enableVertexAttribArray(LOC.uv); gl.vertexAttribPointer(LOC.uv, 2, gl.FLOAT, false, 48, 24);
-    gl.enableVertexAttribArray(LOC.vcol); gl.vertexAttribPointer(LOC.vcol, 4, gl.FLOAT, false, 48, 32);
+    const SB = K * 4;
+    gl.enableVertexAttribArray(LOC.pos); gl.vertexAttribPointer(LOC.pos, 3, gl.FLOAT, false, SB, 0);
+    gl.enableVertexAttribArray(LOC.nrm); gl.vertexAttribPointer(LOC.nrm, 3, gl.FLOAT, false, SB, 12);
+    gl.enableVertexAttribArray(LOC.uv); gl.vertexAttribPointer(LOC.uv, 2, gl.FLOAT, false, SB, 24);
+    gl.enableVertexAttribArray(LOC.vcol); gl.vertexAttribPointer(LOC.vcol, 4, gl.FLOAT, false, SB, 32);
+    if (K === 18) {
+      gl.enableVertexAttribArray(LOC_TAN); gl.vertexAttribPointer(LOC_TAN, 4, gl.FLOAT, false, SB, 48);
+      gl.enableVertexAttribArray(LOC_UV1); gl.vertexAttribPointer(LOC_UV1, 2, gl.FLOAT, false, SB, 64);
+    }
     for (const l of [LOC.center, LOC.m0, LOC.m1, LOC.m2, LOC.color, LOC.uvr, LOC.t0, LOC.t1, LOC.t2]) { gl.enableVertexAttribArray(l); gl.vertexAttribDivisor(l, 1); }
     gl.bindVertexArray(null);
     m = { vao, vbo, ibo, sub, type: big ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, size: big ? 4 : 2 };
@@ -344,22 +453,22 @@ export class FxGL {
     let lastProg = null, lastState = null;
     const time = frame.time;
     const tv = [time / 20, time, time * 2, time * 3];
-    let lastMat = null, lastOv = null;
-    for (const it of items) {
-      const mat = it.mat;
+    let lastMat = null, lastOv = null, screenVp = null;
+    // (fork) one draw of an item with a material: its own, then a second pass's (Unlit-Outline's hull) if it has one
+    const drawOne = (it, mat) => {
       const kind = it.kind;
       const rec = this.program(kind, mat);
-      if (!rec) continue;
+      if (!rec) return;
       const plan = this._plan(rec, mat);
       // textures first: a draw whose texture is still loading is skipped (no white flash)
       let ready = true;
       for (const e of plan.tex) {
-        e.glTex = e.key ? this.texture(e.key, frame.half) : e.fallback;
+        e.glTex = e.key ? (e.cube ? this._cubeTexture(e.key, frame.half) : this.texture(e.key, frame.half)) : e.fallback;
         if (!e.glTex) { ready = false; break; }
       }
-      if (!ready) continue;
+      if (!ready) return;
       let mesh = null;
-      if (kind === 'mesh') { mesh = this.mesh(it.meshKey); if (!mesh || !mesh.sub[it.submesh]) continue; }
+      if (kind === 'mesh') { mesh = this.mesh(it.meshKey); if (!mesh || !mesh.sub[it.submesh]) return; }
       if (rec !== lastProg) {
         gl.useProgram(rec.prog);
         lastProg = rec;
@@ -376,7 +485,7 @@ export class FxGL {
       // another frame's upload may have rebound a unit)
       const ov = it.ov;
       if (mat !== lastMat) {
-        for (const e of plan.tex) { gl.activeTexture(gl.TEXTURE0 + e.unit); gl.bindTexture(gl.TEXTURE_2D, e.glTex); gl.uniform1i(e.loc, e.unit); }
+        for (const e of plan.tex) { gl.activeTexture(gl.TEXTURE0 + e.unit); gl.bindTexture(e.cube ? gl.TEXTURE_CUBE_MAP : gl.TEXTURE_2D, e.glTex); gl.uniform1i(e.loc, e.unit); }
         for (const e of plan.f) {
           const o = ov ? ov[e.name] : undefined;
           gl.uniform1f(e.loc, typeof o === 'number' ? o : e.value);
@@ -388,7 +497,7 @@ export class FxGL {
         }
         lastMat = mat; lastOv = ov;
       } else {
-        for (const e of plan.tex) { gl.activeTexture(gl.TEXTURE0 + e.unit); gl.bindTexture(gl.TEXTURE_2D, e.glTex); }
+        for (const e of plan.tex) { gl.activeTexture(gl.TEXTURE0 + e.unit); gl.bindTexture(e.cube ? gl.TEXTURE_CUBE_MAP : gl.TEXTURE_2D, e.glTex); }
         if (ov !== lastOv) {
           for (const e of plan.f) {
             if (!(ov && e.name in ov) && !(lastOv && e.name in lastOv)) continue;
@@ -404,6 +513,22 @@ export class FxGL {
           lastOv = ov;
         }
       }
+      // (fork) the dynamic illustrations' frame-level inputs (glsl-l2d.js): the frame copy of a GrabPass (an unnamed one
+      // before each renderer, a named one once per frame), the viewport, the camera's rotation, the particle system's
+      // world position (FxGetParticleSystemPosWS: `it.psPos` when the effect gives it)
+      if (rec.grab) {
+        const once = mat.grab === 'once';
+        if (!once || this._grabOnce !== frame.time || !this.grabVp) { this._grabFrame(rec.grab.unit); if (once) this._grabOnce = frame.time; }
+        const vp = this.grabVp;
+        gl.activeTexture(gl.TEXTURE0 + rec.grab.unit); gl.bindTexture(gl.TEXTURE_2D, this.grabTex); gl.uniform1i(rec.grab.loc, rec.grab.unit);
+        if (rec.grabParams) gl.uniform4f(rec.grabParams, vp[0], vp[1], frame.grabFlipY ?? -1, 0);
+        if (rec.grabSize) gl.uniform4f(rec.grabSize, 1 / vp[2], 1 / vp[3], vp[2], vp[3]);
+      }
+      // (fork) the viewport read once per draw() (getParameter waits for the GPU; it cannot change between these draws)
+      if (rec.screen) { const vp = screenVp || (screenVp = gl.getParameter(gl.VIEWPORT)); gl.uniform4f(rec.screen, vp[2], vp[3], 1 + 1 / vp[2], 1 + 1 / vp[3]); }
+      if (rec.viewRot) gl.uniformMatrix3fv(rec.viewRot, false, frame.viewRot || VIEW_ROT);
+      if (rec.invViewRot) gl.uniformMatrix3fv(rec.invViewRot, true, frame.viewRot || VIEW_ROT);
+      if (rec.psPos && it.psPos) gl.uniform4f(rec.psPos, it.psPos[0], it.psPos[1], it.psPos[2], 0);
       const st = mat.state;
       if (st !== lastState) { this._state(st, mat.family); lastState = st; }
       if (kind === 'quad') {
@@ -442,6 +567,10 @@ export class FxGL {
         this.stats.tris += it.count / 3;
       }
       this.stats.draws++;
+    };
+    for (const it of items) {
+      drawOne(it, it.mat);
+      if (it.mat.second) drawOne(it, it.mat.second);
     }
     gl.bindVertexArray(null);
     gl.depthMask(true);
@@ -460,6 +589,10 @@ export class FxGL {
       src = gl.ZERO; dst = gl.SRC_COLOR; srcA = gl.ONE; dstA = gl.ONE_MINUS_SRC_ALPHA;
     } else if (st.dst === BLEND.OneMinusSrcAlpha || st.dst === BLEND.Zero) { srcA = gl.ONE; dstA = gl.ONE_MINUS_SRC_ALPHA; }
     else { srcA = gl.ZERO; dstA = gl.ONE; }
+    if (this.rtAlpha) {
+      const t = rtAlphaFactors(st.srcA, st.dstA);
+      if (t) { srcA = t[0] ? gl.ONE : gl.ZERO; dstA = t[1] ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE; }
+    }
     gl.blendFuncSeparate(src, dst, srcA, dstA);
     const op = st.op === 'Sub' ? gl.FUNC_SUBTRACT : st.op === 'RevSub' ? gl.FUNC_REVERSE_SUBTRACT : st.op === 'Min' ? gl.MIN : st.op === 'Max' ? gl.MAX : gl.FUNC_ADD;
     gl.blendEquationSeparate(op, gl.FUNC_ADD);
@@ -474,6 +607,20 @@ export class FxGL {
     // alpha is always written: it is the effect canvas's coverage over the board (see the header)
     const cm = st.colorMask;
     gl.colorMask(!!(cm & 8), !!(cm & 4), !!(cm & 2), true);
+  }
+
+  /** Free one texture (and its cube copy) on the GPU; drawn again, it loads again (the library forgets it was there). */
+  dropTexture(key, half) {
+    const gl = this.gl;
+    for (const id of [`${key}|${half ? 1 : 0}`, `${key}|${half ? 1 : 0}|cube`]) {
+      const t = this.textures.get(id);
+      if (!t) continue;
+      gl.deleteTexture(t.tex);
+      this.textures.delete(id);
+      this.stats.textures = Math.max(0, this.stats.textures - 1);
+      this.stats.texBytes = Math.max(0, this.stats.texBytes - (t.bytes || 0));
+    }
+    this.lib.onGpu?.delete(`${key}|${half ? 1 : 0}`);
   }
 
   /** Free GPU memory of textures not used for `ttl` frames (called by the system between battles). */
@@ -498,10 +645,29 @@ export class FxGL {
     for (const b of [this.cornerVbo, this.cornerIbo, this.quadBuf, this.meshBuf, this.stripVbo, this.stripIbo, this.hfVbo]) if (b) gl.deleteBuffer(b);
     for (const v of [this.quadVao, this.stripVao, this.hfVao]) if (v) gl.deleteVertexArray(v);
     if (this.depthProg) gl.deleteProgram(this.depthProg);
+    if (this.grabTex) { gl.deleteTexture(this.grabTex); this.grabTex = null; this.grabVp = null; }
   }
 }
 
 const ST1 = [1, 1, 0, 0], ROT1 = [1, 0, 0, 1], V0 = [0, 0, 0, 0];
+// (fork) uniforms draw() sets per frame or item, not from the material (glsl-l2d.js)
+const FRAME_UNIFORMS = new Set(['_GrabTexture', '_GrabParams', '_GrabSize', '_ScreenParams', '_ViewRot', '_InvViewRot']);
+// Unity's world → view rotation of a camera with no rotation (view space looks down −z): diag(1, 1, −1), column-major
+const VIEW_ROT = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, -1]);
+// attribute locations of a mesh's tangent and second UV set (glsl-l2d.js vertex extra 'tangent')
+const LOC_TAN = 13, LOC_UV1 = 14;
+
+/**
+ * (fork) A material's official alpha factors on a transmittance target (T' = srcA·a + dstA·T) as factors on our
+ * coverage C = 1 − T: [srcOne, dstOneMinusSrcAlpha] (C' = (srcOne ? a : 0) + C·(dstOneMinusSrcAlpha ? 1 − a : 1)),
+ * or null when there is no exact equivalent (the caller keeps its default).
+ */
+export function rtAlphaFactors(srcA, dstA) {
+  if (dstA === BLEND.OneMinusSrcAlpha && srcA === BLEND.Zero) return [true, true];   // T(1 − a)      → a + C(1 − a)
+  if (dstA === BLEND.OneMinusSrcAlpha && srcA === BLEND.One) return [false, true];   // a + T(1 − a)  → C(1 − a)
+  if (dstA === BLEND.One && srcA === BLEND.Zero) return [false, false];               // T             → C
+  return null;
+}
 
 function GL_BLEND(gl, b) {
   switch (b) {

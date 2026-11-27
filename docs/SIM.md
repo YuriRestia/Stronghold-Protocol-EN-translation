@@ -231,8 +231,15 @@ ends by spawning a new 初始模式 copy on its level branch route (`left_hand_o
 HP, then `kill(old, null)` — uncounted, no bounty; the client sees a `die` and a `spawn`. The Hidden Core 铳's 【末日布道】
 puts every 碎铳之簧 into 追逐模式 for its whole 5 s gain (`dog_duration`; invulnerable, no ordinary attacks): the spring
 keeps following the casting gun after reaching it (PR #347; until 0.2.1 arrival or 1 tile ended the chase), and each
-gun casts on its own data timer (20 s after it spawns, then every 45 s), so on a pair field the later call retargets
-every spring to that gun for a new 5 s (PRTS: 「持续召唤场上所有“碎铳之簧”向自身移动」). The pair's guns take turns: the
+gun casts on its own data timer (20 s after it spawns, then 45 s from the END of each call), so on a pair field the
+later call retargets every spring to that gun for a new 5 s (PRTS: 「持续召唤场上所有“碎铳之簧”向自身移动」). The call is
+the gun's own 5 s cast: it neither shoots nor walks until it ends, and its attack-speed stacks drop to one (ASPD 100), so
+it then walks between its shots and takes a new target [src: enm_pfb_28.ab enemy_9017_achunt Skills/2; GameAssembly.dll
+AttackState$$OnTick, BrownbTalent_1$$Apply, EnemySkill$$_OnCastFinish] (§37.110). `kitGun` also keeps the 铳's attack timer:
+a cast that is not the attack (the opening 【盲信之誓】, the call) restarts it for a full period, a changed attack speed keeps
+its progress, and a hit counts for the stacks as the shot lands and when an operator enters a 盲信之誓 beam [src:
+AttackWrapper$$Cast, ResetButKeepProgress, LaserHitBehaviour$$_DoTargetEnter; projectile prefabs `_speed` 10, `_laserWidth` 0.5]
+(§37.111). The pair's guns take turns: the
 `boss_battle_multi_player` 铳 starts with the battle (0.1 s, right half) and the leader after its 10 s preDelay (left
 half) [src: official level_act1autochess_h08_02.json], `content/bosses.js branchAtStart` (§37.109). A spring's damage
 goes to that one gun only, never to the other springs [src: official buff_template_holder actrpa_passive]. A gun's
@@ -890,7 +897,7 @@ the source's side):
 | `burn` 灼燃 | 1200 arts + RES −20, 10 s lock | 7000 元素伤害 + RES −20, 10 s lock |
 | `neural` 神经 | stun 10 s, then 1000 true (10 s lock) | 3 `palsy` (none with 麻痹免疫), then 6000 元素伤害, 10 s lock |
 | `apoptosis` 凋亡 | 15 s: 阻回 (`noSp`: no SP gain of any kind, skills.js) + 静默 (no skill activation), −1 技力/s — of `spTotal`, stored charges included (PRTS 技能 可充能 "当持有者的技力流失时，充能次数也会实时降低"; `setSpTotal`, a running timed skill untouched; PR #262), 100 arts/s | 15 s: 50 % weaken recovering over the burst, 800 元素伤害/s |
-| `erosion` 侵蚀 | permanent DEF −100 (stacking `erosionDown`) then 800 phys, 10 s lock | permanent DEF −120 then 5000 元素伤害, 8 s lock |
+| `erosion` 侵蚀 | permanent DEF −100 (stacking `erosionDown`) then 800 phys, 10 s lock | permanent DEF −120 (stacking) then 5000 元素伤害, 8 s lock; leaders too (fork, 2026-11-24: upstream cancels their fills) |
 | `necrosis` (legacy spare gauge) | 12 s: 100 true/s, ATK −20 % | same |
 
 The lock (`<el>Burst` buff, flag `burstLock`) is the official **爆发冷却**: while it runs NO element of the unit fills or

@@ -40,6 +40,7 @@ export class PlayerViews {
       tier: rec && Number.isInteger(rec.tier) ? rec.tier : null,
       items: p.kind === 'chess' ? (p.items || []).map((it) => ({ uid: it.uid, id: it.id, ...this._itemProgressView(it) })) : [],
       ...(p.kind === 'item' ? this._itemProgressView(p) : {}),
+      ...(p.kind === 'chess' && Array.isArray(p.grantedBonds) && p.grantedBonds.length ? { grantedBonds: p.grantedBonds.slice() } : {}),   // Mod Z Kal'tsit Esperanta
       count: p.kind === 'token' ? (p.count || 1) : 1,
       ownerUid: p.kind === 'token' ? p.ownerUid ?? null : null,
       // 皮肤: the prep board / hand / temp views carry it too, so a piece shows its appearance before it is deployed and

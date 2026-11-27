@@ -30,6 +30,11 @@ export const MODZ = Object.freeze([
     name: N_('提丰的Z型调整'), desc: N_('获得【精准】盟约身份；自动平衡攻击力与攻击速度（攻击力+1%视为攻击速度+1；攻击速度最多+500，超出部分保留为攻击力）；部署10秒后攻击速度+100；每场战斗中第一次技能结束后，立即获得满额技力') },
   { charId: 'char_2012_typhon', code: 'typhon', kind: 'W', type: 'SIE-W', attr: { maxHp: 300, atk: 150, aspd: 10 },
     name: N_('提丰的W型调整'), desc: N_('攻击使目标寒冷；若目标已冻结，改为使其周围1格内的所有敌人碎冰：解除冻结，晕眩4秒并使其受到的物理伤害+40%，持续4秒；非首领回合、非联防阶段：本回合最先倒下的30名敌人会重新加入敌潮（从各自路线的起点出发），重新加入的敌人最大生命+100%、攻击力-70%，漏怪时不扣除生命值，不会传递到联防阶段，也不提供赏金') },
+  // Kal'tsit Esperanta has no official module at all: `anyForm` lets withModZ add hers to a form without modules. `keepAssist`: her
+  // 协防干员 (emptyShip) stays beside the granted alliances; `grants`: how many more alliances an obtained / promoted elite gains
+  // (the highest-stacked active ones she is not in: PlayerState.grantModZBonds); the DR and the starting SP are the sim's.
+  { charId: 'char_1052_kalts2', code: 'kalts2', kind: 'Z', type: 'WAT-Z', attr: {}, bonds: ['visiShip'], keepAssist: true, grants: 3, anyForm: true,
+    name: N_('凯尔希·思衡托的Z型调整'), desc: N_('获得【远见】盟约身份，并保留协防干员盟约身份；受到的物理与法术伤害降低50%；当她成为精锐干员时（直接获得精锐、三合一合成，或由普通干员晋升），永久加入你场上已生效（加成已开启）、她尚未加入、层数最多的至多3个盟约（层数从高到低），直到她被出售；每场战斗开始时，她自己和你场上所有与她至少共享一个盟约的干员，技力+10') },
   { charId: 'char_197_poca', code: 'poca', kind: 'Z', type: 'SIE-Z', attr: { atk: 700 }, bonds: ['preciShip'],
     name: N_('早露的Z型调整'), desc: N_('获得【精准】盟约身份；标记受到自身伤害的敌人；技能结束时，技能期间每有1名被标记的敌人倒下，回复17点技力') },
   { charId: 'char_416_zumama', code: 'zumama', kind: 'Z', type: 'HES-Z', attr: { atk: 150, def: 150 }, layerAllow: { own: 60 }, bonds: ['steadShip'],
@@ -58,6 +63,12 @@ export const MODZ = Object.freeze([
     name: N_('温蒂的W型调整'), desc: N_('获得【迅捷】盟约身份；技能所需技力-30%（与同类效果相加）；开启技能时，使场上所有敌人获得【湿滑】，并在水炮的再部署冷却超过1秒时将其设为1秒；【湿滑】最多叠加5层，永久持续：每层重量-1，且每0.5秒若接触红框（敌人出生点），受到1000/2000/4000/8000/16000点真实伤害') },
   { charId: 'char_4098_vvana', code: 'vvana', kind: 'Z', type: 'AFT-Z', attr: { maxHp: 500, atk: 100 },
     name: N_('薇薇安娜的Z型调整'), desc: N_('可施放【微光之触】（冷却12秒，初始冷却0秒）：以任一【卡西米尔】干员攻击范围内的一名敌人为目标（优先首领），7秒后在其所在位置周围菱形2格内爆炸，造成攻击力300%的灼燃损伤和300%的法术伤害；若敌人已处于灼燃损伤爆发状态，法术伤害改为攻击力600%×在场存活的【卡西米尔】干员数；任一敌人受到灼燃损伤爆发时，法术抗性永久-2、防御力永久-200（最多10次，薇薇安娜倒下后仍保留）') },
+  { charId: 'char_4098_vvana', code: 'vvana', kind: 'W', type: 'AFT-W', attr: { atk: 200 }, bonds: ['steadShip', 'skillfulShip'],
+    name: N_('薇薇安娜的W型调整'), desc: N_('获得【坚守】与【灵巧】盟约身份；伤害类型变为物理；其他所有【卡西米尔】干员获得与薇薇安娜当前所有攻击速度加成相同的攻击速度；攻击额外造成相当于攻击力10%的侵蚀损伤；敌人受到侵蚀损伤爆发时，永久额外损失150点防御力（可无限叠加），并获得1层【照亮】（至多10层）；【照亮】：防御力-5%，受到的物理伤害+5%') },
+  { charId: 'char_197_poca', code: 'poca', kind: 'W', type: 'SIE-W', attr: { atk: 150 }, bonds: ['deputShip', 'miraShip'], keepAssist: true, layerAllow: { own: 50 },
+    name: N_('早露的W型调整'), desc: N_('获得【助力】与【奇迹】盟约身份，并保留协防干员盟约身份；【起飞】：技能期间，攻击目标数+2，攻击速度-30，攻击倍率×2（与同类效果相乘），攻击使目标束缚5秒，并优先攻击未被束缚的敌人；攻击范围内的敌人倒下时，使她所有已激活的盟约层数+5（每场战斗至多触发10次）') },
+  { charId: 'char_4098_vvana', code: 'vvana', kind: 'V', type: 'AFT-V', attr: { maxHp: 500, atk: 100 }, bonds: [], keepAssist: true,
+    name: N_('薇薇安娜的V型调整'), desc: N_('晋升或获得精英时获得耀骑士临光（每场一次）。\n盟约身份：玛恩纳【坚守】，耀骑士临光【迅捷】，锏【突袭】（先后不限；她被出售后已授予的保留，不再授予新的）。\n【闪耀之触】：冷却50秒，初始冷却0秒。选择任意【卡西米尔】干员范围内的敌人（优先领袖），25秒后其位置5×5菱形范围爆炸，造成攻击力1500%的物理伤害。标记会跟随该敌人移动，最后0.7秒锁定。\n首领回合：爆炸等待期间，记录你的单位对首领造成伤害的10%，追加到爆炸伤害中。\n联动【玛恩纳】：他始终满蓄力；所有【卡西米尔】干员攻击速度+30；记录比例+20%。\n联动【耀骑士临光】：她与薇薇安娜可攻击对方范围内的敌人；所有【卡西米尔】干员最大生命+30%；记录比例+60%。\n联动【锏】：他可再部署到远程位与首领所在位；所有【突袭】干员等待1秒（原10秒）；所有【卡西米尔】干员攻击力+30%；记录比例+40%。\n联动需对应干员与薇薇安娜都在场（倒下也算）。') },
   { charId: 'char_4121_zuole', code: 'zuole', kind: 'Z', type: 'SBL-Z', attr: { maxHp: 400, atk: 100 }, bonds: ['swiftShip'],
     name: N_('左乐的Z型调整'), desc: N_('获得【迅捷】盟约身份；从增益获得的攻击力翻倍；从自然回复以外的途径获得的技力翻倍；所有技能可多储存1次；造成伤害时额外造成攻击力5%的灼燃损伤和10%的法术伤害') },
 ].map((m) => Object.freeze({ ...m, id: `${MODZ_PREFIX}${m.kind.toLowerCase()}_${m.code}`, attr: Object.freeze(m.attr), bonds: Object.freeze(m.bonds ?? []) })));
@@ -83,12 +94,15 @@ const CACHE = new WeakMap();
  */
 export function withModZ(charId, form) {
   const defs = modZFor(charId);
-  if (!defs.length || !form || !Array.isArray(form.modules) || !form.modules.length) return form;
+  if (!defs.length || !form) return form;
+  const anyForm = defs.some((d) => d.anyForm);   // no official module to ride on (Kal'tsit Esperanta): every form takes it
+  const mods = Array.isArray(form.modules) ? form.modules : anyForm ? [] : null;
+  if (!mods || (!mods.length && !anyForm)) return form;
   let byLang = CACHE.get(form);
   if (!byLang) CACHE.set(form, byLang = new Map());
   const lang = getLang();
   if (byLang.has(lang)) return byLang.get(lang);
-  const level = form.modules.find((m) => m && Number.isInteger(m.level))?.level ?? 1;
+  const level = mods.find((m) => m && Number.isInteger(m.level))?.level ?? 1;
   const base = form.trait ?? { desc: '', descRaw: '', bb: {}, bbStr: {}, rangeGrid: null };
   const records = defs.map((d) => {
     const desc = t(d.desc);
@@ -100,7 +114,7 @@ export function withModZ(charId, form) {
       fishModZ: d.kind,
     });
   });
-  const out = { ...form, modules: [...form.modules, ...records] };
+  const out = { ...form, modules: [...mods, ...records] };
   byLang.set(lang, out);
   return out;
 }

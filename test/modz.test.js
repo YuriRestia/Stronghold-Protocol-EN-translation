@@ -9,6 +9,7 @@ import { unitForm } from '../shared/standIn.js';
 import { getDefaultSource } from '../server/sim/simdata.js';
 import { RULES, isRuleValue, normalizeRules, ruleSet } from '../shared/rules.js';
 import { makeBattle, enemyRec, chessRec } from './helpers/battleHarness.js';
+import { unitBonds } from '../server/sim/content/support/index.js';
 
 const ds = getDefaultSource();
 const backups = ds.rawBackups();
@@ -36,7 +37,7 @@ test('withModZ appends to the elite forms only (forms with modules); the players
     assert.ok(hasModZ(m.charId), `${m.charId}: the "Mod Z available" tag`);
     for (const form of Object.values(backups.units[m.charId].forms)) {
       const out = withModZ(m.charId, form);
-      if (!form.modules?.length) { assert.equal(out, form); continue; }
+      if (!form.modules?.length && !m.anyForm) { assert.equal(out, form); continue; }   // anyForm: Kal'tsit Esperanta has no official module
       assert.ok(out.modules.some((x) => x.uniEquipId === m.id && x.fishModZ === m.kind));
       assert.ok(!(form.modules ?? []).some((x) => x.fishModZ), 'the data form is untouched');
     }
@@ -526,5 +527,174 @@ test('Typhon W (v2): the first 30 fallen enemies come back once on their own rou
   assert.equal(e.lpr, 0);
   assert.equal(e.bounty ?? null, null, 'no bounty');
   assert.equal(b.enemies.filter((x) => x.fishRevived && x.defId !== 'enemy_weak').length, 0, 'the same kind of enemy');
+  noErrors(b);
+});
+
+test('Kal\'tsit Esperanta Z in battle: damage taken x0.5 (Physical and Arts), the granted alliances count, +10 starting SP for her and her alliance-mates', () => {
+  const K = 'uniequip_fishz_kalts2';
+  assert.ok(MODZ_INSTALLED.includes(K));
+  const kal = { ...op('char_1052_kalts2', K, 2, 9, 4), grantedBonds: ['kjeragShip'] };
+  const kjerag = { chessId: 'chess_char_3_14_a', row: 9, col: 5, dir: 'RIGHT' };   // a Kjerag operator
+  const other = { chessId: 'chess_char_3_08_a', row: 9, col: 6, dir: 'RIGHT' };    // shares no alliance with her
+  const { h, b, rec, ops } = rig([kal, kjerag, other]);
+  h.run(1);
+  const [k, kj, ot] = ops;
+  assert.ok(unitBonds(k).includes('visiShip') && unitBonds(k).includes('kjeragShip'), `her alliances ${unitBonds(k)}`);
+  assert.ok(unitBonds(kj).includes('kjeragShip') && !unitBonds(ot).includes('kjeragShip'), 'the Kjerag operator shares one, the other does not');
+  assert.equal(k.s.physTakenMul, 0.5);
+  assert.equal(k.s.artsTakenMul, 0.5);
+  assert.equal(kj.s.physTakenMul, 1, 'only she takes less');
+  const init = (u) => rec.sp.filter((x) => x.unit === u && x.reason === 'init' && x.amount === 10).length;
+  assert.equal(init(k), 1, 'she starts with +10 SP');
+  assert.equal(init(kj), 1, 'so does the operator sharing Kjerag with her');
+  assert.equal(init(ot), 0, 'and an operator sharing nothing does not');
+  noErrors(b);
+});
+
+test('Viviana W: Durable + Agile, Physical; Kazimierz allies copy all her +ASPD (not read back); Corrosion on hit; each Corrosion burst: DEF -150 and Illuminated, for good', () => {
+  const { h, b, rec, ops: [u, k] } = rig([op('char_4098_vvana', 'uniequip_fishw_vvana', 1, 9, 4), { ...op('char_4098_vvana', null, 1, 9, 2) }], [{ key: 'enemy_tank', time: 0, count: 1 }]);
+  assert.deepEqual([...modZOf('uniequip_fishw_vvana').bonds], ['steadShip', 'skillfulShip']);
+  const slot6 = Object.keys(backups.diy.slots).find((id) => backups.diy.slots[id].tier === 6);
+  const vb = diyRecord(slot6, { charId: 'char_4098_vvana', skillIndex: 1, uniEquipId: 'uniequip_fishw_vvana' }, { elite: true, data })?.bonds ?? [];
+  for (const id of ['kazimierzShip', 'steadShip', 'skillfulShip']) assert.ok(vb.includes(id), `${id} among her bonds`);
+  assert.equal(u.dmgType, 'phys', 'Physical');
+  assert.equal(k.dmgType, 'arts', 'the other Viviana (no module) is still Arts');
+  b.addBuff(u, { key: 'test:aspd', mods: { aspd: 40 } });
+  h.run(1);
+  assert.equal(u.s.aspd, 140);
+  assert.equal(k.s.aspd, 140, 'the Kazimierz ally copies her +40');
+  assert.ok(!u.findBuff('fishModZ:vvanaCopy'), 'she gets no copy of her own');
+  b.addBuff(u, { key: 'test:aspd', mods: { aspd: 100 } });
+  h.run(1);
+  assert.equal(k.s.aspd, 200, 'it follows her bonus live');
+  h.run(50);   // the walker reaches her at ~25 s
+  assert.ok(rec.element.some((x) => x.source === u && x.element === 'erosion' && x.tags?.includes('fishVvanaW')), 'Corrosion on hit');
+  assert.ok(!rec.element.some((x) => x.source === k && x.tags?.includes('fishVvanaW')), 'only hers');
+  const e = b.aliveEnemies()[0];
+  let w = e.findBuff('fishModZ:vvanaW');
+  assert.ok(w, 'her own Corrosion has burst on it by now');
+  const n0 = -w.mods.defFlat / 150;
+  assert.ok(Number.isInteger(n0) && n0 >= 1, `DEF -150 per burst (${n0} so far)`);
+  assert.ok(Math.abs(w.mods.defPct + 0.05 * Math.min(10, n0)) < 1e-9 && Math.abs(w.mods.physTakenMul - 1.05 ** Math.min(10, n0)) < 1e-9, 'Illuminated: -5 % DEF, +5 % Physical taken per stack');
+  for (let i = 0; i < 12; i++) b.emit('elementBurst', { target: e, element: 'erosion', source: u });
+  w = e.findBuff('fishModZ:vvanaW');
+  assert.equal(w.mods.defFlat, -150 * (n0 + 12), 'DEF: no limit');
+  assert.ok(Math.abs(w.mods.defPct + 0.5) < 1e-9, 'Illuminated stops at 10 stacks: DEF -50 %');
+  assert.ok(Math.abs(w.mods.physTakenMul - 1.05 ** 10) < 1e-9, 'Physical damage taken +5 % per stack');
+  b.emit('elementBurst', { target: e, element: 'burn', source: u });
+  assert.equal(e.findBuff('fishModZ:vvanaW').mods.defFlat, -150 * (n0 + 12), 'only Corrosion bursts count');
+  b.retreat(u, { dying: true });
+  h.run(1);
+  assert.equal(e.findBuff('fishModZ:vvanaW').mods.defFlat, -150 * (n0 + 12), 'kept after she falls');
+  assert.equal(k.s.aspd, 100, 'the copy ends with her');
+  noErrors(b);
+});
+
+test('Rosa W: Aid + Marvel (keeps Assist Operator); in her skill +2 targets, ASPD -30, ATK scale x2, Bind 5 s, unbound first; +5 stacks per kill in range, 10 times per battle', () => {
+  const al = () => ({ count: 3, active: true, tier: 1, layers: 0 });
+  const bonds = { deputShip: al(), miraShip: al(), kjeragShip: al() };
+  const { h, b, rec, ops: [u] } = rig([op('char_197_poca', 'uniequip_fishw_poca', 1, 9, 4)], [{ key: 'enemy_weak', time: 1, count: 80, interval: 0.5 }], 120, { bonds, flags: { layerGainsEnabled: true } });
+  const slot6 = Object.keys(backups.diy.slots).find((id) => backups.diy.slots[id].tier === 6);
+  const rb = diyRecord(slot6, { charId: 'char_197_poca', skillIndex: 1, uniEquipId: 'uniequip_fishw_poca' }, { elite: true, data })?.bonds ?? [];
+  for (const id of ['deputShip', 'miraShip', 'emptyShip']) assert.ok(rb.includes(id), `${id} among her bonds`);
+  assert.equal(u.fishUnboundFirst(), false, 'not in the skill: her usual order');
+  assert.ok(!u.findBuff('fishModZ:pocaW'));
+  h.runUntil(() => u.skill.active && u.skill.isTimed, 100);
+  h.run(0.5);
+  assert.equal(u.fishUnboundFirst(), true, 'in the skill: enemies without Bind first');
+  const w = u.findBuff('fishModZ:pocaW');
+  assert.deepEqual({ ...w.mods }, { maxTargets: 2, aspd: -30, atkScaleMul: 2 });
+  h.run(15);
+  assert.ok(rec.status.some((x) => x.s === 'bind' && x.o?.source === u && x.o.duration === 5), 'Bind for 5 s');
+  h.run(60);
+  const L = b.getPlayer(u.ownerId).bonds;
+  assert.ok(L.deputShip.layers > 0 && L.deputShip.layers % 5 === 0, `Aid ${L.deputShip.layers}`);
+  assert.ok(L.deputShip.layers <= 50 && L.miraShip.layers <= 50, 'at most 10 x 5');
+  assert.equal(L.miraShip.layers, L.deputShip.layers, 'every Alliance she has');
+  assert.equal(L.kjeragShip.layers, 0, 'only her own Alliances');
+  noErrors(b);
+});
+
+test('Viviana V in a match: promoting her brings Nearl once; Mlynar, Nearl and Degenbrecher get their Alliances, in any order, kept after she is sold but never granted anew', async () => {
+  const { makeMatch } = await import('./match/harness.js');
+  const T6A = 'chess_char_6_diy1_a', V = 'uniequip_fishv_vvana';
+  const seats = [{ seat: 0, playerId: 'p_0', name: 'P0', isBot: false, connected: true, diy: { [T6A]: { charId: 'char_4098_vvana', skillIndex: 1, uniEquipId: V } } }];
+  const h = makeMatch({ mode: 'solo', seats, seed: 21, lobbyRules: { modZ: [V] } }).start();
+  try {
+    h.toPrep(1);
+    const ps = h.ps('p_0');
+    ps.initDiyStock(new Set());
+    const mly1 = ps.acquireChess('chess_char_5_19_a', { source: 'buy' });
+    assert.deepEqual(mly1.grantedBonds ?? [], [], 'nothing before she is owned as an elite');
+    const viv = ps.acquireChess(T6A, { source: 'buy' });
+    assert.ok(viv);
+    const nearls = () => ps.allChess().filter((p) => ps.gd.chess(p.id)?.charId === 'char_1014_nearl2');
+    assert.equal(nearls().length, 0, 'a normal Viviana brings nothing');
+    assert.equal(ps.promote(viv), true);
+    assert.equal(nearls().length, 1, 'promoted: the Radiant Knight arrives (a 1-star copy)');
+    assert.ok(!ps.gd.isGolden(nearls()[0].id));
+    assert.deepEqual(mly1.grantedBonds, ['steadShip'], 'Mlynar owned before her gets Durable');
+    assert.deepEqual(nearls()[0].grantedBonds, ['swiftShip']);
+    assert.ok(pieceBondsOf(ps, mly1).includes('steadShip') && pieceBondsOf(ps, mly1).includes('kazimierzShip'));
+    const deg = ps.acquireChess('chess_char_6_19_a', { source: 'buy' });
+    assert.deepEqual(deg.grantedBonds, ['raidShip'], 'Degenbrecher bought after her gets Raid');
+    ps.recompute();
+    assert.equal(nearls().length, 1, 'Nearl only once');
+    ps.sell(viv.uid);
+    const mly2 = ps.acquireChess('chess_char_5_19_a', { source: 'buy' });
+    ps.recompute();
+    assert.deepEqual(mly2.grantedBonds ?? [], [], 'after she is sold nothing new is granted');
+    assert.deepEqual(mly1.grantedBonds, ['steadShip'], 'what was granted stays');
+    assert.deepEqual(deg.grantedBonds, ['raidShip']);
+  } finally { h.m.dispose(); }
+});
+function pieceBondsOf(ps, piece) { return ps.gd.chess(piece.id).bonds.concat(piece.grantedBonds ?? []); }
+
+test('Viviana V in battle: the combos, Glimmering Touch (1500 % ATK + the recorded share of the boss damage), Nearl/Viviana range union, Raid 1 s', () => {
+  const V = 'uniequip_fishv_vvana';
+  assert.ok(MODZ_INSTALLED.includes(V));
+  const units = [op('char_4098_vvana', V, 1, 9, 4), { chessId: 'chess_char_5_19_b', row: 9, col: 5, dir: 'RIGHT' },
+    { chessId: 'chess_char_6_17_b', row: 9, col: 6, dir: 'RIGHT' }, { chessId: 'chess_char_6_19_b', row: 9, col: 7, dir: 'RIGHT' },
+    { chessId: 'chess_char_5_19_b', row: 10, col: 5, dir: 'RIGHT' }];
+  const { h, b, rec, ops } = rig(units, [{ key: 'enemy_tank', time: 0, count: 1 }], 70);
+  const [v, mly, nearl, deg] = ops;
+  const BUFF = 'fishModZ:vvanaV';
+  h.run(1);
+  assert.ok(v.findBuff(BUFF) && mly.findBuff(BUFF) && nearl.findBuff(BUFF) && deg.findBuff(BUFF), 'every [Kazimierz] Operator has it');
+  assert.equal(mly.findBuff(BUFF).mods.aspd, 30);
+  assert.equal(mly.findBuff(BUFF).mods.hpPct, 0.3);
+  assert.equal(mly.findBuff(BUFF).mods.atkPct, 0.3);
+  assert.equal(b.fishRaidIdle.get(v.ownerId), 1, 'Raid waits 1 s');
+  assert.equal(deg.fishRaidRanged, true);
+  assert.ok(nearl.extraRangeKeys && v.extraRangeKeys, 'Nearl and Viviana have each other\'s range as extra targets');
+  assert.ok(v.extraRangeKeys.some((k) => nearl.rangeKeys.includes(k)));
+  // the recorded share: 10 + 20 + 60 + 40 = 130 % of the boss damage dealt while the explosion is queued
+  const pp = b._pp(v.ownerId);
+  h.run(10);
+  pp.bossDamage += 10000;   // 10,000 of boss damage during the wait
+  const before = rec.damage.length;
+  h.run(40);
+  const boom = rec.damage.slice(before).filter((d) => d.tags && [...d.tags].includes('fishVvanaV'));
+  assert.ok(boom.length > 0, 'the explosion went off');
+  assert.ok(Math.abs(boom[0].amount - (v.s.atk * 15 + 13000)) < 1, `1500 % ATK + 130 % of 10,000: ${boom[0].amount} vs ${v.s.atk * 15 + 13000}`);
+  assert.equal(boom[0].type, 'phys');
+  noErrors(b);
+});
+
+test('Viviana V: Glimmering Touch\'s aim follows its target to its new tile (one telegraph key) and locks for the last 0.7 s', () => {
+  const V = 'uniequip_fishv_vvana';
+  const units = [op('char_4098_vvana', V, 1, 9, 4), { chessId: 'chess_char_5_19_b', row: 9, col: 5, dir: 'RIGHT' }];
+  const { h, b, ops: [v] } = rig(units, [{ key: 'enemy_tank', time: 0, count: 1 }], 70);
+  const log = [];
+  const fx = b.fx.bind(b);
+  b.fx = (kind, o) => { if (o?.skill === 'fishVvanaV') log.push({ kind, t: b.time, x: o.x, y: o.y, key: o.key }); return fx(kind, o); };
+  h.run(45);
+  const tel = log.filter((l) => l.kind === 'telegraph'), aoe = log.find((l) => l.kind === 'aoe');
+  assert.ok(tel.length > 1, `the aim moved with the walker (${tel.length} telegraphs)`);
+  assert.ok(tel.every((l) => l.key === tel[0].key && l.key === `fishVvanaV:${v.id}`), 'one key, so the client replaces the tiles');
+  assert.ok(tel.slice(1).every((l, i) => l.x !== tel[i].x || l.y !== tel[i].y), 'a telegraph only when the tile changed');
+  const last = tel[tel.length - 1];
+  assert.ok(last.t <= aoe.t - 0.7 + 1e-6, `the last re-snap (${last.t}) is before the lock (${aoe.t - 0.7})`);
+  assert.deepEqual([aoe.x, aoe.y], [last.x, last.y], 'it explodes where the aim was locked');
   noErrors(b);
 });

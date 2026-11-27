@@ -68,9 +68,9 @@ const refused = (res) => res && typeof res === 'object' && res.error;
 /**
  * Replay `rec`. Returns { replayed, total, checks: { shops, battles }, diverged, stopped: { phase, round }, seats, result? }.
  * @param {any} rec a record (readRecord)
- * @param {{ until?: number, bot?: string|null, data?: any, maxSteps?: number }} [opts]
+ * @param {{ until?: number, bot?: string|null, botNative?: boolean, data?: any, maxSteps?: number }} [opts]
  */
-export function replayRecord(rec, { until = Infinity, bot = null, reseed = null, data = null, maxSteps = 5e6 } = {}) {
+export function replayRecord(rec, { until = Infinity, bot = null, botNative = false, reseed = null, data = null, maxSteps = 5e6 } = {}) {
   const sched = new VirtualScheduler();
   const pid = (s) => `p_${Number(String(s).slice(1))}`;
   const seats = rec.seats.map((s) => ({
@@ -212,7 +212,17 @@ export function replayRecord(rec, { until = Infinity, bot = null, reseed = null,
   if (bot && !summary) {
     out.botFrom = m.round;
     if (reseed != null) reseedMatch(m, reseed);
-    for (const ps of m.players.values()) if (!ps.left) m.setAutoplay(ps, true);
+    for (const ps of m.players.values()) {
+      if (ps.left) continue;
+      // botNative: hand the seat over as a native bot (isBot from construction) instead of AI-托管 (setAutoplay).
+      // bot.js deliberately withholds several isBot-only strategic behaviors from autoplay seats (selfPlan,
+      // freeHandSlot, planItemRoomFor, faHunts) -- setAutoplay understates a native bot's continuation (GitHub
+      // issue: replay-record --bot handover plays weaker than a native bot).
+      if (botNative) { ps.isBot = true; ps.connected = true; m.kickBot(ps); } else { m.setAutoplay(ps, true); }
+    }
+    // server/aiTakeover.js recomputes this on every isBot flip (transferAiSeat); do the same here instead of
+    // leaving the construction-time value (every replay seat starts isBot: false, so it's stale either way).
+    if (botNative) m.loneHuman = m.order.filter((p) => !p.isBot && !p.left).length === 1;
     readyBefore = -1; // the bot readies its seats itself
     checking = false;
     drive(() => summary != null);
@@ -243,13 +253,15 @@ async function main() {
   const until = flag('--until');
   const bot = flag('--bot');
   const reseed = flag('--reseed');
+  const native = args.includes('--native');
+  if (native) args.splice(args.indexOf('--native'), 1);
   const [file] = args;
   if (!file) {
-    console.error('usage: node tools/replay-record.mjs FILE [--until R] [--bot ID] [--json]');
+    console.error('usage: node tools/replay-record.mjs FILE [--until R] [--bot ID] [--native] [--reseed S] [--json]');
     process.exit(2);
   }
   const rec = readRecord(file);
-  const out = replayRecord(rec, { until: until != null ? Number(until) : Infinity, bot: bot ?? null, reseed: reseed != null ? Number(reseed) : null });
+  const out = replayRecord(rec, { until: until != null ? Number(until) : Infinity, bot: bot ?? null, botNative: native, reseed: reseed != null ? Number(reseed) : null });
   if (json) { console.log(JSON.stringify(out, null, 1)); return; }
   console.log(`${path.basename(file)}: app ${out.app} (this checkout ${out.appNow}), ${rec.mode} ${rec.difficulty}, seed ${rec.seed}`);
   console.log(`replayed ${out.replayed} of ${out.total} actions; as recorded: ${out.checks.shops} shop rolls, ${out.checks.rounds} rounds (LP, level), ${out.checks.battles} battles`);

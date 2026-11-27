@@ -12,6 +12,8 @@ import { serverNow, loadPref, savePref, useStore } from '../store.js';
 import { t, tc, N_, getLang, langChain } from '../../../shared/i18n.js';
 import { newsEntry } from '../../../shared/news.js';
 import { RichText } from './gameComponents.js';
+import { OpenKindDialog } from './modsPref.js';
+import { rulesInForce } from '../../../shared/rules.js';
 
 /** The built-in announcement's id. Closing a banner remembers its id (`news.<id>`), so a new id shows again to everyone
  * who closed the earlier one ('news.0.3.4-1'); the live news names its own id. */
@@ -56,6 +58,13 @@ export function updateNewsView(live, lang = getLang()) {
   return { id: UPDATE_NEWS_ID, title: t('0.3.4-2 更新'), highlights: UPDATE_HIGHLIGHTS.map((h) => t(h)), points: UPDATE_POINTS.map((p) => t(p)), rich: true };
 }
 
+/**
+ * The title with its version number kept on one line: a line may break after a hyphen, so "Update 0.3.4-2" at 特大 in a
+ * 1024 × 600 window broke inside the number; a word joiner (U+2060) after a hyphen between two digits stops that, and the
+ * line breaks at the space. Display only: the aria-label is the plain title.
+ */
+export const noVersionBreak = (text) => String(text ?? '').replace(/(\d)-(?=\d)/g, '$1-⁠');
+
 export function UpdateNews() {
   const live = useStore((st) => st.liveNews);
   const view = updateNewsView(live);
@@ -69,7 +78,7 @@ export function UpdateNews() {
     <div class="search-news__head">
       <${Icon} name="info" />
       <span class="search-news__tag">NEW</span>
-      <span class="search-news__title">${view.rich ? line(view.title) : view.title}</span>
+      <span class="search-news__title">${line(noVersionBreak(view.title))}</span>
       <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />
     </div>
     <div class="search-news__body" tabindex="0">
@@ -152,15 +161,20 @@ ${t('房间公开或搜寻队友后，不能再重刷本局。' /* en: "Once a r
 /** The host's big button while the switch is on: 搜寻队友 / 停止搜寻 (room.search), in the look of 开始模拟 (`Go`: room.js GoButton). */
 export function SearchButton({ room, facts, busy, online, run, Go }) {
   const on = !!room.searching;
-  const toggle = () => run('search', async () => {
-    await net.request('room.search', { on: !on });
-    if (on) toast(t('取消搜寻成功'), 'info');
+  const [ask, setAsk] = useState(false);
+  // starting asks what the room promises strangers (vanilla or modded, Room.searchKind); stopping needs no answer
+  const send = (kind) => run('search', async () => {
+    await net.request('room.search', kind ? { on: true, kind } : { on: false });
+    if (!kind) toast(t('取消搜寻成功'), 'info');
   });
+  const toggle = () => { if (on) send(null); else setAsk(true); };
   // (fork) before the search starts: rerolls stay off for this room from then on (server/lobby.js rerollLock)
   return html`<${Tooltip} text=${on ? null : facts.othersReady ? t('房间公开或搜寻队友后，不能再重刷本局。' /* en: "Once a room is public or uses Find Teammates, it has no stage setup reroll." */) : t('仍有博士未准备就绪')}>
     <${Go} label=${on ? t('停止搜寻') : t('搜寻队友')} icon=${on ? 'close' : 'search'} tone=${on ? 'stop' : null} loading=${busy === 'search'}
       disabled=${!online || (!on && !facts.othersReady)} onClick=${toggle} />
-  <//>`;
+  <//>
+  <${OpenKindDialog} open=${ask} hasRules=${rulesInForce(room.rules).length > 0} onClose=${() => setAsk(false)}
+    onPick=${(kind) => { setAsk(false); send(kind); }} />`;
 }
 
 export function SearchStatus({ room, facts }) {

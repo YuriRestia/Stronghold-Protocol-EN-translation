@@ -74,6 +74,10 @@ test('the record: seats, outcome, actions, shop rolls, round rows and battle spe
   for (const row of r.rounds) for (const s of Object.values(row.seats)) {
     for (const k of ['lp', 'level', 'funds', 'deployed', 'value', 'elites', 'items', 'layers']) assert.equal(typeof s[k], 'number', k);
     assert.ok(Array.isArray(s.units) && Array.isArray(s.bonds));
+    for (const b of s.bonds) {
+      assert.equal(typeof b.layers, 'number', '#197 I5: each active bond\'s exact Stacks count');
+      assert.equal(typeof b.count, 'number', '#197 I5: each active bond\'s member count');
+    }
   }
   assert.ok(r.battles.length > 0);
   for (const b of r.battles) {

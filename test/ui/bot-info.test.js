@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ROOM_BOTS, BOT_INFO, botScore, botScoreSuffix, strengthMatches, STRENGTH_MATCHES } from '../../shared/botProfiles.js';
+import { ROOM_BOTS, BOT_INFO, SPACC_SETS, SPACC_WEIGHT, spaccScore, botScore, botScoreSuffix, strengthMatches, STRENGTH_MATCHES } from '../../shared/botProfiles.js';
 import { TACTICS } from '../../server/match/botStrategies.js';
 import { makeMatch } from '../match/harness.js';
 
@@ -69,4 +69,23 @@ test('the room\'s bot selector shows each bot\'s strength score next to its name
   assert.equal(botScoreSuffix('no-such-bot'), '');
   const room = readFileSync(new URL('../../public/js/screens/room.js', import.meta.url), 'utf8');
   assert.match(room, /\$\{t\(b\.label\)\}\$\{botScoreSuffix\(b\.id\)\}/, 'the option carries the suffix');
+});
+
+test('the SPA-CC score (#124 level 3): 50 points per set × its win rate over the sets a bot is measured on, with the coverage', () => {
+  assert.equal(spaccScore({}), null);
+  assert.equal(spaccScore({ spacc: { solo: { H5: [0, 0] } } }), null, 'no matches: nothing');
+  assert.equal(spaccScore({ spacc: { solo: { NOPE: [5, 10] } } }), null, 'an unknown set does not count');
+  const s = spaccScore({ spacc: { solo: { H5: [500, 1000], H10: [250, 1000] }, team: { CB2: [100, 100] } } });
+  assert.deepEqual([s.points, s.sets, s.of, s.max, s.matches], [Math.round(50 * 0.5 + 50 * 0.25 + 50), 3, 16, 150, 2100]);
+  assert.ok(s.sd >= 0 && s.sd < 10);
+  assert.equal(s.rate, Math.round((100 * (0.5 + 0.25 + 1)) / 3), 'the mean win rate over the measured sets (what the popup shows)');
+  assert.equal(SPACC_SETS.solo.length + SPACC_SETS.team.length, 16);
+  assert.equal(SPACC_WEIGHT * 16, 800);
+  // what is posted on #124 (2026-11-18): legacy 272/176/178/171 of 1000 and evobot 294/199/222/203 on H5/H10/F9/C3
+  assert.equal(spaccScore(BOT_INFO.legacy).points, Math.round(50 * (0.272 + 0.176 + 0.178 + 0.171)));
+  assert.equal(spaccScore(BOT_INFO.evobot).points, Math.round(50 * (0.294 + 0.199 + 0.222 + 0.203)));
+  assert.ok(spaccScore(BOT_INFO.evobot).points > spaccScore(BOT_INFO.legacy).points, 'evobot is ahead on all four sets');
+  assert.deepEqual(spaccScore(BOT_INFO['fish-level']), spaccScore(BOT_INFO.legacy), 'the level curve plays legacy\'s games on Ultimate');
+  assert.equal(spaccScore(BOT_INFO.adaptive), null, 'not measured yet');
+  for (const b of ROOM_BOTS) for (const mode of ['solo', 'team']) for (const [id, r] of Object.entries(BOT_INFO[b.id].spacc?.[mode] ?? {})) assert.ok(SPACC_SETS[mode].includes(id) && r[0] <= r[1], `${b.id} ${mode} ${id}`);
 });

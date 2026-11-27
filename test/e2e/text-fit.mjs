@@ -33,12 +33,19 @@ export function textProblems(rootSel, extraEllipsis = '') {
   // (a hyphen before a digit is part of a code such as AC-2, not a place to break: §35.18 review of the text-fit fixes)
   const breakOk = (p, c) => (/[\s\-\u2010\u2013\u2014/\u00b7\u30fb]/.test(p) && !(/[-\u2010]/.test(p) && /\d/.test(c)))
     || (hangul.test(p) || hangul.test(c) ? !(letter.test(p) && letter.test(c)) : cjk.test(p) || cjk.test(c));
+  // (fork) text hidden for the eye but read by screen readers (the 1 px clipped pattern of `.sr-only`, also where a style
+  // writes it itself: the room plate's ready word and chat label on small screens): every one of the four properties,
+  // so a label that is merely cut off still counts
+  const srHidden = (e) => {
+    const c = getComputedStyle(e);
+    return c.position === 'absolute' && e.clientWidth <= 1 && e.clientHeight <= 1 && c.overflowX !== 'visible' && c.clipPath === 'inset(50%)';
+  };
   for (const root of document.querySelectorAll(rootSel)) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const txt = n.textContent.trim();
       const el = n.parentElement;
-      if (!txt || !el.checkVisibility({ visibilityProperty: true, opacityProperty: true }) || el.closest('.sr-only')) continue;
+      if (!txt || !el.checkVisibility({ visibilityProperty: true, opacityProperty: true }) || el.closest('.sr-only') || srHidden(el)) continue;
       const range = document.createRange();
       range.selectNodeContents(n);
       const rects = [...range.getClientRects()].filter((r) => r.width > 0.5 && r.height > 0.5);

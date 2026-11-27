@@ -11,8 +11,8 @@ import http from 'node:http';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { packOf, resourceKey, mediaKeys, parseManifest, formatBytes, CACHE_NAME, PACKS_PATH, RESOURCES_FORMAT } from '../shared/resources.js';
-import { buildResourceManifest } from '../server/resources.js';
+import { ALL_PACKS, LIVE2D_PACK, isPreloadFile, packOf, resourceKey, mediaKeys, parseManifest, formatBytes, CACHE_NAME, MAX_MANIFEST_FILES, PACKS_PATH, RESOURCES_FORMAT } from '../shared/resources.js';
+import { buildResourceManifest, summarize } from '../server/resources.js';
 import { createStaticHandler } from '../server/index.js';
 import { PreloadStore } from '../public/js/resources/store.js';
 import { sanitizePreloadPref, voicePacksOf, missingBytes, preloadPref, tickedVoicePacks, setVoicePack, followVoiceSettings, pausePreload } from '../public/js/resources/index.js';
@@ -73,6 +73,10 @@ test('packs: visuals, music / sfx / guide art, and one pack per voice language',
   // (fork, docs/OUTFITS.md) the outfits' art and models: their own optional pack; an outfit's voice set rides with its dub
   assert.equal(packOf('/assets/outfit/spine/char_x_epoque_1/front/a.skel'), 'outfits');
   assert.equal(packOf('/assets/audio/voice/en/char_x_epoque_1/cn_001.mp3'), 'en');
+  // (fork) the Live2D card art: its own optional pack, last in ALL_PACKS (ranks after the others when downloading)
+  assert.equal(packOf('/assets/local/dynillust/char_003_kalts_boc_6-c42a38c4/fx.json'), 'live2d');
+  assert.equal(ALL_PACKS[ALL_PACKS.length - 1], LIVE2D_PACK);
+  assert.equal(isPreloadFile('/assets/local/dynillust/x/a.webp'), true, 'listed: the pack is the player\'s choice, not the list\'s');
 });
 
 test('keys: one key for encoded and raw brackets; /media/… maps to the stored audio files', () => {
@@ -96,7 +100,7 @@ test('the worker\'s copy of the path rules matches shared/resources.js', () => {
     '/assets/~0123456789abcdef/a.png', '/fonts/~0123456789abcdef/a.woff2', '/assets/~0123456789ABCDEF/a.png', '/assets/~0123456789abcdef']) {
     assert.equal(sw.spResources.resourceKey(p), resourceKey(p), p);
   }
-  for (const p of ['/assets/audio/voice/kr/a/1.mp3', '/assets/audio/voice/xx/a/1.mp3', '/assets/audio/bgm/a.mp3', '/assets/local/guide/p.png', '/assets/ui/guide/p.png', '/assets/spine/a.skel', '/assets/outfit/art/char_x_epoque_1.webp']) {
+  for (const p of ['/assets/audio/voice/kr/a/1.mp3', '/assets/audio/voice/xx/a/1.mp3', '/assets/audio/bgm/a.mp3', '/assets/local/guide/p.png', '/assets/ui/guide/p.png', '/assets/spine/a.skel', '/assets/outfit/art/char_x_epoque_1.webp', '/assets/local/dynillust/a/b.webp']) {
     assert.equal(sw.spResources.packOf(p), packOf(p), p);
   }
   for (const p of ['/media/bgm/act1', '/media/voice/en/char_a/cn_001.mp3', '/media/x.wav', '/media/.x', '/media/', '/media/~0123456789abcdef/bgm/act1']) {
@@ -117,6 +121,15 @@ test('parseManifest refuses entries it cannot trust', () => {
   assert.throws(() => parseManifest({ ...ok, format: 1 }));
 });
 
+test('(fork) the manifest may grow to MAX_MANIFEST_FILES files; past it, the error says so', () => {
+  const list = (n) => ({ format: RESOURCES_FORMAT, version: 'v', files: Array.from({ length: n }, (_, i) => [`/assets/f${i}.png`, 1, 'abcdefabcdef']) });
+  // 70 608 files were listed on 2026-11-24, with the Live2D cards: the preload refused every list over 60 000
+  assert.equal(parseManifest(list(70608)).files.length, 70608);
+  assert.equal(parseManifest(list(MAX_MANIFEST_FILES)).files.length, MAX_MANIFEST_FILES);
+  assert.throws(() => parseManifest(list(MAX_MANIFEST_FILES + 1)), /too many files/);
+  assert.throws(() => parseManifest({ ...list(0), files: null }), /no file list/);
+});
+
 test('server manifest: every file with size + SHA-1, hash cache reused, served gzip with an ETag', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-res-'));
   const pub = path.join(dir, 'public');
@@ -127,18 +140,21 @@ test('server manifest: every file with size + SHA-1, hash cache reused, served g
   write('assets/.DS_Store', 'x');
   write('fonts/f.woff2', 'font');
   write('js/main.js', 'code');
+  write('assets/local/dynillust/char_003_kalts_boc_6/a.png', 'a Live2D card file'); // (fork) listed, in the optional live2d pack
   const cache = path.join(dir, 'hashes.json');
   try {
     const m = await buildResourceManifest({ publicDir: pub, hashCacheFile: cache });
-    assert.deepEqual(m.files.map((f) => f[0]), ['/assets/audio/voice/en/char_a/cn_001.mp3', '/assets/local/map/fx/%5Bopt%5Dm.png', '/assets/ui/a.png', '/fonts/f.woff2']);
-    assert.deepEqual(m.files[2], ['/assets/ui/a.png', 3, sha('aaa')]);
-    assert.equal(m.totalBytes, 3 + 2 + 5 + 4);
+    assert.deepEqual(m.files.map((f) => f[0]), ['/assets/audio/voice/en/char_a/cn_001.mp3', '/assets/local/dynillust/char_003_kalts_boc_6/a.png',
+      '/assets/local/map/fx/%5Bopt%5Dm.png', '/assets/ui/a.png', '/fonts/f.woff2']);
+    assert.deepEqual(m.files[3], ['/assets/ui/a.png', 3, sha('aaa')]);
+    assert.equal(m.totalBytes, 3 + 2 + 5 + 4 + 18);
+    assert.equal(summarize(m).packs.live2d.files, 1, 'the summary counts the Live2D pack');
     assert.doesNotThrow(() => parseManifest(m), 'the client accepts what the server writes');
     const cached = JSON.parse(fs.readFileSync(cache, 'utf8'));
     cached.files['/assets/ui/a.png'].hash = 'fromthecache'; // proves the second build reads the cache instead of the file
     fs.writeFileSync(cache, JSON.stringify(cached));
     const again = await buildResourceManifest({ publicDir: pub, hashCacheFile: cache });
-    assert.equal(again.files[2][2], 'fromthecache');
+    assert.equal(again.files[3][2], 'fromthecache');
 
     const handler = createStaticHandler({ publicDir: pub, dataDir: path.join(dir, 'data'), sharedDir: path.join(ROOT, 'shared') });
     const srv = http.createServer((req, res) => { const [p, q] = req.url.split('?'); handler(req, res, p, q || ''); });
@@ -156,7 +172,7 @@ test('server manifest: every file with size + SHA-1, hash cache reused, served g
       assert.equal(a.headers['content-encoding'], 'gzip');
       assert.equal(a.headers['cache-control'], 'no-cache');
       const doc = JSON.parse((await import('node:zlib')).gunzipSync(a.body).toString());
-      assert.equal(doc.files.length, 4);
+      assert.equal(doc.files.length, 5);
       const b = await get({ 'If-None-Match': a.headers.etag });
       assert.equal(b.status, 304);
     } finally { await new Promise((r) => srv.close(r)); }
@@ -329,6 +345,45 @@ test('lifecycle: no "off" — pause keeps the set started (and in use), only Cle
   preloadPref.set({ started: true, paused: false, voice: null });
   pausePreload();
   assert.deepEqual({ ...preloadPref.get(), voice: null }, { started: true, paused: true, voice: null }, 'paused, still started: the worker stays');
+});
+
+test('(fork) the Live2D card art is an optional pack: off by default, its own tick and remove button, a zip of its own', async () => {
+  const mod = await import('../public/js/resources/index.js');
+  assert.deepEqual(mod.sanitizePreloadPref({ started: true }), { started: true, paused: false, voice: null }, 'absent = off: a player who preloaded before gets no new download');
+  assert.equal(mod.sanitizePreloadPref({ live2d: true }).live2d, true);
+  assert.equal(mod.sanitizePreloadPref({ live2d: 'yes' }).live2d, undefined, 'only a real true is stored');
+  preloadPref.set({ started: true, paused: false, voice: [] });
+  assert.ok(!mod.tickedPacks().includes(LIVE2D_PACK));
+  mod.setLive2dPack(true);
+  assert.ok(mod.tickedPacks().includes(LIVE2D_PACK));
+  mod.setLive2dPack(false);
+  assert.ok(!preloadPref.get().live2d && !mod.tickedPacks().includes(LIVE2D_PACK));
+  const idx = fs.readFileSync(path.join(ROOT, 'public/js/resources/index.js'), 'utf8');
+  const ui = fs.readFileSync(path.join(ROOT, 'public/js/ui/preload.js'), 'utf8');
+  const body = (src, name) => src.slice(src.indexOf(`export async function ${name}(`)).split('\n}\n')[0];
+  assert.match(body(idx, 'removeLive2dPack'), /preloadPref\.get\(\)\.live2d\) return/, 'a ticked pack is kept');
+  assert.match(body(idx, 'removeLive2dPack'), /removePacks\(\[LIVE2D_PACK\]\)/);
+  assert.match(ui, /onClick=\$\{removeLive2dPack\}>\$\{t\(TX\.removeLive2d\)\}/);
+  // both flags are computed in the component that shows the buttons (one slipped into the card's component once)
+  const dialog = ui.slice(ui.indexOf('const staleOutfits'));
+  assert.match(dialog, /^const staleOutfits[^\n]*\n\s*const staleLive2d =/);
+  assert.match(ui, /pack=\$\{LIVE2D_PACK\}[^>]*checked=\$\{!!pref\.live2d\}/, 'the row is unticked by default');
+  // the zips: the standard one holds no Live2D file (and stays under 65,535 entries), --live2d holds only those
+  const { preloadPackPlan } = await import('../tools/preload-pack.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-l2d-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'package.json'), '{"version":"9.9.9"}');
+    for (const rel of ['public/assets/ui/a.png', 'public/assets/local/dynillust/k/illust.json']) {
+      fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+      fs.writeFileSync(path.join(dir, rel), rel);
+    }
+    const std = await preloadPackPlan(dir, { scan: false });
+    const l2d = await preloadPackPlan(dir, { scan: false, live2d: true });
+    assert.deepEqual(std.files.map((f) => f.site), ['/assets/ui/a.png']);
+    assert.deepEqual(l2d.files.map((f) => f.site), ['/assets/local/dynillust/k/illust.json']);
+    assert.equal(std.name, 'Stronghold-Protocol-v9.9.9-preload');
+    assert.equal(l2d.name, 'Stronghold-Protocol-v9.9.9-preload-live2d');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('(fork, docs/OUTFITS.md) the unticked voices and the unticked Outfits pack have separate remove buttons', async () => {

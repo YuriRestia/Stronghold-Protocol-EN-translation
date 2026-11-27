@@ -458,6 +458,7 @@ export function ChessDetail({ chess, piece, unit, snapHp, editable, onSell, bond
   const carried = piece ? items : (Array.isArray(unitItems) ? unitItems : []);
   const getItem = (id) => data.lookup('items', id);
   const bondIds = pieceBondIds(c, carried, getItem, morphMode);
+  for (const b of Array.isArray(piece?.grantedBonds) ? piece.grantedBonds : []) if (!bondIds.includes(b)) bondIds.push(b);   // Mod Z Kal'tsit Esperanta
   const slotPolicy = morphSlotPolicy(morphMode === 'plus' ? 'plus' : 'official', (it) => !!getItem(typeof it === 'string' ? it : it?.id)?.canGiveBond);
   const grantedIds = bondIds.filter((b) => !(Array.isArray(c.bonds) && c.bonds.includes(b)));
   const sell = c.sellPrice ?? 1;

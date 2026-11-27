@@ -236,7 +236,7 @@ node tools/perfbench.mjs --cpu 1,4,6 --profile             # frame-time benchmar
 - Game data is generated from the official data tables by `npm run build-data` (`tools/build-data.mjs`); do not edit `data/*.json` by hand.
 - Performance testing: `/dev/battle-perf.html` runs a real battle in the browser (the battle runner, simulation and rendering a match uses) and shows the frame rate and per-frame time live; open it on a phone and tap "Start measuring (10 s)", and the report it produces can be copied and attached to feedback. The battles it uses come from data `node tools/capture-specs.mjs` captures from fixed-seed bot matches (`public/dev/perf/`).
 - A commit that only refactors, without changing gameplay, must not change `test/golden/*.json`; when you change gameplay on purpose, run `npm run golden:update`, check the differences, and commit them with the change (see [test/golden/README.md](../test/golden/README.md)).
-- GitHub Actions ([.github/workflows/ci.yml](../.github/workflows/ci.yml)) runs `npm ci`, `npm test` and a server smoke test on Ubuntu and Windows with Node 22 / 24.
+- GitHub Actions ([.github/workflows/ci.yml](../.github/workflows/ci.yml)) runs `npm ci`, `npm test` and a server smoke test on Ubuntu and Windows with Node 24, plus a temporary light Node 22 check (see [docs/CI.md](../docs/CI.md)).
 - For how the code is layered and which file to start from when changing a rule, see [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
 
 ## Project structure

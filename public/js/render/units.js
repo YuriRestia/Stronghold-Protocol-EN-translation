@@ -451,8 +451,9 @@ const STATUE = Object.freeze({
 const JAKILL2 = clipSet('C2_Idle', 'C2_Move', 'C2_Die', 'C2_Attack');
 /** A prisoner's 'warning' (mode R) and 'liberty' (mode L) clip sets: the clip-name suffix of each (see the list above). */
 const prisoner = (warn, free) => Object.freeze({
-  warning: Object.freeze({ change: null, roles: clipSet(`Idle${warn}`, `Move${warn}`, `Die${warn}`, `Attack${warn}`) }),
-  liberty: Object.freeze({ change: null, roles: clipSet(`Idle${free}`, `Move${free}`, `Die${free}`, `Attack${free}`) }),
+  // `swing`: a swing already running goes on in the new set's attack clip (UnitView.setForm)
+  warning: Object.freeze({ change: null, swing: true, roles: clipSet(`Idle${warn}`, `Move${warn}`, `Die${warn}`, `Attack${warn}`) }),
+  liberty: Object.freeze({ change: null, swing: true, roles: clipSet(`Idle${free}`, `Move${free}`, `Die${free}`, `Attack${free}`) }),
 });
 const PRISONER = prisoner('2', '');
 const PRISONER_COLOURED = prisoner('_orange', '_red');
@@ -619,6 +620,11 @@ export const FORMS = Object.freeze({
   enemy_1516_jakill: Object.freeze({
     reborn: Object.freeze({ change: 'C1_Die', roles: JAKILL2 }),
     form2: Object.freeze({ change: null, roles: JAKILL2 }),
+  }),
+  // (fork) 假想敌：铳's 【末日布道】 cast (bosses.js kitGun: form 'call' with the cast's `dur`, null at its end): its
+  // ThreePartChannelingAnimation's clips [src: CN client battle/enm_pfb_28.ab enemy_9017_achunt Skills/2 `_default`]
+  enemy_9017_achunt: Object.freeze({
+    call: Object.freeze({ change: 'Skill_2_Begin', end: 'Skill_2_End', roles: Object.freeze({ idle: 'Skill_2_Loop', move: loop('Skill_2_Loop'), attack: null, skill: null }) }),
   }),
   enemy_1172_dugago: STATUE,
   enemy_1172_dugago_2: STATUE,
@@ -1357,6 +1363,10 @@ export class UnitView {
     const change = f && f.change && !(late > 0 && late >= (this.actor.dur?.(f.change) ?? Infinity)) ? f.change : null;
     if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold);
     else if (prev) this.actor.setForm(null, prev.leave && !(late > 0 && late >= (this.actor.dur?.(prev.leave) ?? Infinity)) ? prev.leave : null);
+    // a swing already running (the freeing attack's own: ON_BEFORE_ATTACK switches the mode before the attack starts, so the
+    // swing must show the new mode's clip, not the old form's) goes on in the new set's attack clip at the same point
+    // [src: official buff_template_holder.ab enemy_liberty_listener[warning]: SwitchMode on event 26 ON_BEFORE_ATTACK]
+    if (f?.swing && this.actor.mode === 'attack' && !change) this.actor.syncFormPose();
   }
 
   // ---- HUD -------------------------------------------------------------------------------------------------
@@ -1863,6 +1873,19 @@ export class UnitView {
     else if (this.agent && target) this.shot = this.blocksTarget(target) ? 'melee' : 'ranged';
     else return;
     if (this.actor) this.actor.shot = this.shot;
+  }
+
+  /**
+   * (fork) The kind of an attack cast whose hit is not in sight yet (render/app/windup.js windCasts), or null when the
+   * view cannot tell: a fortress's, as the sim's rule has it (server/sim/ai.js acquireTargets: melee on the enemy it
+   * blocks or one on its own tile, 'none', else its cannon, the 'bomb' of server/sim/professions.js). Its first attack's
+   * cast starts before the hit is in sight and fell back to 'none', so Ashlock's and Horn's first shell was cast on the
+   * melee clip (Ashlock's Attack02, its muzzle at her feet) and left it there. A blocked enemy stands on its blocker's
+   * tile (blocksTarget's assumption, not a new one).
+   */
+  castKind(target) {
+    if (!this.fortress || !target) return null;
+    return Math.abs(target.x - Math.round(this.x)) <= 0.5 && Math.abs(target.y - Math.round(this.y)) <= 0.5 ? 'none' : 'bomb';
   }
 
   /**

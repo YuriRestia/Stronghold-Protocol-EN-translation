@@ -1,6 +1,6 @@
 // server/resources.js — /data/resource-manifest.json, the file list of the optional asset preload (shared/resources.js).
 //
-// Lists every file under public/assets and public/fonts with its size and the first 12 hex of its SHA-1. Hashing ~820 MB
+// Lists every file under public/assets and public/fonts (the Live2D cards are the optional 'live2d' pack) with its size and the first 12 hex of its SHA-1. Hashing ~820 MB
 // takes a while, so the hashes are kept in a cache file keyed by size + mtime (only new or changed files are read again)
 // and the manifest is built once per process, in the background at boot (`warm()`); a request that arrives first waits
 // for it. Assets only change with a deploy (`npm run setup` / fetch-assets), which restarts the server anyway.
@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { HASH_LEN, MAX_FILE_BYTES, RESOURCES_FORMAT, packOf, resourceKey } from '../shared/resources.js';
+import { HASH_LEN, MAX_FILE_BYTES, MAX_MANIFEST_FILES, RESOURCES_FORMAT, isPreloadFile, packOf, resourceKey } from '../shared/resources.js';
 import { acceptsGzip, isNotModified } from './http/files.js';
 
 /** The trees the preload covers, relative to publicDir. */
@@ -61,7 +61,7 @@ async function readHashCache(file) {
  */
 export async function buildResourceManifest({ publicDir, hashCacheFile = null, concurrency = 8, log = null }) {
   const t0 = Date.now();
-  const listed = await listFiles(publicDir);
+  const listed = (await listFiles(publicDir)).filter(([rel]) => isPreloadFile(rel));
   const cached = await readHashCache(hashCacheFile);
   const nextCache = {};
   const files = [];
@@ -95,6 +95,7 @@ export async function buildResourceManifest({ publicDir, hashCacheFile = null, c
       await fsp.writeFile(hashCacheFile, JSON.stringify({ version: HASH_CACHE_VERSION, files: nextCache }));
     } catch (err) { log?.warn?.(`[resources] hash cache not written: ${err?.message || err}`); }
   }
+  if (files.length > MAX_MANIFEST_FILES) log?.warn?.(`[resources] ${files.length} files are over the ${MAX_MANIFEST_FILES} the preload accepts: players cannot preload until the art shrinks or the limit grows`);
   log?.info?.(`[resources] preload manifest: ${files.length} files, ${(totalBytes / 1e6).toFixed(0)} MB, ${hashed} hashed`
     + `${skipped ? `, ${skipped} over ${MAX_FILE_BYTES >> 20} MiB skipped` : ''} (${Date.now() - t0} ms)`);
   return { format: RESOURCES_FORMAT, version, totalBytes, files };

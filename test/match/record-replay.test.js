@@ -50,6 +50,14 @@ test('--until stops at that round\'s prep; --bot finishes the match from there',
   for (const e of ends) assert.notEqual(e, 'null');
 });
 
+test('--native hands the seat over as a real bot (isBot), not AI-托管 (setAutoplay)', () => {
+  const rec = recorded(14);
+  const out = replayRecord(rec, { data: DATA, until: 5, bot: 'legacy', botNative: true });
+  assert.equal(out.diverged, null);
+  assert.ok(out.result, 'the bot finished the match');
+  assert.equal(out.botFrom, 5);
+});
+
 test('a changed record diverges at the first difference', () => {
   const rec = recorded(13);
   const i = rec.actions.findIndex((a) => a.a === 'shop' && a.r === 3);

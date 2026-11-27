@@ -29,8 +29,8 @@ const DAILY = REWARDS.daily;
 const at = (d, h, m = 0) => new Date(2026, 9, d, h, m).getTime();
 
 /** A stored record (ui/stats.js shape) whose own row earned `reward` over `rounds`. */
-const rec = (id, t, { reward = 0, rounds = 0, trophies = 0, end = 'settled', content = undefined } = {}) => ({
-  id, t, end, selfId: 'me', ...(content ? { content } : {}),
+const rec = (id, t, { reward = 0, rounds = 0, trophies = 0, end = 'settled', content = undefined, challengePts = 0 } = {}) => ({
+  id, t, end, selfId: 'me', ...(challengePts ? { challengePts } : {}), ...(content ? { content } : {}),
   players: [{ playerId: 'me', seat: 0, roundsPassed: rounds, reward, trophies }, { playerId: 'mate', seat: 1, roundsPassed: rounds, reward: 999, trophies: 9 }],
 });
 
@@ -185,4 +185,20 @@ test('#745: equipped settlement rows render two bounded slots, with two/one/no i
   const css = readFileSync(path.join(ROOT, 'public/css/screens/settle.css'), 'utf8');
   assert.match(css, /\.sop__slot \{[^}]*min-width: 0;[^}]*min-height: 0;[^}]*minmax\(0, 1fr\)/);
   assert.match(css, /\.sop__slot img \{[^}]*max-width: 100%;[^}]*max-height: 100%;[^}]*object-fit: contain/);
+});
+
+test('levelProgress (#192): finished Challenges count toward the LV, also in a modded room, never from a quit record; this match\'s own points are added', () => {
+  const now = at(16, 20);
+  const records = [
+    rec('a', at(14, 10), { reward: 100, rounds: 5, challengePts: 40 }),
+    rec('mod', at(15, 10), { reward: 500, rounds: 14, content: { cs: 'x', plugins: [] }, challengePts: 25 }), // modded: no reward, the Challenges points stay
+    rec('quit', at(15, 11), { reward: 0, rounds: 3, end: 'quit', challengePts: 99 }),
+    rec('own', now, { reward: 10, rounds: 5, challengePts: 70 }), // the match itself is left out of `before`
+  ];
+  const p = S.levelProgress(records, { id: 'own', gain: 10, challenge: 70, rounds: 5, at: now, rewards: REWARDS });
+  assert.equal(p.before, 100 + 40 + 25);
+  assert.equal(p.challenge, 70);
+  assert.equal(p.after, p.before + 10 + 70 + p.bonus);
+  const off = S.levelProgress(records, { id: 'own', gain: 10, challenge: 70, rounds: 5, at: now, rewards: REWARDS, counted: false });
+  assert.equal(off.gain, 0); assert.equal(off.challenge, 70, 'a modded match earns no reward but its Challenges still count');
 });

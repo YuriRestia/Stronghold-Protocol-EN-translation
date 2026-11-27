@@ -24,7 +24,7 @@
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { BOT_OPERATORS } from '../../shared/constants.js';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, pickEnemySfx, pickEnemyCastSfx, ENEMY_SHOT_SOUNDS, ENEMY_ATTACK_VARIANTS, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, pickEnemySfx, pickEnemyCastSfx, ENEMY_SHOT_SOUNDS, ENEMY_ATTACK_VARIANTS, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS, LOBBY_VOICE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { skillAbilitySounds } from './skillSounds.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
@@ -547,6 +547,14 @@ export const UI_EXTRAS = (() => {
   L.push(['skillIcon', 'empty', 'arts/ui/[uc]charcommon/skills/empty_skill.png']);
   L.push(['skillIcon', 'empty_large', 'arts/ui/[uc]charcommon/skills/empty_skill_large.png']);
   L.push(['entry', 'season_logo_settle', 'activity/[uc]act2autochess/arts/seasonlogo/season_logo_settle_game.png']);
+  // (fork) the result card's entrance (the official auto_chess_settle_game_player_item prefab and its show clip;
+  // screens/settle.js CardEntrance): its background (group_bg/bg, sliced), frame, mattes, glow and line sprites
+  const pi = 'ui/autochess/[uc]autochessouter/settlegame/auto_chess_settle_game_player_item/';
+  for (const k of ['card_bg', 'bg_frame', 'char_color_mask', 'char_mask', 'complete_up_bg', 'complete_up_glow', 'line_up', 'round_complete_bg', 'unfinish_bg']) {
+    L.push(['settleCard', k, `${pi}${k}.png`]);
+  }
+  // its materials' dissolve masks (Torappu/UI/Dissolve/UI-DoubleDissolve-Tex _DissolveTex1 / _DissolveTex2)
+  for (const k of ['img_uifx_basicmask_03', 'img_uifx_common_basicmask_01']) L.push(['uiFxMask', k, `arts/ui/[uc]fxcommon/textures/mask/${k}.png`]);
   const ec = 'ui/autochess/[uc]autochessbattle/effectchoose/';
   for (const k of ['bg_circle', 'bg_grad', 'bottom', 'deco_glow_top', 'plus', 'square_1', 'square_2', 'square_fill_1', 'square_fill_2', 'tip_glow', 'tip_wait', 'title']) {
     L.push(['effectChoose', k, `${ec}autochess_battle_effect_choose_panel/${k}.png`]);
@@ -615,12 +623,13 @@ function nativeVoiceAlt(asset, dir) {
 }
 
 /**
- * Full artwork (yuanyan `skin/<portraitId>b.png`, ~3 MB) → `outfit/art/<name>.webp`, converted at download time
- * (downloader.mjs convertImage: ≤ 1024 px, ~150 KB). `ids` = candidate portrait ids, best first (one file).
+ * Full artwork (yuanyan `skin/<portraitId>b.png`, ~3 MB) → `outfit/art2k/<name>.webp`, converted at download time
+ * (downloader.mjs convertImage: ≤ 2048 px). A folder of its own since the 2048 copies (2026-11-23): in `outfit/art/` the
+ * ledger kept the 1024 copies already on disk. `ids` = candidate portrait ids, best first (one file).
  */
 function artAlt(name, ids) {
   const urls = ids.map((id) => joinUrl(RAW.yuanyan, `skin/${id}b.png`));
-  return { ...alt(`outfit/art/${safeName(name)}.webp`, urls), from: 'png' };
+  return { ...alt(`outfit/art2k/${safeName(name)}.webp`, urls), from: 'png' };
 }
 
 /**
@@ -1050,6 +1059,9 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @param {Iterable<string>|null} [p.voiceSlots] which voice slots to plan: VOICE_BATTLE_SLOTS (default) plans only the
  *   lines a battle can play, null plans every slot of audio.mjs VOICE_SLOTS (`--voice-all`). The prep-only slots
  *   (干员报到 / 编入队伍 / 任命队长) are never requested by the client and cost 360 files / 19.3 MB of downloads.
+ * @param {{ keys: Record<string, { words: Record<string, number[]> }> } | null} [p.lobbyVoice] (fork) the committed
+ *   tools/assets/lobby-voice.json: these voice sets (the operators and outfits with an animated illustration) also get
+ *   the lobby slots (audio.mjs LOBBY_VOICE_SLOTS), and `audio.voiceWords` carries their join lines' word counts
  * @param {string[]} [p.extraEnemyIds] more enemy ids that can spawn (e.g. keys of data/enemies.json)
  * @param {string[]} [p.eventSfxEnemyIds] enemies whose animation-event sounds (`ON_SPINE_EVENT_TRIGGER.<event>` banks) are
  *   planned as sfx.units[id].events — the fork's own enemies (data/enemies.json `fork`), whose kits play them
@@ -1077,7 +1089,7 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @returns {{ template: any, models: Map<string, any>, notes: string[] }}
  */
 export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsData, charword = null, voiceLang = 'cn',
-  voiceJp = true, voiceSlots = VOICE_BATTLE_SLOTS, optionalVoice = false,
+  voiceJp = true, voiceSlots = VOICE_BATTLE_SLOTS, optionalVoice = false, lobbyVoice = null,
   extraEnemyIds = [], eventSfxEnemyIds = [], extraTokenIds = [], extraHandbook = {}, localEnemySpines = {}, localTokenSpines = {}, extraOperators = {},
   moduleTypes = [], outfits = null, outfitChars = [], statsTemplate = [], charModes = null, enemyCasts = null, extraBands = {}, extraItems = {}, extraBonds = {} }) {
   const notes = [];
@@ -1736,6 +1748,19 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   // (fork, docs/OUTFITS.md) + each outfit's own voice set, under its word key (data/outfits.json `voice`)
   const outfitVoices = new Set(Object.values(outfits || {}).filter((r) => typeof r?.voice === 'string' && operators[r.charId]).map((r) => r.voice));
   const voiceSlotsByChar = indexVoice(charword, VOICE_ID_LANG, voiceSlots, outfitVoices);
+  // (fork) the room / Grand Alliance lobby lines (crew-docs/l2d-lobby-voice-proposal.md): the voice sets of
+  // tools/assets/lobby-voice.json — the operators and outfits with an animated illustration — also get 交谈 / 闲置 / 问候 /
+  // 任命队长 (LOBBY_VOICE_SLOTS), played by ui/lobbyVoice.js; every other operator keeps the battle slots only
+  const lobbyKeys = new Set(Object.keys(lobbyVoice?.keys || {}));
+  if (voiceSlots && lobbyKeys.size) {
+    const lobbyIdx = indexVoice(charword, VOICE_ID_LANG, LOBBY_VOICE_SLOTS, [...outfitVoices].filter((k) => lobbyKeys.has(k)));
+    for (const [key, slots] of lobbyIdx) {
+      if (!lobbyKeys.has(key)) continue;
+      const cur = voiceSlotsByChar.get(key);
+      if (cur) Object.assign(cur, slots);
+      else voiceSlotsByChar.set(key, slots);
+    }
+  }
   // `dir` (VOICE_OPTIONAL_TREES native): the operator's own-language folder, or nothing when it has no such dub
   // A collab operator whose only dub is LINKAGE (丰川祥子 …, audio.mjs linkageOnlyVoice) has no `voice_cn/` lines: the
   // Chinese tree takes her Japanese ones, as the official client plays them under the 中文 setting (owner, 2026-10-15).
@@ -1763,6 +1788,10 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   };
   const voice = voiceTree(voiceLang);
   if (!Object.keys(voice).length) notes.push('battle voice: charword_table.json has no slots (index missing?)');
+  // (fork) the join lines' word counts (tools/assets/lobby-voice.json), for the voice sets the tree has: ui/lobbyVoice.js
+  // cuts a join line off after 2 of its words when the next player's line comes in
+  const voiceWords = {};
+  for (const key of [...lobbyKeys].sort()) if (voice[key]) voiceWords[key] = lobbyVoice.keys[key].words;
 
   // English, Korean and each operator's own-language dub (VOICE_OPTIONAL_TREES; public/js/audio.js VOICE_TREES):
   // `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative`, the same slots and file names. A line missing upstream
@@ -1788,6 +1817,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       voice,
       ...(voiceJp ? { voiceJp: voiceTree(VOICE_JP_LANG) } : {}),
       ...optionalTrees,
+      ...(Object.keys(voiceWords).length ? { voiceWords: literal(voiceWords) } : {}),
       sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx, ...(Object.keys(outfitSfx).length ? { outfits: outfitSfx } : {}), ...(Object.keys(sfxBurst).length ? { burst: sfxBurst } : {}), pools: sfxPools, groups: literal(sfxGroups) },
     },
   };

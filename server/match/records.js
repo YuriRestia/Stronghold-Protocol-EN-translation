@@ -208,7 +208,8 @@ function roundRow(m) {
       items += (p.items || []).length;
       units.push(p.id);
     }
-    const bonds = Object.entries(ps.bonds || {}).filter(([, b]) => b && b.active).map(([id, b]) => ({ id, tier: b.tier || 0 }));
+    // rlbot #197 I5: the exact Stacks count and member count per alliance (not just its threshold tier), for the goal tracker
+    const bonds = Object.entries(ps.bonds || {}).filter(([, b]) => b && b.active).map(([id, b]) => ({ id, tier: b.tier || 0, layers: b.layers || 0, count: b.count || 0 }));
     seats[ps.playerId] = {
       lp: ps.lp, alive: ps.alive, level: ps.shop.level, funds: ps.funds, deployed: ps.deployCount, value, elites, items,
       units: units.sort(), bonds, layers: ps.activatedLayers(), band: ps.bandId ?? null,

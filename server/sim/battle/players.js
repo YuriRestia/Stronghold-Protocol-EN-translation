@@ -53,7 +53,7 @@ export class BattlePlayers {
       // `leakedInTotal` are the HUD capsule's counters of this player's own field (only enemies the round scheduled:
       // spawns.js `_queueSpawn` / `inTotal`, deploy.js), `resolved` is derived from them at result time.
       killed: 0, total: 0, leaked: [], perfect: true, killedInTotal: 0, leakedInTotal: 0,
-      layerGains: {}, coins: 0, damageDealt: 0, bossDamage: 0, healingDone: 0, deaths: 0, unitsEnd: [], unitStats: [],
+      layerGains: {}, coins: 0, damageDealt: 0, bossDamage: 0, healingDone: 0, deaths: 0, downs: 0, unitsEnd: [], unitStats: [],
     };
     const late = [];
     for (const u of p.units ?? []) {
@@ -171,6 +171,7 @@ export class BattlePlayers {
     if (def.raw?.isDiy && !def.diyFor) { this.log(`自选 slot ${inp.chessId} without a pick`); return null; }
     const u = this._makeAlly(ps, def, 'op', r, c, { uid: inp.uid, dir, skin: inp.skin });
     u.items = [...(inp.items ?? [])];
+    if (Array.isArray(inp.grantedBonds)) u.grantedBonds = inp.grantedBonds.filter((b) => typeof b === 'string').slice(0, 8); // Mod Z Kal'tsit Esperanta (match/bondsMeta.js pieceBonds)
     if (inp.itemProgress) u.itemProgress = inp.itemProgress.map(p => ({ ...p }));
     u.carry = inp.carryState ?? null;
     // 练度 (自持有, 0.2.2): the owned operator's ×ATK / ×DEF / ×max HP (units.js Πmul) — never a 补位 stand-in's nor a

@@ -1,6 +1,6 @@
 // test/lobby-rules.test.js — room.setRules over the real WebSocket lobby (shared/rules.js RULES): host only, before the
 // match, partial updates merged, every value type checked, shown in room.state, un-readies the other humans, handed to the
-// match; a room with a rule set cannot search for teammates (they play the original game).
+// match; searching clears a room's rules and locks them (vanilla), unless it searches as 'modded'.
 import { describe, test, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -89,7 +89,7 @@ describe('lobby rules', () => {
     assert.deepEqual(started.at(-1).lobbyRules, { ...DEFAULT_RULES, extraDeploy: true, extraFunds: true, untimed: true }, 'the match gets the room rules');
   });
 
-  test('every value type: choices, a stage, ban lists (the same list again changes nothing); a room with rules cannot search', async () => {
+  test('every value type: choices, a stage, ban lists (the same list again changes nothing); searching clears the rules and locks them (vanilla)', async () => {
     const host = await player('Host2');
     assert.equal((await host.request({ t: 'room.create', mode: 'coop', difficulty: 'NORMAL' })).t, 'ok');
     const st = await host.waitFor('room.state', (s) => s.hostId === host.id);
@@ -110,13 +110,14 @@ describe('lobby rules', () => {
     await new Promise((r) => setTimeout(r, 200));
     assert.equal(guest.inbox.filter((m) => m.t === 'room.state').length, 0, 'the same bans in another order change nothing');
 
-    await expectError(host, { t: 'room.search', on: true }, ERR.CUSTOM_RULES);
-    await expectOk(host, { t: 'room.setRules', rules: { lateranoMod: 'A', stage: null, bans: [] } });
-    await host.waitFor('room.state', (s) => s.code === st.code && s.rules.lateranoMod === 'A' && s.rules.stage === null);
-    await expectOk(guest, { t: 'room.ready', ready: true });
-    await host.waitFor('room.state', (s) => seatOf(s, guest.id)?.ready);
+    // a search without a kind is a vanilla one: the rules are cleared, the guest must ready up again, and the rules stay locked
     await expectOk(host, { t: 'room.search', on: true });
-    await host.waitFor('room.state', (s) => s.searching);
+    const sv = await host.waitFor('room.state', (s) => s.searching && s.searchKind === 'vanilla');
+    assert.equal(sv.vanillaLock, true);
+    assert.deepEqual(sv.rules, DEFAULT_RULES, 'the rules were cleared');
+    assert.equal(seatOf(sv, guest.id)?.ready, false, 'the others readied for other rules');
     await expectError(host, { t: 'room.setRules', rules: { extraFunds: true } }, ERR.CUSTOM_RULES);
+    await expectOk(host, { t: 'room.search', on: false });
+    await expectError(host, { t: 'room.setRules', rules: { extraFunds: true } }, ERR.CUSTOM_RULES);   // a guest is still seated
   });
 });

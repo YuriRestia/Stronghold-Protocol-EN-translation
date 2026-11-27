@@ -15,7 +15,8 @@ import { FieldRunner, HeadlessPacer, syntheticResult, BOSS_SILENCE_MS, CATCHUP_T
 import { FLOW_TICKER_PRIORITY, BOSS_CLOCK_MS, DELAYS } from './common.js';
 import { bossRiskConfig } from '../../sim/bossRisk.js';
 import { CC } from '../../../shared/ruleData.js';
-import { noteBattle, noteTeamLp } from '../autoAward.js';
+import { noteBattle, noteTeamLp, noteDowns } from '../autoAward.js';
+import { endingView } from '../results.js';
 
 /** b.pool broadcasts at most this often (ms). */
 const POOL_MIN_GAP_MS = 250;
@@ -553,7 +554,11 @@ export class MatchBoss {
     if (runner.ticks % 30 === 0) this.flush();
   }
 
-  _finalDone(runner, hidden) { this._finishFinal(hidden, (f) => runner.resultOf(f)); }
+  _finalDone(runner, hidden) {
+    // (fork, #192) how long the Final Assault fight ran, in game seconds (the Hidden Core's does not replace it): the result's `bossSeconds`
+    if (!hidden) this.finalAssaultSec = Math.round(runner.time * 10) / 10;
+    this._finishFinal(hidden, (f) => runner.resultOf(f));
+  }
 
   /** Every boss field is over: stats, bounties, then the Hidden Core or RESULT. */
   _finishFinal(hidden, resultOf) {
@@ -567,6 +572,7 @@ export class MatchBoss {
       this._collectSimErrors(f, res);
       f.live = false;
       noteChatKills(this, f, res);
+      noteDowns(this, res); // (GitHub #125) Low Efficiency
       for (const pid of f.players) {
         const pp = res.perPlayer && res.perPlayer[pid];
         const ps = this.players.get(pid);
@@ -578,6 +584,9 @@ export class MatchBoss {
           ps.creditedKills += creditedKillsOf(pp);
           ps.dirty(); // m.private.stats
           this._charDamageTickers(ps, pp);
+          // rlbot #197 I2: per-operator FA/Hidden Core damage (fields.js unitStats; skip a synthetic field's empty one). Without `name`:
+          // a DIY operator's name is the player's own text, and records are anonymous (defId names the operator)
+          if (Array.isArray(pp.unitStats) && pp.unitStats.length) ps.stats.faUnitStats.push({ round: this.round, hidden, units: pp.unitStats.map(({ name, ...u }) => u) });
         }
         if (pp && ps) {
           // the own battle counts as perfect when the team won, the result is a real one (not the stand-in of a field that
@@ -593,10 +602,12 @@ export class MatchBoss {
     this._syncTeamLp();
     this.deadline = 0;
     this.overtimeAt = 0;
+    const eligible = !hidden && victory && !!this.hiddenBossId && hiddenEligible(this.gd, { layerSum: this.hiddenLayerSum, teamLp: this.teamLp, scale: this.roomScale });
+    // (fork) no Hidden Core next: RESULT follows this pause — m.public `ending` (views.js)
+    if (!eligible) this.ending = endingView(this);
     this.markPublic();
     this.runner = null;
     if (!hidden) {
-      const eligible = victory && !!this.hiddenBossId && hiddenEligible(this.gd, { layerSum: this.hiddenLayerSum, teamLp: this.teamLp, scale: this.roomScale });
       this.later(this.scaled(DELAYS.SETTLE), () => {
         if (eligible) {
           this.hiddenReached = true;

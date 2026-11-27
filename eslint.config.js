@@ -126,8 +126,9 @@ export default [
     rules,
   },
   {
-    // The host-bot benchmark drives Chrome: its page.evaluate callbacks run in the page and use DOM globals (window, Worker).
-    files: ['tools/hostbotbench.mjs'],
+    // The host-bot benchmark and the card-framing tools (fork) drive Chrome: their page.evaluate callbacks run in the page
+    // and use DOM globals (window, document, Worker).
+    files: ['tools/hostbotbench.mjs', 'tools/card-art-framing.mjs', 'tools/dyn-cover-framing.mjs'],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: 'module',

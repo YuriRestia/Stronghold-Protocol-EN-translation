@@ -408,6 +408,7 @@
 .botinfo__about, .botinfo__tactics { margin: 0; padding-left: 1.2em; line-height: 1.45; font-size: calc(.14 * var(--t)); }
 .botinfo__sub { margin: .06rem 0 .02rem; font-size: calc(.13 * var(--t)); color: #9fa6a3; }
 .botinfo__scores { margin: 0 0 .04rem; font-size: calc(.12 * var(--t)); color: #9fa6a3; }
+.botinfo__spacc { margin: 0 0 .04rem; font-size: calc(.12 * var(--t)); color: #9fa6a3; }
 .botinfo__tactics code { font-size: calc(.12 * var(--t)); color: #9fa6a3; }
 .rseat__me { position: absolute; left: -.1rem; top: -.1rem; display: grid; place-items: center; width: max(.26rem, 16px); height: max(.26rem, 16px); color: #08221b; background: #4fe8c0; border-radius: 3px; }
 .rseat__me .icon { width: 80%; height: 80%; }
@@ -764,7 +765,25 @@
   50% { box-shadow: 0 0 .16rem .03rem rgba(78, 216, 175, .65); }
 }
 @media (prefers-reduced-motion: reduce) { .rules-open.is-new { animation: none; box-shadow: 0 0 .1rem .02rem rgba(78, 216, 175, .65); } }
+/* #139: a shimmer also sweeps across it, left to right, until the dialog has been opened once (none with reduced motion) */
+.rules-open.is-new { position: relative; overflow: hidden; }
+.rules-open.is-new::after { content: ''; position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .3) 50%, transparent 70%); animation: rules-new-shimmer 2.8s ease-in-out infinite; }
+@keyframes rules-new-shimmer { 0%, 30% { transform: translateX(-100%); } 80%, 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .rules-open.is-new::after { animation: none; display: none; } }
 .room-rules .rules-summary { order: 0; }
+/* A Grand Alliance opens private: its 公开 button glows like the rules button (same keyframes) until the host presses it, which asks
+   vanilla or modded (ui/modsPref.js OpenKindDialog) */
+.rs-access__opt.is-nudge { animation: rules-new-glow 2.4s var(--ease-out) infinite; position: relative; overflow: hidden; }
+.rs-access__opt.is-nudge::after { content: ''; position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .3) 50%, transparent 70%); animation: rules-new-shimmer 2.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .rs-access__opt.is-nudge { animation: none; box-shadow: 0 0 .1rem .02rem rgba(78, 216, 175, .65); } .rs-access__opt.is-nudge::after { animation: none; display: none; } }
+/* the lobby's Preference button (ui/modsPref.js) and the vanilla / modded dialog */
+.mods-pref { align-self: flex-start; padding: .04rem .12rem; background: transparent; color: var(--text-lo); border: 1px solid var(--line-2); font: inherit; font-size: calc(.15 * var(--t)); cursor: pointer; }
+.mods-pref:hover { color: var(--text-hi); border-color: var(--mint-500); }
+.mods-pref.is-on { color: #ffc45c; border-color: #ffc45c; }
+.open-kind__opts { display: flex; flex-direction: column; gap: .1rem; margin: .12rem 0; }
+.open-kind__note { margin: 0 0 .06rem; font-size: calc(.15 * var(--t)); }
 
 .rules-dialog .rules-note { margin: 0 0 .12rem; color: var(--text-lo); font-size: calc(.15 * var(--t)); }
 .rules-sec { display: flex; flex-direction: column; gap: .1rem; padding: .12rem 0; border-top: 1px solid var(--line-1); }
@@ -1133,49 +1152,95 @@
   .rs .vervote .vervote__actions { flex: none; }
 }
 
-/* ---- (fork) large rooms (shared/largeRoom.js): one row per squad, a squad tab on the left and 4 even cards ----------
-   8 cards in one row made thin, stretched strips on a desktop; two rows of 4 keep each card close to the shape of a
-   normal room's card and leave room for the art. */
-.rs-seats--large {
-  flex-direction: column;
-  align-items: stretch;
+/* ---- (fork) a co-op room's wide cards (room.js SeatCard `wide`; the user's layout I of 2026-11-22, the 4-seat room
+   like it the same day): each card a wide window onto its art — the animated illustrations are painted for a landscape
+   frame —, nothing over the art, the name plate under it carrying the ready state, the AI tag and the buttons; one's own
+   card a mint ring, the host's a crown on its top edge. The 4-seat room 2 × 2, a Grand Alliance room a row of 4 per squad
+   under its heading line. Each card is as large as the seat area allows at the art's shape (--rs-ar): its width from the
+   seat area (a size container), whichever of its width or its height is tighter. The solo room keeps its tall card. */
+.rs-seats--wide {
+  /* the art window's width : height, a design choice: the 4-seat room 16 : 9 (the user, 2026-11-22: "pick a size that
+     keeps the phone side ways framing, but doesn't show too much of the jagged border"; of the 98 illustrations 86 %
+     leave at most 5 % of the card uncovered there, 92 % at 1.6, crew-docs ga-room-redesign edge survey), a Grand Alliance
+     room 1.6 (its layout I); what a scene leaves uncovered shows the card's dark panel */
+  --rs-ar: 16 / 9;
+  --rs-gap: max(.12rem, 14px);
+  --rs-pad: max(.14rem, 14px);
+  --rs-plate: max(.5rem, 32px, calc(36px * var(--sp-ui, 1)), calc(.3 * var(--t)));
+  --rs-plate-gap: 4px;
+  --rs-head: max(.28rem, 22px, calc(.22 * var(--t)));
+  --rs-head-gap: 10px;
+  /* --rs-cw / --rs-ch: the seat area's content box, measured by room.js (useSeatArea) — container query units are out
+     (Firefox ESR 115, Safari < 16, client-static.test.js); the viewport until the first measure */
+  --rs-aw: min(calc((var(--rs-cw, 100vw) - 2 * var(--rs-pad) - var(--rs-gap)) / 2),
+    calc(((var(--rs-ch, 70vh) - 2 * var(--rs-pad) - var(--rs-gap)) / 2 - var(--rs-plate) - var(--rs-plate-gap)) * var(--rs-ar)));
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  align-content: center;
   justify-content: center;
-  gap: max(.12rem, 1.2vh);
-  padding: .3rem max(.4rem, 2vw) .1rem;
+  gap: var(--rs-gap);
+  padding: var(--rs-pad);
   overflow: hidden;
 }
-.rs-squad {
-  flex: 1 1 0;
-  min-height: 0;
-  width: 100%;
-  max-width: 1180px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: max(.42rem, 26px) minmax(0, 1fr);
-  gap: max(.1rem, .8vw);
+.rs-seats--large {
+  --rs-ar: 1.6;
+  --rs-aw: min(calc((var(--rs-cw, 100vw) - 2 * var(--rs-pad) - 3 * var(--rs-gap)) / 4),
+    calc(((var(--rs-ch, 70vh) - 2 * var(--rs-pad) - var(--rs-gap)) / 2 - var(--rs-head) - var(--rs-head-gap) - var(--rs-plate) - var(--rs-plate-gap)) * var(--rs-ar)));
+  grid-template-columns: auto;
 }
-.rs-squad__k {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-size: calc(.15 * var(--t));
-  font-weight: 700;
-  letter-spacing: .18em;
-  text-transform: uppercase;
-  color: #cfd8d4;
-  background: linear-gradient(0deg, rgba(207, 216, 212, .02), rgba(207, 216, 212, .1));
-  border-right: 3px solid #cfd8d4;
-}
-.rs-squad[data-squad="B"] .rs-squad__k { color: #9fd3ff; border-right-color: #9fd3ff; background: linear-gradient(0deg, rgba(159, 211, 255, .02), rgba(159, 211, 255, .1)); }
-.rs-squad__cards { min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: max(.1rem, 1vw); }
-/* the cards fill their grid cell instead of the one-row width (--w), keep their usual parts, a little tighter */
-.rs-seats--large .rseat { width: auto; min-width: 0; min-height: 0; animation-delay: calc(120ms + var(--i) * 45ms); }
-.rs-seats--large .rseat__art img { object-position: 50% 18%; }
-.rs-seats--large .rseat__plate { min-height: max(.56rem, 28px); margin-top: .05rem; padding: .04rem .08rem; }
-.rs-seats--large .rseat__doc, .rs-seats--large .rseat__noinfo, .rs-seats--large .rseat__invite small { display: none; }
+.rs-seats--wide .rseat { width: var(--rs-aw); min-width: 0; min-height: 0; --lit: #4fe8c0; --lit-glow: rgba(79, 232, 192, .35); --lit-line: rgba(79, 232, 192, .55); }
+.rs-seats--large .rseat { animation-delay: calc(120ms + var(--i) * 45ms); }
+.rs-seats--wide .rseat__strip { display: none; }
+.rs-seats--wide .rseat__art { flex: none; aspect-ratio: var(--rs-ar); border-top: 2px solid #2b2e2e; }
+.rs-seats--wide .rseat.is-lit .rseat__art { border-color: var(--lit); box-shadow: 0 0 .2rem var(--lit-glow); }
+.rs-seats--wide .rseat.is-lit .rseat__art::after { display: none; }
+.rs-seats--wide .rseat.is-lit .rseat__clip { background: var(--lit); }
+.rs-seats--wide .rseat__art img { object-position: 50% 18%; }
+/* one's own card: a mint ring around the whole card, a dark gap between it and a ready card's own border */
+.rs-seats--wide .rseat.is-me { outline: 2px solid #4fe8c0; outline-offset: 5px; box-shadow: 0 0 0 5px #0b0e0d, 0 0 .3rem 7px rgba(79, 232, 192, .35); }
+/* the host: a crown in a tab on the card's top edge, where the clip is */
+.rseat__crown { position: absolute; left: 50%; top: 0; z-index: 5; transform: translate(-50%, -58%); display: grid; place-items: center;
+  width: max(.36rem, 28px); height: max(.3rem, 23px); color: var(--lit, #4fe8c0); background: #1a1d1c; border: 2px solid var(--lit, #4fe8c0);
+  box-shadow: 0 0 .12rem var(--lit-glow, rgba(79, 232, 192, .45)); }
+.rseat__crown .icon { width: 72%; height: 72%; }
+/* the name plate: avatar, name, seat number, then the state and the buttons, the chat mute last */
+.rs-seats--wide .rseat__plate { display: flex; align-items: center; gap: .07rem; height: var(--rs-plate); min-height: 0; margin-top: var(--rs-plate-gap);
+  padding: 0 .08rem; }
+.rs-seats--wide .rseat.is-lit .rseat__plate { border-color: var(--lit-line); }
+.rs-seats--wide .rseat.is-me .rseat__plate { background: linear-gradient(90deg, #232626, #161818); }
+.rs-seats--wide .rseat__plate .avatar { flex: none; --av: calc(var(--rs-plate) - 10px); }
+.rs-seats--wide .rseat__plate .avatar__badge--self { display: none; }
+.rs-seats--wide .rseat__who { flex: 1 1 auto; }
+.rs-seats--wide .rseat__doc, .rs-seats--wide .rseat__noinfo, .rs-seats--wide .rseat__invite small { display: none; }
+.rs-seats--wide .rseat__mute { position: static; transform: none; flex: none; }
+.rseat__num { flex: none; font-size: calc(.12 * var(--t)); font-weight: 700; letter-spacing: .04em; color: #8f9895; }
+.rseat__acts { flex: none; display: flex; align-items: center; gap: .05rem; font-size: calc(.14 * var(--t)); line-height: 1.1; }
+.rseat__acts .rseat__state, .rs-seats--wide .rseat:not(.is-lit) .rseat__acts .rseat__state { margin: 0; gap: .04rem; font-size: calc(.14 * var(--t)); font-weight: 800;
+  color: var(--lit); text-shadow: none; }
+.rs-seats--wide .rseat:not(.is-lit) .rseat__acts .rseat__state { color: #d6dcda; }
+.rseat__acts .rseat__box, .rs-seats--wide .rseat:not(.is-lit) .rseat__acts .rseat__box { width: 1.25em; height: 1.25em; border-width: 1px; background: none; }
+.rseat__acts .rseat__bot { font-size: calc(.14 * var(--t)); padding: .01rem .05rem; }
+.rseat__acts .rseat__pick, .rseat__acts .rseat__swap, .rseat__acts .rseat__kick { position: static; inset: auto; opacity: 1; width: auto; min-width: max(.28rem, 20px);
+  height: max(.28rem, 20px); min-height: 0; margin: 0; padding: 0 .05rem; justify-content: center; font-size: calc(.14 * var(--t)); }
+.rseat__acts .rseat__pick span { display: none; }
+/* one's own profile picture: a dark quarter-circle in its corner with the pen, mint under the pointer */
+.rs-seats--wide .rseat .avedit__pen { right: 0; bottom: 0; width: 46%; height: 46%; place-items: end; padding: 5%; box-sizing: border-box; border-radius: 0;
+  color: #fff; background: radial-gradient(circle at 100% 100%, rgba(0, 0, 0, .7) 0, rgba(0, 0, 0, .55) 45%, transparent 75%);
+  transition: background var(--t-fast), color var(--t-fast); }
+.rs-seats--wide .rseat .avedit__pen .icon { width: 62%; height: 62%; filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
+.rs-seats--wide .rseat .avedit:hover .avedit__pen, .rs-seats--wide .rseat .avedit:focus-visible .avedit__pen { color: var(--text-on-mint);
+  background: radial-gradient(circle at 100% 100%, rgba(79, 232, 192, .95) 0, rgba(79, 232, 192, .75) 45%, transparent 75%); }
+.rs-seats--wide .rseat .avedit:hover .avedit__pen .icon, .rs-seats--wide .rseat .avedit:focus-visible .avedit__pen .icon { filter: none; }
+/* a Grand Alliance room: a squad's heading line — its name in the squad's colour, a rule, its ready count — over its row;
+   squad B's cards light in its blue */
+.rs-squad { display: grid; grid-template-columns: auto; row-gap: var(--rs-head-gap); min-width: 0; }
+.rs-squad__head { display: flex; align-items: center; gap: .14rem; height: var(--rs-head); --sq: #cfd8d4; --sq-fade: rgba(207, 216, 212, 0); color: var(--sq); }
+.rs-squad[data-squad="B"] .rs-squad__head { --sq: #9fd3ff; --sq-fade: rgba(159, 211, 255, 0); }
+.rs-squad__k { margin: 0; font-size: calc(.15 * var(--t)); font-weight: 800; letter-spacing: .2em; text-transform: uppercase; white-space: nowrap; }
+.rs-squad__rule { flex: 1 1 auto; height: 2px; background: linear-gradient(90deg, var(--sq), var(--sq-fade)); opacity: .7; }
+.rs-squad__ready { flex: none; font-size: calc(.14 * var(--t)); font-weight: 700; white-space: nowrap; }
+.rs-squad__cards { display: grid; grid-template-columns: repeat(4, auto); gap: var(--rs-gap); }
+.rs-squad[data-squad="B"] .rseat { --lit: #9fd3ff; --lit-glow: rgba(159, 211, 255, .35); --lit-line: rgba(159, 211, 255, .55); }
 .rs-seats--large .rseat--empty .rseat__art { padding-bottom: .12rem; }
 .rs-seats--large .rseat__invite { gap: .04rem; padding: .08rem; }
 .rs-seats--large .rseat__plus { width: max(.5rem, 24px); height: max(.5rem, 24px); }
@@ -1195,6 +1260,109 @@
 @media (max-height: 520px) {
   .rs-seats--large .rseat__plate--empty { display: none; }
   .rs-seats--large .rseat__art img { object-position: 50% 24%; }
+}
+/* (fork) tablets and small windows (1rem under about 78 px: narrower than about 1500 px, or 521–841 px tall): the
+   plate's and the heading's text take a larger share of --t, so it stays about 10–14 px where .12–.18 × --t gave 7–11 px
+   (a 1180 × 820 tablet: 1rem 61 px), and still follows 文字大小. 2319 × 1356 (1rem 121 px) is outside, unchanged. The
+   factors are design values (the user, 2026-11-23: "just need correct scaling to work on mobile"). */
+@media (min-height: 521px) and (max-width: 1497px), (min-height: 521px) and (max-height: 841px) {
+  .rs-seats--wide .rseat__who { font-size: calc(.22 * var(--t)); }
+  .rs-seats--wide .rseat__num { font-size: calc(.16 * var(--t)); }
+  .rs-seats--wide .rseat__acts, .rs-seats--wide .rseat__acts .rseat__state, .rs-seats--wide .rseat:not(.is-lit) .rseat__acts .rseat__state,
+  .rs-seats--wide .rseat__acts .rseat__bot, .rs-seats--wide .rseat__acts .rseat__pick, .rs-seats--wide .rseat__acts .rseat__swap,
+  .rs-seats--wide .rseat__acts .rseat__kick { font-size: min(calc(.18 * var(--t)), calc(13px + var(--t-step) / 2)); }
+  .rs-squad__k { font-size: calc(.18 * var(--t)); }
+  .rs-squad__ready { font-size: calc(.17 * var(--t)); }
+  /* an empty seat's plus, 邀请 and 添加 AI 队友 inside the wide card: the tall card's paddings (.5rem under, .2rem and a
+     46 px plus inside) were a card and a half here, so 添加 AI 队友 was cut off at 大 and 特大 (1100 × 530, 960 × 540) */
+  .rs-seats--wide .rseat--empty .rseat__art { padding-bottom: .06rem; }
+  .rs-seats--wide .rseat__invite { gap: .03rem; padding: .04rem; }
+  .rs-seats--wide .rseat__plus { width: max(.4rem, 16px); height: max(.4rem, 16px); }
+  .rs-seats--wide .rseat__plus::before { width: 4px; }
+  .rs-seats--wide .rseat__plus::after { height: 4px; }
+  .rs-seats--wide .rseat__add { margin-top: .03rem; min-height: 0; padding-block: .02rem; }
+}
+/* a small window 521–600 px tall: the plate drops the ready word, as on phones (the user, 2026-11-24, "for your questions, as recommended":
+   Dev 62's proposal; the ✓ box and the lit card say it, screen readers still read it) — at 特大 it ran past the plate on 1100 × 530, 960 × 540,
+   1024 × 600 and 800 × 600 [src: work/dev-62 room-fit-wait.out, 2026-11-24] */
+@media (min-height: 521px) and (max-height: 600px) {
+  /* and the AI tag its words: the robot icon stays (the user, 2026-11-24, "7 yes" to the lead's "AI tag icon only"), the words for screen readers */
+  .rs-seats--wide .rseat__acts .rseat__botname, .rs-seats--wide .rseat__acts .rseat__said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+/* (fork) the wide cards on a short landscape phone keep the PC layout, scaled (the user, 2026-11-23: "adapt the room &
+   grand alliance UI for mobile, I expect the current layout of PC is fine, just need correct scaling"). 1rem is 40 px
+   here, so the PC's px floors (14 px gaps, a 36 px plate, a 22 px heading) took a third of the seat area and left a
+   Grand Alliance card 37 px wide; the gaps, the plate and the heading come down to the screen's scale, the plate's text
+   keeps 10–12 px at 小 and grows half a pixel a step above it (--t-step), the name one line with an ellipsis. The
+   short-screen rules above were written for the tall cards (a two-line name, plate floors) and stay off these. The
+   sizes are design values, measured to fit 667 × 375 to 932 × 430 phones. */
+@media (max-height: 520px) {
+  .rs-seats--wide {
+    --rs-gap: 8px; --rs-pad: 6px; --rs-plate: 26px; --rs-plate-gap: 3px; --rs-head: 16px; --rs-head-gap: 4px;
+  }
+  .rs-seats--wide .rseat__plate { gap: 4px; padding: 0 4px; }
+  .rs-seats--wide .rseat__plate .avatar { --av: calc(var(--rs-plate) - 4px); }
+  .rs-seats--wide .rseat__who { font-size: min(calc(.3 * var(--t)), calc(12px + var(--t-step) / 2)); }
+  .rs-seats--wide .rseat__who .seat__name { display: block; white-space: nowrap; overflow-wrap: normal; -webkit-line-clamp: none; line-clamp: none; }
+  .rs-seats--wide .rseat__acts { gap: 3px; }
+  .rs-seats--wide .rseat__acts, .rs-seats--wide .rseat__acts .rseat__state, .rs-seats--wide .rseat:not(.is-lit) .rseat__acts .rseat__state,
+  .rs-seats--wide .rseat__acts .rseat__bot { font-size: min(calc(.28 * var(--t)), calc(11px + var(--t-step) / 2)); }
+  .rs-seats--wide .rseat__acts .rseat__pick, .rs-seats--wide .rseat__acts .rseat__swap, .rs-seats--wide .rseat__acts .rseat__kick { min-width: 20px; height: 20px; }
+  .rs-seats--wide .rseat__crown { width: 22px; height: 18px; }
+  .rs-squad__k, .rs-squad__ready { font-size: min(calc(.28 * var(--t)), calc(11px + var(--t-step) / 2)); }
+  /* what the plate drops to keep the name readable: the ready word (the ✓ box and the lit card say it; screen readers
+     still read it), the seat number of the one-row plate (the card's place says it) and the remove button's person / robot
+     (its × in the red pill stays, its name and tooltip unchanged) */
+  .rs-seats--wide .rseat__acts .rseat__said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .rs-seats--wide .rseat__num { display: none; }
+  .rs-seats--wide .rseat__kick .icon:first-child { display: none; }
+  .rs-seats--wide .rseat__kick .icon + .icon { width: 12px; height: 12px; margin-left: 0; }
+  /* the chat mute as large as the other buttons (its .26rem was 10 px here); on a touch screen each plate button takes
+     taps over a 44 px tall strip (--tap-min), no wider than itself and its gaps, so a neighbour never takes its tap */
+  .rs-seats--wide .rseat__mute { width: 20px; height: 20px; }
+  .rs-seats--wide .rseat__mute .icon { width: 12px; height: 12px; }
+  .sp-coarse .rs-seats--wide :is(.rseat__acts .rseat__pick, .rseat__acts .rseat__swap, .rseat__acts .rseat__kick, .rseat__mute) { position: relative; inset: auto; }
+  .sp-coarse .rs-seats--wide :is(.rseat__acts .rseat__pick, .rseat__acts .rseat__swap, .rseat__acts .rseat__kick, .rseat__mute)::before {
+    content: ''; position: absolute; left: -2px; right: -2px; top: 50%; height: var(--tap-min, 44px); transform: translateY(-50%);
+  }
+  /* a Grand Alliance room: the squad's heading line (name, rule, ready count) stands at the left of its row, read bottom
+     to top, so the two rows of cards get its height — the screen's width is what a phone has to spare */
+  .rs-seats--large {
+    --rs-aw: min(calc((var(--rs-cw, 100vw) - 2 * var(--rs-pad) - 3 * var(--rs-gap) - var(--rs-head) - var(--rs-head-gap)) / 4),
+      calc(((var(--rs-ch, 70vh) - 2 * var(--rs-pad) - var(--rs-gap)) / 2 - var(--rs-plate) - var(--rs-plate-gap)) * var(--rs-ar)));
+  }
+  .rs-squad { position: relative; padding-left: calc(var(--rs-head) + var(--rs-head-gap)); }
+  .rs-squad__head { position: absolute; left: 0; top: 0; bottom: 0; flex-direction: row; width: var(--rs-head); height: auto; gap: 4px; overflow: hidden;
+    writing-mode: vertical-rl; transform: rotate(180deg); }
+  /* its count without the word 已就绪 (the count beside the squad's name says it), so the label fits a 667 × 375 row */
+  .rs-squad__k { letter-spacing: .1em; }
+  .rs-squad__word { display: none; }
+  .rs-squad__rule { width: 2px; height: auto; background: linear-gradient(180deg, var(--sq), var(--sq-fade)); }
+  /* its plate (a card 120–180 px wide) leaves the ✓ box out too — the card's lit ring and the squad's ready count say
+     it — and the other players' profile icons (one's own stays: it is the icon picker), so a host's plate, with its swap,
+     remove and mute buttons, still shows the name (4–5 letters were left with them) */
+  .rs-seats--large .rseat__acts .rseat__box { display: none; }
+  .rs-seats--large .rseat__plate > .avatar { display: none; }
+  /* the 4-seat room: one row of tall cards (the user's pick of 2026-11-23 from the phone mock-ups, "yeah one row tall is a
+     good idea": the 2 × 2 of 16 : 9 cards left the screen's sides empty). Each card a quarter of the seat area's width, its
+     art as tall as the area allows under the own card's ring and the host's crown (14 px), about 0.8 wide : tall on
+     667 × 375 to 932 × 430 phones, nearer the illustrations' own tall window; the room chat's button keeps its place at
+     the row's left (58 px) */
+  .rs-seats--wide:not(.rs-seats--large) {
+    grid-template-columns: repeat(4, auto);
+    --rs-aw: calc((var(--rs-cw, 100vw) - 2 * var(--rs-pad) - 3 * var(--rs-gap)) / 4);
+  }
+  .rs-seats--wide:not(.rs-seats--large) .rseat__art { aspect-ratio: auto;
+    height: calc(var(--rs-ch, 70vh) - 2 * var(--rs-pad) - var(--rs-plate) - var(--rs-plate-gap) - 14px); }
+  .rs--chat .rs-seats--wide:not(.rs-seats--large) { padding-left: 58px; }
+  /* the footer: the status line beside the difficulty pill while both fit (above it, as on PC, when they do not), the
+     host's 搜寻队友 switch (or its place) beside the big button, so the cards get the height */
+  .rs-foot__center { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 4px; }
+}
+/* the 搜寻队友 switch beside the big button only where the pill keeps its room beside them: under 721 px the footer takes
+   two rows anyway, and beside the button the switch's place left a Grand Alliance pill without its ⚙ (667 × 375) */
+@media (max-height: 520px) and (min-width: 721px) {
+  .rs-foot__right { flex-direction: row; align-items: center; gap: 8px; }
 }
 /* a portrait screen: 2 cards a row, the rows scroll */
 @media (max-aspect-ratio: 1/1) {
@@ -1383,6 +1551,19 @@
   color: var(--text-hi); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
 }
 @media (max-width: 900px) { .rs-foot__left { display: contents; } }
+/* (fork) a short landscape phone: the chat button shows its icon and unread count only (聊天 stays its name for screen
+   readers) and no last line under it (the line shows as the sender's bubble on their seat card), so it stays in the margin
+   beside the wide cards, which now take the screen's width (the room and Grand Alliance scaling of 2026-11-23) */
+@media (max-height: 520px) {
+  .clog-mini { width: auto; }
+  .clog-mini__btn { padding: 8px 10px; }
+  .clog-mini__btn > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .clog-mini__last { display: none; }
+}
+/* (fork) the chat button of a small desktop window (特大 text, ui/chatLog.js LARGE_TEXT_QUERY): below the top bar's tags, which wrap to a second line there */
+@media (min-width: 901px) and (min-height: 521px) {
+  .clog-mini { top: max(112px, 21vh); }
+}
 /* the seat bubbles (match chat's ChatBubble / EmoteBubble) over the card's lower half, and the plate's mute. The bubble
    always fits the portrait, which clips (overflow: hidden): the layer is the portrait less 3 px; a bubble sits with its
    foot 30 % up as before, a taller one slides down to the bottom (the spacer under it gives way), and it is never taller
@@ -1409,3 +1590,5 @@
 .rules-why__tag { padding: .08rem .12rem; margin-top: .06rem; border-left: 2px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .03); }
 .rules-why__tag ul { margin: .03rem 0 0; padding-left: 1.1em; font-size: calc(.13 * var(--t)); color: #c9cecb; }
 .rules-why__at { color: #9fa6a3; }
+
+.rbr-card__mod { padding: 0 .08rem; color: #ffc45c; border: 1px solid #ffc45c; font-size: calc(.13 * var(--t)); }

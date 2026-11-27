@@ -63,7 +63,7 @@ export function snapFrame(fieldId, snap) {
 
 /** Synthetic per-player result used when a field could not run at all (never punishes the player). */
 export function emptyPerPlayer() {
-  return { killed: 0, total: 0, resolved: 0, leaked: [], perfect: true, layerGains: {}, coins: 0, damageDealt: 0, bossDamage: 0, healingDone: 0, deaths: 0, unitsEnd: [], unitStats: [] };
+  return { killed: 0, total: 0, resolved: 0, leaked: [], perfect: true, layerGains: {}, coins: 0, damageDealt: 0, bossDamage: 0, healingDone: 0, deaths: 0, downs: 0, unitsEnd: [], unitStats: [] };
 }
 
 /** A finished stand-in for a battle that failed to construct. */
@@ -944,7 +944,7 @@ export function validateClientResult(spec, raw, { gd = null, botField = false } 
       const stat = (v) => (finiteIn(v, 0, 1e13) ? v : 0);
       perPlayer[pid] = {
         killed: p.killed, total: p.total, leaked, perfect: countedLeaks === 0, layerGains, coins,
-        damageDealt: stat(p.damageDealt), bossDamage: stat(p.bossDamage), healingDone: stat(p.healingDone), deaths: Math.trunc(stat(p.deaths)),
+        damageDealt: stat(p.damageDealt), bossDamage: stat(p.bossDamage), healingDone: stat(p.healingDone), deaths: Math.trunc(stat(p.deaths)), downs: Math.max(Math.trunc(stat(p.deaths)), Math.trunc(stat(p.downs))), // a knock-out starts a redeploy timer: never fewer downs than deaths
         unitsEnd, unitStats,
         creditedKills: Number.isInteger(p.creditedKills) ? p.creditedKills : unitStats.reduce((n, u) => n + u.kills, 0),
       };

@@ -81,7 +81,7 @@ test('plan: the picture-only operators behind the AI seat names (BOT_OPERATORS: 
   for (const id of bots) assert.ok(fielded.audio.voice[id]?.select, `${id}: voiced once the game can field it`);
 });
 
-test('data/assets.json: voiceJp gives every voiced operator the JP twin of each Chinese line (215 operators, 3009 files); stand-ins, 盟约·辅助干员 and summons have neither', () => {
+test('data/assets.json: voiceJp gives every voiced operator the JP twin of each Chinese line (215 operators, 3647 files); stand-ins, 盟约·辅助干员 and summons have neither', () => {
   const m = readJson('data/assets.json');
   const cn = m.audio.voice;
   const jp = m.audio.voiceJp;
@@ -99,7 +99,8 @@ test('data/assets.json: voiceJp gives every voiced operator the JP twin of each 
   const lines = [];
   const walk = (x) => { if (typeof x === 'string') lines.push(x); else if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === 'object') Object.values(x).forEach(walk); };
   for (const [k, v] of Object.entries(jp)) if (!k.includes('#')) walk(v);
-  assert.equal(lines.length, 3009);
+  // 3009 until the lobby voice lines of the animated-card operators (2026-11-23: 58 operators × 11 lines, 3647)
+  assert.equal(lines.length, 3647);
   for (const u of lines) assert.match(u, /^\/assets\/audio\/voice\/jp\/char_[^/]+\/cn_\d+\.mp3$/);
   // no voice: the 17 stand-ins of data/backups.json (预备干员 / 原型干员), the mode's 盟约·辅助干员, every summon
   const backups = readJson('data/backups.json');

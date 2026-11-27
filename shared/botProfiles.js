@@ -53,6 +53,37 @@ export function botScore(info) {
   return { score: s + tm, sd: Math.round(100 * Math.sqrt(v(s, n.solo) + v(tm, n.team))) };
 }
 
+/**
+ * (fork, GitHub #124 level 3; fish-edition/spacc/grinder-definition.md) The SPA-CC grinder: fixed lobby-rule sets (Risk tags) the bot
+ * plays on Ultimate, one list for solo and one for the team of 4 (4 clones), 8 sets each, 4 of them shared. Each list is worth
+ * `SPACC_WEIGHT` points per set × its win rate (so 50 + 50 per shared set: the definition's "100 per set, split 50/50"): 800 at most when all 16 are measured,
+ * on top of the 0–200 of levels 1–2; the score's own `max` is what the sets measured so far can give (50 each). A bot's numbers are `spacc: { solo: { H5: [wins, matches], … }, team: { … } }`; sets it has not
+ * been measured on are absent and the score says how many it covers.
+ */
+export const SPACC_SETS = Object.freeze({
+  solo: Object.freeze(['H5', 'H10', 'F9', 'C3', 'H15', 'H18', 'S5', 'S6']),
+  team: Object.freeze(['H5', 'H10', 'C3', 'S6', 'CB2', 'H10B', 'CO10', 'CO15']),
+});
+export const SPACC_WEIGHT = 50;
+/**
+ * The SPA-CC score of a bot over the sets it is measured on, with ± 1 standard deviation (binomial, per set). Null when it has none.
+ * @param {{ spacc?: { solo?: Record<string, [number, number]>, team?: Record<string, [number, number]> } } | null | undefined} info
+ * @returns {{ points: number, sd: number, max: number, sets: number, of: number, matches: number, rate: number } | null} `rate`: the mean win rate (%) over the sets measured
+ */
+export function spaccScore(info) {
+  let points = 0, v = 0, sets = 0, matches = 0, rates = 0;
+  for (const mode of ['solo', 'team']) {
+    for (const id of SPACC_SETS[mode]) {
+      const r = info?.spacc?.[mode]?.[id];
+      if (!Array.isArray(r) || !(r[1] > 0) || !(r[0] >= 0) || r[0] > r[1]) continue;
+      const p = r[0] / r[1];
+      rates += p; points += SPACC_WEIGHT * p; v += (SPACC_WEIGHT ** 2) * p * (1 - p) / r[1]; sets++; matches += r[1];
+    }
+  }
+  const of = SPACC_SETS.solo.length + SPACC_SETS.team.length;
+  return sets ? { points: Math.round(points), sd: Math.round(Math.sqrt(v)), max: SPACC_WEIGHT * sets, sets, of, matches, rate: Math.round((100 * rates) / sets) } : null;
+}
+
 /** " (113)": the bot's strength score for a drop-down option or a seat label, "" for a bot without measured numbers (GitHub #172). */
 export function botScoreSuffix(id) {
   const sc = botScore(BOT_INFO[id]);
@@ -62,6 +93,7 @@ export function botScoreSuffix(id) {
 export const BOT_INFO = Object.freeze({
   legacy: {
     strength: 36, team: 63, n: { solo: 380, team: 340 },
+    spacc: { solo: { H5: [272, 1000], H10: [176, 1000], F9: [178, 1000], C3: [171, 1000] } }, // #124, 2026-11-18, commit 3b00c4e42
     about: [
       N_('选择一个主盟约，围绕它购买、合成并升级干员，按回合推进调度中心等级'),
       N_('避免购买队友正在收集的盟约干员（高星干员更是如此），不与队友争抢'),
@@ -72,6 +104,7 @@ export const BOT_INFO = Object.freeze({
   'fish-level': {
     // plays legacy's exact games on Ultimate (its curve is legacy's there: ai-players/05), so legacy's pooled numbers
     strength: 36, team: 63, n: { solo: 380, team: 340 },
+    spacc: { solo: { H5: [272, 1000], H10: [176, 1000], F9: [178, 1000], C3: [171, 1000] } }, // #124, 2026-11-18, commit 3b00c4e42
     about: [N_('按升级曲线提升调度中心等级，曲线按模式长度换算（较短的模式升级更早）'), N_('其余同基础 AI'),
       N_('终极难度下它的升级曲线与基础 AI 的升级相同，所以对局完全一样，强度数字也相同；区别只在较短的模式中')],
     tactics: [{ id: 'level-curve', text: N_('升级曲线：每回合把调度中心升到曲线的等级，然后由基础 AI 继续升级') }],
@@ -100,6 +133,7 @@ export const BOT_INFO = Object.freeze({
   },
   evobot: {
     strength: 42, team: 71, n: { solo: 380, team: 340 },
+    spacc: { solo: { H5: [294, 1000], H10: [199, 1000], F9: [222, 1000], C3: [203, 1000] } }, // #124, 2026-11-18, commit 3b00c4e42
     about: [
       N_('在基础 AI 之上自动调参得到，在 2000 局对比测试中胜过基础 AI'),
       N_('从第 9 回合起，卖掉手牌中凑不成对的一、二星干员'),

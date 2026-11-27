@@ -31,11 +31,11 @@ npm run golden:update                                            # 有意改变�
 npm run lint && npm run check:imports && npm run typecheck       # 代码检查、导入边界、类型
 ```
 
-提交 PR 前可以一条命令跑一遍 GitHub CI（`.github/workflows/ci.yml`）的 test、node24 守卫和 tooling 检查：`npm run ci`（或 `node tools/ci.mjs`）。
+提交 PR 前可以一条命令跑一遍 GitHub CI（`.github/workflows/ci.yml`）的 test、node22 守卫和 tooling 检查：`npm run ci`（或 `node tools/ci.mjs`）。
 依次是 setup 检查、`npm test`、服务器冒烟测试（在空闲端口启动、请求 `/healthz` 和首页、运行 doctor，然后关掉）、CI 守卫、lint、导入边界、
 类型；第一步失败就停下并打印每步结果和耗时。`--keep-going` 失败后继续，`--only lint,test` 只跑指定步骤，`--list` 列出步骤。
 不包含 `npm ci`（依赖请自己装），也不跑 Node 版本 × 系统的矩阵。
-全量 Golden 在独立的 Ubuntu / Node 22 job 中运行，本地另跑 `npm run golden`。发现差异直接失败并列出场景和字段，CI 不更新期望结果。
+全量 Golden 在独立的 Ubuntu / Node 24 job 中运行，本地另跑 `npm run golden`。发现差异直接失败并列出场景和字段，CI 不更新期望结果。
 
 另有独立检查 `local-extract (Python 3.8 syntax)`（`.github/workflows/local-extract-python.yml`）：用 setup 接受的最低 Python 3.8 执行 `python -m compileall -q -f tools/local-extract`，不安装提取依赖、不需要官方素材。
 
@@ -45,7 +45,7 @@ npm run lint && npm run check:imports && npm run typecheck       # 代码检查�
 `node --test --test-reporter=junit --test-reporter-destination=report.xml …` 生成）。`test/ci-shards.test.js` 守着
 「每个文件恰好一片」和「偏差不超过 1.3×」。权重来源、超时口径与测量上的坑见 [docs/CI.md](docs/CI.md)。
 
-CI 测试矩阵为 Ubuntu/Windows × Node 22 × 四片（8 个任务），Node 24 只跑 `test:guards`。本地 `npm run ci` 的测试步骤清掉继承的 `SHARD`/`JUNIT`，仍跑全量；`SHARD=2 npm test` 可手动复现一片。
+CI 测试矩阵为 Ubuntu/Windows × Node 24 × 四片（8 个任务）；（fork）线上服务器升级前，临时的 Node 22 任务只跑 `test:guards` 和插件沙箱测试。本地 `npm run ci` 的测试步骤清掉继承的 `SHARD`/`JUNIT`，仍跑全量；`SHARD=2 npm test` 可手动复现一片。
 
 CI 分两档（GitHub #43）。完整档：推送到 main、合入 main 的 PR，跑全部测试，每种系统 × Node 组合分 3 个运行器
 （`node tools/test-tier.mjs --shard k/3`），汇总成 `full CI` 检查。快速档：合入其他分支（`mini/*` 分支、叠放 PR 的下层分支）的 PR，一个 Ubuntu 运行器，
@@ -67,7 +67,7 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
 
 某个浏览器测试失败时，先用 `node tools/test-repro.mjs <文件> --test "<测试名>"` 在一两分钟内复现，不要整个文件反复跑：它把这条测试单独跑 N 次（`--runs`，默认 5），再在文件里排在它前面的测试之后各跑 N 次（`--before "<测试名>"` 指定，`--orders` 取前面的全部），用的是同一个文件进程（文件自己的 before 钩子、服务器和浏览器，顺序和整文件运行时一样，只是跳过中间的测试）。单独通过不能证明是机器负载：前一条测试留下的状态（缓存、页面、全局变量）只有按同样顺序才会出现。`--cpu 4` 让 Chrome 的 CPU 慢四倍来模拟负载；Chrome 默认加上 `tools/perfbench.mjs` 的 GPU 参数（`--own-flags` 只用文件自己的参数，和 `npm run test:browser` 一样）。结果是一张表（情形 / 次数 / 通过 / 失败 / 第一次失败的信息），每次运行的 spec 输出、页面控制台和失败时的截图放在 `test/e2e/out/repro/`；有失败时退出码非 0。`--list` 列出文件里的测试。设置 `SP_LANE_DIR`（车道锁所在的文件夹）时它占 `fix-browser-3.lock`（两车道的文件再占 `fix-browser-2.lock`），`perf-quiet` 存在时等待。
 
-每次运行（`test-repro`、`npm run test:browser`，以及任何带 JUnit 文件的 `node --test` 运行：`node tools/test-repro.mjs --report <junit.xml>`）之后都有一张失败报告和 `failures.json`：每条失败的测试写明文件、完整测试名、第一行错误、它从文件开始算起第几秒开始（有钩子记录时是准确值，只有 JUnit 时是前面测试时间之和，标 ≈）、它自己跑了多久、整个文件的总时间、文件里在它之前跑过的测试，以及截图和控制台。`tools/browser-suite.json` 也保存每条测试的时间（`--weigh`），运行前按所选的测试算出预计时间，运行后打印实际时间。`--rerun-failed <failures.json>` 只重跑失败的测试：先单独跑；单独通过就说明“依赖前面的测试”，再只在它之前实际跑过的那些测试之后跑一次；开跑前先打印要花的时间。`--changed <git 范围>`（`HEAD` 表示工作区相对 HEAD）只跑改动可能影响的测试：测试文件里改的是哪个 `test()` 就跑哪个；改的是辅助函数或常量，就跑实际执行过改动那几行（或用到那个名字）的测试；改的是页面代码（`public/js`、CSS）或进程内服务器的代码，就跑覆盖率图里用到改动那几行（CSS 是匹配到改动的规则）的测试。覆盖率图在每次运行时由钩子更新（`test/e2e/out/coverage/`，测试进程按代码块、页面脚本按函数、样式按匹配的规则记录）。还没有覆盖记录的文件、改了 before / after 钩子等公共准备、或者启动独立服务器进程的文件，都会说明原因并整文件运行；改了 tools、data 等无法对应到测试的文件时什么也不启动，并说明原因。从不悄悄跳过。`--budget K` 给每条有测量时间的测试设超时 max(下限, K × 测量时间)（`--budget-floor`，默认 20 秒）；超时在报告里写成“stopped by budget after N s (expected M s)”，和真正的失败分开。
+每次运行（`test-repro`、`npm run test:browser`，以及任何带 JUnit 文件的 `node --test` 运行：`node tools/test-repro.mjs --report <junit.xml>`）之后都有一张失败报告和 `failures.json`：每条失败的测试写明文件、完整测试名、第一行错误、它从文件开始算起第几秒开始（有钩子记录时是准确值，只有 JUnit 时是前面测试时间之和，标 ≈）、它自己跑了多久、整个文件的总时间、文件里在它之前跑过的测试，以及截图和控制台。`tools/browser-suite.json` 也保存每条测试的时间（`--weigh`），运行前按所选的测试算出预计时间，运行后打印实际时间。`--rerun-failed <failures.json>` 只重跑失败的测试：先单独跑；单独通过就说明“依赖前面的测试”，再只在它之前实际跑过的那些测试之后跑一次；开跑前先打印要花的时间。`--changed <git 范围>`（`HEAD` 表示工作区相对 HEAD）只跑改动可能影响的测试：测试文件里改的是哪个 `test()` 就跑哪个；改的是辅助函数或常量，就跑实际执行过改动那几行（或用到那个名字）的测试；改的是页面代码（`public/js`、CSS）或进程内服务器的代码，就跑覆盖率图里用到改动那几行（CSS 是匹配到改动的规则）的测试。（fork）覆盖率图由浏览器测试套件记录（`npm run test:browser`，除非加 `--no-coverage`）；`test-repro` 只在加 `--coverage` 时记录（测试进程按代码块、页面脚本按函数、样式按匹配的规则，以及页面请求过的其他仓库文件）。它存放在 `test/e2e/out/coverage/`，设置 `SP_COVERAGE_DIR` 时放在那里（所有工作目录共用一份），每个文件上限 16 MB、总共 400 MB（`SP_COVERAGE_CAP_MB`），超出时先删除记录时间最早的图。测试导入的工具或脚本按行定位，和辅助文件一样；数据文件、语言包或开发页面按页面请求过它的测试定位（进程内服务器启动时读取的游戏数据：整文件运行）；文档、计时表和提取器的 Python 什么也不启动；其他文件（package 文件等）让所有候选文件整文件运行。还没有覆盖记录的文件、记录早于请求记录功能的文件、改了 before / after 钩子等公共准备、或者启动独立服务器进程的文件，都会说明原因并整文件运行。从不悄悄跳过。`--budget K` 给每条有测量时间的测试设超时 max(下限, K × 测量时间)（`--budget-floor`，默认 20 秒）；超时在报告里写成“stopped by budget after N s (expected M s)”，和真正的失败分开。
 
 真实服务器的浏览器测试不必按游戏计时器的速度等待：`startRealServer({ fast })` 启动的测试服务器（`test/e2e/fastServer.mjs`）接受两种只供测试工具使用的控制（`test/e2e/harnessControl.mjs`，经测试进程的 IPC 通道，任何网络连接都够不到）：`srv.endPhase(房间码, 阶段)` 让当前有时限的阶段立刻到时（走的就是到时的那个回调），`srv.hold(房间码)` / `srv.release(房间码)` 冻结 / 恢复正在进行的战斗（服务器和页面的战斗时钟一起停，和单人暂停是同一条路径，但不显示「暂停中」）。在检查之间结束固定的过场阶段，在战斗中检查时先冻结，就可以把 `combatSpeed` 调高。正式服务器（`server/index.js`）不加载它们（`test/match/harness-control.test.js`）。同盟流程的四段真实服务器测试拆成 `test/e2e/coop-{facing,coop,solo,result}.e2e.test.js` 四个文件，可以并行跑。
 
@@ -185,11 +185,16 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
   `--changed <git range>` (`HEAD`: the working tree against HEAD) runs only what a change can affect: a test file's
   edited `test()` blocks; for a helper or a constant, the tests that ran the changed lines (or a line using the name);
   for app code (`public/js`, CSS) and in-process server code, the tests whose recorded coverage used the changed lines
-  (for CSS, matched the changed rule). The hook refreshes that coverage map on every run (`test/e2e/out/coverage/`: the
-  test process by block, the pages' scripts by function, style sheets by matched rule). A file with no record yet, a
-  change to shared setup (a before / after hook) or a file that starts a separate server process runs whole, with the
-  reason printed; a change to files no test maps (tools, data) starts nothing and says why. Nothing is skipped
-  silently. `--budget K` gives each test with a measured time the timeout max(floor, K x that time) (`--budget-floor`,
+  (for CSS, matched the changed rule). (fork) The browser suite (`npm run test:browser`, unless `--no-coverage`) records
+  that coverage map; `test-repro` records it only with `--coverage` (the test process by block, the pages' scripts by
+  function, style sheets by matched rule, and every other repository file a page requested). It lives in
+  `test/e2e/out/coverage/`, or in `SP_COVERAGE_DIR` (one map for every checkout), capped at 16 MB a file and 400 MB in
+  all (`SP_COVERAGE_CAP_MB`); past the cap the maps recorded longest ago are removed. A tool or script a test imports is
+  placed by line like a helper; a data file, language pack or dev page by the tests whose pages requested it (game data
+  an in-process server read at start: the whole file); docs, timing tables and the extractor's Python start nothing; any
+  other file (package files) runs every candidate file whole. A file with no record yet, a record made before requests
+  were logged, a change to shared setup (a before / after hook) or a file that starts a separate server process runs
+  whole, with the reason printed. Nothing is skipped silently. `--budget K` gives each test with a measured time the timeout max(floor, K x that time) (`--budget-floor`,
   default 20 s); the report says "stopped by budget after N s (expected M s)", apart from real failures.
   Real-server browser tests need not wait at game-timer speed: the test server of `startRealServer({ fast })`
   (`test/e2e/fastServer.mjs`) answers two harness-only controls (`test/e2e/harnessControl.mjs`, over the test process's

@@ -110,6 +110,7 @@ export class PlayerRound {
   }
 
   recompute() {
+    this.applyModVBonds(); // (Fish Edition) Mod V Viviana: the Alliances of Mlynar, Nearl and Degenbrecher
     noteHand(this.m, this); // (GitHub #125) a placement or unequip that filled the hand: Junk 1 can't be awarded
     this.deployMap(); // a change of the deploy field (a boss round's prep) marks the legality stale
     if (this._legalityStale) this._evictIllegal();
@@ -170,6 +171,7 @@ export class PlayerRound {
     for (const { r, c, piece } of boardOrder(this.board)) {
       if (piece.kind === 'chess') {
         const u = { uid: piece.uid, kind: 'chess', chessId: piece.id, row: r, col: c, dir: pieceDir(piece), items: (piece.items || []).map((i) => i.id) };
+        if (Array.isArray(piece.grantedBonds) && piece.grantedBonds.length) u.grantedBonds = piece.grantedBonds.slice(); // Mod Z Kal'tsit Esperanta
         const progress = equippedItemProgress(this, piece);
         if (progress) u.itemProgress = progress;
         const pick = this.diyPickOf(piece.id);
@@ -177,6 +179,7 @@ export class PlayerRound {
           // 0.2.0 自选编队: a slotted DIY slot fights as its pick (sim getChess(id, { diy }): the operator's body, the pick's
           // skill and module — no loadout fields, docs/SIM.md §12)
           u.diy = { charId: pick.charId, skillIndex: pick.skillIndex, uniEquipId: pick.uniEquipId };
+          this.diyEver.add(pick.charId);
         } else if (this.fieldsStandIn(piece.id)) {
           // 0.2.0 补位: a chess this player does not own fights as its stand-in (sim getChess(id, { standIn: true }): the
           // backup skill / module — no loadout fields, docs/SIM.md §12)

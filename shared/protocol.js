@@ -18,9 +18,17 @@ import { isRoomBot, isFillPreset } from './botProfiles.js';
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
 const isStr = (v, max = 64) => typeof v === 'string' && v.length <= max;
+/**
+ * (fork) The longest `room.join.carry` (the signed settings of a moved Doctor, Lobby.crossCarry): a room.join frame stays
+ * inside the server's 64 KB inbound frame (server/http/websocket.js WS_MAX_PAYLOAD) with 4 KB for the rest of it. A
+ * longer one is not sent: that Doctor's page resends its settings after the move, as before.
+ */
+export const CROSS_CARRY_MAX_LEN = 60 * 1024;
 /** (fork) the longest chat frame text accepted at all (UTF-16 units): a real line is at most 300 code points, 600 units */
 const CHAT_FRAME_MAX = 600;
 const isBool = (v) => typeof v === 'boolean';
+// (fork) what a room searching for strangers promises them: the original game only, or lobby rules may change (server/lobby.js searchKind)
+const isSearchKind = (v) => v === 'vanilla' || v === 'modded';
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && /^[A-Za-z0-9_\-.:]+$/.test(v);
 const isUid = (v) => isInt(v, 1, 2 ** 31);
 const isNum = (v, lo = -Infinity, hi = Infinity) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
@@ -71,7 +79,7 @@ const isPerPlayer = (p) => isPlain(p) && isInt(p.killed, 0, 1e5) && isInt(p.tota
   && optional((x) => isInt(x, 0, 1e9))(p.creditedKills)
   && isList(p.leaked, RESULT_LIMITS.leaked, isLeak) && isBool(p.perfect)
   && isMap(p.layerGains, RESULT_LIMITS.layerGains, isId, (v) => isNum(v, 0, 1e4))
-  && isStat(p.coins) && isStat(p.damageDealt) && isStat(p.bossDamage) && isStat(p.healingDone) && isStat(p.deaths)
+  && isStat(p.coins) && isStat(p.damageDealt) && isStat(p.bossDamage) && isStat(p.healingDone) && isStat(p.deaths) && optional(isStat)(p.downs)
   && isList(p.unitsEnd, RESULT_LIMITS.unitsEnd, isUnitEnd)
   && (p.unitStats === undefined || isList(p.unitStats, RESULT_LIMITS.unitStats, isUnitStat));
 const isUnspawned = (u) => isPlain(u) && isId(u.enemyKey) && nullable(isId)(u.sourcePlayerId) && nullable((v) => isStr(v, 16))(u.tag)
@@ -552,7 +560,8 @@ export const C2S = {
     oneForAll: isBool, $optional: ['test', 'difficulty', 'version', 'soloUnlimited', 'capacity', 'password', 'oneForAll'] },
   // password: (fork) a locked Grand Alliance room's 4 letters (shared/largeRoom.js)
   // squad: (fork) with a ticket, the Grand Alliance squad room.move named (0 = seats 1–4, 1 = seats 5–8)
-  'room.join': { $optional: ['testAck', 'ticket', 'password', 'squad'], testAck: (v) => v === true, ticket: (v) => isStr(v, 512), password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), squad: (v) => v === 0 || v === 1, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
+  // (fork) `carry`: the signed settings room.move handed a moved Doctor (DESIGN §90.2 "Arrive", Lobby.crossCarry)
+  'room.join': { $optional: ['testAck', 'ticket', 'password', 'squad', 'carry'], testAck: (v) => v === true, ticket: (v) => isStr(v, 512), carry: (v) => isStr(v, CROSS_CARRY_MAX_LEN), password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), squad: (v) => v === 0 || v === 1, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'p2p.enable': { enabled: isBool },
   'p2p.signal': { epoch: isId, to: isId, description: isPeerDescription, candidate: isPeerCandidate, $optional: ['description', 'candidate'] },
   'p2p.ready': { epoch: isId, ready: isBool, seq: (v) => Number.isSafeInteger(v) && v >= 0 },
@@ -589,7 +598,7 @@ export const C2S = {
   // or unlock it (the host)
   'room.moveSeat': { $optional: ['seat', 'squad'], seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), squad: (v) => v === 0 || v === 1 },
   'room.swapSeats': { a: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), b: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1) },
-  'room.setLock': { on: isBool, password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), $optional: ['password'] },
+  'room.setLock': { on: isBool, password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), kind: isSearchKind, $optional: ['password', 'kind'] },
   // (fork) the Grand Alliance strategy mode「Free pick | One for All」(host, before the match, large rooms only; un-readies
   // nobody, a searching room restarts its search): room.state.oneForAll
   'room.setOneForAll': { on: isBool },
@@ -631,11 +640,11 @@ export const C2S = {
   'room.spectate': { $optional: ['testAck', 'password'], testAck: (v) => v === true, password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'room.removeSpectator': { playerId: isId },
   // 搜寻队友 (DESIGN §90): the host of a co-op room turns the search on or off
-  'room.search': { on: isBool },
+  'room.search': { on: isBool, kind: isSearchKind, $optional: ['kind'] },
   // 单人匹配 (DESIGN §90): queue from the lobby without a room; queue.ai once queue.state's aiAt has passed
   // (fork) versions: the official versions to be matched for (left out: 第二期下半); large: may also sit in a Grand Alliance;
   // oneForAll: with large, may also sit in a One for All Grand Alliance (ignored without large)
-  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), versions: (v) => isList(v, 8, isVersionId) && v.length > 0, large: isBool, oneForAll: isBool, $optional: ['versions', 'large', 'oneForAll'] },
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), versions: (v) => isList(v, 8, isVersionId) && v.length > 0, large: isBool, oneForAll: isBool, mods: isBool, $optional: ['versions', 'large', 'oneForAll', 'mods'] },
   'queue.leave': {},
   'queue.ai': { lang: (v) => isStr(v, 16), $optional: ['lang'] },
   // the room's plugins (DESIGN §32, P1a; host, before the match — like a difficulty change it un-readies the others):
@@ -778,7 +787,8 @@ export const S2C = [
   'welcome', 'ok', 'error', 'pong',
   'p2p.config', 'p2p.signal', 'p2p.frame',
   'room.state', 'room.closed',
-  // (fork) room.move { region, code, ticket } — matchmaking placed this group on another server: join there (DESIGN §90.2)
+  // (fork) room.move { region, code, ticket, carry? } — matchmaking placed this group on another server: join there,
+  // handing `carry` (this Doctor's settings, signed by its server) back in the room.join (DESIGN §90.2)
   'room.move',
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
   // (fork) m.chat { p, x } — a player's chat line: `p` the sender's seat, `x` the cleaned text. To everyone in the room

@@ -1,0 +1,644 @@
+{
+ "_source": "tools/dyn-cover-framing.mjs: generated, do not edit by hand. Each illustration's face and head from its own rig, the card framing (framing.js) zoomed about (fx, fy) of the card, its coverage measured on the review page. The cards marked by: user are the user's own framings (review page export of 2026-11-22T20:51:56.689Z).",
+ "cards": {
+  "char_003_kalts_boc#6": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "by": "user"
+  },
+  "char_003_kalts_sale#14": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "by": "user"
+  },
+  "char_1012_skadi2_2": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.35,
+    "fx": 0.4855,
+    "fy": 0.1435
+   }
+  },
+  "char_1012_skadi2_boc#4": {
+   "zoom": 1.001,
+   "fx": 0,
+   "fy": -56.4788,
+   "by": "user"
+  },
+  "char_1012_skadi2_iteration#2": {
+   "zoom": 1.001,
+   "fx": 3.962,
+   "fy": -3.1839,
+   "by": "user"
+  },
+  "char_1013_chen2_2": {
+   "zoom": 1.0619,
+   "fx": -0.6689,
+   "fy": 0.244,
+   "by": "user"
+  },
+  "char_1013_chen2_boc#6": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.2,
+    "fx": 0.4907,
+    "fy": 0.0467
+   }
+  },
+  "char_1013_chen2_summer#20": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.2,
+    "fx": 0.5202,
+    "fy": 0.0123
+   }
+  },
+  "char_1014_nearl2_2": {
+   "zoom": 1.2403,
+   "fx": 0.4581,
+   "fy": -0.0217,
+   "by": "user"
+  },
+  "char_1014_nearl2_epoque#17": {
+   "zoom": 1.05,
+   "fx": 0.0737,
+   "fy": -1.2627,
+   "by": "user"
+  },
+  "char_1015_aglna2_2": {
+   "zoom": 1.001,
+   "fx": -21.8596,
+   "fy": -40.0301,
+   "by": "user"
+  },
+  "char_1016_agoat2_2": {
+   "zoom": 1.001,
+   "fx": 2.7273,
+   "fy": -35.5617,
+   "by": "user"
+  },
+  "char_1016_agoat2_epoque#34": {
+   "zoom": 1.001,
+   "fx": -119.8647,
+   "fy": 28.9331,
+   "by": "user"
+  },
+  "char_1016_agoat2_epoque#57": {
+   "zoom": 1.1,
+   "fx": 0.5746,
+   "fy": -0.1645
+  },
+  "char_1019_siege2_epoque#50": {
+   "zoom": 1.2,
+   "fx": 0.5025,
+   "fy": -0.3909
+  },
+  "char_1020_reed2_epoque#30": {
+   "zoom": 1.001,
+   "fx": 0.7066,
+   "fy": -14.0118,
+   "by": "user"
+  },
+  "char_1020_reed2_summer#17": {
+   "zoom": 1.1,
+   "fx": 0.5053,
+   "fy": -0.3371
+  },
+  "char_1023_ghost2_2": {
+   "zoom": 1.1,
+   "fx": 0.5268,
+   "fy": -0.637
+  },
+  "char_1023_ghost2_boc#6": {
+   "zoom": 1.001,
+   "fx": -85.4165,
+   "fy": -58.2298,
+   "by": "user"
+  },
+  "char_1026_gvial2_2": {
+   "zoom": 1.1,
+   "fx": 0.3978,
+   "fy": -0.2125,
+   "by": "user"
+  },
+  "char_1026_gvial2_summer#12": {
+   "zoom": 1.1,
+   "fx": 0.5033,
+   "fy": -0.0926
+  },
+  "char_1028_texas2_2": {
+   "zoom": 1.001,
+   "fx": 17.542,
+   "fy": 25.4462,
+   "by": "user"
+  },
+  "char_1028_texas2_epoque#36": {
+   "zoom": 1.001,
+   "fx": 10.36,
+   "fy": -79.2461,
+   "by": "user"
+  },
+  "char_1028_texas2_iteration#1": {
+   "zoom": 1.001,
+   "fx": 23.3087,
+   "fy": -14.0922,
+   "by": "user"
+  },
+  "char_1032_excu2_sale#12": {
+   "zoom": 1,
+   "fx": 2.1422,
+   "fy": 0.3153
+  },
+  "char_1035_wisdel_2": {
+   "zoom": 1.001,
+   "fx": -2.5063,
+   "fy": -19.3923,
+   "by": "user"
+  },
+  "char_1035_wisdel_sale#14": {
+   "zoom": 1.001,
+   "fx": 0,
+   "fy": -40,
+   "by": "user"
+  },
+  "char_1038_whitw2_2": {
+   "zoom": 1.001,
+   "fx": 8.9583,
+   "fy": -59.397,
+   "by": "user"
+  },
+  "char_1038_whitw2_sale#15": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "by": "user"
+  },
+  "char_1039_thorn2_marthe#9": {
+   "zoom": 1.001,
+   "fx": 30.5829,
+   "fy": -10.8368,
+   "by": "user"
+  },
+  "char_1041_angel2_2": {
+   "zoom": 1.1285,
+   "fx": 0.8231,
+   "fy": -0.5428,
+   "by": "user"
+  },
+  "char_1041_angel2_iteration#6": {
+   "zoom": 1.001,
+   "fx": 1.8182,
+   "fy": -39.0182,
+   "by": "user"
+  },
+  "char_1042_phatm2_sightseer#4": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1,
+    "fx": 0.584,
+    "fy": 0.3758
+   }
+  },
+  "char_1044_hsgma2_2": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.2,
+    "fx": 0.4854,
+    "fy": -0.1791
+   }
+  },
+  "char_1044_hsgma2_whirlwind#11": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.35,
+    "fx": 0.5419,
+    "fy": 0.0519
+   }
+  },
+  "char_1045_svash2_2": {
+   "zoom": 1.0999,
+   "fx": 0.8964,
+   "fy": -0.5391,
+   "by": "user"
+  },
+  "char_1045_svash2_sale#20": {
+   "zoom": 1.1,
+   "fx": 0.5195,
+   "fy": -0.3078
+  },
+  "char_1046_sbell2_ambiencesynesthesia#8": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.35,
+    "fx": 0.494,
+    "fy": -0.0122
+   }
+  },
+  "char_1052_kalts2_2": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1,
+    "fx": 0.5347,
+    "fy": 0.2425
+   }
+  },
+  "char_113_cqbw_2": {
+   "zoom": 1.0952,
+   "fx": 0.3836,
+   "fy": 0.2078,
+   "by": "user"
+  },
+  "char_113_cqbw_epoque#7": {
+   "zoom": 1.1,
+   "fx": 0.3962,
+   "fy": -0.4971
+  },
+  "char_172_svrash_ambiencesynesthesia#4": {
+   "zoom": 1,
+   "fx": 0.5566,
+   "fy": 0.2569
+  },
+  "char_179_cgbird_sightseer#1": {
+   "zoom": 0.9954,
+   "fx": -3.4161,
+   "fy": 10.0069,
+   "by": "user"
+  },
+  "char_2014_nian_2": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.35,
+    "fx": 0.5195,
+    "fy": -0.0692
+   }
+  },
+  "char_2014_nian_cfa#1": {
+   "zoom": 1.1,
+   "fx": 0.539,
+   "fy": -0.1547
+  },
+  "char_2014_nian_nian#4": {
+   "zoom": 1.35,
+   "fx": 0.093,
+   "fy": 0.1631,
+   "by": "user"
+  },
+  "char_2015_dusk_2": {
+   "zoom": 1.35,
+   "fx": 0.4979,
+   "fy": 0.2635
+  },
+  "char_2015_dusk_nian#12": {
+   "zoom": 1,
+   "fx": 0.478,
+   "fy": 0.2175
+  },
+  "char_2015_dusk_nian#7": {
+   "zoom": 1.35,
+   "fx": 0.4473,
+   "fy": -0.1248,
+   "by": "user"
+  },
+  "char_202_demkni_ambiencesynesthesia#7": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.25
+  },
+  "char_2023_ling_2": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.35,
+    "fx": 0.4734,
+    "fy": 0.0857
+   }
+  },
+  "char_2023_ling_ncg#1": {
+   "zoom": 1.1,
+   "fx": 0.5206,
+   "fy": 0.1057
+  },
+  "char_2023_ling_nian#12": {
+   "zoom": 1.1,
+   "fx": 0.5341,
+   "fy": -0.0324
+  },
+  "char_2023_ling_nian#9": {
+   "zoom": 1,
+   "fx": 0.5149,
+   "fy": 0.216
+  },
+  "char_2024_chyue_2": {
+   "zoom": 1.1,
+   "fx": 0.5611,
+   "fy": -0.5006
+  },
+  "char_2024_chyue_cfa#1": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.35,
+    "fx": 0.4976,
+    "fy": -1.1927
+   }
+  },
+  "char_2024_chyue_nian#10": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.35,
+    "fx": 0.5208,
+    "fy": -0.2478
+   }
+  },
+  "char_2025_shu_2": {
+   "zoom": 1.0023,
+   "fx": 17.0703,
+   "fy": -8.6752,
+   "by": "user"
+  },
+  "char_2025_shu_nian#11": {
+   "zoom": 1.1,
+   "fx": 0.4793,
+   "fy": 0.0886
+  },
+  "char_2025_shu_nlc#1": {
+   "zoom": 1.1,
+   "fx": 0.5095,
+   "fy": -0.1698
+  },
+  "char_2026_yu_2": {
+   "zoom": 1.0023,
+   "fx": 2.7865,
+   "fy": -7.0493,
+   "by": "user"
+  },
+  "char_2026_yu_nian#12": {
+   "zoom": 1.2,
+   "fx": 0.6197,
+   "fy": 0.0868,
+   "by": "user"
+  },
+  "char_2027_wang_2": {
+   "zoom": 1.2,
+   "fx": 0.4965,
+   "fy": -0.1606
+  },
+  "char_245_cello_2": {
+   "zoom": 1.001,
+   "fx": -22.2799,
+   "fy": -68.6521,
+   "by": "user"
+  },
+  "char_245_cello_sale#12": {
+   "zoom": 1.001,
+   "fx": -2.7154,
+   "fy": -14.6839,
+   "by": "user"
+  },
+  "char_249_mlyss_2": {
+   "zoom": 0.9954,
+   "fx": -1.317,
+   "fy": 3.1098,
+   "by": "user"
+  },
+  "char_249_mlyss_ambiencesynesthesia#6": {
+   "zoom": 1.1,
+   "fx": 0.5168,
+   "fy": -0.24
+  },
+  "char_249_mlyss_boc#8": {
+   "zoom": 0.9954,
+   "fx": -5.1047,
+   "fy": -1.0358,
+   "by": "user"
+  },
+  "char_250_phatom_sale#4": {
+   "zoom": 1.1,
+   "fx": 0.5397,
+   "fy": -0.4959
+  },
+  "char_322_lmlee_witch#3": {
+   "zoom": 1.1,
+   "fx": 0.4848,
+   "fy": -0.6049
+  },
+  "char_332_archet_sale#14": {
+   "zoom": 1,
+   "fx": 0.5119,
+   "fy": 0.2152
+  },
+  "char_350_surtr_ambiencesynesthesia#6": {
+   "zoom": 1.0952,
+   "fx": 1.0612,
+   "fy": 0.9799,
+   "by": "user"
+  },
+  "char_350_surtr_summer#9": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.1,
+    "fx": 0.4973,
+    "fy": -0.1066
+   }
+  },
+  "char_377_gdglow_summer#12": {
+   "zoom": 1.1973,
+   "fx": 0.2639,
+   "fy": 0.1545,
+   "by": "user"
+  },
+  "char_391_rosmon_2": {
+   "zoom": 0.9954,
+   "fx": 6.7109,
+   "fy": 23.8708,
+   "by": "user"
+  },
+  "char_391_rosmon_epoque#17": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.35,
+    "fx": 0.5491,
+    "fy": 0.229
+   }
+  },
+  "char_391_rosmon_sale#16": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.2,
+    "fx": 0.4506,
+    "fy": 0.0762
+   }
+  },
+  "char_4010_etlchi_winter#5": {
+   "zoom": 1.1,
+   "fx": 0.5055,
+   "fy": -0.7344
+  },
+  "char_4055_bgsnow_wild#7": {
+   "zoom": 1.35,
+   "fx": 0.55,
+   "fy": 0.0598
+  },
+  "char_4058_pepe_2": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.2,
+    "fx": 0.5565,
+    "fy": 0.0184
+   }
+  },
+  "char_4058_pepe_sightseer#2": {
+   "zoom": 1.1,
+   "fx": 0.5171,
+   "fy": -0.2278
+  },
+  "char_4064_mlynar_epoque#28": {
+   "zoom": 1.001,
+   "fx": 8.4535,
+   "fy": -28.9838,
+   "by": "user"
+  },
+  "char_4080_lin_nian#10": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.35,
+    "fx": 0.5399,
+    "fy": -0.0312
+   }
+  },
+  "char_4080_lin_summer#19": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.1,
+    "fx": 0.5311,
+    "fy": -0.2155
+   }
+  },
+  "char_4087_ines_ambiencesynesthesia#5": {
+   "zoom": 1.0203,
+   "fx": 0.7258,
+   "fy": -4.4671,
+   "by": "user"
+  },
+  "char_4087_ines_boc#8": {
+   "zoom": 1.0023,
+   "fx": -1.5093,
+   "fy": -5.996,
+   "by": "user"
+  },
+  "char_4098_vvana_epoque#59": {
+   "zoom": 1.1,
+   "fx": 0.4858,
+   "fy": -0.0992
+  },
+  "char_4116_blkkgt_witch#5": {
+   "zoom": 1.1,
+   "fx": 0.541,
+   "fy": -0.0278
+  },
+  "char_4121_zuole_nian#11": {
+   "zoom": 1.0203,
+   "fx": 0.7047,
+   "fy": -1.8313,
+   "by": "user"
+  },
+  "char_4132_ascln_iteration#4": {
+   "zoom": 1.1,
+   "fx": 0.5163,
+   "fy": -0.4112
+  },
+  "char_4133_logos_ambiencesynesthesia#6": {
+   "zoom": 1.1,
+   "fx": 0.5062,
+   "fy": -0.2811
+  },
+  "char_4134_cetsyr_epoque#50": {
+   "zoom": 0.9954,
+   "fx": 1.4748,
+   "fy": 1.6038,
+   "by": "user"
+  },
+  "char_4179_monstr_boc#11": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.35,
+    "fx": 0.5188,
+    "fy": -0.0305
+   }
+  },
+  "char_4202_haruka_iteration#6": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.2,
+    "fx": 0.522,
+    "fy": 0.0354
+   }
+  },
+  "char_4247_oxi_2": {
+   "zoom": 0.9428,
+   "fx": 0.1344,
+   "fy": 0.7123,
+   "by": "user"
+  },
+  "char_437_mizuki_sale#7": {
+   "zoom": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "face": {
+    "zoom": 1.1,
+    "fx": 0.4876,
+    "fy": 0.0478
+   }
+  },
+  "char_450_necras_summer#20": {
+   "zoom": 1.2,
+   "fx": 0.5606,
+   "fy": 0.1609
+  },
+  "char_472_pasngr_epoque#17": {
+   "zoom": 1.2,
+   "fx": 0.5125,
+   "fy": 0.1079
+  }
+ }
+}

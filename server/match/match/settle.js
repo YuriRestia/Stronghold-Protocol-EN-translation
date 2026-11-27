@@ -5,7 +5,7 @@
 
 import { PHASE, layerGainRoom, layerCapOf } from '../../../shared/constants.js';
 import { uniteSurvivors } from '../unite.js';
-import { buildResult } from '../results.js';
+import { buildResult, endingView } from '../results.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
 import { msg, playerParam } from '../../../shared/i18n.js';
 import { onSettle, resetRoundCounters } from '../botEmotes.js';
@@ -85,6 +85,8 @@ export class MatchSettle {
       ps.recompute();
     }
     this.eliminateBroken();
+    // (fork) nobody left: afterSettle() finishes the match after this pause — m.public `ending` (views.js)
+    if (!this.alivePlayers().length) this.ending = endingView(this);
     this.fields = [];
     this.watchers.clear();
     this.markPublic();

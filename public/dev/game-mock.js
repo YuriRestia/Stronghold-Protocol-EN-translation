@@ -595,6 +595,8 @@ function startCombat(phase) {
     // a paused solo battle stands still (the server's runner stops the clock too)
     if (S.pub.paused) { if (pausedSince == null) pausedSince = performance.now(); return; }
     if (pausedSince != null) { pausedFor += performance.now() - pausedSince; pausedSince = null; }
+    // the one-time 'spawn' events must reach the game: wait until something listens to b.ev (the board is up 1.2 s or more after the page starts)
+    if (!net._listeners?.get('b.ev')?.size) return;
     const t = (performance.now() - t0 - pausedFor) / 1000 + 4;
     const ev = [];
     for (const d of deviceUnits) if (!spawned.has(d.id)) { spawned.add(d.id); ev.push(['spawn', { ...d }]); }

@@ -195,8 +195,9 @@ export function createWindUpLookahead({ views, woundUp, castStart, skip = null, 
       if (!p.wound && renderT < p.start - 1e-9 && p.start - renderT <= CAST_BRIDGE) v.actor?.holdCast?.(CAST_BRIDGE_HOLD);
       if (p.wound || renderT < p.start - 1e-9 || !v.castAttack) continue;
       const last = lastAtk.get(id);
-      const kind = p.kind ?? (last ? last.kind : 'none');
       const target = views.get(p.target) || (last ? views.get(last.target) : null) || null;
+      // (fork) not in sight: a fortress's own rule decides (UnitView.castKind), else the unit's last attack's kind
+      const kind = p.kind ?? v.castKind?.(target) ?? (last ? last.kind : 'none');
       if (skip && skip(['atk', id, p.target, kind])) { casts.delete(id); continue; }
       const a = v.actor;
       if (attackClip && a) a.attackVariant = attackClip(v, target, kind, undefined);

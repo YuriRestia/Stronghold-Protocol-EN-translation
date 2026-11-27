@@ -2,6 +2,26 @@
 
 > English translation of [CHANGELOG.md](CHANGELOG.md). The Chinese original is the authoritative version.
 
+## 0.3.4-4 — 2026-11-28
+
+### Fish Edition
+
+This server's own changes. Their numbers are the pull requests of [Fish Edition](https://github.com/evenifyouforget/Stronghold-Protocol-EN).
+
+- Matchmaking is the original game unless a player allows mods. Find teammates asks whether the lobby is vanilla only (rules cleared and locked) or modded (rules stay editable, and only players who allow mods meet it); the home screen has a *Preference: Vanilla only / Allow mods* button; Grand Alliances open private, and making one public asks the same question (#222, #223).
+- A challenge now pays 100 to 400 points (about a won match's worth), up from about 5 to 15 (#192, #217).
+- The AI profiles window has a new "Risk-tag win rate" line: the average Ultimate win rate of each AI with fixed combinations of Risk tags, and how many combinations it is measured on. A profile not measured yet says so (#124, #216).
+- Challenges: a new condition, "field one of these custom operators". Any one of three custom operators on your final board is enough, and at least one of the three has a Mod Z, W or V, plus a common strong pick (or a second module operator), so it stays easy to meet (#192, #213).
+- New: Challenges (#192). The Challenges plate in the lobby's right column offers three challenges at a time (for example, "win a match with at least 300 stacks of an Alliance"); finishing one earns Stronghold Certification. They are made and checked in this browser only, nothing is sent to the server and nothing expires; freeze one, reroll, ask for easier or harder, and switch them off or reset them in Settings (#211).
+- Synced Yuri's dev-0.2 (2026-11-25): the official framing on still card art, optional Live2D card art preload, Corrosion working on bosses, prisoner and fortress operator animation fixes, and more (see FORK-CHANGELOG.md) (#203).
+- While the server is closed for maintenance (a restart is coming), a player who does nothing for 120 seconds on a choice screen (briefing, strategy draft, 机变, rest phase) is removed from the match, and a match where every player has been silent for 150 seconds is ended, so one forgotten match cannot hold up the restart (#193). Battles are never touched, and nothing changes while the server is open.
+- The room's lobby rules button now reads "Edit lobby rules (SPA-CC tags, cheats, Mod Z, and more)" for the host and "View lobby rules" for everyone else, and until you have opened the dialog once, a shimmer sweeps across it from left to right besides the glow (#139).
+- New Mod V for Viviana (#199, stacked on #198). An elite Viviana with it brings Nearl the Radiant Knight (once a match); Mlynar, Nearl and Degenbrecher gain Durable, Swift and Raid. Glimmering Touch: cooldown 50 s, 25 s after it marks an enemy its tile explodes for 1500% ATK Physical damage (the mark follows the enemy as it moves and locks for the last 0.7 s), plus, in the boss round, a share of the damage your units dealt to the boss meanwhile (10%). With Mlynar, Nearl and Degenbrecher on the field she gets combos: Kazimierz Operators +30 ASPD, +30% max HP and +30% ATK, a bigger recorded share (up to 130%), Nearl and Viviana attack into each other's range, Mlynar's Liberator charge stays full, and Raid waits 1 s with Degenbrecher able to land on ranged tiles.
+- New Mod W for two custom operators (#198). Viviana W: joins Durable and Agile; her damage becomes Physical; every other Kazimierz Operator gains as much +ASPD as she has; her attacks add 10% ATK Corrosion damage, and each Corrosion burst takes another 150 DEF from the enemy for good and gives it a stack of Illuminated (up to 10: DEF −5%, Physical damage taken +5%). Rosa W: joins Aid and Marvel (keeping Assist Operator); during her skill she hits 2 more targets with ATK scale ×2, ASPD −30 and Bind for 5 seconds, shooting enemies without Bind first; each enemy that dies in her range gives +5 Stacks to her active Alliances (up to 10 times per battle).
+- New Mod Z for the custom operator Kal'tsit Esperanta: 50% less Physical and Arts damage taken; joins the Foresight Alliance (keeping her Assist Operator identity); when she is obtained as an Elite, merged or promoted, she also joins the 3 active Alliances with the most Stacks that she isn't in (lost when she is sold); she and the Operators that share an Alliance with her start the battle with +10 SP (#196).
+- "Auto-award free Risk tags" now also covers Objective: Low Efficiency: it is awarded when no Operator ever left the field in a match (no knock-out, retreat or raid). Only in rooms without bots or autoplay (#195, issue #125).
+
+
 ## 0.3.4-3 — 2026-11-24
 
 ### Fish Edition

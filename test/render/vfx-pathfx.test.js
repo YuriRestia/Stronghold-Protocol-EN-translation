@@ -80,7 +80,7 @@ function fakeWiring(have = null) {
   };
   const views = new Map();
   const w = {
-    ofx, skinKey: (k) => k, skinOf: () => null, unitOf: () => null, pose: (v) => v, view: (id) => views.get(id) || null,
+    ofx, skinKey: (k) => k, skinOf: () => null, skinOfView: () => null, unitOf: () => null, pose: (v) => v, view: (id) => views.get(id) || null,
     playOn(key, v, o) { const h = handle(key); played.push({ key, at: [v.x, v.y, v.z], loop: !!o?.loop, h }); return h; },
   };
   /** Run every live track once; returns the points each line effect was given. */

@@ -64,6 +64,13 @@ LOBBY → INFO_CHECK (co-op 45 s; solo and single-human matches untimed; all hum
 → RESULT (m.result to every human, then onEnd once)
 ```
 
+(fork) **`m.public.ending`** `{ aces: { [playerId]: { id, golden, diy?: { charId }, standInFor? } } }` appears the moment
+the server knows RESULT is next: in SETTLE when the settlement left nobody alive, and when a boss round's fields are all
+done (`_finishFinal`) and no Hidden Core follows. RESULT comes DELAYS.SETTLE (3 s × timerScale) later on every route
+(`test/match/ending-flag.test.js`). `aces` is each player's result-card ace, the unit m.result's lineup will name
+(`shared/resultAce.js`, `results.js endingView`; about 51 B a player). The page loads the result cards' animated
+illustrations from that moment (DESIGN §10 Result). A match that ends without a settlement (abandoned, an error) sends none.
+
 **Deploy field (user playtest #5 item 7).** From the ROUND_START of a boss round (最终攻势 / 隐秘核心) a player deploys on
 its half of the boss field (`Match.deployFieldOf` → `'bossL'`, or `'bossR'` for the second player of a drawn pair — the
 same pairing as the fields, `bossWaves` / `Match.bossGroupOf`, planned in `startRound` BEFORE the players' round start

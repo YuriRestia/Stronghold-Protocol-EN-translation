@@ -61,7 +61,30 @@ test('m.result rows: lineup, bonds, stats, roundsPassed per player, trophies (co
   assert.equal(rows.p_0.reward, Math.round(20 * 1.7 * 1.25), 'reward = base[rounds] × difficulty × mode');
   assert.equal(r.modeId, 'mode_multi_hard');
   assert.ok(Number.isFinite(r.durationMs));
+  assert.equal('bossSeconds' in r, false, 'no Final Assault fought: the key is absent');
+  assert.equal('faUnitStats' in rows.p_0.stats, false, '#197 I2: no Final Assault fought: the key is absent');
   m.dispose();
+});
+
+test('#197 I2: faUnitStats carries each board unit\'s Final Assault damage, round by round', () => {
+  // same setup as the Final Assault defeat test above: the boss is still fought (and still has a per-round
+  // result with unitStats) even though bossDps: 0 means it's never hurt and the team loses on the overtime drain.
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 2, seed: 4, fake: true, script: (b) => (b.kind === 'boss' ? { bossDps: 0 } : {}) }).start();
+  h.autoHumans();
+  const end = h.runToEnd();
+  assert.equal(end.reason, 'defeat');
+  const p = end.players[0];
+  assert.ok(Array.isArray(p.stats.faUnitStats) && p.stats.faUnitStats.length >= 1, 'at least one boss round captured');
+  const round = p.stats.faUnitStats[0];
+  assert.equal(round.hidden, false);
+  assert.ok(Number.isInteger(round.round));
+  assert.ok(round.units.length > 0, 'has per-unit entries');
+  for (const u of round.units) {
+    assert.ok(Number.isFinite(u.dmg) && u.dmg >= 0, 'dmg');
+    assert.ok(typeof u.defId === 'string', 'defId');
+    assert.ok(Number.isInteger(u.uid), 'uid');
+  }
+  h.m.dispose();
 });
 
 test('Final Assault: the result LP are the alive players\' shares of the merged team LP (a team beaten to 0 shows 0)', () => {
@@ -72,6 +95,7 @@ test('Final Assault: the result LP are the alive players\' shares of the merged 
   assert.equal(h.m.teamLp, 0);
   assert.equal(end.reason, 'defeat');
   assert.equal(end.teamLp, 0);
+  assert.ok(Number.isFinite(end.bossSeconds) && end.bossSeconds > 0, '#192: the Final Assault fight\'s length (game seconds) is in the result');
   for (const p of end.players) {
     assert.equal(p.alive, true);
     assert.equal(p.roundsPassed, 13);

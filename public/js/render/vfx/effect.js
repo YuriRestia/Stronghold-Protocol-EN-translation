@@ -315,6 +315,13 @@ export class Effect {
     this.ttl = Infinity;                               // battle s after which a still-playing effect is stopped (a cap)
     this.onFinish = null;                              // callback (chained effects)
     this.data = null;                                  // the caller's own record (wiring)
+    // (fork) dynamic illustrations (render/dynillust): all off for battle effects, set by illustMode()
+    this.persist = false;                              // never finishes: an illustration's effect layer lives with it
+    this.relDelay = false;                             // FxDelay waits from the node's own enable, not the start
+    this.want = null;                                  // Uint8Array: the active flags the owner sets (SetActive)
+    this.enAt = null;                                  // Float32Array: content time an FxDelay node was enabled (−1 off)
+    this.worldOv = null;                               // Map node → mat4: world matrices the owner sets (BoneFollower)
+    this.animOv = null;                                // Map node → { clip, at }: the Animator state a trigger chose
     const emission = num(opts.emission, 1) * (this.lite ? 0.5 : 1);
     const seed0 = (num(opts.seed, 0) >>> 0) || ((Math.random() * 4294967296) >>> 0);
     for (let i = 0; i < n; i++) {
@@ -351,6 +358,7 @@ export class Effect {
     this.state = 'play'; this.linger = 0; this.started = false; this.track = null; this.hidden = false; this.pausedBy = false; this.owner = null;
     this.tint = def.colorMod || null; this.speed = 1; this.age = 0; this.ttl = Infinity; this.onFinish = null; this.data = null;
     this.handle = null; this.fade = 1; this.stopT = 0; this.lateWake = false; this.delayLead = 0;
+    this.persist = false; this.relDelay = false; this.want = null; this.enAt = null; this.worldOv = null; this.animOv = null;
     const seed0 = (num(seed, 0) >>> 0) || ((Math.random() * 4294967296) >>> 0);
     for (let i = 0; i < n; i++) {
       const s = this.sys[i];
@@ -362,6 +370,34 @@ export class Effect {
     if (this.lite && def.lod) for (const nd of def.lod.disable) if (nd >= 0 && nd < n) { this.act[nd] = 0; this.forcedOff[nd] = 1; }
     for (const nd of def.fxDelay.keys()) if (nd >= 0 && nd < n) this.act[nd] = 0;
     return this;
+  }
+
+  /**
+   * (fork) Illustration mode (render/dynillust/effects.js): the whole effect layer of a dynamic illustration as one
+   * instance that never finishes; its owner turns nodes on and off (DynIllust's action particles), and an FxDelay node
+   * waits its delay from its own enable — FxDelay.OnEnable deactivates its GameObject and Invokes `_DelayFunc` after
+   * delayTime / playbackSpeed, which activates it again [src: official GameAssembly.dll FxDelay.OnEnable 0x5C988F–
+   * 0x5C98BA; FxDelay._DelayFunc 0x5C99C6–0x5C99D8] — so a node enabled again later waits again.
+   */
+  illustMode() {
+    this.persist = true;
+    this.relDelay = true;
+    this.want = new Uint8Array(this.def.activeBase);
+    this.enAt = new Float32Array(this.def.n).fill(-1);
+    return this;
+  }
+
+  /** (fork) Illustration mode: GameObject.SetActive(on) of node `node` (an FxDelay node then waits from its enable). */
+  setActive(node, on) {
+    if (!this.want || node < 0 || node >= this.def.n) return;
+    this.want[node] = on ? 1 : 0;
+    if (!this.def.fxDelay.has(node) && !this.forcedOff[node]) this.act[node] = on ? 1 : 0;
+  }
+
+  /** (fork) Illustration mode: the Animator on `node` plays clip index `clip` of def.clips from now (a trigger). */
+  setAnimatorClip(node, clip) {
+    if (!this.animOv) this.animOv = new Map();
+    this.animOv.set(node, { clip, at: this.ctime });
   }
 
   /** Place the effect (see the header). */
@@ -555,21 +591,29 @@ export class Effect {
     if (this.state === 'play' && this.age >= this.ttl) this.stop();
     const first = !this.started;
     this.started = true;
-    // FxDelay activations
-    for (const [nd, d] of def.fxDelay) if (!this.forcedOff[nd] && ct + this.delayLead >= d) this.act[nd] = 1;
+    // FxDelay activations (illustration mode: in the hierarchy pass below, from each node's own enable)
+    if (!this.relDelay) for (const [nd, d] of def.fxDelay) if (!this.forcedOff[nd] && ct + this.delayLead >= d) this.act[nd] = 1;
     // hierarchy activity (parents come before children in the node list)
     const n = def.n;
     for (let i = 0; i < n; i++) {
       const p = def.parent[i];
       this.prevHier[i] = this.hier[i];
+      if (this.relDelay && def.fxDelay.has(i)) {
+        const en = this.want[i] && !this.forcedOff[i] && (p < 0 || this.hier[p]);
+        if (!en) this.enAt[i] = -1; else if (this.enAt[i] < 0) this.enAt[i] = ct;
+        this.act[i] = en && ct - this.enAt[i] >= def.fxDelay.get(i) ? 1 : 0;
+      }
       this.hier[i] = this.act[i] && (p < 0 || this.hier[p]) ? 1 : 0;
       if (this.hier[i] && !this.prevHier[i]) this.actAt[i] = ct;
     }
-    // clips (from their node's activation), behaviours
+    // clips (from their node's activation, or from the state a trigger chose: illustration mode), behaviours. An
+    // Animator that goes inactive returns to its default state (DynIllustBase.Init sets writeDefaultValuesOnDisable when
+    // keepAnimatorStateOnDisable is off [src: official GameAssembly.dll DynIllustBase.Init 0x1441DD8–0x1441DE9])
     for (const a of def.animators) {
-      if (!this.hier[a.node]) continue;
-      const c = def.clips[a.clip];
-      if (c) sampleClip(c, ct - Math.max(0, this.actAt[a.node]), this._sink());
+      if (!this.hier[a.node]) { if (this.animOv) this.animOv.delete(a.node); continue; }
+      const ov = this.animOv && this.animOv.get(a.node);
+      const c = def.clips[ov ? ov.clip : a.clip];
+      if (c) sampleClip(c, ct - (ov ? ov.at : Math.max(0, this.actAt[a.node])), this._sink());
     }
     // a clip may have toggled nodes: recompute activity
     if (def.animators.length) {
@@ -692,6 +736,8 @@ export class Effect {
         _m[12] += this.anchor[0]; _m[13] += this.anchor[1]; _m[14] += this.anchor[2];
         this.world[i].set(_m);
       } else mat4Mul(this.world[p], _m, this.world[i]);
+      // (fork) illustration mode: a node its owner places (a BoneFollower on a Spine bone); its children follow it
+      if (this.worldOv) { const ov = this.worldOv.get(i); if (ov) this.world[i].set(ov); }
     }
     if (this.mirror) {
       // reflect x about the anchor: S = T(a) · diag(−1, 1, 1) · T(−a)
@@ -724,6 +770,7 @@ export class Effect {
 
   _lifecycle(dt, bdt = dt) {
     const def = this.def;
+    if (this.persist && this.state === 'play') return; // (fork) an illustration's layer ends with the illustration
     if (this.state === 'stopping') {
       // a stopped effect fades out within STOP_FADE (long-lived one-shot particles — a status ring of a 10 s
       // lifetime — must not outlive their status) [ASSUMED]

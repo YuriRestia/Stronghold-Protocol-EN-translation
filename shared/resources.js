@@ -21,6 +21,18 @@ export const CACHE_NAME = 'sp-resources-v1';
 export const PACKS_PATH = '/__sp-resource-packs__';
 /** Files above this are never preloaded (they stream as before). */
 export const MAX_FILE_BYTES = 24 * 1024 * 1024;
+/**
+ * (fork) The most files a manifest may list: the client refuses more (a broken list must not hammer the origin). On
+ * 2026-11-24 the art lists 56 084 files without the Live2D cards (LIVE2D_PACK) and 70 608 with them; a listed file costs about
+ * 19 bytes gzipped and 1 µs of parsing [measured 2026-11-24, Node 24 on the user's PC: 56 084 files are 1.04 MB gzipped and
+ * 54 ms, 70 608 are 1.33 MB and 71 ms], so 100 000 files is at most about 1.9 MB and 0.1 s there, and leaves room for
+ * three more additions the size of the Live2D cards. server/resources.js warns when a list is over it.
+ */
+export const MAX_MANIFEST_FILES = 100_000;
+/** Whether a preload manifest lists the file at this site path (its size is the server's own check). Every file of the
+ * trees is listed since 2026-11-24 (the user: Live2D is an optional preload item, LIVE2D_PACK); one place for the server
+ * and the release art gate (scripts/release-art.mjs) to ask, so the gate counts what the preload lists. */
+export const isPreloadFile = (path) => typeof path === 'string' && path.length > 0;
 /** Hex digits of the SHA-1 prefix every manifest entry carries. */
 export const HASH_LEN = 12;
 
@@ -31,7 +43,11 @@ export const BASE_PACKS = Object.freeze(['visual', 'audio']);
 /** (fork, docs/OUTFITS.md) The outfits' art and models (`/assets/outfit/…`): optional, like a voice pack (the outfits'
  * own voice lines ride with their dub's pack). */
 export const OUTFITS_PACK = 'outfits';
-export const ALL_PACKS = Object.freeze([...BASE_PACKS, ...VOICE_PACKS, OUTFITS_PACK]);
+/** (fork) The Live2D card illustrations (`/assets/local/dynillust/…`; 14 524 files, 616 MB on 2026-11-24): optional and off
+ * by default, the biggest pack after the visuals (the user, 2026-11-24). */
+export const LIVE2D_PACK = 'live2d';
+export const LIVE2D_PREFIX = '/assets/local/dynillust/';
+export const ALL_PACKS = Object.freeze([...BASE_PACKS, ...VOICE_PACKS, OUTFITS_PACK, LIVE2D_PACK]);
 
 /**
  * The pack a file belongs to. `path` is a site path (`/assets/…`, `/fonts/…`), encoded or not.
@@ -41,6 +57,7 @@ export const ALL_PACKS = Object.freeze([...BASE_PACKS, ...VOICE_PACKS, OUTFITS_P
 export function packOf(path) {
   const p = String(path || '');
   if (p.startsWith('/assets/outfit/')) return OUTFITS_PACK;
+  if (p.startsWith(LIVE2D_PREFIX)) return LIVE2D_PACK;
   const voice = /^\/assets\/audio\/voice\/([a-z]+)\//.exec(p);
   if (voice) return VOICE_PACKS.includes(voice[1]) ? voice[1] : 'audio';
   if (p.startsWith('/assets/audio/')) return 'audio';
@@ -104,7 +121,8 @@ export function formatBytes(n) {
 export function parseManifest(doc) {
   if (!doc || typeof doc !== 'object' || doc.format !== RESOURCES_FORMAT) throw new Error('unsupported resource manifest');
   if (typeof doc.version !== 'string' || !doc.version) throw new Error('resource manifest has no version');
-  if (!Array.isArray(doc.files) || doc.files.length > 60000) throw new Error('resource manifest has no file list');
+  if (!Array.isArray(doc.files)) throw new Error('resource manifest has no file list');
+  if (doc.files.length > MAX_MANIFEST_FILES) throw new Error(`resource manifest lists too many files: ${doc.files.length}`);
   const hashRe = new RegExp(`^[0-9a-f]{${HASH_LEN}}$`);
   const files = doc.files.map((e) => {
     const [path, size, hash] = Array.isArray(e) ? e : [];

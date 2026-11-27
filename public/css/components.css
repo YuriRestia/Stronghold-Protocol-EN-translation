@@ -1498,3 +1498,33 @@
 .hscroll__arrow:hover { background: rgba(20, 60, 50, .9); }
 .hscroll__arrow:focus-visible { outline: 2px solid #4af2c4; outline-offset: 2px; }
 .hscroll__arrow:disabled { opacity: 0; visibility: hidden; }
+
+/* (fork) A card's animated illustration (ui/dynCards.js IllustArt; the result, room and Grand Alliance cards): the
+   wrapper adds no box, so the 2D art keeps its own layout; the illustration's layer fills the card's art box (the
+   nearest positioned ancestor) over the 2D art, which hides once the illustration covers the card (its fade-in done). */
+.dyn-art, .dyn-art__still { display: contents; }
+/* a placed full art (dynCards.js CardArt): its box is set inline in % of the card's art box, wherever it is used */
+.card-art { position: absolute; }
+.dyn-art__live { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.dyn-art.is-live .dyn-art__still > * { visibility: hidden; }
+/* the room's group flip (ui/dynCards.js FLIP_FADE_S): the cards fade in together over the official 0.15 s, the 2D art
+   staying under them until the fade is done */
+.dyn-art--flip:not(.is-live) .dyn-art__live { opacity: 0; }
+.dyn-art--flip.is-live .dyn-art__live, .dyn-art--flip.is-live .dyn-art__bg { animation: dyn-flip-in .15s linear both; }
+.dyn-art--flip.is-live .dyn-art__still > * { transition: visibility 0s linear .15s; }
+@keyframes dyn-flip-in { from { opacity: 0; } }
+/* the dissolve (ui/dynCards.js FLIP_DISSOLVE_S, cardEntrance.js drawDissolve): the 2D art redrawn on a canvas over the
+   illustration, which shows at once behind it; the 2D art itself hides at once */
+.dyn-art__dissolve { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; }
+/* the white bloom on the dissolve's edge and its glow (cardEntrance.js drawBloom): additive */
+.dyn-art__wash { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; mix-blend-mode: plus-lighter; }.dyn-art--dissolve.is-live .dyn-art__live, .dyn-art--dissolve.is-live .dyn-art__bg { animation: none; }
+.dyn-art--dissolve.is-live .dyn-art__still > * { transition: none; }
+.dyn-art__live > .dynillust-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* the official card background behind a live illustration's see-through pixels (ui/dynCards.js BACKDROP): a size
+   container, so the 9-slice's borders scale with the art window (cqw) */
+.dyn-art__bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.dyn-art__bg > i { position: absolute; box-sizing: border-box; }
+/* (fork) a wide room card's home background (ui/dynCards.js FILL): under the 2D art and the illustration, both of which
+   cast the soft shadow over it (--dyn-shadow: its blur for the card's height, set on .dyn-art) */
+.dyn-art__fill { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: no-repeat center / cover; }
+.dyn-art--fill .dyn-art__live, .dyn-art--fill .dyn-art__still > img { filter: drop-shadow(0 0 var(--dyn-shadow, 0px) var(--dyn-shadow-color, transparent)); }

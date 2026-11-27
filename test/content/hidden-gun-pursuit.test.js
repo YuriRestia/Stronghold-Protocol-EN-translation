@@ -18,7 +18,7 @@ const SPRING = 'enemy_9020_actrpc';
 const wall = chessRec({ id: 'pursuit_wall', profession: 'TANK', stats: { maxHp: 1e9, atk: 0, def: 1000, blockCnt: 3 }, rangeGrid: [[0, 0]], skill: null });
 
 /** The real h08_02(_s) template (leader + parts only, or no spawns with `manual`), one non-attacking wall per side. */
-function arena({ solo = false, manual = false, cooldown = null } = {}) {
+function arena({ solo = false, manual = false, cooldown = null, extra = [] } = {}) {
   const tpl = structuredClone(W[solo ? 'act1autochess_h08_02_s' : 'act1autochess_h08_02']);
   tpl.spawns = manual ? [] : tpl.spawns.filter((s) => s.tag === 'boss' || s.tag === 'part');
   if (cooldown != null) {
@@ -33,7 +33,7 @@ function arena({ solo = false, manual = false, cooldown = null } = {}) {
     defs: { chess: { pursuit_wall: wall } }, kits: { pursuit_wall: () => ({ trait: { noAttack: true } }) },
     sharedBoss: { hp: 1e12, maxHp: 1e12, damage(pid, n) { this.hp -= n; } },
     players: [
-      { playerId: 'p1', seat: 0, side: 'L', colOffset: 0, units: [{ uid: 1, chessId: 'pursuit_wall', row: 3, col: 5, abs: true }] },
+      { playerId: 'p1', seat: 0, side: 'L', colOffset: 0, units: [{ uid: 1, chessId: 'pursuit_wall', row: 3, col: 5, abs: true }, ...extra] },
       ...solo ? [] : [{ playerId: 'p2', seat: 1, side: 'R', colOffset: 8, units: [{ uid: 2, chessId: 'pursuit_wall', row: 3, col: 15, abs: true }] }],
     ],
     setup(b) { b.enemyOverrides = tpl.overrides; b.opts.waveTemplate = tpl; b.opts.bossMirror = !manual; },
@@ -74,7 +74,7 @@ test('隐秘核心铳 pair: the branch gun starts with the battle, the leader af
     const own = calls.filter((c) => c.gun === gun).map((c) => c.time);
     assert.equal(own.length, 3, 'three calls each in 150 s');
     assert.ok(Math.abs(own[0] - t0 - skill.initCooldown) < h.TICK * 2, `first call ${skill.initCooldown} s after its spawn`);
-    for (let i = 1; i < own.length; i++) assert.ok(Math.abs(own[i] - own[i - 1] - skill.cooldown) < h.TICK * 2, `then every ${skill.cooldown} s`);
+    for (let i = 1; i < own.length; i++) assert.ok(Math.abs(own[i] - own[i - 1] - skill.cooldown - skill.bb.dog_duration) < h.TICK * 2, `then ${skill.cooldown} s after the cast ended`);
   }
   // the calls alternate between the two guns, the leader's one (preDelay − branch time) after the branch gun's: the
   // springs go to each gun in turn, not always to the one that calls a tick later
@@ -164,6 +164,100 @@ test('隐秘核心铳: solo keeps the template initial cooldown and repeated cal
   const spawnTime = tpl.spawns.find((s) => s.tag === 'boss').time;
   const skill = (tpl.overrides[GUN]?.skills ?? E[GUN].skills).find((s) => s.prefabKey === '2');
   assert.ok(Math.abs(calls[0].time - spawnTime - skill.initCooldown) < h.TICK * 2);
-  assert.ok(Math.abs(calls[1].time - calls[0].time - skill.cooldown) < h.TICK * 2);
+  // the cooldown counts from the end of the 5 s cast (EnemySkill._OnCastFinish, §37.110)
+  assert.ok(Math.abs(calls[1].time - calls[0].time - skill.cooldown - skill.bb.dog_duration) < h.TICK * 2);
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('隐秘核心铳: the call is its own 5 s cast — no attack, no step, the stacks drop to one, then it shoots and walks on', () => {
+  const h = arena({ solo: true });
+  let gun = null;
+  h.b.on('enemySpawn', (c) => { if (c.enemy.defId === GUN) gun = c.enemy; });
+  const calls = recordCalls(h);
+  h.runUntil(() => calls.length > 0, 60);
+  assert.equal(calls.length, 1);
+  const dur = E[GUN].skills.find((s) => s.prefabKey === '2').bb.dog_duration;
+  assert.equal(dur, 5);
+  assert.ok(gun.findBuff('ab:channel'), 'casting');
+  assert.equal(gun.form, 'call');
+  assert.equal(gun.s.aspd, 100, 'the stacks are down to one (base 20 + 80)');
+  const x = gun.x, y = gun.y, shots = gun.stats.attacks;
+  h.run(dur - 0.2);
+  assert.equal(gun.stats.attacks, shots, 'no shot during the cast');
+  assert.ok(gun.x === x && gun.y === y, 'no step during the cast');
+  assert.equal(gun.s.aspd, 100);
+  h.run(0.4);
+  assert.ok(!gun.findBuff('ab:channel') && gun.form == null, 'the cast is over');
+  h.run(12);
+  assert.ok(gun.stats.attacks > shots, 'it shoots again after the call');
+  assert.ok(Math.hypot(gun.x - x, gun.y - y) > 0, 'and it walks on between its shots');
+  assert.equal(h.b.errorCount, 0);
+});
+
+// §37.111: what the client code and prefabs settle about the attack timer, the opening cast and the beams
+const BAT = E[GUN].stats.bat, HIT = E[GUN].attackAnim.hit, STEP = E[GUN].talents.bb['2.attack_speed'];
+const ivAt = (a) => BAT * 100 / a;
+const skillOf = (g, key) => g.mem.ab.list.find((a) => a && a.fire && a.cd === E[GUN].skills.find((s) => s.prefabKey === key).cooldown);
+
+test('隐秘核心铳: 【盲信之誓】\'s opening cast restarts the attack timer: the first shot comes a whole period after it, not at once', () => {
+  const h = arena({ solo: true, manual: true, extra: [{ uid: 2, chessId: 'pursuit_wall', row: 4, col: 8, abs: true }] });
+  h.step();
+  const spring = h.spawn(SPRING, { pos: [4, 10], tag: 'part', routeIndex: 1, mods: { speedMul: 0 } });
+  const gun = h.spawn(GUN, { pos: [4, 10], tag: 'boss', routeIndex: 0, mods: { speedMul: 0 } });
+  for (const k of ['1', '2']) skillOf(gun, k).left = Infinity;
+  for (const s of h.enemies()) if (s === spring) { s.x = gun.x; s.y = gun.y; }          // the beam meets nobody
+  const t0 = h.b.time;
+  assert.ok(h.runUntil(() => gun.stats.attacks > 0, 60), 'it shoots');
+  const first = h.b.time - t0;
+  // the cast comes 0.03 s after it appears and the timer waits a full period at the start's ASPD 20 (22.5 s); the strike comes
+  // the clip's hit frame later. Not known from any file: the observed second of the first shot.
+  const period = ivAt(20);
+  assert.ok(first > period - 1, `first strike ${first} s after the spring's appearance`);
+  assert.ok(first < period + 0.03 + HIT + 0.5, `and not later than the period + the hit frame: ${first}`);
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('隐秘核心铳: an operator that enters a 盲信之誓 beam counts as a hit for the attack-speed stacks, each time it enters; linking to the spring is none', () => {
+  const h = arena({ solo: true, manual: true });
+  h.step();
+  const gun = h.spawn(GUN, { pos: [3, 8], tag: 'boss', mods: { speedMul: 0 } });
+  const spring = h.spawn(SPRING, { pos: [5, 12], tag: 'part', mods: { speedMul: 0 } });
+  for (const o of [gun, spring]) o.profile.noAttack = true;
+  for (const k of ['1', '2']) skillOf(gun, k).left = Infinity;
+  const other = h.allies()[0];
+  h.run(1);
+  assert.equal(gun.s.aspd, 20, 'the beam is linked, nobody in it: linking to the spring itself is no hit');
+  other.x = 10; other.y = 4;
+  h.step(2);
+  assert.equal(gun.s.aspd, 20 + STEP, 'it entered');
+  h.run(2);
+  assert.equal(gun.s.aspd, 20 + STEP, 'standing in it adds nothing');
+  other.y = 8; h.step(2);
+  other.y = 4; h.step(2);
+  assert.equal(gun.s.aspd, 20 + 2 * STEP, 'entered again: the same operator, one more');
+  assert.equal(h.b.errorCount, 0);
+});
+
+test('铳: a hit that raises the attack speed rescales the cooldown it keeps (progress kept); the stack counts as the shot lands', () => {
+  const h = arena({ solo: true, manual: true, extra: [{ uid: 2, chessId: 'pursuit_wall', row: 4, col: 8, abs: true }] });
+  h.step();
+  const spring = h.spawn(SPRING, { pos: [4, 10], tag: 'part', routeIndex: 1, mods: { speedMul: 0 } });
+  const gun = h.spawn(GUN, { pos: [4, 10], tag: 'boss', routeIndex: 0, mods: { speedMul: 0 } });   // 2 tiles from the wall: in reach, no walking
+  for (const k of ['1', '2']) skillOf(gun, k).left = Infinity;
+  h.b.on('tick', () => { spring.x = gun.x; spring.y = gun.y; });                         // the beam meets nobody
+  const strikes = [];
+  h.b.on('attack', (c) => { if (c.attacker === gun) strikes.push({ t: h.b.time, aspd: gun.s.aspd, d: Math.hypot(c.targets[0].x - gun.x, c.targets[0].y - gun.y) }); });
+  h.run(60);
+  assert.ok(strikes.length > 5);
+  assert.ok(strikes[0].d > 0.75, 'the target is far enough for a flight');
+  for (let i = 0; i + 1 < 5; i++) {
+    const a = strikes[i], b = strikes[i + 1];
+    // a shot lands after its hit frame and its flight (speed 10 [src: projectile_enemy_achunt `_speed`]); that raises the attack speed one
+    // stack, and what is left of the cooldown is rescaled to the new period with the progress kept (ResetButKeepProgress)
+    const hitAt = HIT + a.d / 10;
+    const expected = hitAt + (1 - hitAt / ivAt(a.aspd)) * ivAt(a.aspd + STEP);
+    assert.equal(b.aspd, a.aspd + STEP, `strike ${i + 1} is one stack faster`);
+    assert.ok(Math.abs(b.t - a.t - expected) < h.TICK * 3, `gap ${b.t - a.t} ≈ ${expected}`);
+  }
   assert.equal(h.b.errorCount, 0);
 });
