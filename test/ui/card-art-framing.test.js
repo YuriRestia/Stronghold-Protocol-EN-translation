@@ -8,7 +8,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { toUnits, fromUnits, stillFraming, artOfKey, STILL_AR, STILL_ZOOMS } from '../../tools/card-art-framing.mjs';
+import { toUnits, fromUnits, stillFraming, artOfKey, STILL_AR, STILL_ZOOMS, REFACE_BELOW, unframedArts, describeUnframed, artFiles } from '../../tools/card-art-framing.mjs';
 import { TOP_MIN, FACE_MAX } from '../../tools/dyn-cover-framing.mjs';
 import { cardArtRect, staticPlacement } from '../../public/js/ui/dynCards.js';
 import { chessFullArtUrl } from '../../public/js/ui/assetUrls.js';
@@ -98,5 +98,33 @@ test('data/card-art-framing.json: generated; every full art framed on its own (s
   }
   for (const [art, e] of Object.entries(t.stills)) assert.ok(e.rect.length === 4 && e.rect[2] > 0 && e.rect[3] > 0, art);
   // the full arts this checkout has
-  if (existsSync(path.join(ROOT, 'public/assets/outfit/art'))) assert.ok(Object.keys(t.stills).length >= 500, `${Object.keys(t.stills).length} stills`);
+  if (existsSync(path.join(ROOT, 'public/assets/outfit/art2k'))) assert.ok(Object.keys(t.stills).length >= 500, `${Object.keys(t.stills).length} stills`);
+});
+
+test('every outfit art is framed: the two added 2026-11-27 (official faces and prefab boxes), and the check finds a new one', () => {
+  const t = JSON.parse(readFileSync(path.join(ROOT, 'data/card-art-framing.json'), 'utf8'));
+  // Dark Proton and Beneath the Bark (feature/new-cn-outfits-gap-check): the face from the official portrait, the tall
+  // card's box from the client's prefab [src: official skinpack/char_1047_halo2.ab, skinpack/char_248_mgllan.ab
+  // illust_<portraitId> RectTransform]
+  for (const id of ['char_1047_halo2@striker#4', 'char_248_mgllan@epoque#60']) {
+    const art = path.basename(assets.outfits.chars[id].art);
+    const s = t.stills[art];
+    assert.ok(s, `${id}: ${art} framed`);
+    assert.ok(s.score >= REFACE_BELOW, `${art} face score ${s.score}`);
+    assert.ok(Array.isArray(s.official) && s.official.length === 4 && s.official[2] > 0, `${art} official box`);
+  }
+  // no outfit of the asset list is left unframed (a new outfit: docs/OUTFITS.md "Adding outfits" step 5)
+  const chars = { outfits: { chars: assets.outfits.chars, defaults: {} } };
+  assert.deepEqual(unframedArts(t, chars), [], describeUnframed(unframedArts(t, chars)).join('\n'));
+  // the check: an outfit with no entry is listed, one without a portrait (nothing to match) or file is not
+  const fake = { outfits: { chars: {
+    'char_x@new#1': { art: '/assets/outfit/art2k/char_x_new_1.webp', portrait: '/assets/outfit/portrait/char_x_new_1.png' },
+    'char_x@noport#1': { art: '/assets/outfit/art2k/char_x_noport_1.webp' },
+    'char_x@nofile#1': { art: '/assets/outfit/art2k/char_x_nofile_1.webp', portrait: '/p.png' },
+  }, defaults: { char_y: { art: '/assets/outfit/art2k/char_y_default.webp' } } } };
+  const rows = unframedArts({ stills: {} }, fake, (u) => !u.includes('nofile') && !u.includes('char_y'));
+  assert.deepEqual(rows, [{ id: 'char_x@new#1', art: 'char_x_new_1.webp' }]);
+  assert.match(describeUnframed(rows).join('\n'), /1 full arts have no framing.*--only <name>[\s\S]*char_x@new#1/);
+  // the art files are read where the asset list puts them (outfit/art2k), never a fixed folder
+  assert.equal(artFiles(assets).get('char_1047_halo2_striker_4.webp'), '/assets/outfit/art2k/char_1047_halo2_striker_4.webp');
 });

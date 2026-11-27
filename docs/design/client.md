@@ -707,6 +707,11 @@ the animated illustrations' own (`render/dynillust/framing.js`) — into `stills
 the live illustration does not jump), else the official box, else — no official match — the room framing by height, centred as
 there. The wide cards do not use it. No per-art number is hand-set. The review page's `&solo` shows the solo room (one operator
 a page).
+(fork, 2026-11-27) **A new outfit's art is framed like the others** (docs/OUTFITS.md "Adding outfits" step 5): Dark Proton and
+Beneath the Bark, added that day, showed unplaced until framed. Each step takes `--only <art file name>` and leaves every other
+entry as it is (`--official` used to clear the boxes of every art a partial frames file lacks), and the tool reads the art where
+`data/assets.json` puts it (`outfit/art2k/`; `--reframe` / `--reface` still looked in the retired `outfit/art/`).
+`card-art-framing.mjs --check` lists the full arts with no entry; fetch-assets prints it at its end.
 Which pages (the user's choice of 2026-11-22, "automatic by card size"): each card measures its art window and wants half
 pages while it is drawn at most `HALF_MAX_SCALE` 1 device px per unit of the official 232 × 458 window (measured: there half
 kept 74–100 % of full's detail, above it 36–82 %), full above; the page uses full while any card wants full (the renderer's
