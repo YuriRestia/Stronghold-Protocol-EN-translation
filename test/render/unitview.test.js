@@ -778,7 +778,7 @@ describe('a push through SnapshotBuffer and UnitView in the app.js frame order (
    * 1.7 tiles at 3 s, killed `killDelay` ticks later when `kill`. Returns the drawn x of every frame from renderT 2.8 to
    * 4.6, the sim's position right after the push and where the body lies (the sim's position at the kill).
    */
-  async function pushed({ kill = false, killDelay = 0, kind = 'route' } = {}) {
+  async function pushed({ kill = false, killDelay = 0, kind = 'route', simStamp = false, snapPhase = 2 } = {}) {
     const { makeBattle, enemyRec } = await import('../helpers/battleHarness.js');
     const { SnapshotBuffer } = await import('../../public/js/render/interp.js');
     const { snapFrame } = await import('../../server/match/fields.js');
@@ -795,11 +795,13 @@ describe('a push through SnapshotBuffer and UnitView in the app.js frame order (
       if (!moved && e && h.b.time >= 3) { moved = h.b.displace(e, { x: 1, y: 0 }, 1.7); dest = e.x; since = 0; }
       else if (since >= 0) since++;
       if (kill && since === killDelay) { h.b.kill(e, null); body = e.x; }
-      if (i % 3 === 2) {
+      if (i % 3 === snapPhase) {
         const ev = h.b.drainEvents();
         info = info || ev.find((x) => x[0] === 'spawn' && e && x[1].id === e.id)?.[1];
         const s = h.b.snapshot();
-        frames.push({ at: s.t / 2, snap: snapFrame('f', s), ev, gt: s.t });
+        // simStamp: the events carry the sim's own time, as the local feed sends them (battle/simHost.js `gt: b.time`),
+        // while the snapshot's is rounded to the ms (battle/events.js snapshot)
+        frames.push({ at: s.t / 2, snap: snapFrame('f', s), ev, gt: simStamp ? h.b.time : s.t });
       }
     }
     assert.ok(moved > 1, `the sim pushed it ${moved} tiles`);
@@ -814,7 +816,7 @@ describe('a push through SnapshotBuffer and UnitView in the app.js frame order (
       if (!Number.isFinite(renderT)) continue;
       for (const ev of buf.takeEvents(renderT, [])) { start(ev); if (ev[0] === 'die' && ev[1] === e.id && v.alive) v.die(); }
       const at = buf.nextSnapT(renderT);
-      if (at > renderT) buf.forEachUpcoming(renderT, at, (ev) => start(ev, at));
+      if (at > renderT) buf.forEachUpcoming(renderT, at + 0.0005, (ev) => start(ev, at));
       buf.sample(renderT, sample);
       if (sample.get(e.id)) syncView(v, sample.get(e.id), renderT);
       v.update(1 / 60, cam(), now);
@@ -839,6 +841,18 @@ describe('a push through SnapshotBuffer and UnitView in the app.js frame order (
     const { big, moving } = steps(xs);
     assert.ok(moving >= 8, `${moving} frames show it moving (the bare interpolator: 3)`);
     assert.ok(big < 0.35, `largest step ${big.toFixed(3)} tiles (the bare interpolator: 0.58)`);
+  });
+
+  // the local feed stamps events with the sim's exact time and the snapshot with it rounded to the ms: on a tick whose
+  // time rounds down (n/30 s: 3.0333… → 3.033), the push's `displace` fx lay just past the look-ahead's end and the enemy
+  // jumped most of the way. snapPhase 0 / 1 put the snapshots on those ticks, 2 on whole tenths.
+  test('events stamped with the sim\'s exact time: a push slides whichever way the snapshot time rounds', async () => {
+    for (const snapPhase of [0, 1, 2]) {
+      const { xs } = await pushed({ simStamp: true, snapPhase });
+      const { big, moving } = steps(xs);
+      assert.ok(moving >= 8, `snapshots at phase ${snapPhase}: ${moving} frames show it moving`);
+      assert.ok(big < 0.35, `snapshots at phase ${snapPhase}: largest step ${big.toFixed(3)} tiles`);
+    }
   });
 
   // a unit killed on the very step of its push: its 'die' comes due with the displace fx, so its view is dying before the
