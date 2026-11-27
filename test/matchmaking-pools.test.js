@@ -14,6 +14,7 @@ import { planCross } from '../server/crossMatch.js';
 import { DIFFICULTIES, ERR, MAX_SEATS, modeIdFor } from '../shared/constants.js';
 import { validateC2S } from '../shared/protocol.js';
 import { DEFAULT_VERSION, VERSIONS } from '../shared/versions.js';
+import { signTicket, verifyTicket } from '../server/peerLink.js';
 
 const V1 = 'act1autochess';
 const V21 = 'act2autochess@V2_1';
@@ -495,5 +496,80 @@ describe('lobby: review fixes (holds, votes, the load wait, moved squads)', () =
       assert.equal(src.disposed, false, 'it stays and searches on');
       assert.equal(h.lobby.crossMove({ ...cmd, squads: { [src.code]: [3, 0] } }).ok, true);
     } finally { h.close(); }
+  });
+});
+
+// (fork) Player report 2026-11-27: a 自选 Clementia missing after a cross-region match. The moved Doctor's page joins the
+// target on a new session; its own server signs the settings it holds into room.move (Lobby.crossCarry) and the target
+// applies them on the ticket join (Lobby.applyCarry), before the seat is taken and the match starts.
+describe('lobby: a moved Doctor carries its settings across regions', () => {
+  const SECRET = 'k'.repeat(40);
+  const INSIDE = 'chess_char_1_01_a'; // 隐现 (test/lobby-loadout.test.js)
+  const SARIA = 'chess_char_5_11_a'; // 塞雷娅, NORMAL (test/lobby-ownership.test.js)
+  const PICKS = { chess_char_6_diy1_a: { charId: 'char_4231_clemnt', skillIndex: 0 } };
+  const signed = (h) => {
+    h.lobby.crossTicket = (p) => signTicket(SECRET, p);
+    h.lobby.crossVerify = (x) => verifyTicket(SECRET, x, h.clock.t);
+  };
+  /** The home server's Doctor with every setting, a target room of 3 holding a seat for it: the reserve's ticket. */
+  function setup() {
+    const home = harness();
+    const target = harness(); // Rec.all: the target's matches only
+    signed(home);
+    signed(target);
+    const m = home.player('M');
+    ok(home.lobby.loadout(m, { entries: { [INSIDE]: { skill: 0 } }, ops: { char_4231_clemnt: { potential: 3, cultivate: 1 } } }));
+    ok(home.lobby.ownership(m, { notOwned: [SARIA] }));
+    ok(home.lobby.diy(m, { picks: PICKS }));
+    ok(home.lobby.skins(m, { skins: { char_498_inside: 'char_498_inside@kitchen#2' } }));
+    ok(home.lobby.card(m, { charId: 'char_4231_clemnt' }));
+    const { r } = searchingRoom(target, 3, {}, 'T');
+    const res = target.lobby.crossReserve({ difficulty: 'NORMAL', rooms: [r.code], solos: [], humans: 1, bots: 0, ttlMs: 15_000 });
+    assert.equal(res.ok, true);
+    return { home, target, m, r, res };
+  }
+  const close = (...hs) => { for (const h of hs) h.close(); };
+
+  test('the match the moved Doctor fills starts with its loadout, 潜能, 干员持有, 自选 picks, skins and card', () => {
+    const { home, target, m, r, res } = setup();
+    try {
+      const carry = home.lobby.crossCarry(m, r.code, res.ticket);
+      assert.equal(typeof carry, 'string');
+      assert.equal(validateC2S({ t: 'room.join', code: r.code, ticket: res.ticket, carry }), null, 'fits the wire');
+      const moved = target.player('M'); // the page's second socket: no token, a new session
+      ok(target.lobby.join(moved, { code: r.code, ticket: res.ticket, carry }));
+      assert.ok(r.match, 'the last arrival started it');
+      const seat = Rec.all[0].seats.find((s) => s.playerId === moved.playerId);
+      assert.deepEqual(seat.diy, m.diy);
+      assert.deepEqual(seat.loadout, m.loadout);
+      assert.deepEqual(seat.ops, m.ops);
+      assert.deepEqual(seat.notOwned, m.notOwned);
+      assert.deepEqual(seat.skins, m.skins);
+      assert.equal(r.seatOf(moved.playerId).card, 'char_4231_clemnt');
+    } finally { close(home, target); }
+  });
+
+  test('a forged, other-room or missing carry adds nothing, and a carry is no ticket', () => {
+    for (const [what, make] of [
+      ['none (a page before this fix)', () => undefined],
+      ['forged', (c) => `${c.slice(0, -2)}${c.endsWith('AA') ? 'BB' : 'AA'}`],
+      ['another room', (c, h, m, res) => h.lobby.crossCarry(m, 'ZZZZ', res.ticket)],
+    ]) {
+      const { home, target, m, r, res } = setup();
+      try {
+        const carry = make(home.lobby.crossCarry(m, r.code, res.ticket), home, m, res);
+        const moved = target.player('M');
+        ok(target.lobby.join(moved, { code: r.code, ticket: res.ticket, ...(carry ? { carry } : {}) }));
+        const seat = Rec.all[0].seats.find((s) => s.playerId === moved.playerId);
+        assert.equal(seat.diy, null, what);
+        assert.equal(seat.loadout, null, what);
+      } finally { close(home, target); }
+    }
+    const { home, target, m, r, res } = setup();
+    try {
+      const carry = home.lobby.crossCarry(m, r.code, res.ticket);
+      assert.equal(target.lobby.join(target.player('X'), { code: r.code, ticket: carry }).error, ERR.ROOM_FULL, 'not a ticket');
+      assert.equal(home.lobby.crossCarry(home.player('N'), r.code, res.ticket), null, 'nothing set: nothing carried');
+    } finally { close(home, target); }
   });
 });
