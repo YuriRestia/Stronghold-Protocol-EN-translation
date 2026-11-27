@@ -652,6 +652,13 @@ async function main() {
     log(strictLeafDropError(droppedLeaves));
     log('  a plain run downloads them again (--refresh-index if the upstream index lost them); without --strict / SP_ASSETS_STRICT this is only a warning');
   }
+  // (fork) outfits whose own official effects (fx twins) the local fx index lacks: a warning with the fill command
+  // (tools/assets/outfit-fx-check.mjs, docs/OUTFITS.md "Adding outfits"); silent without a local fx index
+  try {
+    const fxCheck = await import('./assets/outfit-fx-check.mjs');
+    const res = await fxCheck.checkOutfitFx();
+    if (res) for (const l of fxCheck.describeGaps(res, 20)) log(l);
+  } catch (e) { log(`outfit effects: not checked (${e?.message || e})`); }
   // (fork) the impostor clip bounds of every model now on disk (tools/assets/clip-bounds.mjs; SP_NO_CLIP_BOUNDS=1 skips)
   if (process.env.SP_NO_CLIP_BOUNDS !== '1') {
     try { await (await import('./assets/clip-bounds.mjs')).writeClipBounds({ log }); } catch (e) { log(`[clip-bounds] not written: ${e?.message || e} (run npm run clip-bounds)`); }

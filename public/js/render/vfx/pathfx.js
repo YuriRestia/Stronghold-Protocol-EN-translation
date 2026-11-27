@@ -336,7 +336,7 @@ export class PathFx {
     const corners = pathCorners(path);
     // her muzzle, then each turn and the last tile at the waypoints' fixed height over the ground there
     const pts = [[0, 0, 0], ...corners.slice(1).map((i) => unity(path[i][1], path[i][0], this._h(path[i][0], path[i][1]) + lift))];
-    const skin = this.w.skinOf(this.w.unitOf(v));
+    const skin = this.w.skinOfView(v);
     const muzzle = () => unitPoint(skin, 'muzzle', this.w.pose(v), pts[0]);
     muzzle();
     const line = this.w.ofx.spawn(lineKey, { pos: pts[0].slice(), groundZ: -(v.z || 0) }, {

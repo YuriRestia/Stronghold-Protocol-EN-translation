@@ -46,7 +46,8 @@ match never read an outfit. This feature exists on this fork only (upstream turn
 | Battle sounds | `tools/assets/audio.mjs` (outfitAudioView), `tools/assets/plan.mjs` (`sfx.outfits`), `public/js/audio.js` (setOutfitSfxResolver, unitSfx) |
 | Server | `shared/protocol.js` `room.outfits`, `server/lobby.js` outfits() + room.state `seats[].outfits` |
 | Preload | `shared/resources.js` pack `outfits` (optional, off by default) |
-| Tests | `test/outfits.test.js`, `test/outfits-sync.test.js`, `test/render/outfit-model.test.js`, `test/ui/diy-ui.test.js`, `test/ui/outfits.e2e.test.js` |
+| Outfit effects check (fork) | `tools/assets/outfit-fx-check.mjs` (run by `tools/fetch-assets.mjs`; "Adding outfits" below) |
+| Tests | `test/outfit-fx-check.test.js`, `test/outfits.test.js`, `test/outfits-sync.test.js`, `test/render/outfit-model.test.js`, `test/ui/diy-ui.test.js`, `test/ui/outfits.e2e.test.js` |
 
 ## Data: `data/outfits.json`
 
@@ -118,3 +119,40 @@ and bench). `outfitModelOf(info)` gives:
 `render/units.js` keeps `info.spine` for FORMS, sounds and voice. It draws `info.model` when the manifest has that model
 (`_modelId`), else the operator's own model. The outfit is read once, when the view is built, so a change shows on the
 views built after it (a new piece, the next battle); a unit already on the board keeps its look until then.
+
+An outfit's own official effects are twins of its operator's effect prefabs, `<key>_<outfit>#N`
+(`halo2_skill_03_start_01_striker#4`), in the operator's `battle/prefabs/effects/<code>.ab`, plus the skinpack's
+`_replaceEffectPairs`. The local fx index lists them (`skinFx` by suffix, `skinPairs` by outfit id) and
+`render/vfx/wiring.js` skinKey plays the twin for a unit wearing that outfit. Without them the outfit plays the
+operator's own effects.
+
+- **Whose outfit.** An effect on another unit or on the ground plays the twin of the unit it comes from (`playOn`
+  `by`): a sim state row's src (`skillfx.js _states`: Dark Proton's S3 link on each locked enemy), a kit fx binding's
+  owner, a projectile's attacker (`flipFrom`).
+- **Its own mount points.** An outfit's model has its own Muzzle, HitPoint and Special points (Dark Proton's gun is
+  shorter: its muzzle sits at x 0.53, the default model's at 2.45). The fx index lists them under the outfit id
+  (`skins['char_1047_halo2@striker#4']`, `fx.py outfit_skins`, read from the outfit's battle prefab in
+  `skinpack/<charId>.ab`; 309 outfits on 2026-11-27) and `wiring.js skinOfView` uses them for a unit wearing it, each
+  point the outfit's prefab lacks taken from the default model's (19 outfits name fewer Special points).
+
+## Adding outfits
+
+New outfits arrive with a CN client update. Their effects come with the client's hot update
+(`Arknights_Data/PersistentData/Bundles`), which `tools/local-extract/fx.py` reads before the shipped bundles
+(`hot_root` / `ab_path`, as dynillust.py and voice.py do). No merged AB root is needed. On 2026-11-27, Dark Proton
+(`char_1047_halo2@striker#4`) and Beneath the Bark (`char_248_mgllan@epoque#60`) first shipped without their 26 twins
+because the last fx run had read only the shipped bundles.
+
+1. `node tools/build-outfits.mjs` (the roster's new outfits from the zh_CN `skin_table`), then the names: official EN
+   text if the EN tables have it, else an entry in `tools/i18n/fallback-outfits-en.json`, then
+   `node tools/build-i18n.mjs`.
+2. The effects, staged when `public/assets/` is shared with other checkouts (docs/ASSETS.md "Id scope"): copy
+   `fx/index.json`, `fx/textures.json` and `data/local-fx.json` into a scratch folder, run
+   `extract.py --only fx --fx-skins --fx-add-only --game <CN install> --out <stage>/public/assets/local --manifest
+   <stage>/data/local-assets.json`, then copy the new files and the three merged indexes back. `--fx-skins` adds only
+   the outfit twins of effects already extracted; `--fx-add-only` keeps everything there.
+3. `node tools/fetch-assets.mjs --add-only` (art, models, voices), then `npm run assets:pool-snapshot -- --update`.
+4. `node tools/assets/outfit-fx-check.mjs` must report no outfit. fetch-assets runs it at its end too and prints
+   the outfits whose own effects the index lacks, or whose client effect bundle changed since the last fx run (the
+   extractor's `.cache/fx/effects.json` against the client's files, hot update first), with the command above. It finds
+   the client as setup.mjs does (`--game`, `SP_GAME_DIR`, the remembered one, the usual install folders on drives C–Z).

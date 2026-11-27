@@ -94,7 +94,7 @@ import {
   planFor, skillPlan, attackFx as planAttack, slotKey, planKeys, chargeKeys, chargeStep, skillProjectile, targetsOf, buffDuration,
   eventNum, FX_BINDINGS, CHAIN_RELAYS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys, CHARGED_CASTS, CAST_MODES, castModePlan,
-  FX_HIT_TILES, stateEntries, TICK_SIGNALED, enemyBinds, HELD_START,
+  FX_HIT_TILES, stateEntries, TICK_SIGNALED, enemyBinds, HELD_START, LOCK_LINES,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
 import { layerKeysOf } from './talentfx.js';
@@ -1177,12 +1177,19 @@ export class SkillFx {
    * per row — and a row gone stops them; an `end` entry (a mark's ON_BUFF_FINISH) plays once then.
    */
   _states(views) {
-    let want = null, ends = null;
+    let want = null, ends = null, locks = null;
     for (const v of views) {
       if (!Array.isArray(v.fxs) || !v.fxs.length || v.alive === false || v.destroyed || v.down) continue;
       const id = idOf(v);
       for (const row of v.fxs) {
         const src = row[1];
+        // (fork) a LockTargetAbility's carriers, by src and buff (LOCK_LINES: the line between them, _lockLines)
+        if (src != null && LOCK_LINES[row[0]]) {
+          const g = `${src}|${row[0]}`;
+          let grp = (locks || (locks = new Map())).get(g);
+          if (!grp) locks.set(g, grp = { src, buff: row[0], list: [] });
+          grp.list.push(v);
+        }
         const sv = src == null ? v : this.w.view(src);
         const U = sv ? this.of(sv) : this.units.get(src) || null;
         // (fork) a talent's or an ability's buff on its targets (talents.js plan.targets, `buff`): the src's own bindings'
@@ -1199,10 +1206,12 @@ export class SkillFx {
         // (fork) a row whose official look replaces a status's generic one (indexGaps.js `replaces`): that loop stops
         const rs = list.length ? replacedStatus(row[0], row[2]) : null;
         if (rs) this.w.status?.(v, rs, false);
+        // (fork) `by`: the unit the row comes from, so its outfit's twin plays (wiring.js playOn skinKey: 暗能质子's S3
+        // link on the locked enemies, halo2_skill_03_buff_02_striker#4) — the carrier wears no outfit of the src's
         for (const e of list) {
           const k = `${id}|${e.key}`;
-          if (e.role === 'end') { if (!(ends || (ends = new Map())).has(k)) ends.set(k, { e, id }); continue; }
-          if (!(want || (want = new Map())).has(k)) want.set(k, { e, v, id });
+          if (e.role === 'end') { if (!(ends || (ends = new Map())).has(k)) ends.set(k, { e, id, by: sv || null }); continue; }
+          if (!(want || (want = new Map())).has(k)) want.set(k, { e, v, id, by: sv || null });
         }
       }
     }
@@ -1212,7 +1221,7 @@ export class SkillFx {
       this.sends.delete(k);
       const cv = this.w.view(t.id);
       const key = cv && !cv.destroyed ? this._key(t.e, cv) : null;
-      if (key) this.w.playOn(key, cv, { follow: true, loop: false, important: true });
+      if (key) this.w.playOn(key, cv, { follow: true, loop: false, important: true, by: t.by && !t.by.destroyed ? t.by : undefined });
     }
     if (ends) for (const [k, t] of ends) if (!this.sends.has(k)) this.sends.set(k, t);
     for (const [k, t] of this.sloops) {
@@ -1220,12 +1229,13 @@ export class SkillFx {
       t.h?.stop();
       this.sloops.delete(k);
     }
+    this._lockLines(locks);
     if (!want) return;
     for (const [k, w] of want) {
       if (this.sloops.has(k)) continue;
       const loop = w.e.loop !== false && w.e.role !== 'trigger';
       const key = this._key(w.e, w.v);
-      const h = key ? this.w.playOn(key, w.v, { follow: true, loop, important: true }) : null;
+      const h = key ? this.w.playOn(key, w.v, { follow: true, loop, important: true, by: w.by || undefined }) : null;
       this.sloops.set(k, { h, loop: loop && !!h, id: w.id });
     }
   }
@@ -1234,6 +1244,41 @@ export class SkillFx {
     for (const t of this.sloops.values()) t.h?.stop();
     this.sloops.clear();
     this.sends.clear();
+    this._lockLines(null);
+  }
+
+  /**
+   * (fork) LOCK_LINES: the line of a LockTargetAbility through the HitPoints of the units one src has locked (`locks`:
+   * `${src}|${buff}` → { src, buff, list: carrier views in the order the snapshot lists them }), held while two or more
+   * carry the buff and moved with them each frame (effect.js setLinePoints); in the src's outfit twin (playOn's skinKey
+   * by `by`). A group gone or down to one carrier stops its line; null stops them all.
+   */
+  _lockLines(locks) {
+    this.llines ??= new Map();
+    for (const [g, t] of this.llines) {
+      const now = locks?.get(g);
+      if (now && now.list.length >= 2 && t.h?.alive) { t.views = now.list; continue; }
+      t.h?.stop();
+      this.llines.delete(g);
+    }
+    if (!locks) return;
+    for (const [g, grp] of locks) {
+      const list = grp.list;
+      if (list.length < 2 || this.llines.has(g)) continue;
+      const src = this.w.view(grp.src);
+      const key = LOCK_LINES[grp.buff];
+      const t = { views: list, h: null };
+      const pts = list.map(() => [0, 0, 0]);
+      const place = (fx) => {
+        while (pts.length < t.views.length) pts.push([0, 0, 0]);
+        pts.length = t.views.length;
+        t.views.forEach((cv, i) => unitPoint(this.w.skinOfView(cv), 'hit', this.w.pose(cv), pts[i]));
+        fx.anchor[0] = pts[0][0]; fx.anchor[1] = pts[0][1]; fx.anchor[2] = pts[0][2];
+        fx.setLinePoints(pts);
+      };
+      t.h = this.w.playOn(key, list[0], { loop: true, important: true, by: src || undefined, track: place });
+      if (t.h) this.llines.set(g, t);
+    }
   }
 
   _stopCond(U) {
@@ -1527,7 +1572,7 @@ export class SkillFx {
     if (bind.at === 'tiles') {
       let drew = false;
       for (const t of Array.isArray(extra.tiles) ? extra.tiles : []) {
-        if (Array.isArray(t)) for (const k of keys) if (this.w.playOn(k, this._ground(t[1], t[0], null), { important: true })) drew = true;
+        if (Array.isArray(t)) for (const k of keys) if (this.w.playOn(k, this._ground(t[1], t[0], null), { important: true, by: U.v || undefined })) drew = true;
       }
       return drew;
     }
@@ -1535,7 +1580,7 @@ export class SkillFx {
     const at = bind.at === 'point' || !tv ? this._ground(x, y, tv) : tv;
     if (bind.oneshot) {
       let drew = false;
-      for (const k of keys) if (this.w.playOn(k, at, { important: true })) drew = true;
+      for (const k of keys) if (this.w.playOn(k, at, { important: true, by: U.v || undefined })) drew = true;
       return drew;
     }
     if (bind.hold === 'life') return this._lifeMark(U, keys, tv);
@@ -1549,7 +1594,7 @@ export class SkillFx {
     // (fork) `hold: 'until'` (with `until`): no timer — the `until` kind of the same unit ends it (FxWiring.release too)
     const timed = !(bind.hold === 'until' && bind.until);
     for (const k of keys) {
-      const h = this.w.playOn(k, at, { loop: true, important: true });
+      const h = this.w.playOn(k, at, { loop: true, important: true, by: U.v || undefined });
       if (!h) continue;
       drew = true;
       held.push(h);
@@ -1602,7 +1647,7 @@ export class SkillFx {
     for (const k of keys) {
       const slot = `${id}|${k}`;
       if (this.lives.get(slot)?.h.alive) { drew = true; continue; }
-      const h = this.w.playOn(k, tv, { loop: true, important: true });
+      const h = this.w.playOn(k, tv, { loop: true, important: true, by: U.v || undefined });
       if (!h) continue;
       this.lives.set(slot, { h, v: tv, src: U.id });
       drew = true;
@@ -1618,7 +1663,7 @@ export class SkillFx {
     const src = U?.v;
     const key = this.w.skinKey(lc(key0), src);
     if (!src || !tv || !this.w.ofx.lib.has(key)) return null;
-    const ss = this.w.skinOf(this.w.unitOf(src)), ts = this.w.skinOf(this.w.unitOf(tv));
+    const ss = this.w.skinOfView(src), ts = this.w.skinOfView(tv);
     const a = unitPoint(ss, 'muzzle', this.w.pose(src)), b = unitPoint(ts, 'hit', this.w.pose(tv));
     const h = this.w.ofx.spawn(key, { pos: a.slice(), groundZ: -(src.z || 0) }, {
       loop: true, important: true,
@@ -1695,7 +1740,7 @@ export class SkillFx {
     if (!key || !this.w.ofx.lib.has(key)) return false;
     const go = () => this.w.flyLane(key, U.v, {
       x: x0, y: y0, dx: ddx / len, dy: ddy / len, len, speed,
-      onEnd: () => { if (f.reached) for (const k of p.onReached || []) this.w.playOn(lc(k), this._ground(x1, y1, null), { important: true }); },
+      onEnd: () => { if (f.reached) for (const k of p.onReached || []) this.w.playOn(lc(k), this._ground(x1, y1, null), { important: true, by: U.v }); },
     });
     if (f.delay > 0) later(this.w.ofx, f.delay, go); else go();
     return true;
@@ -1731,7 +1776,7 @@ export class SkillFx {
   _lockOn(U, keys, at, tv, x, y) {
     const hs = [];
     for (const k of keys) {
-      const h = this.w.playOn(k, at, { loop: true, important: true, stick: !!tv });
+      const h = this.w.playOn(k, at, { loop: true, important: true, stick: !!tv, by: U.v || undefined });
       if (h) hs.push(h);
     }
     if (!hs.length) return false;
@@ -1917,7 +1962,7 @@ export class SkillFx {
       const now = this.w.ofx.time, k = `${oid}>${extra.to}`;
       this.lassos ??= new Map();
       for (const [x, until] of this.lassos) if (until <= now) this.lassos.delete(x);
-      if (this.lassos.has(k)) { for (const h of p.onHit || []) if (this.w.ofx.lib.has(lc(h))) this.w.playOn(lc(h), tv, {}); return true; }
+      if (this.lassos.has(k)) { for (const h of p.onHit || []) if (this.w.ofx.lib.has(lc(h))) this.w.playOn(lc(h), tv, { by: owner }); return true; }
       this.lassos.set(k, now + (Number(projectileParts(p).life) || 1));
     }
     const q = this.volley?.id === oid && this.volley.frame === this.frame ? this.volley : (this.volley = { id: oid, frame: this.frame, n: 0 });
