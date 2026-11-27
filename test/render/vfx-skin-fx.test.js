@@ -86,6 +86,27 @@ describe('(fork) official effects of an outfit', () => {
     assert.equal(w.outfitOf(view(3, 'char_4182_oblvns', 5)), null);
   });
 
+  test('an outfit\'s own mount points (index skins by outfit id); an effect on another unit plays the twin of its `by`', async () => {
+    const { w, spawned, view } = await setup();
+    const own = { points: { Muzzle: { all: { pos: [1, 2, 3] } } } };
+    w.idx.skins['char_700_shot@sk#1'] = own;
+    const a = view(1, 'char_700_shot', 5, 'char_700_shot@sk#1'), b = view(2, 'char_700_shot', 5), t = view(3, 'enemy_800_foe', 8);
+    assert.equal(w.skinOfView(a), own, '暗能质子-style: the outfit\'s muzzle, not the default model\'s');
+    assert.equal(w.skinOfView(b), w.skinOf(w.unitOf(b)), 'the default look keeps its unit\'s points');
+    assert.equal(w.skinOfView(view(4, 'char_700_shot', 5, 'char_700_shot@other#2')), w.skinOf(w.unitOf(b)), 'an outfit without points of its own: the unit\'s');
+    // a point the outfit's prefab lacks comes from the default model's (19 outfits name fewer Special points)
+    w.idx.units.char_700_shot.skin = 'char_700_shot';
+    w.idx.skins.char_700_shot = { points: { Muzzle: { all: { pos: [9, 9, 9] } }, SpecialPoint1: { all: { pos: [4, 5, 6] } } } };
+    const merged = w.skinOfView(a);
+    assert.deepEqual(merged.points.Muzzle, own.points.Muzzle, 'the outfit\'s own point wins');
+    assert.deepEqual(merged.points.SpecialPoint1, { all: { pos: [4, 5, 6] } }, 'the missing one is the default model\'s');
+    assert.equal(w.skinOfView(a), merged, 'merged once per outfit');
+    spawned.length = 0;
+    w.playOn('p_hit', t, { by: a });   // skillfx.js _states: the S3 link on a locked enemy, src her
+    w.playOn('p_hit', t, {});
+    assert.deepEqual(spawned, ['p_hit_sk#1', 'p_hit']);
+  });
+
   test('preload: the worn outfits\' twins join the units\' keys', async () => {
     const { w, view } = await setup();
     const keys = w.keysFor([view(1, 'char_700_shot', 5, 'char_700_shot@sk#1')], false);

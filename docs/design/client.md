@@ -308,6 +308,12 @@ history and the open points: DESIGN §32.14.25.
   over, or on the enemy's death or leak. An enemy in a form whose name is one of its modes' attacks in that
   mode and plays that mode's copies of its skills. A summon's skill — its record's, else the only one its unit has —
   plays like an operator's.
+- **Lock lines** (fork, 2026-11-27, `skills.js LOCK_LINES`, `skillfx.js _lockLines`): a LockTargetAbility's
+  `_lineEffect` (official client dump: LockTargetAbility `_buff`, `_lineEffect`, `m_lineRenderers`; index.json lists it
+  as the ability's `unclassified` effect) is drawn through the HitPoints of the units one src has locked — the carriers
+  of its `_buff` in b.snap `fxs` — while two or more hold it, in the src's outfit twin. 溯光星源 S3's LinkEnemy:
+  `halo2_skill_03_line_01` between her two locked enemies (`halo2_s_3_link`); before, no layer drew it. An outfit's own
+  mount points and the `by` rule: [OUTFITS.md](../OUTFITS.md) "Rendering".
 - **Lines and paths** (fork, 2026-11-11, `pathfx.js PathFx`, owned by `SkillFx`; its `PATH_BINDINGS`): the official
   line effects whose points the game supplies, which `skills.js` leaves unmapped ('path' / 'tiles'). A
   RangeLineEffectEmitter draws one line per closed outline of a tile set through the tile corners (`edgeLoops`; each

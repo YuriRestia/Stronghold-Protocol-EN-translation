@@ -16,6 +16,12 @@ import { PLUGIN_OFFER_SLOTS } from './plugins/limits.js';
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
 const isStr = (v, max = 64) => typeof v === 'string' && v.length <= max;
+/**
+ * (fork) The longest `room.join.carry` (the signed settings of a moved Doctor, Lobby.crossCarry): a room.join frame stays
+ * inside the server's 64 KB inbound frame (server/http/websocket.js WS_MAX_PAYLOAD) with 4 KB for the rest of it. A
+ * longer one is not sent: that Doctor's page resends its settings after the move, as before.
+ */
+export const CROSS_CARRY_MAX_LEN = 60 * 1024;
 /** (fork) the longest chat frame text accepted at all (UTF-16 units): a real line is at most 300 code points, 600 units */
 const CHAT_FRAME_MAX = 600;
 const isBool = (v) => typeof v === 'boolean';
@@ -547,7 +553,8 @@ export const C2S = {
     oneForAll: isBool, $optional: ['test', 'difficulty', 'version', 'soloUnlimited', 'capacity', 'password', 'oneForAll'] },
   // password: (fork) a locked Grand Alliance room's 4 letters (shared/largeRoom.js)
   // squad: (fork) with a ticket, the Grand Alliance squad room.move named (0 = seats 1–4, 1 = seats 5–8)
-  'room.join': { $optional: ['testAck', 'ticket', 'password', 'squad'], testAck: (v) => v === true, ticket: (v) => isStr(v, 512), password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), squad: (v) => v === 0 || v === 1, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
+  // (fork) `carry`: the signed settings room.move handed a moved Doctor (DESIGN §90.2 "Arrive", Lobby.crossCarry)
+  'room.join': { $optional: ['testAck', 'ticket', 'password', 'squad', 'carry'], testAck: (v) => v === true, ticket: (v) => isStr(v, 512), carry: (v) => isStr(v, CROSS_CARRY_MAX_LEN), password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), squad: (v) => v === 0 || v === 1, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'p2p.enable': { enabled: isBool },
   'p2p.signal': { epoch: isId, to: isId, description: isPeerDescription, candidate: isPeerCandidate, $optional: ['description', 'candidate'] },
   'p2p.ready': { epoch: isId, ready: isBool, seq: (v) => Number.isSafeInteger(v) && v >= 0 },
@@ -758,7 +765,8 @@ export const S2C = [
   'welcome', 'ok', 'error', 'pong',
   'p2p.config', 'p2p.signal', 'p2p.frame',
   'room.state', 'room.closed',
-  // (fork) room.move { region, code, ticket } — matchmaking placed this group on another server: join there (DESIGN §90.2)
+  // (fork) room.move { region, code, ticket, carry? } — matchmaking placed this group on another server: join there,
+  // handing `carry` (this Doctor's settings, signed by its server) back in the room.join (DESIGN §90.2)
   'room.move',
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
   // (fork) m.chat { p, x } — a player's chat line: `p` the sender's seat, `x` the cleaned text. To everyone in the room

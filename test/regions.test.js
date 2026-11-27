@@ -509,6 +509,52 @@ describe('two servers', () => {
     }
   });
 
+  // Player report 2026-11-27: Clementia (a 自选 pick) missing after a cross-region match. The joining socket has no token,
+  // so the target seats a new session, and the match starts on that join — before the main socket's welcome resends. The
+  // home server signs the settings it holds into room.move (Lobby.crossCarry); the page hands them back in its join.
+  test('a queued Doctor moved to another server brings its settings: the match it fills starts with its 自选 picks and card', async () => {
+    const r = await twoRegions();
+    const memory = (seed = {}) => {
+      const m = new Map(Object.entries(seed));
+      return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+    };
+    const cfg = { self: 'sg', list: [{ id: 'sg', host: `127.0.0.1:${r.sg.port}` }, { id: 'us', host: `127.0.0.1:${r.us.port}` }], auto: false };
+    const identity = { t: null, getToken() { return this.t; }, getTokenClaim: () => ({ noReplace: false }), clearToken() { this.t = null; }, saveToken(x) { this.t = x; }, loadName: () => 'Mover' };
+    const probes = [];
+    const PICKS = { chess_char_6_diy1_a: { charId: 'char_4231_clemnt', skillIndex: 0 } };
+    const net = new Net({ getToken: () => identity.getToken(), getTokenClaim: () => identity.getTokenClaim(), getUrl: () => regions.getUrl(), p2p: { enabled: false } });
+    const regions = createRegions({
+      net, identity, local: memory({ 'sp.regions': JSON.stringify(cfg) }), session: memory(), search: '', socketPath: () => '/ws', secure: () => false,
+      makeNet: (url) => { const p = new Net({ url, p2p: { enabled: false } }); probes.push(p); return p; }, makeError: (code) => new NetError(code),
+      busy: () => true, // in the queue: the socket stays where it is until the move
+    });
+    try {
+      const room = await searching(r.us, 3, 'D');
+      await new Promise((done) => {
+        net.on('welcome', (m) => { identity.saveToken(m.token); regions.onWelcome(m); done(); });
+        net.setName('Mover');
+      });
+      // what the page's syncs sent its own server long before the move
+      await net.request('room.diy', { picks: PICKS });
+      await net.request('room.card', { charId: 'char_4231_clemnt' });
+      let move = null;
+      net.on('room.move', (m) => { move = m; regions.follow(m); });
+      await net.request('queue.join', { difficulty: 'NORMAL' });
+      const target = r.us.lobby.rooms.get(room.code);
+      for (let i = 0; i < 100 && !target.match; i++) await new Promise((done) => setTimeout(done, 50));
+      assert.equal(typeof move?.carry, 'string', 'room.move carries the signed settings');
+      assert.ok(target.match, 'the moved Doctor filled the room and it started');
+      const moved = [...target.match.players.values()].find((p) => p.name === 'Mover');
+      assert.ok(moved, 'the moved Doctor plays');
+      assert.deepEqual(moved.diy, { chess_char_6_diy1_a: { charId: 'char_4231_clemnt', skillIndex: 0, uniEquipId: null } }, 'the picks reached the match');
+      assert.equal(target.seatOf(moved.playerId).card, 'char_4231_clemnt', 'and the seat card');
+    } finally {
+      net.close();
+      for (const p of probes) p.close();
+      await r.close();
+    }
+  });
+
   test('a queued Doctor moves with a ticket and leaves the queue', async () => {
     const r = await twoRegions();
     try {

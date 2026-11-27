@@ -7,7 +7,8 @@ Run through extract.py (needs the client and .venv-extract; nothing is extracted
   .venv/bin/python tools/local-extract/extract.py --only fx --fx-keys common_hit_01,buff_stun
   .venv/bin/python tools/local-extract/extract.py --only fx --fx-skins      (fork) add the outfit twins of the set
 
-What is read (paths relative to the AB root, see extract.py CANDIDATES):
+What is read (paths relative to the AB root, see extract.py CANDIDATES; (fork) on an install, a hot update under
+Arknights_Data/PersistentData/Bundles wins over the shipped bundle: hot_root / ab_path / ab_glob):
   battle/prefabs/effects/<code>.ab, pkgrps/btl_pfb_fx_*.ab   the effect prefabs (one prefab = one effect key)
   refs/fx/**, [uc]shaders.ab, shaders/*.ab, anon/*.bin       their shared materials / textures / meshes, the shaders
                                                              (only their names and render states are read), the
@@ -347,6 +348,33 @@ def fx_file(key):
     return s if s == key else f'{s}-{zlib.crc32(key.encode("utf-8")) & 0xffffffff:08x}'
 
 
+def hot_root(ab_root):
+    """(fork) The client's hot-update bundle root (Arknights_Data/PersistentData/Bundles) next to an install's AB root
+    (…/Arknights_Data/StreamingAssets/AB/Windows), or None (a hand-made AB root such as .cache/ab-cn). New outfits and
+    their effect twins arrive there first, so a run on an install reads it as dynillust.py and voice.py do."""
+    for p in Path(ab_root).parents:
+        h = p / 'PersistentData' / 'Bundles'
+        if h.is_dir() and h.resolve() != Path(ab_root).resolve():
+            return h
+    return None
+
+
+def ab_path(ab_root, rel):
+    """(fork) The file of bundle `rel`: the hot update when the client has one, else the AB root's (hot_root)."""
+    h = hot_root(ab_root)
+    if h is not None and (h / rel).is_file():
+        return h / rel
+    return Path(ab_root) / rel
+
+
+def ab_glob(ab_root, pattern):
+    """(fork) Rel paths (posix) of the bundles matching `pattern` in the AB root and its hot-update root, each once."""
+    rels = set()
+    for r in [Path(ab_root)] + ([hot_root(ab_root)] if hot_root(ab_root) is not None else []):
+        rels |= {p.relative_to(r).as_posix() for p in r.glob(pattern) if p.is_file()}
+    return sorted(rels)
+
+
 SKIN_SEG = re.compile(r'_([a-z0-9]+#\d+)(?=_|$)')
 
 
@@ -413,10 +441,7 @@ def skin_replace_pairs(ab_root, cabs, log=lambda _m: None):
     nothing. The outfit id is `<the skinpack's operator>@<suffix>` (data/outfits.json ids: skinpack/char_4098_vvana.ab
     and the suffix read off the `to` key, skin_variant)."""
     out = {}
-    root = Path(ab_root) / 'skinpack'
-    if not root.is_dir():
-        return out
-    for f in sorted(root.glob('*.ab')):
+    for f in [ab_path(ab_root, rel) for rel in ab_glob(ab_root, 'skinpack/*.ab')]:   # a hot update wins (hot_root)
         env = AssetEnv(ab_root, cabs)
         try:
             for sf in env.load(f):
@@ -739,11 +764,13 @@ def scan_cabs(ab_root, dirs=CAB_DIRS, files=CAB_FILES):
     from aklz4 import decompress_lz4ak
     out = {}
     paths = []
-    for d in dirs:
-        base = Path(ab_root) / d
-        if base.is_dir():
-            paths += [p for p in base.rglob('*') if p.is_file() and p.suffix in ('.ab', '.bin')]
-    paths += [Path(ab_root) / f for f in files if (Path(ab_root) / f).is_file()]
+    # (fork) the hot-update root first (hot_root): its copy of a CAB wins
+    for root in ([hot_root(ab_root)] if hot_root(ab_root) is not None else []) + [Path(ab_root)]:
+        for d in dirs:
+            base = root / d
+            if base.is_dir():
+                paths += [p for p in base.rglob('*') if p.is_file() and p.suffix in ('.ab', '.bin')]
+        paths += [root / f for f in files if (root / f).is_file()]
     for p in paths:
         try:
             for name in bundle_nodes(p, lz4.block, decompress_lz4ak):
@@ -819,7 +846,7 @@ class AssetEnv:
         return self.loaded[path]
 
     def load_rel(self, rel):
-        return self.load(self.ab_root / rel)
+        return self.load(ab_path(self.ab_root, rel))
 
     def _index(self):
         def walk(f):
@@ -1553,7 +1580,7 @@ def _containers(args):
     ab_root, rel = args
     import aklz4  # noqa: F401
     import UnityPy
-    p = Path(ab_root) / rel
+    p = ab_path(ab_root, rel)
     st = p.stat()
     try:
         env = UnityPy.load(str(p))
@@ -1569,10 +1596,10 @@ def container_index(ab_root, globs, cache_file, jobs, log):
         cache = json.loads(Path(cache_file).read_text(encoding='utf-8'))
     except (OSError, ValueError):
         cache = {}
-    rels = sorted({p.relative_to(ab_root).as_posix() for g in globs for p in Path(ab_root).glob(g) if p.is_file()})
+    rels = sorted({rel for g in globs for rel in ab_glob(ab_root, g)})   # (fork) hot updates too (hot_root)
     todo = []
     for rel in rels:
-        st = (Path(ab_root) / rel).stat()
+        st = ab_path(ab_root, rel).stat()
         c = cache.get(rel)
         if not c or c.get('size') != st.st_size or c.get('mtime') != int(st.st_mtime):
             todo.append((str(ab_root), rel))
@@ -2791,6 +2818,48 @@ def skin_points(env, rel, prefab, graphic, container=None):
     return points
 
 
+OUTFIT_PREFAB = re.compile(r'/battle/prefabs/skins/character/([^/]+)/([^/]+)\.prefab$', re.I)
+
+
+def outfit_skin_id(container):
+    """(fork) The outfit id of a skinpack battle prefab's container path — `…/battle/prefabs/skins/character/
+    char_1047_halo2/char_1047_halo2_striker#4.prefab` → 'char_1047_halo2@striker#4' (data/outfits.json ids, lower
+    case) —, else None (a token's look or anything else)."""
+    m = OUTFIT_PREFAB.search(container or '')
+    if not m:
+        return None
+    uid, model = m.group(1).lower(), m.group(2).lower()
+    if not uid.startswith('char_') or not model.startswith(uid + '_'):
+        return None
+    return f'{uid}@{model[len(uid) + 1:]}'
+
+
+def outfit_skins(ab_root, cabs, units, chars, have, log=lambda _m: None):
+    """(fork) index.json `skins` of the outfits: each outfit's own mount points (Muzzle, HitPoint …), read from its
+    battle prefab in skinpack/<charId>.ab under the operator's charpack Graphic, as its defaultskin's are
+    (skin_points). The outfit's gun or arm sits elsewhere than the default model's, so its effects need its own points
+    (溯光星源's 暗能质子 S3 cast at the muzzle). Keyed by outfit id (outfit_skin_id; render/vfx/wiring.js skinOfView);
+    `chars` limits it to those operators, `have` skips the outfits already listed."""
+    out = {}
+    for uid in sorted(chars):
+        rel = f'skinpack/{uid}.ab'
+        if uid not in units or not ab_path(ab_root, rel).exists():
+            continue
+        env = AssetEnv(ab_root, cabs)
+        try:
+            for path in sorted(env.prefabs(rel, full=True)):
+                oid = outfit_skin_id(path)
+                if not oid or oid in have or not oid.startswith(uid + '@'):
+                    continue
+                pts = skin_points(env, rel, None, units[uid].get('graphic'), container=path)
+                if pts:
+                    out[oid] = {'source': f'{rel} {path.split("/")[-1][:-len(".prefab")]}', 'graphic': units[uid].get('graphic'),
+                                'points': pts}
+        except Exception as e:  # noqa: BLE001 — one unreadable skinpack keeps its outfits on the default points
+            log(f'  skip skinpack {rel}: {e!r}')
+    return out
+
+
 def strings_of(v, out):
     """all_strings without the fields that name animations or sounds (NOT_EFFECT_FIELDS)."""
     if isinstance(v, dict):
@@ -3294,7 +3363,7 @@ def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log, tem
         try:
             if uid.startswith('char_'):
                 rel = f'charpack/{uid}.ab'
-                u = parse_unit(env, rel, uid, 'char') if (Path(ab_root) / rel).exists() else None
+                u = parse_unit(env, rel, uid, 'char') if ab_path(ab_root, rel).exists() else None
             elif uid.startswith('enemy_'):
                 rel = enemy_idx.get(uid)
                 u = parse_unit(env, rel, uid, 'enemy') if rel else None
@@ -3383,7 +3452,7 @@ def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log, tem
             if uid.startswith('char_'):
                 arts = f'chararts/{uid}.ab'
                 pts = skin_points(env, arts, 'defaultskin', u.get('graphic'), container=f'/{uid}/defaultskin.prefab') \
-                    if (Path(ab_root) / arts).exists() else None
+                    if ab_path(ab_root, arts).exists() else None
                 src = f'{arts} defaultskin'
             else:
                 pts, src = skin_points(env, rel, uid, None), f'{rel} {uid}'
@@ -3626,7 +3695,7 @@ def enemy_talent_prefixes(rec):
 
 def client_version(ab_root):
     try:
-        return json.loads((Path(ab_root) / 'hot_update_list.json').read_text(encoding='utf-8')).get('versionId')
+        return json.loads(ab_path(ab_root, 'hot_update_list.json').read_text(encoding='utf-8')).get('versionId')
     except (OSError, ValueError):
         return None
 
@@ -3771,6 +3840,13 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
         groups = {g: ({**v, **(old_groups.get(g) or {})} if add_only else {**(old_groups.get(g) or {}), **v})
                   for g, v in groups.items()}
         set_name = prev.get('set') or set_name
+    # (fork) the outfits' own mount points (outfit_skins) of the operators data/outfits.json dresses, those not listed yet
+    t0 = time.time()
+    outfits = _read_json(root / 'data' / 'outfits.json') or {}
+    dressed = {r.get('charId') for r in outfits.values() if isinstance(r, dict) and r.get('charId')}
+    osk = outfit_skins(ab_root, cabs, units, dressed, set(skins), log)
+    skins = {**skins, **osk}
+    log(f'fx: {len(osk)} outfits\' own mount points ({time.time() - t0:.0f} s)')
     groups = {'fx': {'index': {'path': url('index.json'), 'kind': 'FxIndex', 'version': INDEX_VERSION, 'set': set_name,
                                'prefabs': len(summaries)},
                      'textures': {'path': url('textures.json'), 'kind': 'FxTextures', 'count': len(tex_all)}},

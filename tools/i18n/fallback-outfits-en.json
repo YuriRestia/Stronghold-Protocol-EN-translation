@@ -1,5 +1,5 @@
 {
-  "_about": "Fork (docs/OUTFITS.md): English names of the CN-only outfits of data/outfits.json, which the official EN client data does not have yet. Names looked up by @YuriRestia on 2026-10-11 (arknights.wiki.gg; the 自选编队 operators' ones on 2026-10-12 from the operators' Gallery pages); series labels use the official EN brand names of the EN skin_table. tools/build-i18n.mjs tries these only after the official EN text, so an outfit released on Global switches to its official name on the next rebuild. My Little Pony: the collab's own English name (no official EN brand entry yet).",
+  "_about": "Fork (docs/OUTFITS.md): English names of the CN-only outfits of data/outfits.json, which the official EN client data does not have yet. Names looked up by @YuriRestia on 2026-10-11 (arknights.wiki.gg; the 自选编队 operators' ones on 2026-10-12 from the operators' Gallery pages); series labels use the official EN brand names of the EN skin_table. tools/build-i18n.mjs tries these only after the official EN text, so an outfit released on Global switches to its official name on the next rebuild. 暗能质子 and 绿影之下 named by @YuriRestia on 2026-11-27. My Little Pony: the collab's own English name (no official EN brand entry yet).",
   "舒心野趣": "Picnic Times",
   "失焦": "Out of Focus",
   "后来的故事": "One More Story",
@@ -17,6 +17,8 @@
   "时代/LIV": "EPOQUE/LIV",
   "时代/LV": "EPOQUE/LV",
   "时代/LVII": "EPOQUE/LVII",
+  "时代/LX": "EPOQUE/LX",
+  "雷神推进者/IV": "Raythean Striker/IV",
   "命途迭代/VI": "Iteration Provident/VI",
   "音律联觉/IX": "Ambience Synesthesia/IX",
   "玛尔特/XIII": "MARTHE/XIII",
@@ -50,5 +52,7 @@
   "盛世之象": "A Prosperous Visage",
   "夜行烛火": "Nocturnal Firelight",
   "源远流长": "Everflowing Waters",
-  "国家图书馆": "National Library"
+  "国家图书馆": "National Library",
+  "暗能质子": "Dark Proton",
+  "绿影之下": "Beneath the Bark"
 }
