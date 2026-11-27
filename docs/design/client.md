@@ -711,7 +711,9 @@ a page).
 Beneath the Bark, added that day, showed unplaced until framed. Each step takes `--only <art file name>` and leaves every other
 entry as it is (`--official` used to clear the boxes of every art a partial frames file lacks), and the tool reads the art where
 `data/assets.json` puts it (`outfit/art2k/`; `--reframe` / `--reface` still looked in the retired `outfit/art/`).
-`card-art-framing.mjs --check` lists the full arts with no entry; fetch-assets prints it at its end.
+`card-art-framing.mjs --check` lists the full arts with no entry; fetch-assets prints it at its end. The check itself is
+`tools/assets/card-art-check.mjs` (Node built-ins only), so it ships in the player package with fetch-assets while the
+framing tool (sharp, puppeteer) stays author-only.
 Which pages (the user's choice of 2026-11-22, "automatic by card size"): each card measures its art window and wants half
 pages while it is drawn at most `HALF_MAX_SCALE` 1 device px per unit of the official 232 × 458 window (measured: there half
 kept 74–100 % of full's detail, above it 36–82 %), full above; the page uses full while any card wants full (the renderer's
