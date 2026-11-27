@@ -364,6 +364,28 @@ test('the zip reader: stored and deflated entries, zip64, UTF-8 names; damaged a
   }
 });
 
+test('zipFolder without zip or tar on PATH: the built-in writer, UTF-8 names (GitHub #28: Windows\' tar.exe crashing on CI)', { skip: typeof zlib.crc32 !== 'function' && 'zlib.crc32 needs Node ≥ 22.2' }, () => {
+  const dir = tmp('zipw');
+  const pathWas = process.env.PATH;
+  try {
+    put(dir, `${FOLDER}/package.json`, '{"version":"0.2.0"}');
+    put(dir, `${FOLDER}/public/assets/卫戍 a.png`, Buffer.alloc(5000, 7));
+    put(dir, `${FOLDER}/server/empty.js`, '');
+    fs.mkdirSync(path.join(dir, 'empty-path'));
+    process.env.PATH = path.join(dir, 'empty-path');
+    zipFolder(dir, path.join(dir, 'built-in.zip'));
+    process.env.PATH = pathWas;
+    const b = readBase(path.join(dir, 'built-in.zip'));
+    assert.deepEqual([b.version, b.art, b.update], ['0.2.0', 1, false]);
+    assert.deepEqual([...b.files.keys()].sort(), ['package.json', 'public/assets/卫戍 a.png', 'server/empty.js']);
+    assert.deepEqual(b.files.get('public/assets/卫戍 a.png'), dg(Buffer.alloc(5000, 7)));
+    assert.deepEqual(b.files.get('server/empty.js'), dg(''));
+  } finally {
+    process.env.PATH = pathWas;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('zipFolder writes a UTF-8 name on this machine (or says why it cannot)', {
   skip: asciiProbe.result === 'threw' ? `no zip tool writes here: ${asciiProbe.error}`
     : utf8Probe.result === 'threw' ? `zipFolder refused the UTF-8 name: ${utf8Probe.error}` : false,
@@ -377,12 +399,12 @@ test('zipFolder\'s error names every attempt and keeps the install hint only whe
   const PATH = process.env.PATH;
   const SystemRoot = process.env.SystemRoot;
   try {
-    put(dir, `${FOLDER}/package.json`, '{"version":"0.2.0"}');
+    // (Fish Edition) no folder to zip: with a folder, the built-in writer (GitHub #28) would write it, so its error shows too
     process.env.PATH = path.join(dir, 'no-such-bin');
     // (fork) no Windows folder either: else Windows' own tar.exe (systemTar) is the third attempt and writes the zip
     delete process.env.SystemRoot;
     assert.throws(() => zipFolder(dir, path.join(dir, 'out.zip')),
-      /^Error: zipping failed: zip: ENOENT; tar: ENOENT — install `zip` \(or a bsdtar `tar`\)$/);
+      /^Error: zipping failed: zip: ENOENT; tar: ENOENT — install `zip` \(or a bsdtar `tar`\)(?:; built-in: .*ENOENT.*)?$/);
   } finally {
     process.env.PATH = PATH;
     if (SystemRoot !== undefined) process.env.SystemRoot = SystemRoot;
@@ -424,21 +446,6 @@ test('(fork) zipFolder writes the zip on Windows without a zip-writing tool on t
   }
 });
 
-test('a zipper that cannot write the folder names the tool that failed and why, instead of "install zip"', { skip: hasZipTool && 'this machine has a zip tool that writes' }, () => {
-  const dir = tmp('zip-fail');
-  try {
-    put(dir, `${FOLDER}/package.json`, '{"version":"0.2.0"}');
-    const zip = path.join(dir, 'out.zip');
-    assert.throws(() => zipFolder(dir, zip), (e) => {
-      assert.match(e.message, /^zipping failed: zip: /, 'the first attempt is named');
-      assert.match(e.message, /; tar: /, 'the tar fallback is named too');
-      return true;
-    });
-    assert.equal(fs.existsSync(zip), false, 'a failed attempt leaves no half-written zip behind');
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
 /**
  * A zip of stored entries built byte by byte: `{ name: Buffer (the header bytes), data, flags?, extra? }` each — the
  * name encodings and extra fields a zip tool would write, independent of the zip tool and locale of the machine.

@@ -34,6 +34,13 @@ export class MatchReports {
     f.lastProgressAt = this.sched.now();
     if (f.kind === 'boss' || f.kind === 'hidden') {
       this._creditBoss(f, msg.bossDmg, msg.by);
+      // SPA-CC boss-pool Risk tags (server/sim/bossRisk.js): Arts / Physical damage, United 2's hold
+      if (this.bossPool && this.bossPool.risk) {
+        if (msg.bossArts != null || msg.bossPhys != null) this.bossPool.noteTyped(f.fieldId, Math.min(Number(msg.bossArts) || 0, f.bossAcked), Math.min(Number(msg.bossPhys) || 0, f.bossAcked));
+        if (typeof msg.hold === 'boolean') this.bossPool.setHold(f.fieldId, msg.hold);
+        // Delegation: the field's damage to its Degenbrecher, for the other fields' copies (the linked HP bar)
+        if (Number.isFinite(msg.degen) || Number.isFinite(msg.degenGate)) this.bossPool.noteDegen(f.fieldId, msg.degen, msg.degenGate);
+      }
       this._creditLp(f, msg.leaks, true);
       this._noteLeaksBy(f, msg.leaksBy);
       this._checkFinalEnd();

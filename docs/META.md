@@ -1158,7 +1158,9 @@ See [BOT_STRATEGIES](BOT_STRATEGIES.md) for composition and lifecycle details.
 * `node tools/botbench.mjs --configs solo:HARD,coop4:HARD --seeds 40 --jobs 4 --json new.json` — the AI player's
   outcomes (wins, rounds passed, LP left, leaks per round, bounties taken / leaked and the kill-chance calibration,
   merges, board value, bond tiers, layers, elites) and its decision time per prep (wall clock and CPU, p50 / p95, the
-  layout rehearsal apart); `--compare old.json new.json` prints the A/B tables (the same seeds on two builds).
+  layout rehearsal apart); `--compare old.json new.json` prints the A/B tables (the same seeds on two builds);
+  `--rules ccBoss=2,ccPatriot` plays every match with those lobby rules (SPA-CC tags, cheats; the bot does not know the
+  tags, so it measures what a tag costs a tag-unaware player).
   `--layers` adds `layerTrace` to each JSON match: clamped per-bond gains with nested trait/band/item/card sources,
   acquisition/merge identity, purchase/refresh/level spending, sales, selected cards, and per-seat prep/settlement
   snapshots. `beforeEndPrep` is before `PlayerState.endPrep`, **after** the match's `onPrepEnd` effects; both prep

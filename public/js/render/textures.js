@@ -1261,8 +1261,44 @@ export function shadowTexture() {
 
 /** Item pedestal composite (icon in a rounded frame coloured by tier), keyed by resolved icon URL, never item id. */
 const _items = new Map();
-export function itemTexture(url, img, color) {
-  const k = `${url}|${img ? 1 : 0}|${color}`;
+let _cursedFlame = null;
+/**
+ * One tongue of the Toxic Waste's sinking flame (render/units.js CursedFlame): a soft vertical teardrop, dark blue,
+ * widest near its top and tapering to the bottom (the flame "falls"), alpha fading to the edges. 64×128, white-free so
+ * normal blending reads as a gloomy shadow-light rather than a glow.
+ */
+export function cursedFlameTexture() {
+  if (_cursedFlame) return _cursedFlame;
+  const P = PIXI();
+  const W = 64, H = 128;
+  const canvas = makeCanvas(W, H);
+  const c = canvas.getContext('2d');
+  c.save();
+  c.translate(W / 2, H * 0.36);
+  c.scale(1, 2.1);
+  const g = c.createRadialGradient(0, 0, 0, 0, 0, W * 0.46);
+  g.addColorStop(0, 'rgba(70, 110, 220, 0.85)');
+  g.addColorStop(0.45, 'rgba(35, 60, 160, 0.55)');
+  g.addColorStop(1, 'rgba(15, 25, 90, 0)');
+  c.fillStyle = g;
+  c.beginPath(); c.arc(0, 0, W * 0.46, 0, Math.PI * 2); c.fill();
+  c.restore();
+  // the tapering tail below the body
+  const t = c.createLinearGradient(0, H * 0.5, 0, H);
+  t.addColorStop(0, 'rgba(30, 50, 150, 0.45)');
+  t.addColorStop(1, 'rgba(15, 25, 90, 0)');
+  c.fillStyle = t;
+  c.beginPath(); c.moveTo(W * 0.3, H * 0.5); c.quadraticCurveTo(W / 2, H * 1.02, W * 0.7, H * 0.5); c.closePath(); c.fill();
+  _cursedFlame = P.Texture.from(canvas);
+  return _cursedFlame;
+}
+
+/**
+ * An item's plate: a dark rounded square in `color` with the icon. `invert` (the SPA-CC Toxic Waste): the finished
+ * plate's colours inverted — a white plate, the icon's colours turned to their complements (its red vial cyan).
+ */
+export function itemTexture(url, img, color, { invert = false } = {}) {
+  const k = `${url}|${img ? 1 : 0}|${color}|${invert ? 1 : 0}`;
   let tex = _items.get(k);
   if (tex) return tex;
   const P = PIXI();
@@ -1278,6 +1314,14 @@ export function itemTexture(url, img, color) {
     try { c.drawImage(img, S / 2 - (img.width * sc) / 2, S / 2 - (img.height * sc) / 2, img.width * sc, img.height * sc); } catch { /* ignore */ }
   } else {
     c.fillStyle = col; c.font = 'bold 44px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('?', S / 2, S / 2 + 2);
+  }
+  if (invert) {
+    try {
+      const d = c.getImageData(0, 0, S, S);
+      const px = d.data;
+      for (let i = 0; i < px.length; i += 4) { px[i] = 255 - px[i]; px[i + 1] = 255 - px[i + 1]; px[i + 2] = 255 - px[i + 2]; }
+      c.putImageData(d, 0, 0);
+    } catch { /* a tainted canvas: keep the plain plate */ }
   }
   tex = P.Texture.from(canvas);
   _items.set(k, tex);

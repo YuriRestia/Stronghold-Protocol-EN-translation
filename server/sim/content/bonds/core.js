@@ -47,6 +47,7 @@ import { damageAttackType, isHpLoss } from '../../attack.js';
 import { msg } from '../../../../shared/i18n.js';
 import { bbCap } from '../../../../shared/plugins/officialBounds.js';
 import { textFinite } from '../../../../shared/plugins/textNumber.js';
+import { LATERANO_B_AMMO } from '../../../../shared/ruleData.js';
 
 const num = S.num;
 
@@ -275,7 +276,42 @@ function lendAround(battle, from, share, L) {
 // =====================================================================================================================
 // 维多利亚
 
+// Mod C (Custom Lobby Modifications, shared/rules.js victoriaMod; fish-edition/ROADMAP.md "Victoria Mod C") replaces
+// Mod A in battle: when a member's skill ends, that member recovers VICTORIA_C.spPerHammer SP per 维式重锤 it carries — like
+// 迅捷's (not on a knock-out; Fish, 2026-10-15); <6 members> at battle start every member
+// gets ATK +(atkBase + atkPerStack·L) (直接乘算), a 屏障 of barrier × max HP and 抵抗. Its prep side (free upgraded
+// hammers in the shop, stacks at the end of the 休整期) is registerMeta below.
+export const VICTORIA_C = Object.freeze({ spPerHammer: 8, atkBase: 2, atkPerStack: 0.012, barrier: 2, members: 6 });
+
+/** A 维式重锤 (any kind, normal or upgraded): the items that give 【维多利亚】. */
+export function isVictorianHammer(itemOrId) {
+  const rec = typeof itemOrId === 'string' ? S.itemRecord(itemOrId) : itemOrId;
+  return !!rec && rec.giveBondId === 'victoriaShip';
+}
+
+function installVictoriaC(battle, pid, members) {
+  const memberSet = new Set(members);
+  const hammers = (u) => S.itemsOf(u).filter((id) => isVictorianHammer(id)).length;
+  battle.on('skillEnd', ({ unit, reason }) => {
+    if (!memberSet.has(unit) || reason === 'death' || !unit.alive || !unit.skill) return;
+    const n = hammers(unit);
+    if (n > 0) unit.skill.gainSp(n * VICTORIA_C.spPerHammer, 'bond');
+  });
+  if (!reached(battle, pid, 'victoriaShip', VICTORIA_C.members)) return;
+  const L = S.bondLayers(battle, pid, 'victoriaShip');
+  for (const u of members) S.passiveBuff(battle, u, 'bond:victoria:c:atk', S.directMods({ atk: VICTORIA_C.atkBase + VICTORIA_C.atkPerStack * L }));
+  // "At the start of combat": the members fielded then (they are deployed by battleStart, not at install)
+  battle.on('battleStart', () => {
+    for (const u of members) {
+      if (!u.alive || !u.deployed) continue;
+      battle.addBuff(u, { key: 'bond:victoria:c:barrier', shield: Math.round(u.s.maxHp * VICTORIA_C.barrier), duration: Infinity, visible: true });
+      battle.applyStatus(u, 'resist', { duration: Infinity, force: true });
+    }
+  });
+}
+
 function installVictoria(battle, pid, bb, members) {
+  if (S.battleRule(battle, 'victoriaMod') === 'C') { installVictoriaC(battle, pid, members); return; }
   const apply = () => {
     const mul = num(bb.base_damage_scale, 1) + num(bb.damage_scale_per_stack, 0) * S.bondLayers(battle, pid, 'victoriaShip');
     for (const u of members) {
@@ -317,11 +353,31 @@ function installKjerag(battle, pid, bb, members) {
 // =====================================================================================================================
 // 拉特兰
 
+// Mod B (Custom Lobby Modifications, shared/rules.js lateranoMod; fish-edition/ROADMAP.md "Laterano Mod B"):
+//   ammo +min(5 + 1.0·L, 75 + 0.3·L) % instead of +(base_ammo_percent + ammo_percent_per_stack·L);
+//   <At 100 stacks> members deal 200 % damage, and the operators' "every N bullets" 驻守 (莫斯提马, 圣约送葬人, 蕾缪安:
+//   garrisons/battle.js consume_ammo) trigger twice each time they trigger — the Attribute's owner decides
+//   (S.lateranoB100), not whoever spent the bullets; the bullets count as usual and both triggers count toward the
+//   Attribute's per-battle limit; the 6-member ATK per bullet is Mod A's and is not doubled.
+export const LATERANO_B = Object.freeze({ ...LATERANO_B_AMMO, dmg: 2 });
+
 function installLaterano(battle, pid, bb, members) {
   const memberSet = new Set(members);
+  const modB = S.battleRule(battle, 'lateranoMod') === 'B';
+  const ammoShare = (L) => (modB
+    ? Math.min(LATERANO_B.base + LATERANO_B.perStack * L, LATERANO_B.capBase + LATERANO_B.capPerStack * L)
+    : num(bb.base_ammo_percent, 0) + num(bb.ammo_percent_per_stack, 0) * L);
+  if (modB) {
+    const apply = () => {
+      if (S.bondLayers(battle, pid, 'lateranoShip') < S.LATERANO_B_STACKS) return;
+      for (const u of members) S.passiveBuff(battle, u, 'bond:laterano:b100', { dmgDealtMul: LATERANO_B.dmg });
+    };
+    apply();
+    onLayers(battle, pid, 'lateranoShip', apply);
+  }
   battle.on('skillStart', ({ unit, skill }) => {
     if (!memberSet.has(unit) || !skill || skill.kind !== 'ammo' || !(skill.ammoLeft > 0)) return;
-    const mul = 1 + num(bb.base_ammo_percent, 0) + num(bb.ammo_percent_per_stack, 0) * S.bondLayers(battle, pid, 'lateranoShip');
+    const mul = 1 + ammoShare(S.bondLayers(battle, pid, 'lateranoShip'));
     const n = Math.floor(skill.ammoLeft * mul + 1e-9);
     if (Number.isFinite(n) && n > skill.ammoLeft) skill.ammoLeft = n;
   }, { priority: -10 });
@@ -329,10 +385,13 @@ function installLaterano(battle, pid, bb, members) {
   const per = num(bb.atk_per_consume, 0), cap = num(bb.max_atk_for_consume, Infinity);
   if (!(per > 0)) return;
   const st = { used: 0, bonus: 0 };
+  // (Fish Edition) Mod Z Fiammetta on the field: every member gets x2 of this effect (rate and limit), x3 at 500+ stacks
+  const fishMul = () => (members.some((m) => m.fishLateranoMul && m.alive && m.deployed) ? (S.bondLayers(battle, pid, 'lateranoShip') >= 500 ? 3 : 2) : 1);
   battle.on('ammoUsed', ({ unit }) => {
-    if (!memberSet.has(unit) || st.bonus >= cap) return;
+    const k = fishMul();
+    if (!memberSet.has(unit) || st.bonus >= cap * k) return;
     st.used++;
-    st.bonus = Math.min(cap, st.used * per);
+    st.bonus = Math.min(cap * k, st.used * per * k);
     for (const m of members) S.passiveBuff(battle, m, 'bond:laterano:ammo', S.directMods({ atk: st.bonus }));
   });
 }
@@ -761,6 +820,33 @@ export function payHammers(ctx) {
  */
 const HAMMER_HOOKS = Object.freeze(['onLayers', 'onActiveBonds', 'onRoundStart', 'onPrepStart', 'onPrepEnd', 'onBuy', 'onGain', 'onSold', 'onMerge']);
 
+/**
+ * 维多利亚 Mod C, prep side (shop hammers: economy.js itemSlot shows the upgraded one; here its price):
+ *   onPrice    a 维式重锤 in the shop costs 0 while 维多利亚 is active
+ *   onPrepEnd  <休整期结束时> each 维多利亚 operator on the board carrying a 维式重锤 adds its tier in 维多利亚 stacks;
+ *              <6 members> also 2 × its tier to each of its other active alliances
+ */
+export function victoriaCPrice(ctx, ev) {
+  if (ctx.lobbyRules?.victoriaMod !== 'C' || !ctx.bondActive('victoriaShip') || !ev || ev.kind !== 'item') return;
+  if (isVictorianHammer(ctx.gd?.item?.(ev.id) ?? ev.id)) ctx.setPrice(0);
+}
+
+export function victoriaCPrepEnd(ctx) {
+  if (ctx.lobbyRules?.victoriaMod !== 'C' || !ctx.bondActive('victoriaShip')) return;
+  const six = ctx.bondCount('victoriaShip') >= VICTORIA_C.members;
+  for (const p of ctx.board()) {
+    if (!p || p.kind !== 'chess') continue;
+    const bonds = ctx.pieceBonds(p.uid);
+    if (!bonds.includes('victoriaShip')) continue;
+    if (!(p.items || []).some((it) => isVictorianHammer(ctx.gd?.item?.(it.id ?? it) ?? (it.id ?? it)))) continue;
+    const tier = Number(ctx.chessRecord(p.id)?.tier) || 0;
+    if (!(tier > 0)) continue;
+    ctx.addLayers('victoriaShip', tier, { requireActive: true, reason: 'victoria:c' });
+    if (!six) continue;
+    for (const b of bonds) if (b !== 'victoriaShip' && ctx.bondActive(b)) ctx.addLayers(b, 2 * tier, { requireActive: true, reason: 'victoria:c' });
+  }
+}
+
 export function registerMeta(registry) {
   const prev = typeof registry.get === 'function' ? registry.get('bond:victoriaShip') : null;
   const handler = { ...(prev || {}) };
@@ -768,9 +854,17 @@ export function registerMeta(registry) {
     const before = prev && typeof prev[hook] === 'function' ? prev[hook] : null;
     handler[hook] = function hammers(ctx, ev) {
       if (before) before.call(this, ctx, ev);
+      if (hook === 'onPrepEnd') victoriaCPrepEnd(ctx);
+      // Mod C replaces Mod A: no hammer every 25 stacks (its shop hammers are free instead)
+      if (ctx.lobbyRules?.victoriaMod === 'C') return;
       if (hook === 'onLayers' && !(ev && ev.bondId === 'victoriaShip')) return;
       payHammers(ctx);
     };
   }
+  const beforePrice = prev && typeof prev.onPrice === 'function' ? prev.onPrice : null;
+  handler.onPrice = function victoriaPrice(ctx, ev) {
+    if (beforePrice) beforePrice.call(this, ctx, ev);
+    victoriaCPrice(ctx, ev);
+  };
   registry.bond('victoriaShip', handler);
 }

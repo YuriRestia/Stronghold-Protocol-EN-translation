@@ -4,11 +4,13 @@
 // Installed on PlayerState.prototype by server/match/PlayerState.js (a method container: never instantiated; `this` is
 // the player state).
 
-import { ERR, PHASE, layerGainRoom } from '../../../shared/constants.js';
+import { ERR, PHASE, layerGainRoom, layerCapOf } from '../../../shared/constants.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
 import { freeSlot } from '../board.js';
+import { noteBuy, noteLevel } from '../autoAward.js';
 import { computeBonds } from '../bondsMeta.js';
 import { OK, fail } from './common.js';
+import { CC } from '../../../shared/ruleData.js';
 
 export class PlayerEconomy {
   addFunds(n, { reason = '' } = {}) {
@@ -45,7 +47,7 @@ export class PlayerEconomy {
     if (!this.gd.bond(bondId) || !Number.isFinite(n) || n <= 0) return 0;
     if (requireActive && !(this.bonds[bondId] && this.bonds[bondId].active)) return 0;
     const before = this.layers[bondId] || 0;
-    const add = layerGainRoom(before, Math.floor(n));
+    const add = layerGainRoom(before, Math.floor(n), layerCapOf(this.m.lobbyRules));
     if (add <= 0) return 0;
     this.layers[bondId] = before + add;
     this.recompute();
@@ -63,7 +65,21 @@ export class PlayerEconomy {
     const ev = { slot, kind: slot.kind, id: slot.id, price: slot.basePrice };
     this.m.dispatch(this, 'onPrice', ev, { quiet: true });
     const p = Number(ev.price);
-    return Number.isFinite(p) ? Math.max(0, Math.round(p)) : slot.basePrice;
+    const price = Number.isFinite(p) ? Math.max(0, Math.round(p)) : slot.basePrice;
+    return price + this.riskPriceExtra(slot);
+  }
+
+  /** SPA-CC ccTier1Price (shared/rules.js): from round 3, the first tier-1 operator bought each round costs 1 more. */
+  riskPriceExtra(slot) {
+    if (!(this.m.lobbyRules?.ccTier1Price > 0) || slot.kind !== 'chess' || this.m.round < CC.tier1FromRound || this.round.tier1Bought) return 0;
+    return this.gd.tierOf(slot.id) === 1 ? CC.tier1Extra : 0;
+  }
+
+  /** The upgrade price of shop level `level` (the price to leave it): the data's, plus SPA-CC ccUpgrade's extra. */
+  upgradeBaseOf(level) {
+    const base = this.gd.upgradeBase(level) ?? 0;
+    const extra = CC.upgradeExtra[this.m.lobbyRules?.ccUpgrade || 0]?.[level] ?? 0;
+    return base + extra;
   }
 
   _rollChessSlot() {
@@ -82,7 +98,12 @@ export class PlayerEconomy {
       bias = new Set();
       for (const [id, st] of Object.entries(bonds)) if (st && st.active) bias.add(id);
     }
-    const id = this.m.pool.rollItem(this.m.rngShop, this.shop.level, this.m.itemPool, bias);
+    let id = this.m.pool.rollItem(this.m.rngShop, this.shop.level, this.m.itemPool, bias);
+    // 维多利亚 Mod C (shared/rules.js victoriaMod; sim/content/bonds/core.js victoriaCPrice): while 维多利亚 is active a
+    // 维式重锤 in the shop is the upgraded one (when the shared stock still has two copies) — and free
+    const rec = id ? this.gd.item(id) : null;
+    if (rec && this.m.lobbyRules?.victoriaMod === 'C' && this.bonds.victoriaShip?.active && rec.giveBondId === 'victoriaShip'
+      && !rec.isGolden && rec.goldenId && this.m.itemPool.canGain(rec.goldenId)) id = rec.goldenId;
     return id ? { kind: 'item', id, basePrice: this.gd.itemPrice(id), frozen: false, sold: false } : null;
   }
 
@@ -192,6 +213,8 @@ export class PlayerEconomy {
       this.spend(price);
       slot.sold = true;
       piece = this.acquireChess(slot.id, { source: 'buy' });
+      noteBuy(this.m, this, slot.id); // (GitHub #125) Intern
+      if (this.gd.tierOf(slot.id) === 1) this.round.tier1Bought = true; // SPA-CC ccTier1Price: once per round
     } else {
       if (!this.gd.item(slot.id)) return fail(ERR.BAD_TARGET);
       // Already displayed equipment stays purchasable after stock runs out (#624, maintainer 2026-10-14).
@@ -244,7 +267,8 @@ export class PlayerEconomy {
     if (this.funds < price) return fail(ERR.NO_FUNDS);
     this.spend(price);
     this.shop.level++;
-    this.shop.upgradePrice = this.gd.upgradeBase(this.shop.level) ?? 0;
+    noteLevel(this.m, this); // (GitHub #125) Barge
+    this.shop.upgradePrice = this.upgradeBaseOf(this.shop.level);
     this._openLevelSlots();
     this.m.tickerFor('SHOP_LEVEL', [this.name, String(this.shop.level)], { bot: this.isBot, playerId: this.playerId, param: String(this.shop.level) });
     this.m.dispatch(this, 'onLevelUp', { level: this.shop.level, price });

@@ -9,6 +9,7 @@ import { generateDraft, applyCard, bountyBattles, isMultiRoundBounty, bountyCard
 import { onPickCard } from '../botEmotes.js';
 import { weightedPick } from '../waves.js';
 import { OK, fail, DELAYS } from './common.js';
+import { RISK_PATRIOT_CARD } from './infra.js';
 
 /** Cards of the personal choice (PRTS 卫戍协议：盟约 下半 §法术 教鞭: "于3个战术特训的悬赏任务中选择一项"). */
 const PERSONAL_OFFER_SIZE = 3;
@@ -20,6 +21,14 @@ export class MatchSpDraft {
     const draft = generateDraft(this.gd, this.rngDraft, this.round, { stageId: this.stageId, bondAvailable: (bondId) => this.bondLive(bondId), itemAvailable: id => this.itemPool.canGain(id) });
     const alive = this.alivePlayers();
     if (!draft || !alive.length) { this.beforePrepOffers(); return; }
+    // SPA-CC ccPatriot Undying 1: the round-9 Improv always offers Patriot (one card, worth 0 Funds) — in place of the
+    // last card when the draft already has the 6 a draft can show
+    const patriot = this.riskPatriotCard();
+    if (patriot) {
+      const idx = Math.min(draft.cards.length, 5);
+      draft.cards[idx] = { ...patriot, idx, family: 'bounty' };
+      this.ccPatriotOffered = true;
+    }
     this.phase = PHASE.SP_DRAFT;
     let order = alive.map((p) => p.playerId);
     if (!this.isSolo) this.rngDraft.shuffle(order);
@@ -119,6 +128,7 @@ export class MatchSpDraft {
     if (!card) return;
     s.picks[ps.playerId] = idx;
     s.taken[idx] = ps.playerId;
+    if (card.risk && card.id === RISK_PATRIOT_CARD) this.ccPatriotTaken = true;
     try { applyCard(this, ps, card); } catch (e) { this.reportError(`applyCard ${card.id}`, e); }
     this.markPrivate(ps);
     this.markPublic();

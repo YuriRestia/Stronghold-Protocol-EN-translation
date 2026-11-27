@@ -661,8 +661,8 @@ test('startMatch: a version room plays in its version host (version + requireCs)
   ok(h.lobby.start(q));
   assert.equal(hosted.length, 1);
   const keys = Object.keys(Rec.last).sort();
-  // (fork) + dev-0.2's alt-art roll (altArtChance, serverMatchNo)
-  assert.deepEqual(keys, ['aiPicksLast', 'altArtChance', 'broadcast', 'cs', 'data', 'difficulty', 'hostId', 'log', 'matchNo', 'mode', 'modeId', 'now', 'onEnd', 'roomCode', 'seats', 'seed', 'send', 'serverMatchNo', 'spectators']);
+  // (fork) + dev-0.2's alt-art roll (altArtChance, serverMatchNo) and the room's lobby rules (lobbyRules)
+  assert.deepEqual(keys, ['aiPicksLast', 'altArtChance', 'broadcast', 'cs', 'data', 'difficulty', 'hostId', 'lobbyRules', 'log', 'matchNo', 'mode', 'modeId', 'now', 'onEnd', 'roomCode', 'seats', 'seed', 'send', 'serverMatchNo', 'spectators']);
   // a version room without a version host, and the real Match class: never in this process
   const lone = new Lobby({ registry: new SessionRegistry(), log: quiet, content: { cs: VANILLA }, getData, versions: versionStub() });
   const s = lone.registry.create('C');

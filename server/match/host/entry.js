@@ -22,7 +22,8 @@
 // Messages (from index.js / proxy.js; queued until booted, then handled in order):
 //   { type: 'create', matchId, opts }       new Match({ ...options.matchOptions, ...opts, data, log, now, send, broadcast,
 //                                           onEnd }) and start() — send / broadcast / onEnd post 'send' / 'broadcast' /
-//                                           'end' back; a match that cannot be created posts 'failed', and so does one whose
+//                                           'end' back (a recorded match posts 'record' first: fork, server/records.js);
+//                                           a match that cannot be created posts 'failed', and so does one whose
 //                                           opts.version (absent: act2autochess) is not the installed data's version
 //                                           (shared/versions.js versionOfData; DESIGN §35.23 — an official version's host)
 //   { type: 'call', matchId, method, args, id? }   one MATCH INTERFACE call; with `id` its answer is posted as 'reply'
@@ -240,7 +241,11 @@ function create(matchId, opts) {
       now: Date.now,
       send: (playerId, msg) => { post({ type: 'send', matchId, playerId, msg }); return true; },
       broadcast: (msg, _encoded, except) => post({ type: 'broadcast', matchId, msg, ...(except ? { except } : {}) }),
-      onEnd: (summary) => post({ type: 'end', matchId, summary: plain(summary) }),
+      // (fork) the match record (server/match/records.js) travels on its own, under the frame limit: 'end' stays small
+      onEnd: (summary) => {
+        if (summary && summary.record) { const { record, ...rest } = summary; post({ type: 'record', matchId, record: plain(record) }); summary = rest; }
+        post({ type: 'end', matchId, summary: plain(summary) });
+      },
       ...(sched ? { scheduler: sched } : {}),
     });
   } catch (e) {

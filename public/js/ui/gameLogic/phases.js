@@ -86,7 +86,7 @@ export const RESULT_BOX_MS = 2800;
  * What this round's own battle cost the viewer: `min(cap, leaks)`, exactly what settlement charges outside a 联防.
  * `cost` is what screens/game.js `roundLossRef` kept while the battle ran — `leaks` = counted enemies that got through
  * (the highest the round showed: the settled state reads 0 again and must not wipe it), `cap` = the per-round LP cap.
- * @param {{ leaks?: number, cap?: number } | null | undefined} cost
+ * @param {{ leaks?: number, cap?: number, extra?: number } | null | undefined} cost
  * @returns {number|null} null when this round's battle was never seen (not in the round, a reconnect landing on SETTLE)
  */
 export function ownRoundLoss(cost) {
@@ -94,7 +94,9 @@ export function ownRoundLoss(cost) {
   const leaks = Number.isFinite(cost.leaks) ? Math.max(0, Math.trunc(cost.leaks)) : null;
   if (leaks == null) return null;
   const cap = Number.isFinite(cost.cap) && cost.cap > 0 ? Math.trunc(cost.cap) : 10; // no cap known → the official 10
-  return Math.min(cap, leaks);
+  // SPA-CC Last Line of Defense (GitHub #123): its LP once the battle leaked, past the cap
+  const extra = Number.isFinite(cost.extra) && cost.extra > 0 && leaks > 0 ? Math.trunc(cost.extra) : 0;
+  return Math.min(cap, leaks) + extra;
 }
 
 /**

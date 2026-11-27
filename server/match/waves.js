@@ -196,11 +196,14 @@ function scheduleRng(rng) {
  *   `factions` also carries the schedule as a non-enumerable `schedule` property ({ typeSlots, picks }), so callers
  *   that keep only the factions array (Match: buildNormalWave(gd, rng, this.factions, r)) get the official rounds.
  */
-export function setupMatchWaves(gd, rng) {
+export function setupMatchWaves(gd, rng, { stageId: chosenStage = null } = {}) {
   // stage
   const stageIds = Array.isArray(gd.mode.stages) ? gd.mode.stages : [];
   const stagePairs = stageIds.map((id) => [id, gd.stage(id)]).filter(([, s]) => s && s.active !== false && Number(s.weight) > 0).map(([id, s]) => [id, s.weight]);
   let stageId = stagePairs.length ? weightedPick(rng, stagePairs) : null;
+  // a chosen map (Custom Lobby Modifications `stage`, shared/rules.js) replaces the draw — after it, so the factions,
+  // bosses and schedule below are those of the same seed without a choice; one this mode cannot play is ignored
+  if (chosenStage && stagePairs.some(([id]) => id === chosenStage)) stageId = chosenStage;
   if (!stageId) {
     const any = Object.keys(gd.raw.stages || {}).filter((id) => gd.stage(id) && gd.stage(id).active);
     stageId = any.length ? any.sort()[0] : null;
@@ -417,6 +420,25 @@ export function buildBossWave(gd, rng, factions, round, { bossId, solo }) {
 /** Boss-field column that splits the left (L) and the right (R) player's half (the goals are at cols 2–3 / 17). */
 const BOSS_MID_COL = 10;
 
+/** A leader's own route: it stands where it spawned (a `wait` of STAND_WAIT_S or more, e.g. the Hidden Core's 500 s). */
+const STAND_WAIT_S = 60;
+const standsStill = (r) => Array.isArray(r.steps) && r.steps.some((x) => x && x.t === 'wait' && Number(x.s) >= STAND_WAIT_S);
+
+/**
+ * The first route of the requested motion whose first move goes to the left half of a boss field (the left portal,
+ * then — its end — the right one; pair templates have them, e.g. act1autochess_h07_04 routes 2 / 3 / 5), else the first
+ * route of that motion ending on the left (a one-player `_s` field: every route is the left one), else −1. Never a
+ * leader's standing route: the Hidden Core's route 0 waits 500 s where the leader stands, and a sub-wave there never
+ * walked (a Delegation Degenbrecher on it held the pool under United 2 until the overtime; 0.3.3 match records).
+ */
+export function leftFirstRoute(routes, fly) {
+  const ok = (r) => r && (fly ? r.motion === 'FLY' : r.motion !== 'FLY' && r.motion !== 'E_NUM') && !standsStill(r);
+  const firstMove = (r) => (Array.isArray(r.steps) ? r.steps.find((x) => x && x.t === 'move' && Array.isArray(x.p)) : null);
+  const i = (routes || []).findIndex((r) => ok(r) && firstMove(r) && firstMove(r).p[1] < BOSS_MID_COL && Array.isArray(r.end) && r.end[1] > BOSS_MID_COL);
+  if (i >= 0) return i;
+  return (routes || []).findIndex((r) => ok(r) && Array.isArray(r.end) && r.end[1] < BOSS_MID_COL);
+}
+
 /**
  * Route index of the first template route with the requested motion (fallback 0). `side` ('L' | 'R') prefers a route
  * that ends on that player's half of a boss field (pair templates route to both goals).
@@ -470,6 +492,13 @@ export function bountySpawns(gd, round, wave, bounties, playerId, { solo = false
   return bountyPlan(gd, round, wave, bounties, playerId, side).specs;
 }
 
+/** A bounty spec's mods × an SPA-CC sub-wave's `riskMods` { hpMul, atkMul } (Match.riskBounties). */
+function riskModsOf(mods, rm) {
+  if (!rm || typeof rm !== 'object') return mods;
+  for (const k of ['hpMul', 'atkMul']) if (Number.isFinite(rm[k]) && rm[k] > 0) mods[k] = (Number.isFinite(mods[k]) ? mods[k] : 1) * rm[k];
+  return mods;
+}
+
 /** Runs of consecutive equal markers: [{ v, start, len }]. */
 function runsOf(list) {
   const out = [];
@@ -491,17 +520,19 @@ function bountyPlan(gd, round, wave, bounties, playerId, side) {
     const c = b && b.card ? b.card : {};
     if (!gd.enemy(c.enemyKey)) continue;
     const fly = isFlyKey(gd, c.enemyKey);
-    const host = hostAction(gd, wave, { fly });
-    const key = host ? host.index : -1;
-    if (!groups.has(key)) groups.set(key, { host, items: [] });
+    // (fork) an SPA-CC card `atStart` (the Delegation's Degenbrecher, Match.bossSubWave) joins no action: it spawns at
+    // the round's start, on its own
+    const host = c.atStart ? null : hostAction(gd, wave, { fly });
+    const key = c.atStart ? 'start' : host ? host.index : -1;
+    if (!groups.has(key)) groups.set(key, { host, items: [], start: !!c.atStart });
     groups.get(key).items.push({ b, c, fly, count: Math.max(1, Math.min(20, Number.isInteger(c.count) ? c.count : 1)) });
   }
   const specs = [];
   const retime = new Map(); // host action index → { time, step, ownRuns: [{ start, len }] }
   const OWN = 0;
-  for (const { host, items } of groups.values()) {
+  for (const { host, items, start } of groups.values()) {
     const hs = host ? host.s : null;
-    const time = hs ? Math.max(0, Number(hs.time) || 0) : 4;
+    const time = start ? 0 : hs ? Math.max(0, Number(hs.time) || 0) : 4;
     const window = hs ? Math.max(1, Number.isInteger(hs.count) ? hs.count : 1) * Math.max(0, Number(hs.interval) || 0) : 0;
     const act = host ? acts.find((a) => a.index === host.index) : null;
     // the host's own units: only a server-sent action has any (a leader / random-group / invalid host spawns the
@@ -528,13 +559,15 @@ function bountyPlan(gd, round, wave, bounties, playerId, side) {
       const motionOk = r && (fly ? r.motion === 'FLY' : r.motion !== 'FLY' && r.motion !== 'E_NUM');
       const sideOk = !(side === 'L' || side === 'R') || (r && Array.isArray(r.end) && (side === 'R' ? r.end[1] > BOSS_MID_COL : r.end[1] < BOSS_MID_COL));
       if (!motionOk || !sideOk) routeIndex = routeByMotion(routes, fly, side);
+      // an SPA-CC sub-wave of a boss field (Match.bossSubWave): a route to the left portal first, then the right
+      if (c.leftFirst) { const lf = leftFirstRoute(routes, fly); if (lf >= 0) routeIndex = lf; }
       const spec = {
         time: time + run.start * step,
         enemyKey: c.enemyKey,
         routeIndex,
         count: run.len,
         interval: run.len > 1 ? step : 0,
-        mods: { ...roundMods(scale), slot: classOf(gd, c.enemyKey), bountyId: b.id },
+        mods: riskModsOf({ ...roundMods(scale), slot: classOf(gd, c.enemyKey), bountyId: b.id }, c.riskMods),
         tag: 'bounty',
         ownerPlayerId: playerId,
         preview: previewInfo(gd, c.enemyKey, routes[routeIndex], false, leader),

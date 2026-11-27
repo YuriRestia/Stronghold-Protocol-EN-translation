@@ -13,7 +13,7 @@
 //   postMessage → { t: 'loaded' } | { t: 'load-failed', message }
 //   onmessage ← { t: 'battle', id, spec }                       a bot field's BattleSpec
 //             ← { t: 'live', id, spec, elapsed, speed }         a bot-only boss field, played on its clock beside other work
-//             ← { t: 'pool', hp, acked }                        the server's b.pool; { t: 'end', id, reason } its b.end
+//             ← { t: 'pool', hp, acked, risk }                  the server's b.pool; { t: 'end', id, reason } its b.end
 //             ← { t: 'task', id, world, budgetMs? }             a bot seat's prep (server/match/botWorld.js buildWorld)
 //             ← { t: 'ack', id, stale? }                        the server took the plan batch: go on, or stop on `stale`
 //             ← { t: 'hurry', id }                              stop rehearsing at the best layout so far
@@ -189,7 +189,7 @@ self.onmessage = (ev) => {
       startLive(msg);
       break;
     case 'pool':
-      for (const job of live.values()) job.run.syncPool(msg.hp, msg.acked ? msg.acked[job.fieldId] : undefined);
+      for (const job of live.values()) job.run.syncPool(msg.hp, msg.acked ? msg.acked[job.fieldId] : undefined, msg.risk);
       break;
     case 'end': {
       const job = live.get(msg.id);

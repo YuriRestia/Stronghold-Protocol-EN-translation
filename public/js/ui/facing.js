@@ -15,6 +15,7 @@
 import { GEO } from '../../../shared/constants.js';
 import { attackRangeGrid } from '../../../shared/loadoutRecord.js';
 import { N_ } from '../../../shared/i18n.js';
+import { CC } from '../../../shared/ruleData.js';
 
 export const DIRS = Object.freeze(['UP', 'RIGHT', 'DOWN', 'LEFT']);
 export const DEFAULT_DIR = 'RIGHT';
@@ -210,7 +211,7 @@ export function itemDestroyable(ctx, uid) {
  *   board operator → 撤退 (to the bench) + 出售 +N · board summon → 撤退 · bench / temp operator → 出售 +N ·
  *   item or Art (bench / temp) → 销毁 · bench summon → nothing.
  * @param {{ pieces: Map<number, any>, getChess?: (id:string)=>any }} ctx
- * @returns {{ retreat: boolean, sell: number|null, destroy: boolean } | null} sell = the price shown ("+N")
+ * @returns {{ retreat: boolean, sell: number|null, destroy: boolean, destroyLocked?: boolean } | null} sell = the price shown ("+N")
  */
 export function underframeActions(ctx, uid) {
   const e = ctx?.pieces?.get(uid);
@@ -219,7 +220,8 @@ export function underframeActions(ctx, uid) {
   const onBoard = e.area === 'board';
   // only a loose item (bench / temp) can be destroyed: an equipped one is locked (the server refuses g.destroy —
   // research 04 §2; replacing it is the equip-replace dialog's job, g.equip replaceUid)
-  if (p.kind === 'item') return itemDestroyable(ctx, uid) ? { retreat: false, sell: null, destroy: true } : null;
+  // the SPA-CC Toxic Waste (ccJunk) cannot be destroyed: its button shows, greyed out (`destroyLocked`)
+  if (p.kind === 'item') return itemDestroyable(ctx, uid) ? { retreat: false, sell: null, destroy: true, ...(p.id === CC.junk.itemId ? { destroyLocked: true } : {}) } : null;
   if (p.kind === 'token') return onBoard ? { retreat: true, sell: null, destroy: false } : null;
   if (p.kind !== 'chess') return null;
   const price = ctx.getChess?.(p.id)?.sellPrice;

@@ -189,12 +189,16 @@ export function buildResult(m, outcome) {
       lp: Math.max(0, ps.lp),
       bandId: ps.bandId,
       lineup,
+      // (fork, #192) only when a 自选 operator was fielded in some battle, so every other payload keeps its shape
+      ...(ps.diyEver?.size ? { customSeen: [...ps.diyEver].sort() } : {}),
       bonds: bondList(gd, ps.bonds).filter((b) => b.active || b.layers > 0),
       stats: {
         dmgDealt: Math.round(ps.stats.dmgDealt), kills: ps.stats.kills, leaks: ps.stats.leaks, gold: ps.stats.gold,
         refreshes: ps.stats.refreshes, merges: ps.stats.merges, itemsEquipped: ps.stats.itemsEquipped,
         bossDamage: Math.round(ps.stats.bossDamage), activatedLayers: ps.activatedLayers(), lpLost: ps.stats.lpLost,
         perfectRounds: ps.stats.perfectRounds,
+        // rlbot #197 I2: per-operator Final Assault / Hidden Core damage, only when a boss round was fought
+        ...(ps.stats.faUnitStats.length ? { faUnitStats: ps.stats.faUnitStats } : {}),
       },
       title: m.test === true || Number.isInteger(ps.aiTakeoverRound) ? null : titles.get(ps.playerId) ?? null,
       trophies: m.test === true || Number.isInteger(ps.aiTakeoverRound) ? 0 : trophiesFor(gd, roundsPassed, cleared && hiddenCleared),
@@ -225,6 +229,8 @@ export function buildResult(m, outcome) {
     hiddenBossId: m.hiddenBossId,
     seed: m.seed,
     durationMs: Math.max(0, m.sched.now() - m.startedAt),
+    // (fork, #192) only when the Final Assault was fought, so every other payload keeps its shape
+    ...(Number.isFinite(m.finalAssaultSec) ? { bossSeconds: m.finalAssaultSec } : {}),
     players: rows,
   };
   // A test match is marked on the settlement the replay stores. The keys are absent otherwise, so a normal

@@ -409,6 +409,7 @@ test('乌尔比安 S1 必须促成的接触: the anchor drags up to 2 enemies ar
     assert.equal(pulled.length, bb.max_target, 'max_target enemies');
     assert.deepEqual(new Set(pulled.map((c) => c.target)), new Set([far, side]), 'the unblocked target and the one around it');
     for (const c of pulled) approx(c.amount, u.s.atk * bb.atk_scale, 'atk_scale');
+    h.settle();
     assert.ok(far.x < 6 - 0.5 && side.x < 6 - 0.5, `dragged towards him (${far.x}, ${side.x})`);
     assert.equal(away.x, 9);
     assert.equal(front.x, 4);
@@ -1318,6 +1319,7 @@ test('山 S3 震地碎岩击: BAT +0.7 s, ATK +, double hits on up to 3 enemies,
     const a = attacks(h, u, (c) => c.isSkill)[0];
     assert.equal(a.targets.length, bb['attack@max_target']);
     for (const t of a.targets) assert.equal(dealt(h, u, (c) => c.target === t && c.dmg.isSkill).length, 2, 'double hit');
+    h.settle();
     const moved = h.b.enemies.filter((e, i) => Math.hypot(e.x - pos0[i][0], e.y - pos0[i][1]) > 0.4);
     assert.equal(moved.length, bb['attack@max_target'], 'pushed');
     assert.ok(probs.length && probs.every((p) => p === bb['talent@prob']), `talent@prob ${probs}`);

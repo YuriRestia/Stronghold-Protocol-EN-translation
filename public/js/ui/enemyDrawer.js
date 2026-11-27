@@ -1,6 +1,6 @@
 // 本局信息 dialog under the top bar (opened by the left 🔍, official btn_check_player / autochess_hud_player_info_dialog,
 // research 09 §2.1) with two tabs:
-//   本局信息 — own strategy, stage, disabled bonds with banned-member counts and the banned operator list (default) —
+//   本局信息 — own strategy, stage, (fork) the room's rules in force (GitHub #86), disabled bonds with banned-member counts and the banned operator list (default) —
 //              the same bonds, states and banned operators (by tier) as the briefing and the strategy draft's 本局信息
 //              dialog: ui/matchInfo.js matchInfoModel, drawn here as compact chips and avatars;
 //   敌方情报 — the secondary enemy list: m.private.nextEnemies (icons, names, counts, tags, 特训 faction tags) + this
@@ -11,6 +11,8 @@ import { html, Icon, Tabs, MicroLabel } from './components.js';
 import { Img, UnitThumb, BondGlyph, BandIcon, RichText, GIcon } from './gameComponents.js';
 import { groupEnemies, factionTypes, briefingBondTip } from './gameLogic.js';
 import { matchInfoModel, DiyBannedLine } from './matchInfo.js';
+import { RulesChips, ruleBadges } from './lobbyRules.js';
+import { rulesInForce } from '../../../shared/rules.js';
 import { factionIconUrl } from './assetUrls.js';
 import { data } from '../data.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
@@ -73,6 +75,9 @@ function InfoTab({ pub, priv, onChess, bandId = null, bandOwner = null, effects 
   const band = (bandId || priv?.bandId) ? data.lookup('bands', bandId || priv.bandId) : null;
   const bandEffect = band && effects?.find(e => e.iconKind === 'band' && e.id === (band.effectId || band.bandId));
   const stage = pub?.stageId ? data.lookup('stages', pub.stageId) : null;
+  // (fork) the room's Custom Lobby Modifications, SPA-CC tags included (GitHub #86): m.public rules
+  const rules = pub?.rules || null;
+  const badges = ruleBadges(rules);
   const withBans = bonds.filter((b) => disabled.has(b.bondId) || (perBond.get(b.bondId) || 0) > 0)
     .sort((a, b) => (disabled.has(b.bondId) - disabled.has(a.bondId)) || ((perBond.get(b.bondId) || 0) - (perBond.get(a.bondId) || 0)));
   return html`<div class="edrawer__body">
@@ -82,6 +87,10 @@ function InfoTab({ pub, priv, onChess, bandId = null, bandOwner = null, effects 
         <${RichText} text=${band.descRaw || band.desc} class="iband__desc" /><${StrategyProgress} effect=${bandEffect} /></div>
     </div>` : null}
     ${stage ? html`<p class="istage"><${Icon} name="rook" />${t('战场：')}<b>${stage.name || stage.id}</b></p>` : null}
+    ${rulesInForce(rules).length ? html`<div class="irules" data-testid="match-info-rules">
+      <h4 class="ihead">${t('本局房间改动')}${badges.risk > 0 ? html` <small class="irules__risk num">${t('风险 {n}', { n: badges.risk })}</small>` : null}${badges.cheats ? html` <small class="irules__cheats">${badges.cheats}</small>` : null}</h4>
+      <${RulesChips} rules=${rules} />
+    </div>` : null}
     <h4 class="ihead">${t('本局禁用干员情况')} <small class="num">${banned.length}</small></h4>
     <div class="ibonds">
       ${withBans.length ? withBans.map((b) => html`<span key=${b.bondId} class=${cx('ibond', disabled.has(b.bondId) && 'is-off')} title=${briefingBondTip(b.name, stateOf(b.bondId), perBond.get(b.bondId) || 0)}>

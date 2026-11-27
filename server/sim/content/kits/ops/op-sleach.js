@@ -113,7 +113,7 @@ function dpOverTime({ total, step = 1, iv, first = iv }) {
       while (d.t + 1e-9 >= d.next && d.given + stepN <= total + 1e-9 && guard++ < STEP_PER_TICK) { // loop-cap: stepOf interval/cost
         d.given += stepN;
         d.next += stepIv;
-        battle.addDp(unit.ownerId, stepN);
+        battle.addDp(unit.ownerId, stepN, unit);   // source: Mod Z doubles her DP (content/modZ.js)
       }
     },
     end(battle, unit, reason) {
@@ -121,7 +121,7 @@ function dpOverTime({ total, step = 1, iv, first = iv }) {
       unit.mem.sleachDp = null;
       if (!d) return;
       const rest = total - d.given;
-      if (reason === 'duration' && rest > 1e-9) { battle.addDp(unit.ownerId, rest); d.given += rest; }
+      if (reason === 'duration' && rest > 1e-9) { battle.addDp(unit.ownerId, rest, unit); d.given += rest; }   // her source: Mod Z doubles it
       if (d.given > 0) battle.fx('dp', { x: unit.x, y: unit.y, n: d.given, id: unit.id });
     },
   };
@@ -237,7 +237,7 @@ export default {
           attack: { noAttack: true },
           onStart({ battle, unit }) {
             const cost = num(b3.cost);
-            if (cost > 0) { battle.addDp(unit.ownerId, cost); battle.fx('dp', { x: unit.x, y: unit.y, n: cost, id: unit.id }); }
+            if (cost > 0) { battle.addDp(unit.ownerId, cost, unit); battle.fx('dp', { x: unit.x, y: unit.y, n: cost, id: unit.id }); }
             const [r, c] = s3Tile(battle, unit, R21);
             const seq = (unit.mem.sleachThrow ?? 0) + 1;
             unit.mem.sleachThrow = seq;
@@ -333,7 +333,7 @@ export default {
             if (bonusReady) {
               bonusReady = false;
               if (String(a.def?.position ?? '').toUpperCase() === 'MELEE') {
-                battle.addDp(unit.ownerId, bonus);
+                battle.addDp(unit.ownerId, bonus, unit);
                 battle.fx('dp', { x: a.x, y: a.y, n: bonus, id: unit.id });
               }
             }

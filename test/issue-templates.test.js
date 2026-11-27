@@ -1,5 +1,5 @@
 // GitHub #693: a submitted issue must carry the version the reporter is on. The shields.io badge
-// stays in the checklist as a hint of the latest release; it is not that field.
+// stays in the checklist as a hint of the version on our main (#79); it is not that field.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +25,7 @@ for (const file of FILES) {
     assert.match(field, /只作对照/);
     assert.match(field, /\n    validations:\n      required: true$/);
     assert.doesNotMatch(field, /shields\.io/);
-    assert.match(src, /img\.shields\.io\/github\/v\/release\/sganggs\/Stronghold-Protocol/);
+    assert.match(src, /img\.shields\.io\/github\/package-json\/v\/evenifyouforget\/Stronghold-Protocol-EN\/main/);
   });
 }
 
@@ -47,6 +47,6 @@ for (const file of ['BugReport.en.yml', 'FeatureRequest.en.yml']) {
     assert.match(field, /only for comparison/);
     assert.match(field, /\n    validations:\n      required: true$/);
     assert.doesNotMatch(field, /shields\.io/);
-    assert.match(src, /img\.shields\.io\/github\/v\/release\/sganggs\/Stronghold-Protocol/);
+    assert.match(src, /img\.shields\.io\/github\/package-json\/v\/evenifyouforget\/Stronghold-Protocol-EN\/main/);
   });
 }

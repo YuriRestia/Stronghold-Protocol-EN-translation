@@ -186,6 +186,7 @@ test('S3 夜幕突袭 (被动): at each deployment 210 % / 240 % ATK physical to
         assert.deepEqual([c.type, c.dmg.isSkill], ['phys', true]);
       }
       assert.ok(!hits.some((c) => c.target === fly || c.target === far), 'flyer / outside untouched');
+      h.settle();
       assert.ok(ahead.x > 5.5, `seed ${seed}: pushed away (radial, 小力)`);
       approx(heavy.y, 11, `seed ${seed}: 重量 9 — 小力 moves nothing`);
       const st = h.hooksOf('statusApplied').slice(s0).filter((c) => c.source === u);

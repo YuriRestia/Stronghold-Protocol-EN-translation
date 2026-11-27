@@ -27,9 +27,20 @@ import { chatMuted } from '../chatState.js';
 import { ChatMuteButton } from './chat.js';
 import { useStore } from '../store.js';
 import { STATUS_META, sortedPlayers, teamFrameIds } from './gameLogic.js';
-import { MissTag, uniteRemaining } from './hud.js';
+import { MissTag, uniteRemaining, lastLineExtra } from './hud.js';
 import { localAsset } from '../data.js';
 import { t, shownName } from '../../../shared/i18n.js';
+import { ROOM_BOTS } from '../../../shared/botProfiles.js';
+
+/**
+ * (fork, GitHub #87) The AI badge's tooltip: the bot's name and what it does (shared/botProfiles.js), or its id when it
+ * isn't a room choice (a server's own default, e.g. a bench profile); nothing from an older server.
+ */
+export function botTitle(id) {
+  if (typeof id !== 'string' || !id) return undefined;
+  const b = ROOM_BOTS.find((x) => x.id === id);
+  return b ? `${t('AI 方案')}：${t(b.label)} · ${t(b.desc)}` : `${t('AI 方案')}：${id}`;
+}
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -44,10 +55,10 @@ const STATUS_SPRITE = { ready: 'icon_ready', deciding: 'icon_waiting', done: 'ic
  * is then min(cap, left)), else m.public players[].uniteLeft / pendingLp.
  * @param {any} p m.public players[] entry @param {any} pub m.public
  * @param {{ lp?: number|null, pending: number, unite: boolean, left?: number|null } | null} [self] the own live value (only for the own row)
- * @param {{ uniteLocal?: Record<string, number> | null, cap?: number }} [opts]
+ * @param {{ uniteLocal?: Record<string, number> | null, cap?: number, extra?: number }} [opts] `extra`: hud.js lastLineExtra
  * @returns {{ lp: number|null, pending: number, unite: boolean, left: number|null }}
  */
-export function rowLp(p, pub, self = null, { uniteLocal = null, cap = 10 } = {}) {
+export function rowLp(p, pub, self = null, { uniteLocal = null, cap = 10, extra = 0 } = {}) {
   const pubLp = Number.isFinite(p?.lp) ? p.lp : null;
   if ((pub?.phase !== PHASE.COMBAT && pub?.phase !== PHASE.UNITE) || p?.alive === false) return { lp: pubLp, pending: 0, unite: false, left: null };
   const lp = self && Number.isFinite(self.lp) ? self.lp : pubLp;
@@ -56,7 +67,8 @@ export function rowLp(p, pub, self = null, { uniteLocal = null, cap = 10 } = {})
   const rawLeft = pub.phase !== PHASE.UNITE ? null : self ? self.left : local != null ? local : p.uniteLeft;
   const left = Number.isFinite(rawLeft) && rawLeft >= 0 ? Math.trunc(rawLeft) : null;
   if (lp == null) return { lp, pending: 0, unite: false, left };
-  const raw = self ? self.pending : local != null ? Math.min(cap, local) : p.pendingLp;
+  // a 联防 leaker's own battle leaked: Last Line's LP (`extra`, GitHub #123) on top, as the server's pendingLp has it
+  const raw = self ? self.pending : local != null ? Math.min(cap, local) + extra : p.pendingLp;
   const pending = Math.min(lp, Math.max(0, Math.trunc(Number(raw) || 0)));
   return { lp, pending, unite: (pending > 0 || left != null) && (self ? !!self.unite : pub.phase === PHASE.UNITE), left };
 }
@@ -171,7 +183,7 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
       const open = !!observe && openPid === p.playerId && !self;
       const back = !!observe && self && observe.observing;
       const title = observe ? (self ? (observe.observing ? t('返回战场') : t('你自己')) : t('查看 {name} 的战场', { name: shownName(p) })) : (self ? t('查看自己的阵地') : t('查看 {name} 的阵地', { name: shownName(p) }));
-      const lp = rowLp(p, pub, self ? selfLive : null, { uniteLocal, cap });
+      const lp = rowLp(p, pub, self ? selfLive : null, { uniteLocal, cap, extra: lastLineExtra(pub?.rules) });
       const inTeam = team.has(p.playerId);
       return html`<div key=${p.playerId} class=${cx('team__row', self && 'is-self', inTeam && 'is-team', watched && 'is-watched', p.alive === false && 'is-dead', open && 'is-open')}>
         <button type="button" class="team__btn" onClick=${() => click(p, self)} onDblClick=${(e) => dblClick(e, p, self)} title=${inTeam && !self ? `${title} · ${t('与你在同一战场')}` : title} aria-expanded=${observe && !self ? String(open) : undefined}>
@@ -179,7 +191,7 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
           ${inTeam ? html`<span class=${cx('team__frame', !frameArt && 'team__frame--plain')} style=${frameArt ? `--frame:url("${frameArt}")` : undefined} aria-hidden="true"></span>` : null}
           <span class="team__seat num">P${(p.seat ?? 0) + 1}</span>
           ${Number.isInteger(p.squad) ? html`<span class=${cx('team__squad', p.squad === 1 && 'is-b')} title=${t('小队 {name}', { name: p.squad ? 'B' : 'A' })}>${p.squad ? 'B' : 'A'}</span>` : null}
-          ${p.isBot ? html`<span class="team__ai">AI</span>` : null}
+          ${p.isBot ? html`<span class="team__ai" title=${botTitle(p.bot)}>AI</span>` : null}
           ${self ? html`<span class="team__you"><${Icon} name="user" /></span>` : null}
           ${spMarks?.get(p.playerId) === 'done' ? html`<span class="team__spmark is-done" title=${t('已完成选择')}><${Icon} name="check" /></span>`
             : spMarks?.get(p.playerId) === 'turn' ? html`<span class="team__spmark is-turn" title=${t('正在决策…')}><i></i><i></i><i></i></span>` : null}

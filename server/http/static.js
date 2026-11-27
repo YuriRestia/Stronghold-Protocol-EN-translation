@@ -85,6 +85,7 @@ import { sendError, sendJson } from './common.js';
 import { MIME, CompressCache, IMMUTABLE_CACHE, isNotModified, serveFile, serveBuffer } from './files.js';
 import { ASSET_INDEX_ROOTS, hashedFileOpts, hash16 } from './assetIndex.js';
 import { serveMedia } from './media.js';
+import { readFragments, changelogWithFragments } from '../changelogFish.js'; // (fork, GitHub #158)
 import { createPluginRegistry, sameIdentity, statIdentity } from '../plugins/registry.js';
 import { computeVanillaContent } from '../plugins/identity.js';
 import { createVisualSets } from '../plugins/visualSet.js';
@@ -271,6 +272,16 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       const abs = path.resolve(publicDir, '..', decoded.slice(1));
       const st = await fsp.stat(abs).catch(() => null);
       if (!st?.isFile()) { sendError(req, res, 404, '页面不存在 · Not found'); return; }
+      // (fork, GitHub #158) the Fish Edition fragments not yet folded in (server/changelogFish.js), shown in place
+      const fragDir = path.resolve(publicDir, '..', 'changes-fish');
+      const lang = decoded === '/CHANGELOG.en.md' ? 'en' : 'zh';
+      if (readFragments(fragDir, lang).fragments.length) {
+        const text = await fsp.readFile(abs, 'utf8');
+        const body = Buffer.from(changelogWithFragments(text, fragDir, lang), 'utf8');
+        await serveBuffer(req, res, { body, hash: `cl-${hash16(body)}`, type: 'text/plain; charset=utf-8', cacheControl: 'no-cache',
+          key: decoded.slice(1), cache: gzipCache });
+        return;
+      }
       await serveFile(req, res, abs, st, 'release', [decoded.slice(1)], query, gzipCache, log, {
         cacheControl: 'no-cache', headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });

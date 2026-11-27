@@ -28,6 +28,10 @@ import { spawnYanyou, TOKEN_IDS } from '../../server/sim/content/tokens.js';
 
 const REAL = { skip: !hasGeneratedData() };
 const approx = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, `${msg ?? ''} ${a} ≈ ${b}`);
+/** The tables' distances at 30 fps (a push is a slide, battle/displacement.js: 1.698 for 1.7, 0.4416 for 0.44). */
+const FRAME_EPS = 0.01;
+/** Where `e`'s slide ends: a push / pull only starts it (GitHub #60). */
+const endOf = (b, e) => (e.shift ? b._shiftPredict(e, e.shift) : { x: e.x, y: e.y });
 
 // =====================================================================================================================
 // #17 — the enemy held between two operators
@@ -318,15 +322,15 @@ test('#14 the official push table: 受力等级 = 力度 − 重量 (PRTS 游戏
       assert.equal(h.b.forceLevel(e, force), force - m);
       const want = PUSH.find(([l]) => l === Math.max(-3, Math.min(4, force - m)))[1];
       const moved = h.b.push(e, force, { from: { x: 2, y: 10 } });
-      approx(moved, want, 1e-9, `force ${force} vs weight ${m}`);
-      approx(e.x, 3 + want, 1e-9, 'radial: straight away from the pusher');
+      approx(moved, want, FRAME_EPS, `force ${force} vs weight ${m}`);
+      approx(endOf(h.b, e).x, 3 + moved, 1e-9, 'radial: straight away from the pusher');
       h.b.loseHp(e, 1e12);
     }
   }
   // 失重 counts (current weight); 失衡免疫 and leaders never move
   const w = h.spawn('enemy_m3', { pos: [10, 3] });
   h.b.addBuff(w, { key: 'weightless', mods: { massFlat: -1 } });
-  approx(h.b.push(w, 1, { from: { x: 2, y: 10 } }), 0.44, 1e-9, '失重 weight 3 → 2');
+  approx(h.b.push(w, 1, { from: { x: 2, y: 10 } }), 0.44, FRAME_EPS, '失重 weight 3 → 2');
   const f = h.spawn('enemy_m0', { pos: [11, 3] });
   h.b.addBuff(f, { key: 'noDisp', flags: { noDisplace: true } });
   assert.equal(h.b.push(f, 5, { from: { x: 2, y: 11 } }), 0, '失衡免疫');
@@ -338,23 +342,23 @@ test('#14 directional pushes: > 45° off the direction or nearer than 0.25 → r
   h.step();
   const from = { x: 3, y: 10 }, right = { x: 1, y: 0 };
   const a = h.spawn('enemy_m1', { pos: [10, 4] });
-  approx(h.b.push(a, 1, { from, dir: right }), 1.7, 1e-9, 'straight ahead: 中力 vs 1 = 1.7 along the direction');
+  approx(h.b.push(a, 1, { from, dir: right }), 1.7, FRAME_EPS, 'straight ahead: 中力 vs 1 = 1.7 along the direction');
   approx(a.y, 10, 1e-9);
   const b = h.spawn('enemy_m1', { pos: [11, 3.5] }); // 63° off the direction
   const moved = h.b.push(b, 1, { from, dir: right });
-  approx(moved, 0.12, 1e-9, 'radial, 受力等级 0 − 2 = −2');
-  assert.ok(b.y > 11, 'pushed away from the pusher, not along its direction');
+  approx(moved, 0.12, FRAME_EPS, 'radial, 受力等级 0 − 2 = −2');
+  assert.ok(endOf(h.b, b).y > 11, 'pushed away from the pusher, not along its direction');
   const c = h.spawn('enemy_m1', { pos: [11, 3.5] });
-  approx(h.b.push(c, 1, { from, dir: right, fixed: true }), 1.7, 1e-9, 'fixed: along the direction, full force');
+  approx(h.b.push(c, 1, { from, dir: right, fixed: true }), 1.7, FRAME_EPS, 'fixed: along the direction, full force');
   approx(c.y, 11, 1e-9);
   // 见行者 S2 (PRTS 备注 waives only the angle): 63° off → along the direction at full force; nearer than 0.25 → radial −2
   const d = h.spawn('enemy_m1', { pos: [12, 3.5] });
-  approx(h.b.push(d, 1, { from: { x: 3, y: 11 }, dir: right, fixedAngle: true }), 1.7, 1e-9, 'fixedAngle: angle waived');
+  approx(h.b.push(d, 1, { from: { x: 3, y: 11 }, dir: right, fixedAngle: true }), 1.7, FRAME_EPS, 'fixedAngle: angle waived');
   approx(d.y, 12, 1e-9);
   const n = h.spawn('enemy_m1', { pos: [9, 3.1] });
-  approx(h.b.push(n, 1, { from: { x: 3, y: 9 }, dir: right, fixedAngle: true }), 0.12, 1e-9, 'fixedAngle: < 0.25 tile still radial −2');
+  approx(h.b.push(n, 1, { from: { x: 3, y: 9 }, dir: right, fixedAngle: true }), 0.12, FRAME_EPS, 'fixedAngle: < 0.25 tile still radial −2');
   const n2 = h.spawn('enemy_m1', { pos: [8, 3.1] });
-  approx(h.b.push(n2, 1, { from: { x: 3, y: 8 }, dir: right, fixed: true }), 1.7, 1e-9, 'fixed (圣聆初雪): < 0.25 tile waived too');
+  approx(h.b.push(n2, 1, { from: { x: 3, y: 8 }, dir: right, fixed: true }), 1.7, FRAME_EPS, 'fixed (圣聆初雪): < 0.25 tile waived too');
   checkInvariants(h.b);
 });
 
@@ -362,24 +366,26 @@ test('#14 见行者 S2 惊爆射击: angle waived, a target nearer than 0.25 til
   const id = 'chess_char_3_07_a';
   const ds = getDefaultSource();
   const bb = ds.rawChess(id).skill.bb;
-  const run = (pos) => {
+  const run = (pos, { blockable = true } = {}) => {
     const h = makeBattle({
       defs: { enemies: { enemy_t: foe('enemy_t', { speed: 0, mass: 0 }) } }, units: [{ chessId: id, row: 10, col: 3, dir: 'RIGHT', carryState: { sp: 1e3 } }],
       enemies: [{ key: 'enemy_t', pos }], autoFinish: false, timeLimit: 30, hooks: ['statusApplied'], captureNoisy: true,
+      setup(b) { if (!blockable) b.on('enemySpawn', ({ enemy }) => b.addBuff(enemy, { key: 'test:unblockable', flags: { unblockable: true } })); },
     });
     const u = h.unit(id);
     assert.ok(h.runUntil(() => h.hooksOf('statusApplied').some((c) => c.source === u && c.status === 'stun'), 6), 'cast');
     const st = h.hooksOf('statusApplied').find((c) => c.source === u && c.status === 'stun');
-    return { e: h.b.enemies[0], stun: st.duration };
+    return { e: h.b.enemies[0], end: endOf(h.b, h.b.enemies[0]), stun: st.duration };
   };
   // straight ahead, open ground: 中力 vs weight 0 = 受力等级 1 — a 特效 push (PRTS 推与拉 names 见行者's skills 特效类):
   // 1.987 tiles along her direction, the short stun
   const a = run([10, 4]);
-  approx(a.e.x, 4 + PUSH_TILES_EFFECT[1], 1e-6, 'ahead: 1.987');
+  approx(a.end.x, 4 + PUSH_TILES_EFFECT[1], FRAME_EPS, 'ahead: 1.987');
   approx(a.stun, bb['forcer_s_2[hit_directly].stun'], 1e-9, 'open ground: hit_directly stun');
-  // on her own tile, nearer than 0.25: radial at 受力等级 1 − 2 = −1 (0.374), still the short stun (no wall)
-  const b = run([10.1, 3.1]);
-  approx(Math.hypot(b.e.x - 3.1, b.e.y - 10.1), PUSH_TILES_EFFECT[-1], 1e-6, 'near: radial −2');
+  // on her own tile, nearer than 0.25: radial at 受力等级 1 − 2 = −1 (0.374), still the short stun (no wall) — one she does
+  // not block (a blocked one is shifted to her tile's edge: block shifting, GitHub #61)
+  const b = run([10.1, 3.1], { blockable: false });
+  approx(Math.hypot(b.end.x - 3.1, b.end.y - 10.1), PUSH_TILES_EFFECT[-1], FRAME_EPS, 'near: radial −2');
   approx(b.stun, bb['forcer_s_2[hit_directly].stun'], 1e-9, 'near target: not a wall');
 });
 
@@ -392,7 +398,7 @@ test('#14 特效 pushes (PRTS 推与拉: one frame less of travel than 弹道 on
     const e = h.spawn(`enemy_m${m}`, { pos: [10, 3] });
     const want = EFFECT.find(([l]) => l === Math.max(-3, Math.min(4, 1 - m)))[1];
     approx(h.b.pushDistance(e, 1, { effect: true }), want, 1e-9, `distance: 中力 vs weight ${m}`);
-    approx(h.b.push(e, 1, { from: { x: 2, y: 10 }, effect: true }), want, 1e-9, `push: 中力 vs weight ${m}`);
+    approx(h.b.push(e, 1, { from: { x: 2, y: 10 }, effect: true }), want, FRAME_EPS, `push: 中力 vs weight ${m}`);
     h.b.loseHp(e, 1e12);
   }
   // 见行者 S1 (generic kit, 推击手 directional push on her next attack, bb.force 1) on a weight-0 enemy ahead: 1.987, not 2.14
@@ -406,8 +412,8 @@ test('#14 特效 pushes (PRTS 推与拉: one frame less of travel than 弹道 on
   k.step();
   const e = k.b.enemies[0];
   assert.ok(e && k.runUntil(() => e.x > 4.01, 6), 'pushed');
-  k.step(2);
-  approx(e.x, 4 + PUSH_TILES_EFFECT[1], 1e-6, '特效 column');
+  for (let i = 0; i < 60 && e.shift; i++) k.step();   // the slide
+  approx(e.x, 4 + PUSH_TILES_EFFECT[1], FRAME_EPS, '特效 column');
 });
 
 test('#14 锏 S3 归于宁静 slashes air units and pulls a non-static one (PRTS 备注 "※可对空。不会拖拽自身中心半径0.6708范围内的敌人")', REAL, () => {
@@ -493,7 +499,7 @@ test('#14 the user\'s case: 野鬃 S2 夹枪冲锋 pushes by 力度 − 重量 �
       setup(b) {
         let x0 = null;
         b.on('beforeAttack', (c) => { if (c.attacker.defId === id && c.isSkill) x0 = c.targets[0]?.x ?? null; }, { priority: -2000 });
-        b.on('attack', (c) => { if (c.attacker.defId === id && c.isSkill && x0 != null) { pushes.push(c.targets[0].x - x0); x0 = null; } }, { priority: -2000 });
+        b.on('attack', (c) => { if (c.attacker.defId === id && c.isSkill && x0 != null) { pushes.push(endOf(b, c.targets[0]).x - x0); x0 = null; } }, { priority: -2000 });
       },
     });
     const u = h.unit(id);
@@ -504,7 +510,7 @@ test('#14 the user\'s case: 野鬃 S2 夹枪冲锋 pushes by 力度 − 重量 �
   const want = { 0: 2.14, 1: 1.7, 2: 0.44, 3: 0.12, 4: 0, 5: 0, 6: 0 };
   for (const [m, d] of Object.entries(want)) {
     const got = moved(Number(m));
-    approx(got, d, 1e-6, `weight ${m}`);
+    approx(got, d, FRAME_EPS, `weight ${m}`);
   }
 });
 

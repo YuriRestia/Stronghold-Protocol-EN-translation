@@ -12,6 +12,7 @@ import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
 import { msg, playerParam } from '../../../shared/i18n.js';
 import { onStartUnite } from '../botEmotes.js';
 import { noteChatKills } from '../chatWallet.js';
+import { noteBattle, noteDowns } from '../autoAward.js';
 
 /** (fork) The watchdog's second stage: how long after the field closed `_afterUnite` gets to move the phase on. */
 const UNITE_SETTLE_GRACE_MS = 10_000;
@@ -23,7 +24,9 @@ export class MatchUnite {
     this.phase = PHASE.UNITE;
     this.unitePlan = plan;
     const limit = this.wave ? this.wave.timeLimit : 60;
-    const battle = this.newBattle(this._uniteOpts(plan, limit));
+    const uo = this._uniteOpts(plan, limit);
+    noteBattle(this, uo); // (GitHub #125) a real field
+    const battle = this.newBattle(uo);
     this.fields = [{ fieldId: 'u', kind: 'unite', players: plan.helpers.map((p) => p.playerId), battle, live: true }];
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
     this._defaultWatch();
@@ -38,6 +41,7 @@ export class MatchUnite {
         const res = runner.resultOf(this.fields[0]);
         this._collectSimErrors(this.fields[0], res);
         noteChatKills(this, this.fields[0], res);
+        noteDowns(this, res); // (GitHub #125) Low Efficiency
         this.fields[0].live = false;
         this.deadline = 0;
         this.markPublic();
@@ -68,7 +72,7 @@ export class MatchUnite {
       spawns: this._sanitizeSpawns(wave.spawns),
       routes: wave.routes,
       sharedBoss: null,
-      flags: { layerGainsEnabled: false, ...this.gd.dp },
+      flags: { layerGainsEnabled: false, ...this.gd.dp, rules: this.lobbyRules },
       fieldId: 'u',
       // leaked enemies re-enter with the stats they had: the round template's stat overrides apply again
       enemyOverrides: this.wave && this.wave.overrides ? this.wave.overrides : {},
@@ -99,6 +103,7 @@ export class MatchUnite {
     const res = f.result;
     this._collectSimErrors(f, res);
     noteChatKills(this, f, res);
+    noteDowns(this, res); // (GitHub #125) Low Efficiency
     this._stopClientCombat();
     f.live = false;
     this.deadline = 0;
@@ -117,10 +122,14 @@ export class MatchUnite {
    * clock, or the streamed battle itself), clamped to what the escaped wave sent that leaker (fields.js uniteBillBounds:
    * keySourceCounts only — the same set settlement bills); exact once the field has its result (unite.js
    * uniteSurvivors; a synthetic result charges the own leaks, as settle()). null for anyone but a leaker of the running
-   * 联防.
+   * 联防. `weigh` (the SPA-CC heavy leaks, Match.riskLeakWeight — GitHub #76): each enemy counts its LP weight, as
+   * settle() bills it; while the field runs, which of the leaker's enemies still stand is not known, so the standing
+   * ones count as its heaviest sent ones (an upper bound, exact once the field has its result).
+   * @param {any} ps
+   * @param {boolean} [weigh]
    * @returns {number|null}
    */
-  _uniteLeft(ps) {
+  _uniteLeft(ps, weigh = false) {
     const plan = this.unitePlan;
     if (this.phase !== PHASE.UNITE || !plan || !ps || !plan.leakers.includes(ps)) return null;
     const pid = ps.playerId;
@@ -128,11 +137,12 @@ export class MatchUnite {
     let res = null;
     if (f && f.cc) res = f.done ? f.result : null;
     else if (f && f.battle && f.battle.finished) { try { res = f.battle.result(); } catch { res = null; } }
+    const w = weigh && this.lobbyRules ? (k) => this.riskLeakWeight(k) : () => 1;
     if (res && res.synthetic) {
       const own = this.lastResults.get(pid);
-      return own && Array.isArray(own.leaked) ? own.leaked.filter((l) => l && l.counted !== false).length : 0;
+      return own && Array.isArray(own.leaked) ? own.leaked.filter((l) => l && l.counted !== false).reduce((n, l) => n + w(l.enemyKey), 0) : 0;
     }
-    if (res) return uniteSurvivors(plan, res).get(pid) || 0;
+    if (res) return uniteSurvivors(plan, res, weigh ? w : null).get(pid) || 0;
     const sent = plan.leaked.filter((l) => l.sourcePlayerId === pid).length;
     let live = null;
     if (f && f.cc) {
@@ -147,7 +157,11 @@ export class MatchUnite {
     if (!this._uniteBounds || this._uniteBounds.plan !== plan) this._uniteBounds = { plan, bounds: uniteBillBounds(plan.leaked, this.gd) };
     const bound = this._uniteBounds.bounds.get(pid) ?? sent;
     const standing = live ? Math.min(bound, Math.max(0, Math.trunc(Number(live[pid]) || 0))) : sent;
-    return standing + (plan.notReentered.get(pid) || 0);
+    // settle() bills a leak that could not re-enter at 1 (uniteSurvivors)
+    const notReentered = plan.notReentered.get(pid) || 0;
+    if (!weigh || !this.lobbyRules) return standing + notReentered;
+    const heaviest = plan.leaked.filter((l) => l.sourcePlayerId === pid).map((l) => w(l.enemyKey)).sort((a, b) => b - a);
+    return heaviest.slice(0, standing).reduce((n, x) => n + x, 0) + Math.max(0, standing - heaviest.length) + notReentered;
   }
 
   /** Server-run 联防 (streaming mode): refresh m.public about once a game second when a leaker's count moved. */

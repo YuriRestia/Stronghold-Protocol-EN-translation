@@ -22,7 +22,8 @@ export const STATUS_META = Object.freeze({
 // ---- snapshots / battle HUD ---------------------------------------------------------------------------------
 
 /**
- * HUD numbers from a b.snap: { killed, resolved, total, dp, boss } (boss: { hp, max } when present).
+ * HUD numbers from a b.snap: { killed, resolved, total, dp, boss, ledger } (boss: { hp, max } when present; ledger: the
+ * SPA-CC Blood Ledger { value, max, liquidating, permanent }, only when the battle has one).
  * `resolved` is the capsule's numerator — knocked out + leaked among the round's own enemies (Battle.leakedInTotal);
  * an older snapshot without it falls back to the kill count.
  * @param {any} snap
@@ -33,7 +34,10 @@ export function snapHud(snap) {
   let boss = null;
   if (isObj(snap.boss) && Number.isFinite(snap.boss.hp)) boss = { hp: snap.boss.hp, max: n(snap.boss.max) ?? n(snap.boss.maxHp) };
   const killed = n(snap.killed);
-  return { killed, resolved: n(snap.resolved) ?? killed, total: n(snap.total), dp: n(snap.dp), boss };
+  // the SPA-CC Blood Ledger (b.snap `bl`: [value, max, liquidating, permanent])
+  const bl = Array.isArray(snap.bl) && Number.isFinite(snap.bl[0]) && snap.bl[1] > 0
+    ? { value: snap.bl[0], max: snap.bl[1], liquidating: !!snap.bl[2], permanent: !!snap.bl[3] } : null;
+  return { killed, resolved: n(snap.resolved) ?? killed, total: n(snap.total), dp: n(snap.dp), boss, ...(bl ? { ledger: bl } : {}) };
 }
 
 /** Boss HP fraction 0..1 (null when unknown). */

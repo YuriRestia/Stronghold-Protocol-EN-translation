@@ -13,10 +13,20 @@
 //   --json F    write the raw per-match records to F (the input of --compare)
 //   --bot ID    registered strategy ID (docs/BOT_STRATEGIES.md); default legacy (SP_BOT_STRATEGY and
 //               SP_BOT_STRATEGY_SEATS are not read)
+//   --profile F (fork) a tactics profile as JSON instead of --bot: { "id": "…", "tactics": [{ "tactic": "legacy-buy",
+//               "params": { "mergeHit": 40 } }, …] }, top first, legacy below (server/match/botStrategies.js
+//               profileFromData; the tactics: botTacticsBasic.js, botTacticsLegacy.js)
 //   --layers   include per-bond layer events, their nested sources, spending and prep/settlement snapshots in JSON;
 //              diagnostic only (timings include tracing overhead). No gameplay or RNG changes.
+//   --records D every match is also saved in D as a replayable record, <config>-<seed>.json.gz (the match's own recorder,
+//               server/match/records.js: the same shape a human room leaves; reuse them for analysis and training)
 //   --jobs N    run the matches in N worker threads (outcomes are identical; the timings are then inflated by the
 //               parallel load — measure decision time with --jobs 1)
+//   --rules R   lobby rules for every match, as key=value pairs (shared/rules.js RULES; e.g. ccPatriot=1,ccBoss=2;
+//               a bare key = 1): the SPA-CC tags, cheats and other modifiers. The bot plays as usual (it does not know
+//               the tags), so this measures how much a tag costs a tag-unaware player
+//   --scenario F (fork) a scenario test as JSON (tools/scenario.mjs): gifts of operators, items or funds to the bot
+//               seats at a round's prep start, the same on every seed; records carry rec.scenario (what was given)
 //   --band ID   solo configs only: force the opening pickBand hook (e.g. band_cannot); keep gd.bandIds() and
 //               gd.bandBondIds() intact for later effects. Previously these were replaced with [ID] and [] for
 //               the entire match. These are different experiments; rerun both sides when comparing old results.
@@ -34,15 +44,19 @@
 // the SP_DRAFT callback in which a bot's pick landed. Wall-clock numbers depend on the host load: compare runs made
 // back to back with --jobs 1.
 
+import { parseScenario, applyScenario } from './scenario.mjs';
 import { toolVersion } from './versions/runtime.mjs';
 import { DEFAULT_VERSION } from '../shared/versions.js';
 import { performance } from 'node:perf_hooks';
-import { writeFileSync, readFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
+import { installRecorder, finishRecord } from '../server/match/records.js';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { traceLayers } from './ai/layer-trace.mjs';
 import { runMatch, strategyMetrics, aggregateStrategies } from './ai/run-match.mjs';
 import { Match } from '../server/match/Match.js';
 import { defineBotStrategy } from '../server/match/botStrategyContract.js';
+import { profileFromData } from '../server/match/botStrategies.js';
 import { VirtualScheduler } from '../server/match/scheduler.js';
 import { getData } from '../server/data.js';
 
@@ -77,6 +91,19 @@ const configs = String(opt.configs || 'solo:FUNNY,solo:HARD,coop4:FUNNY,coop4:HA
 });
 const seeds = Math.max(1, Number(opt.seeds) || 10);
 const seed0 = Number(opt.seed) || 1;
+const rules = opt.rules && opt.rules !== true
+  ? Object.fromEntries(String(opt.rules).split(',').filter(Boolean).map((kv) => {
+    const [k, v] = kv.split('=');
+    return [k, v === undefined ? 1 : v === 'true' ? true : v === 'false' ? false : Number.isNaN(Number(v)) ? v : Number(v)];
+  }))
+  : undefined;
+// (fork) --profile: built once per thread from the same file, so every worker plays the same profile
+const profile = opt.profile ? profileFromData(JSON.parse(readFileSync(String(opt.profile), 'utf8'))) : null;
+if (profile && opt.bot) throw new Error('--bot and --profile: give one');
+const scenarioRaw = opt.scenario ? JSON.parse(readFileSync(String(opt.scenario), 'utf8')) : null;
+const scenario = scenarioRaw ? parseScenario(scenarioRaw) : null;
+const recordsDir = opt.records && opt.records !== true ? String(opt.records) : null;
+if (recordsDir && isMainThread) mkdirSync(recordsDir, { recursive: true });
 const rehearsal = opt.rehearsal != null && opt.rehearsal !== true ? Math.max(0, Math.floor(Number(opt.rehearsal) || 0)) : undefined;
 
 async function runOne(cfg, seed) {
@@ -87,13 +114,15 @@ async function runOne(cfg, seed) {
   const errors = [];
   const log = { info() {}, debug() {}, warn() {}, error: (...a) => errors.push(a.map(String).join(' ')) };
   const m = new Match({
-    roomCode: 'BENCH', mode: cfg.mode, difficulty: cfg.difficulty, seats, seed, data, log, scheduler: sched, botRehearsal: rehearsal,
-    botStrategy: opt.bot || 'legacy', botStrategySeats: {},
+    roomCode: 'BENCH', mode: cfg.mode, difficulty: cfg.difficulty, seats, seed, data, log, scheduler: sched, botRehearsal: rehearsal, rules, lobbyRules: rules,
+    botStrategy: profile || opt.bot || 'legacy', botStrategySeats: {},
     send: () => true, broadcast: () => {}, onEnd: (s) => { summary = s; },
   });
   // Test-only band forcing overrides the selected picker, preserving real band metadata for custom strategies.
   if (opt.band && cfg.mode === 'solo') m.bot = defineBotStrategy({ id: m.bot.id, base: m.bot, pickBand: () => String(opt.band) });
+  if (recordsDir) installRecorder(m);
   const rec = { config: cfg.name, botStrategy: m.bot.id, seed, stageId: m.stageId, bossId: m.bossId, preps: [], economy: [], picks: [], rounds: [], bounties: [] };
+  if (scenario) { parseScenario(scenarioRaw, m.gd); rec.scenario = { id: scenario.id, given: applyScenario(m, scenario) }; }
   if (toolVersion !== DEFAULT_VERSION) rec.version = toolVersion;
   const traceSnapshot = opt.layers ? traceLayers(m, rec) : null;
   // rehearsal stepping time (Battle.step of the rehearsal fields)
@@ -211,6 +240,10 @@ async function runOne(cfg, seed) {
   const alive = m.order.filter((p) => p.alive);
   rec.lpLeft = rec.victory && m.teamLp != null ? m.teamLp : alive.reduce((s, p) => s + Math.max(0, p.lpAtFinal ?? p.lp), 0);
   rec.players = (summary && summary.players ? summary.players : []).map((p) => ({ pid: p.playerId, band: p.bandId, rounds: p.roundsPassed, merges: p.stats.merges, spent: p.stats.gold }));
+  if (recordsDir && summary) {
+    const full = finishRecord(m, summary);
+    if (full) writeFileSync(`${recordsDir}/${rec.botStrategy}-${cfg.name.replace(/[^A-Za-z0-9_.-]/g, "_")}-${seed}.json.gz`, gzipSync(JSON.stringify(full)));
+  }
   m.dispose();
   return rec;
 }

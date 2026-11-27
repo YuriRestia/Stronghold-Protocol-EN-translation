@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeBattle, enemyRec, chessRec, checkInvariants, castNow, throughBegin } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
-import { ELEMENT_GAUGE_MAX, PROJECTILE_SPEEDS, BOOMERANG_RETURN_SPEED } from '../../server/sim/constants.js';
+import { ELEMENT_GAUGE_MAX, PROJECTILE_SPEEDS, BOOMERANG_RETURN_SPEED, BLOCK_SPREAD } from '../../server/sim/constants.js';
 import { sortEnemyTargets, canTargetEnemy } from '../../server/sim/targeting.js';
 import { DRONE_TAG as ROCKROCK_DRONE } from '../../server/sim/content/kits/ops/chess_char_2_10-rockr.js';
 import { allyCastWindup } from '../../server/sim/ai.js';
@@ -733,14 +733,21 @@ test('2_03 崖心 (hidden): 束缚链 drags max_target enemies to the front tile
   const u = h.unit(id);
   h.step();
   approx(u.s.atk, u.base.atk * (1 + t.atk), 'not blocking: ATK +6 %');
+  const atk0 = u.s.atk;   // (the hit's ATK)
+  // where each drag's slide ends (battle/displacement.js; GitHub #60)
+  const ends = new Map(h.enemies().map((e) => [e, e.shift ? h.b._shiftPredict(e, e.shift) : { x: e.x, y: e.y }]));
+  h.settle();   // the drag's slide (at her front she blocks them)
   const pulled = h.enemies().filter((e) => e.x < 6);
   assert.equal(pulled.length, bb.max_target);
   for (const e of pulled) {
     // 中力 vs weight 1 (受力等级 0): "必定拉至身前" — to the 急停 radius 0.6708 around her centre (PRTS 推与拉)
-    approx(Math.hypot(e.x - 4, e.y - 10), 0.6708, `at her front (${e.x},${e.y})`, 1e-6);
+    const end = ends.get(e);
+    approx(Math.hypot(end.x - 4, end.y - 10), 0.6708, `at her front (${end.x},${end.y})`, 1e-6);
+    // both end on one block position: the second one blocked steps aside (block shifting, GitHub #61)
+    assert.ok(Math.hypot(e.x - end.x, e.y - end.y) < BLOCK_SPREAD + 1e-9, `there or beside it (${e.x},${e.y})`);
     const tr = dealt(h, u, (c) => c.target === e && c.type === 'true');
     assert.equal(tr.length, 1);
-    approx(tr[0].amount, u.s.atk * bb.atk_scale);
+    approx(tr[0].amount, atk0 * bb.atk_scale);
     assert.ok(statuses(h, 'stun', (c) => c.target === e && c.duration === bb.stun).length === 1);
   }
   done(h);

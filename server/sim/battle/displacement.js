@@ -1,10 +1,11 @@
 // server/sim/battle/displacement.js — Battle methods: displacement of enemies: 受力等级 (force − weight), push (radial /
-// directional), pull, the raw mover displace and who can be moved at all.
+// directional), pull, the slide they start (momentum and friction, moved frame by frame: _shiftStep), the raw mover
+// displace and who can be moved at all.
 // Installed on Battle.prototype by server/sim/Battle.js (a method container: never instantiated; `this` is the battle).
 
 import {
   COLS, PUSH_TILES, PUSH_TILES_EFFECT, PULL_WEAK_SHARE, PULL_CRAWL, PULL_ORIGIN, PULL_STOP_RADIUS, PUSH_DIRECTIONAL_MIN_DIST,
-  PUSH_UNBALANCE, PULL_UNBALANCE, PULL_UNBALANCE_WEAK, UNBALANCE_MIN,
+  PUSH_UNBALANCE, PULL_UNBALANCE, PULL_UNBALANCE_WEAK, UNBALANCE_MIN, PUSH_MOMENTUM, SHIFT_FRICTION, PULL_TIME_K, TICK,
 } from '../constants.js';
 import { fin } from './util.js';
 import { hypot } from '../detmath.js';
@@ -18,6 +19,17 @@ export function pushTiles(level, effect = false) {
   if (l <= -3) return 0;
   return (effect ? PUSH_TILES_EFFECT : PUSH_TILES)[Math.min(3, l)];
 }
+
+/** Momentum (tiles/s for the mass 1) a push of 受力等级 `level` gives (constants.js PUSH_MOMENTUM: ≤ −3 → 0, ≥ 3 → the 3 value). */
+export function pushMomentum(level) {
+  const l = Math.round(fin(level, -99));
+  return l <= -3 ? 0 : PUSH_MOMENTUM[Math.min(3, l)];
+}
+
+/** Sub-step (tiles) of a slide's frame: the passability of the tiles it crosses is checked this often. */
+const SHIFT_SUBSTEP = 0.1;
+/** At most this many frames of a slide are predicted (a 3.53-tile push is 36). */
+const SHIFT_MAX_FRAMES = 300;
 
 /** 失衡 (UNBALANCE) of a push of 受力等级 `level`, game seconds (constants.js PUSH_UNBALANCE: ≤ −3 → 0, ≥ 3 → the 3 value). */
 export function pushUnbalance(level) {
@@ -57,14 +69,16 @@ export class BattleDisplacement {
    * The displace fx keeps the enemy's pre-hit facing by default: official footage shows this for a directional push
    * (野鬃 S2, #418) and a radial push (莫斯提马 S3). [ASSUMED] for other push sources; an explicitly different
    * client action can pass `keepFacing: false`. Pulls use the same display rule; raw displacements remain unmarked.
-   * Returns the tiles moved.
+   * The enemy is not moved at once: it slides with the push's momentum, slowed by friction (GitHub #60; _shiftStart,
+   * _shiftStep; momentum adds up over pushes). Returns the tiles it will slide — walls included, for the callers that
+   * read them (a wall stop, drag damage).
    */
   push(e, force, { from = null, dir = null, fixed = false, fixedAngle = false, inward = false, effect = false, keepFacing = true } = {}) {
     if (!this._displaceable(e)) { this._staticForce(e, force, false); return 0; }
     let level = this.forceLevel(e, force);
     const fx0 = fin(from?.x, e.x), fy0 = fin(from?.y, e.y);
     const vx = e.x - fx0, vy = e.y - fy0, d = hypot(vx, vy);
-    let ux = 0, uy = 0;
+    let ux, uy;
     const dirX = dir ? fin(dir.x, 0) : 0, dirY = dir ? fin(dir.y, 0) : 0;
     const dl = hypot(dirX, dirY);
     if (dl > 0) {
@@ -76,12 +90,13 @@ export class BattleDisplacement {
     } else if (d > 1e-6) { ux = vx / d; uy = vy / d; }
     else if (!inward && from && Array.isArray(from.fwd)) { ux = from.fwd[1]; uy = from.fwd[0]; }
     else return 0;
-    let dist = pushTiles(level, effect);
-    if (inward && !(dl > 0)) { ux = -ux; uy = -uy; dist = Math.min(dist, Math.max(0, d - PULL_STOP_RADIUS)); }
+    const v0 = pushMomentum(level);
+    let cap = Infinity;
+    if (inward && !(dl > 0)) { ux = -ux; uy = -uy; cap = Math.max(0, d - PULL_STOP_RADIUS); }
     // 失衡 for the row's 位移时间 — also when the 特效 column or a wall shortens the slide [ASSUMED for the wall]; a slide a
     // wall stops at the first step gets the 0.1 s floor, like a body that cannot move [ASSUMED: 碰撞、停止 is 待补充]
     const hold = pushUnbalance(level);
-    const moved = this.displace(e, { x: ux, y: uy }, dist, { dur: hold, keepFacing });
+    const moved = v0 > 0 ? this._shiftStart(e, ux * v0, uy * v0, { cap, effect, keepFacing }) : 0;
     if (hold > 0) this._unbalance(e, moved > 0 ? hold : UNBALANCE_MIN);
     return moved;
   }
@@ -94,7 +109,8 @@ export class BattleDisplacement {
    * The supplied 歌蕾蒂娅 S1/S2 clip directly shows the target keeping its facing before and after a hook pull.
    * [ASSUMED] for other pull directions/sources: the clip does not isolate travel against the prior facing.
    * PRTS distinguishes 薄绿's inward push from a hook pull, not their model facing.
-   * Pass `keepFacing: false` for a documented exception. Returns the tiles moved.
+   * Pass `keepFacing: false` for a documented exception. The enemy slides there at a constant speed (constants.js
+   * PULL_TIME_K; a pull ends a push's slide). Returns the tiles it will slide, walls included.
    */
   pull(e, force, { to, center = null, stop = PULL_STOP_RADIUS, keepFacing = true } = {}) {
     if (!to) return 0;
@@ -119,9 +135,100 @@ export class BattleDisplacement {
       if (disc >= 0) { const t = -wu - Math.sqrt(disc); if (t >= 0) full = Math.min(full, t); }
     }
     const dist = level >= 0 ? full : level === -1 ? Math.min(full, PULL_WEAK_SHARE * d0) : Math.min(full, PULL_CRAWL);
-    const moved = dist > 1e-6 ? this.displace(e, { x: ux, y: uy }, dist, { dur: hold, keepFacing }) : 0;
+    const T = level <= -2 ? PULL_UNBALANCE_WEAK : Math.min(PULL_UNBALANCE, PULL_TIME_K * Math.sqrt(d0));
+    const speed = dist / Math.max(TICK, T);
+    const moved = dist > 1e-6 ? this._shiftStart(e, ux * speed, uy * speed, { cap: dist, pull: true, keepFacing }) : 0;
     this._unbalance(e, hold);
     return moved;
+  }
+
+  /**
+   * Start (or add to) the slide of enemy `e` with the velocity (vx, vy) tiles/s (GitHub #60): a push's momentum adds to
+   * the slide it is in (momentum stacks), a pull replaces it. `cap` = the most it may travel (an inward push stops short
+   * of its puller, a pull at its distance); `pull` = a constant speed, else friction; `effect` = an effect push, which
+   * loses its first frame of travel — any other starts on the frame it lands (the hit's frame). The enemy leaves its
+   * blocker and its attack, and the `displace` fx names where the slide ends and how long it takes (render/units.js
+   * slideTo). Returns the tiles it will travel from here, walls included (_shiftPredict).
+   */
+  _shiftStart(e, vx, vy, { cap = Infinity, pull = false, effect = false, keepFacing = false } = {}) {
+    const was = e.shift && !e.shift.pull && !pull ? e.shift : null;
+    const sh = { vx: vx + (was ? was.vx : 0), vy: vy + (was ? was.vy : 0), left: cap, pull };
+    e.shift = sh;
+    e.shiftN = (e.shiftN || 0) + 1;
+    let moved = 0;
+    if (effect) this._shiftSlow(sh);
+    else moved = this._shiftFrame(e, sh, e);
+    const ahead = this._shiftPredict(e, sh);
+    if (!(hypot(sh.vx, sh.vy) > 0)) e.shift = null;
+    const total = moved + ahead.dist;
+    if (total > 0) {
+      this._unblock(e);
+      // 失衡 ends the attack clip it stood for (PRTS 状态机: the states are exclusive — UNBALANCE, then DEFAULT → MOVE)
+      this._cutAttackStand(e);
+      e.atkStandUntil = -Infinity;
+      if (e.route) e.route.pts = null;
+      // `dur` (game s): how long the slide takes — the client's slide takes that long (render/units.js slideTo)
+      const dur = ahead.frames * TICK;
+      this.fx('displace', { x: ahead.x, y: ahead.y, id: e.id, ...(dur > 0 ? { dur } : {}), ...(keepFacing ? { keepFacing: true } : {}) });
+    }
+    return total;
+  }
+
+  /** The friction of one frame on a push's slide (a pull keeps its speed). */
+  _shiftSlow(sh) {
+    if (sh.pull) return;
+    const v = hypot(sh.vx, sh.vy), nv = v - SHIFT_FRICTION * TICK;
+    if (!(nv > 0)) { sh.vx = 0; sh.vy = 0; return; }
+    sh.vx *= nv / v; sh.vy *= nv / v;
+  }
+
+  /**
+   * One frame of the slide `sh` of enemy `e`, moving `at` ({x, y}: the enemy itself, or a copy for _shiftPredict): its
+   * speed × TICK (at most what is `left`) in SHIFT_SUBSTEP steps over the tiles it may cross — a wall ends the slide
+   * where it stands —, then the frame's friction. Returns the tiles moved.
+   */
+  _shiftFrame(e, sh, at) {
+    const v = hypot(sh.vx, sh.vy);
+    if (!(v > 0)) return 0;
+    const ux = sh.vx / v, uy = sh.vy / v;
+    const want = Math.min(v * TICK, sh.left);
+    let moved = 0;
+    while (moved + 1e-9 < want) { // loop-cap: a frame is at most a few SHIFT_SUBSTEPs
+      const s = Math.min(SHIFT_SUBSTEP, want - moved);
+      const nx = at.x + ux * s, ny = at.y + uy * s;
+      const r = Math.round(ny), c = Math.round(nx);
+      if (!(e.motion === 'FLY' ? this.grid.inRect(r, c) : this.grid.groundPassable(r, c))) { sh.vx = 0; sh.vy = 0; return moved; }
+      at.x = nx; at.y = ny; moved += s;
+    }
+    sh.left -= moved;
+    if (!(sh.left > 1e-9)) { sh.vx = 0; sh.vy = 0; return moved; }
+    this._shiftSlow(sh);
+    return moved;
+  }
+
+  /** Where the slide `sh` of `e` ends from here, how far and in how many frames (nothing moved). */
+  _shiftPredict(e, sh) {
+    const at = { x: e.x, y: e.y };
+    const s = { ...sh };
+    let dist = 0, frames = 0;
+    while (hypot(s.vx, s.vy) > 0 && frames < SHIFT_MAX_FRAMES) { dist += this._shiftFrame(e, s, at); frames++; } // loop-cap: SHIFT_MAX_FRAMES
+    return { x: at.x, y: at.y, dist, frames };
+  }
+
+  /**
+   * The 'shift' phase of a step (battle/lifecycle.js, before the enemies act): every sliding enemy moves one frame. A
+   * slide ends when its speed is spent, at a wall, or when the enemy can no longer be displaced (浮空 「触发浮空时清除受到的
+   * 推/拉力」, 失衡免疫, out of the field, carried, dead); the route is planned again from where it stopped.
+   */
+  _shiftStep() {
+    for (const e of this.enemies) {
+      const sh = e.shift;
+      if (!sh) continue;
+      if (!this._displaceable(e) || e.hidden || e.mem?.carrier || e.s.flags.levitate) { e.shift = null; continue; }
+      this._shiftFrame(e, sh, e);
+      this._clampPos(e);
+      if (!(hypot(sh.vx, sh.vy) > 0)) { e.shift = null; if (e.route) e.route.pts = null; }
+    }
   }
 
   /** Official distance (tiles) a push of 力度 `force` would move `e` on open ground (0 when it cannot be displaced). */
@@ -205,6 +312,7 @@ export class BattleDisplacement {
       e.x = nx; e.y = ny; moved += s;
     }
     if (moved > 0) {
+      e.shiftN = (e.shiftN || 0) + 1;   // (content/enemies/archetypes.js unbalanced() sees it)
       this._unblock(e);
       // 失衡 ends the attack clip it stood for (PRTS 状态机: the states are exclusive — UNBALANCE, then DEFAULT → MOVE)
       this._cutAttackStand(e);

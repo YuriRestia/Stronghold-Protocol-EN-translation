@@ -179,6 +179,7 @@ test('见行者 (3_07) 惊爆射击 pushes along her direction (DOWN: the enemy 
   const e = h.enemy('enemy_a');
   fill(u);
   assert.ok(h.runUntil(() => u.skill.activations === 1, 5), 'skill cast');
+  h.settle();
   assert.ok(e.y < 10.6, `pushed down (${e.y})`);
   close(e.x, 4, 'no sideways push', 1e-3);
   checkInvariants(h.b);

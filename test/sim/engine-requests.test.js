@@ -116,7 +116,7 @@ test('massFlat: current massLevel (weight) for displacement and 浮空 halving; 
   assert.equal(e.base.massLevel, 4, 'base untouched');
   e.x = 5; e.y = 10;
   const d2 = h.b.push(e, 1, { from: { x: 4, y: 10 } });
-  approx(d2, 0.12, 1e-6, '失重 weight 3 vs 中力: 受力等级 −2 ⇒ 0.12 tiles');
+  approx(d2, 0.12, 0.01, '失重 weight 3 vs 中力: 受力等级 −2 ⇒ 0.12 tiles (0.119 at 30 fps: a slide, GitHub #60)');
   h.b.applyStatus(e, 'levitate', { duration: 4 });
   approx(e.findBuff('levitate').timeLeft, 4, 1e-9, 'weight 3: full 浮空');
   h.b.removeStatus(e, 'levitate');

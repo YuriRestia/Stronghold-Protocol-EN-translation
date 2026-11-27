@@ -38,10 +38,11 @@
 // read by the sim — a replay or a bug report names the art the battle was drawn with.
 
 import { Battle } from './Battle.js';
-import { toDataSource, withUnitLoadouts } from './simdata.js';
+import { toDataSource, withUnitLoadouts, withRuleData } from './simdata.js';
 import { isPotential, isCultivate } from '../../shared/potential.js';
 import { isContentHash } from '../../shared/plugins/identity.js';
 import { BOSS_POOL_MIN_HP } from './constants.js';
+import { riskLeakWeight } from '../../shared/ruleData.js';
 import { DEFAULT_VERSION, versionById, versionOfData } from '../../shared/versions.js';
 import { LARGE_ROOM_SEATS } from '../../shared/largeRoom.js';
 
@@ -158,7 +159,7 @@ export function createBattleFromSpec(spec, dataSource, opts = {}) {
   }
   const bossLike = s.kind === 'boss' || s.kind === 'hidden';
   let sharedBoss = opts.sharedBoss ?? null;
-  if (!sharedBoss && bossLike && s.boss) sharedBoss = new LocalBossPool(s.boss.poolMax, s.boss.poolHp);
+  if (!sharedBoss && bossLike && s.boss) sharedBoss = new LocalBossPool(s.boss.poolMax, s.boss.poolHp, s.boss.risk ?? null);
   const BattleClass = typeof opts.BattleClass === 'function' ? opts.BattleClass : Battle;
   const battleOpts = {
     seed: s.seed,
@@ -176,7 +177,8 @@ export function createBattleFromSpec(spec, dataSource, opts = {}) {
     fieldId: s.fieldId,
     enemyOverrides: s.enemyOverrides ?? {},
     waveId: s.waveId ?? null,
-    data: BattleClass === Battle ? withUnitLoadouts(toDataSource(dataSource), s.players) : dataSource,
+    // the rebalanced alliances of the lobby rules (flags.rules) change records before the loadouts resolve them
+    data: BattleClass === Battle ? withUnitLoadouts(withRuleData(toDataSource(dataSource), s.flags?.rules), s.players) : dataSource,
     content: opts.content ?? s.content ?? 'full',
   };
   if (s.bossId != null) battleOpts.bossId = s.bossId;
@@ -203,7 +205,8 @@ export function createBattleFromSpec(spec, dataSource, opts = {}) {
  * changes nothing — so the leader stood at "0 HP" and the field never ended.
  */
 export class LocalBossPool {
-  constructor(maxHp, hp = maxHp) {
+  /** @param {object|null} [risk] the boss-pool Risk view the field starts from (server/sim/bossRisk.js; b.pool `risk`) */
+  constructor(maxHp, hp = maxHp, risk = null) {
     this.maxHp = Math.max(1, Number(maxHp) || 1);
     const h = Number(hp);
     this.serverHp = Number.isFinite(h) ? Math.max(0, Math.min(this.maxHp, h)) : this.maxHp;
@@ -211,6 +214,27 @@ export class LocalBossPool {
     this.acked = 0;
     /** @type {Record<string, number>} */
     this.byPlayer = {};
+    /** SPA-CC boss-pool Risk tags: the server's view, this field's Arts / Physical damage, its own hold (bossRisk.js) */
+    this.risk = risk && typeof risk === 'object' ? { ...risk } : null;
+    this.typed = { arts: 0, phys: 0 };
+    this.localHold = false;
+    /** Delegation: the HP this field took from its Degenbrecher so far (reported as b.progress `degen`) */
+    this.degenDealt = 0;
+    /** United 3: the gate steps its Degenbrecher has finished (reported as b.progress `degenGate`) */
+    this.degenGate = 0;
+  }
+
+  riskView() { return this.risk; }
+
+  /** United 2: whether a Degenbrecher lives on this field (reported as b.progress `hold`). */
+  setHold(fieldId, on) { void fieldId; this.localHold = !!on; }
+
+  /** Delegation: this field's cumulative damage to its Degenbrecher and her finished gate steps (bossRisk.js). */
+  noteDegen(fieldId, dealt, gate = 0) {
+    void fieldId;
+    const d = Number(dealt), g = Number(gate);
+    if (Number.isFinite(d) && d > this.degenDealt) this.degenDealt = d;
+    if (Number.isFinite(g) && g > this.degenGate) this.degenGate = Math.floor(g);
   }
 
   get hp() {
@@ -224,21 +248,30 @@ export class LocalBossPool {
     if (Number.isFinite(n)) this.serverHp = Math.max(0, n) + Math.max(0, this.cum - this.acked);
   }
 
-  damage(playerId, amount) {
-    const a = Number(amount);
+  damage(playerId, amount, type) {
+    let a = Number(amount);
     const left = this.hp;
     if (!Number.isFinite(a) || a <= 0 || left <= 0) return 0;
+    if (this.risk) {
+      // the server's gate / hold (and this field's own hold) before the server has heard of this damage
+      if (this.risk.inv) return 0;
+      const floor = Math.max(Number(this.risk.floor) || 0, this.localHold ? 1 : 0);
+      a = Math.min(a, left - floor);
+      if (!(a > 0)) return 0;
+    }
     const dealt = left - a < BOSS_POOL_MIN_HP ? left : a;
     this.cum += dealt;
     if (playerId != null) this.byPlayer[playerId] = (this.byPlayer[playerId] || 0) + dealt;
+    if (this.risk && (type === 'arts' || type === 'phys')) this.typed[type] += dealt;
     return dealt;
   }
 
-  sync(serverHp, ackedCum) {
+  sync(serverHp, ackedCum, risk) {
     const h = Number(serverHp);
     if (Number.isFinite(h)) this.serverHp = Math.max(0, Math.min(this.maxHp, h));
     const a = Number(ackedCum);
     if (Number.isFinite(a) && a >= 0) this.acked = a;
+    if (risk && typeof risk === 'object') this.risk = { ...risk };
   }
 }
 
@@ -306,7 +339,9 @@ export function battleProgress(battle) {
   const r = battle && typeof battle.result === 'function' && battle.finished ? battle.result() : null;
   let leaks = 0;
   const pp = battle && battle._perPlayer ? battle._perPlayer : (r && r.perPlayer) || {};
-  for (const k of Object.keys(pp)) for (const l of pp[k].leaked || []) if (l && l.counted !== false) leaks++;
+  // each counted leak at its LP weight (1; a Patriot / tier-3 Zaaro under their SPA-CC tags more: riskLeakWeight)
+  const rules = battle && battle.flags ? battle.flags.rules : null;
+  for (const k of Object.keys(pp)) for (const l of pp[k].leaked || []) if (l && l.counted !== false) leaks += riskLeakWeight(rules, l.enemyKey);
   const pool = battle && battle.sharedBoss;
   const gt = Number(battle && battle.time) || 0;
   const total = Math.max(0, Math.trunc(Number(battle && battle.total) || 0));
@@ -321,6 +356,13 @@ export function battleProgress(battle) {
     bossDmg: pool && Number.isFinite(pool.cum) ? pool.cum : 0,
     done: !!(battle && battle.finished),
   };
+  // SPA-CC boss-pool Risk tags (bossRisk.js): this field's Arts / Physical damage and whether it holds the pool
+  if (pool && pool.risk && pool.typed) {
+    out.bossArts = pool.typed.arts;
+    out.bossPhys = pool.typed.phys;
+    out.hold = !!pool.localHold;
+    if (pool.risk.degen) { out.degen = pool.degenDealt || 0; out.degenGate = pool.degenGate || 0; }
+  }
   if (battle && battle.kind === 'unite') {
     const left = uniteLeft(battle);
     if (left) out.left = left;
@@ -437,6 +479,7 @@ export function compactResult(res) {
       bossDamage: Math.max(0, Math.round(fnum(p.bossDamage))),
       healingDone: Math.max(0, Math.round(fnum(p.healingDone))),
       deaths: Math.max(0, Math.trunc(fnum(p.deaths))),
+      downs: Math.max(0, Math.trunc(fnum(p.downs))),
       unitsEnd: cap(p.unitsEnd, 64).filter(Boolean).map((u) => ({
         uid: uidOr(u.uid), defId: keyOr(u.defId), hpPct: Math.max(0, Math.min(1, fnum(u.hpPct))), sp: Math.max(0, Math.min(1e5, fnum(u.sp))),
         skillActive: !!u.skillActive, alive: !!u.alive,

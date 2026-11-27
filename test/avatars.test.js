@@ -167,6 +167,7 @@ describe('Grand Alliance (8 seats)', () => {
       return sess;
     });
     assert.deepEqual(lobby.create(ps[0], { mode: 'coop', capacity: 8 }), { ok: true });
+    assert.deepEqual(lobby.setLock(ps[0], { on: false }), { ok: true });   // a Grand Alliance opens private
     const code = states.at(-1).code;
     for (const p of ps.slice(1)) assert.deepEqual(lobby.join(p, { code }), { ok: true });
     const seatsOf = () => states.at(-1).seats.map((x) => x?.avatar ?? null);

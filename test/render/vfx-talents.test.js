@@ -369,11 +369,17 @@ describe('talent and ability effects in a battle (talentfx.js)', () => {
     assert.ok(log.includes('reb_end'));
     frame();
     assert.equal(live('reb_inv'), 1, '无敌: Reborn.invincible s of the record');
+    assert.equal(e.officialInvuln, true, 'the view is told: no invulnerability ribbons on top (#57)');
     assert.equal(live('reb_post'), 1);
     assert.equal(log.filter((k) => k === 'atk_buff').length, 1, 'the AtkUp copy switch keeps its loop');
     assert.equal(w.mode(index.units.enemy_801_reb, e).name, 'Reborn');
+    ofx.active = false; frame();
+    assert.equal(e.officialInvuln, false, 'official effects off: the ribbons again');
+    ofx.active = true; frame();
+    assert.equal(e.officialInvuln, true);
     ofx.time += 2.1; frame();
     assert.equal(live('reb_inv'), 0, 'the 无敌 time is over');
+    assert.equal(e.officialInvuln, false);
     assert.equal(live('reb_post'), 1);
     w.death(e); e.alive = false; frame();
     assert.equal(live('reb_post') + live('atk_buff'), 0);

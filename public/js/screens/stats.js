@@ -40,6 +40,7 @@ import { identity } from '../net.js';
 import { TITLE_HEX_SECTORS, titleSectorClip } from '../ui/titleHexagon.js';
 import { store, createStore, useStore, selectRoute } from '../store.js';
 import { ResultView } from './result.js';
+import { normalizeRules } from '../../../shared/rules.js';
 import { toast, toastError } from '../ui/toasts.js';
 import {
   loadStats, peekStatsRecords, saveStats, emptyStats, importStats, exportStats, aggregateStats, countsTowardStats, selfRowOf, roundsOf, isModdedRecord,
@@ -599,10 +600,12 @@ function Replay({ rec, onBack }) {
   const shown = useStore(shownVersion);
   const inRoom = useStore((s) => !!s.room);
   const offered = useStore((s) => versionOffered(s, version));
+  // (fork) the match's rules, the only part of m.public the settlement view needs (#78)
+  const pub = useMemo(() => (rec.rules ? { rules: normalizeRules(rec.rules) } : null), [rec]);
   if (!gd.ready || !versionReady || shown !== version) {
     return html`<${ReplayWait} version=${version} otherInRoom=${inRoom && shown !== version} offered=${offered} failed=${failed} inRoom=${inRoom} onBack=${onBack} />`;
   }
-  return html`<${ResultView} res=${res} pub=${null} myId=${rec.selfId} backLabel=${t('返回统计')} onBack=${onBack} quiet=${true}
+  return html`<${ResultView} res=${res} pub=${pub} myId=${rec.selfId} backLabel=${t('返回统计')} onBack=${onBack} quiet=${true}
     content=${rec.content ? { cs: rec.content.cs, vanilla: false, plugins: rec.content.plugins } : null} version=${rec.version ?? null} />`;
 }
 

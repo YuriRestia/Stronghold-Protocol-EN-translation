@@ -242,7 +242,8 @@ test('真实隐形弩手：后摇中击退并被移动创伤击杀，死亡帧�
   const cutAt = Math.round(h.b.time * 1000) / 1000;
   // 温蒂的真实移动创伤实现：击退后下一次伤害结算在同一个快照间隔内击杀目标。
   rupture(h.b, h.unit('t_wall'), e, { duration: 5, perTile: 1e6, interval: TICK });
-  near(h.b.push(e, e.s.massLevel + 1, { dir: { x: -1, y: 0 }, fixed: true }), 2.14);
+  // (2.1399: the table's 2.14 at 30 fps — a push is a slide, GitHub #60)
+  assert.ok(Math.abs(h.b.push(e, e.s.massLevel + 1, { dir: { x: -1, y: 0 }, fixed: true }) - 2.14) < 0.01);
   h.step(2);
   const B = h.b.snapshot();
   assert.equal(e.alive, false);

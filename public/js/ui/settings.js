@@ -7,7 +7,8 @@
 // `_meta.machineTranslated`) and the 快捷键 section that rebinds the in-match shortcuts (the key map:
 // ui/gameLogic/shortcuts.js; the community request 「快捷键可不可以自己设置」, the owner's decision of 2026-10-07) and
 // 问题反馈, which copies the diagnostics of this page for a bug report (diag.js: the error log, this browser, optionally
-// the battle on screen; nothing is uploaded). 素材存储 asks the browser to keep this site's storage, where an imported asset
+// the battle on screen; nothing is uploaded), with (fork, GitHub #100) links that open a new issue on our repository, its
+// form and version filled in (ui/about.js IssueLinks). 素材存储 asks the browser to keep this site's storage, where an imported asset
 // pack lives (assetCache.js), and 清理旧版本素材 deletes the imported copies this server's version no longer uses
 // (assetPack.js pruneImportedAssets; both the maintainer's requests of 2026-10-17). The lobby and the room open it from a 设置 button next to 玩法说明
 // (SettingsButton, GitHub #238); the title screen and the match have their own gear.
@@ -33,6 +34,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks
 import { html, Modal, Button, Icon, MicroLabel, Tooltip, confirmDialog } from './components.js';
 import { GIcon } from './gameComponents.js';
 import { useStore, savePref, store } from '../store.js';
+import { publicNameStore, setPublicName } from './publicName.js';
+import { PUBLIC_NAME_MAX_LEN } from '../../../shared/constants.js';
 import { settingsStore } from './settingsStore.js';
 export { settingsStore } from './settingsStore.js';
 import { sanitizeSettings, HOTKEY_ACTIONS, DEFAULT_HOTKEYS, hotkeyLabel, rebindHotkey, isDefaultHotkeys, captureHotkey, VOICE_LANGS, TEXT_SIZES } from './gameLogic.js';
@@ -40,10 +43,12 @@ import { audio } from '../audio.js';
 import { openGuide } from './guide.js';
 import { detectFeatures, isIOS } from './device.js';
 import { LangToggle, machineTranslationNote } from './lang.js';
+import { ChallengeSettings } from './challenges.js';
 import { PreloadRow } from './preload.js';
 import { t, tc, tParts, N_ } from '../../../shared/i18n.js';
 import { errorCount, currentBattle, diagnosticsText } from '../diag.js';
 import { copyText } from './clipboard.js';
+import { ISSUES_URL, IssueLinks } from './about.js';
 import { catalog, loadCatalog, cosmeticPlugins, installedCount, isPersonalCosmetic, personal, personalApplied, personalSet, pluginName, setPersonalPlugin } from '../content.js';
 import { resolveThemeVars, themeVarsOf } from '../../../shared/plugins/theme.js';
 import { setUiPlugin, uiPluginEntries, uiPlugins } from './uiPlugins.js';
@@ -299,8 +304,6 @@ function HotkeySection({ keys, touchUi }) {
   </section>`;
 }
 
-/** Where a report goes: the upstream issue tracker (shown as text the player can select; a link may open nothing). */
-export const ISSUES_URL = 'https://github.com/sganggs/Stronghold-Protocol/issues';
 
 /**
  * 问题反馈: copy the diagnostics of this page (diag.js) for a GitHub issue — the errors recorded since the page opened,
@@ -340,6 +343,7 @@ function DiagSection() {
       <span class="set-diag__stat">${t('已记录的错误')}<b class=${cx('set-diag__count num', n > 0 && 'is-warn')} data-testid="diag-count">${n}</b></span>
       <span class="set-diag__url">${ISSUES_URL.replace(/^https:\/\//, '')}</span>
     </div>
+    <${IssueLinks} class="set-diag__issues" />
     ${battle ? html`<${Toggle} label=${t('附上本场战斗')} micro="BATTLE DATA" value=${attach} onChange=${setAttach} />
       <p class="set-hint set-diag__battle-hint">${t('开发者可以用附上的战斗数据重现这场战斗。')}</p>` : null}
     ${note ? html`<p class=${cx('set-keys__note', note === 'refused' && 'is-warn')} role="status" aria-live="polite">${t(DIAG_NOTES[note])}</p>` : null}
@@ -353,6 +357,23 @@ function DiagSection() {
  * is none. The catalogue is fetched again when the section opens (a plugin dropped in meanwhile shows) — on a server that
  * has plugins only (content.js installedCount: a server without any is never asked for it).
  */
+/**
+ * (fork, GitHub #118) 对局记录署名: opt in to have a public name written into the records of your matches. Off by
+ * default; the warning says what it means (ui/publicName.js).
+ */
+function PublicNameSection() {
+  const p = useStore((s) => s, Object.is, publicNameStore);
+  return html`<section class="set-pubname" data-testid="public-name">
+    <${Toggle} label=${t('对局记录署名')} micro="NAME IN MATCH RECORDS" value=${p.on} onChange=${(v) => setPublicName({ on: v })} />
+    <div class="set-row">
+      <span class="set-row__label">${t('署名')}<${MicroLabel}>PUBLIC NAME<//></span>
+      <input class="set-pubname__input" type="text" maxlength=${PUBLIC_NAME_MAX_LEN} value=${p.name} placeholder=${t('例如你的 Discord 名')}
+        aria-label=${t('署名')} data-testid="public-name-input" onInput=${(e) => setPublicName({ name: e.currentTarget.value })} />
+    </div>
+    <p class="set-hint">${t('开启后，此后对局的记录会写入这个署名（服务器长期保存，用于整理 SPA-CC 等记录），你的对局记录将能被认出是你的。请不要填写真实姓名等个人信息。关闭后，新的对局记录不再包含署名；已保存的记录不会改变。')}</p>
+  </section>`;
+}
+
 function CosmeticSection() {
   const cat = useStore((s) => s, Object.is, catalog);
   const ids = useStore((s) => s.ids, Object.is, personal);
@@ -636,6 +657,8 @@ export function SettingsModal({ open, onClose }) {
       <${ScreenFitSection} />
       <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
       <${CosmeticSection} />
+      <${PublicNameSection} />
+      <${ChallengeSettings} Toggle=${Toggle} />
       <${UiPluginSection} />
       <${StorageSection} />
       <${DiagSection} />

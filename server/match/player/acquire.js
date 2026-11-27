@@ -9,6 +9,13 @@ import { hasTraitFor } from '../operatorTraits.js';
 import { pieceDir, parseDir, mergeTile } from '../board.js';
 import { MAX_OFFER_SLOTS } from './common.js';
 import { onMerge } from '../botEmotes.js';
+import { noteGained } from '../autoAward.js';
+import { pieceBonds } from '../bondsMeta.js';
+import { modZOf } from '../../../shared/modZ.js';
+
+/** (Fish Edition) Mod V Viviana: the free Nearl (1-star) and the Alliance each of the three is granted. */
+const MODV_NEARL = 'chess_char_6_17_a';
+const MODV_BONDS = { char_4064_mlynar: 'steadShip', char_1014_nearl2: 'swiftShip', char_4116_blkkgt: 'raidShip' };
 
 export class PlayerAcquire {
   /** Normal copies of a base chess currently owned (board/hand/temp). */
@@ -45,6 +52,7 @@ export class PlayerAcquire {
     const need = rec.isGolden ? this.gd.goldenCopies : 1;
     // the shared pool, or this player's stock of a slotted 自选 piece (player/diy.js poolOf)
     const taken = fromPool ? this.poolOf(base).take(base, need, { overdraw: true }) : 0;
+    noteGained(this.m, this, chessId); // (GitHub #125) Investor 2's operators
     const piece = this.newPiece('chess', chessId, { poolCopies: taken });
     this.round.gainedChess++;
     let owned = piece;
@@ -53,6 +61,7 @@ export class PlayerAcquire {
       if (!owned) return null;
     } else {
       this.stow(piece, { allowTemp: true, toTemp });
+      if (rec.isGolden) this.grantModZBonds(piece); // (Fish Edition) Mod Z Kal'tsit Esperanta: an elite obtained directly
     }
     this.recompute();
     // [ASSUMED] Custom gain fires for the acquired copy, not the elite produced by a merge.
@@ -108,6 +117,7 @@ export class PlayerAcquire {
     const toTile = (t) => { elite.dir = parseDir(t.dir) || 'RIGHT'; this.board.set(t.key, elite); return 'board'; };
     const tile = mergeTile(deployed, (r, c) => this._legal(elite, r, c));
     const where = tile ? toTile(tile) : this.stow(elite, { allowTemp: true });
+    this.grantModZBonds(elite); // (Fish Edition) Mod Z Kal'tsit Esperanta: the elite a merge made
     for (const it of items) this.stow(it, { allowTemp: true });
     // the returned equipment follows the auto-merge rule like any other gain ("已拥有2件同一初始装备时…自动合并")
     this.checkItemMerges();
@@ -125,6 +135,50 @@ export class PlayerAcquire {
     return elite;
   }
 
+  /**
+   * (Fish Edition) Mod Z Kal'tsit Esperanta: an elite whose active module grants alliances (shared/modZ.js `grants`) gains, now, that
+   * many alliances she is not yet in: each time the active alliance with the most Stacks (ties: the alliance list's order), then the
+   * next. The list is read once, from the current state; it is kept on the piece (`grantedBonds`, read by pieceBonds), so it is gone
+   * when she is sold, and a piece obtained again draws a new list. Called when an elite is obtained, merged or promoted.
+   */
+  grantModZBonds(piece) {
+    const rec = piece && piece.kind === 'chess' ? this.gd.chess(piece.id) : null;
+    const z = rec && rec.module && rec.module.active ? modZOf(rec.module.id) : null;
+    // (Fish Edition) Mod V Viviana: an elite obtained, merged or promoted with it brings the Radiant Knight Nearl, once a match
+    // (a 1-star copy outside the shared pool); the Alliances for the three come in applyModVBonds
+    if (z && z.kind === 'V' && !this.modVNearl) {
+      this.modVNearl = true;
+      this.acquireChess(MODV_NEARL, { source: 'module', fromPool: false });
+    }
+    if (!z || !(z.grants > 0)) return;
+    piece.grantedBonds = [];
+    this.recompute();
+    const has = new Set(pieceBonds(this.gd, piece, this.m?.rules));
+    const order = new Map(this.gd.bondIds.map((id, i) => [id, i]));
+    const pick = Object.entries(this.bonds || {})
+      .filter(([id, b]) => b && b.active && !has.has(id) && !this.gd.modeInactiveBonds?.has(id))
+      .sort((a, b) => (b[1].layers || 0) - (a[1].layers || 0) || (order.get(a[0]) ?? 1e9) - (order.get(b[0]) ?? 1e9))
+      .slice(0, z.grants).map(([id]) => id);
+    piece.grantedBonds = pick;
+    this.recompute();
+  }
+
+  /**
+   * (Fish Edition) Mod V Viviana: while this player owns an elite Viviana with the module (board, hand or bench), each copy of
+   * Mlynar, Nearl the Radiant Knight and Degenbrecher it owns is granted its Alliance (`piece.grantedBonds`, read by pieceBonds):
+   * whoever came first. A granted piece keeps it when she is sold; nothing new is granted after that. Called by recompute.
+   */
+  applyModVBonds() {
+    const chess = this.allChess();
+    if (!chess.some((p) => modZOf(this.gd.chess(p.id)?.module?.active ? this.gd.chess(p.id).module.id : null)?.kind === 'V')) return;
+    for (const p of chess) {
+      const bond = MODV_BONDS[this.gd.chess(p.id)?.charId];
+      if (!bond) continue;
+      if (!Array.isArray(p.grantedBonds)) p.grantedBonds = [];
+      if (!p.grantedBonds.includes(bond)) p.grantedBonds.push(bond);
+    }
+  }
+
   /** Promote a normal chess piece to its elite in place (升华, 博士投影). Takes extra pool copies when available. */
   promote(piece) {
     if (!piece || piece.kind !== 'chess' || this.gd.isGolden(piece.id)) return false;
@@ -134,6 +188,7 @@ export class PlayerAcquire {
     const extra = Math.max(0, this.gd.goldenCopies - (piece.poolCopies || 0));
     piece.poolCopies = (piece.poolCopies || 0) + this.poolOf(base).take(base, extra, { overdraw: true });
     piece.id = goldenId;
+    this.grantModZBonds(piece); // (Fish Edition) Mod Z Kal'tsit Esperanta: promoted
     this.recompute();
     // an elite on the board tops its summon stacks up to the elite's deploy limit, like an elite merged onto a tile
     // (_mergeChess → grantTokensFor): 麦哲伦 / 令 3 → 4, 望 6 → 7 with their modules (0.2.0 review round 17)
@@ -159,6 +214,7 @@ export class PlayerAcquire {
   transformChess(piece, newId) {
     const loc = this.find(piece.uid);
     if (!loc || loc.piece.kind !== 'chess' || !this.gd.chess(newId)) return null;
+    noteGained(this.m, this, newId); // (GitHub #125)
     // Remove the original carrier, its summons, and its pool occupation.
     this._detach(loc);
     this.removeTokensOf(piece.uid);
@@ -222,10 +278,11 @@ export class PlayerAcquire {
 
   /**
    * Queue a free pick-one offer of items (凯瑟琳 定向投放, 娜仁图亚 见者有份); shown as shop.rewardOffer with slots of kind
-   * 'item' under its `label` (the effect's name; player report #6 after 0.1.0).
+   * 'item' under its `label` (the effect's name; player report #6 after 0.1.0). `anyStock`: list the items whatever the
+   * shared stock has left (the itemBoosterPack cheat; a displayed reward survives it, pickReward).
    */
-  pushItemOffer(ids, { source = 'effect', tier = null, label = null, offStock = false } = {}) {
-    const list = [...new Set(Array.isArray(ids) ? ids : [])].filter((id) => this.gd.item(id) && (offStock || this.m.itemPool.canGain(id))).slice(0, MAX_OFFER_SLOTS);
+  pushItemOffer(ids, { source = 'effect', tier = null, label = null, anyStock = false, offStock = false } = {}) {
+    const list = [...new Set(Array.isArray(ids) ? ids : [])].filter((id) => this.gd.item(id) && (anyStock || offStock || this.m.itemPool.canGain(id))).slice(0, MAX_OFFER_SLOTS);
     if (!list.length) return null;
     const offer = { tier: Number.isInteger(tier) ? tier : null, source, label: typeof label === 'string' && label ? label : null, slots: list.map((id) => ({ kind: 'item', id, price: 0, sold: false })) };
     // (fork) One for All: a strategy's offer is apart from the stock (pool.js offStock); its pick never takes a copy

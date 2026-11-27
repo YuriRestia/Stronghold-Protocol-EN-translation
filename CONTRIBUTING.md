@@ -47,6 +47,11 @@ npm run lint && npm run check:imports && npm run typecheck       # 代码检查�
 
 CI 测试矩阵为 Ubuntu/Windows × Node 24 × 四片（8 个任务）；（fork）线上服务器升级前，临时的 Node 22 任务只跑 `test:guards` 和插件沙箱测试。本地 `npm run ci` 的测试步骤清掉继承的 `SHARD`/`JUNIT`，仍跑全量；`SHARD=2 npm test` 可手动复现一片。
 
+CI 分两档（GitHub #43）。完整档：推送到 main、合入 main 的 PR，跑全部测试，每种系统 × Node 组合分 3 个运行器
+（`node tools/test-tier.mjs --shard k/3`），汇总成 `full CI` 检查。快速档：合入其他分支（`mini/*` 分支、叠放 PR 的下层分支）的 PR，一个 Ubuntu 运行器，
+跳过 `tools/test-tier.mjs` 里 `SLOW_TEST_FILES` 列出的耗时文件（`npm run test:quick`），汇总成 `quick CI` 检查；
+这些分支之后以自己的 PR 合入 main，那时跑完整档。本地 `npm run ci -- --quick` 跑快速档。
+
 浏览器测试默认不跑，需要本机 Chrome（路径不标准时设置 `CHROME_PATH`），用环境变量打开：
 
 ```bash
@@ -143,9 +148,13 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
   `npm run golden` before a pull request (a bare `node --test` also runs the helpers and fixtures under test/);
   `npm run lint`, `npm run check:imports`, `npm run typecheck`.
   `npm run ci` (or `node tools/ci.mjs`) runs the test and tooling checks of `.github/workflows/ci.yml` in one go and stops at the first
-  failure (`--keep-going`, `--only <steps>`, `--list`); it does not run `npm ci`. The full Golden corpus runs in a separate
-  Ubuntu / Node 24 job; run `npm run golden` separately locally. Differences fail with scenario and field details;
-  CI never updates expected results. Browser suites
+  failure (`--keep-going`, `--only <steps>`, `--list`); it does not run `npm ci`. CI has two tiers (GitHub #43): the
+  full tier (pushes to main, pull requests into main: every test file over 4 shards per OS on Node 22, the Node 24 CI
+  guards and the Golden job, the `full CI` check) and the quick tier (pull requests into any other branch — `mini/*`, a
+  stack: one Ubuntu runner without `SLOW_TEST_FILES` of `tools/test-tier.mjs`, the `quick CI` check); `npm run ci --
+  --quick` runs the quick tier locally. The full Golden corpus runs in a separate Ubuntu / Node 22 job; run `npm run
+  golden` separately locally. Differences fail with scenario and field details; CI never updates expected results.
+  Browser suites
   are opt-in: `SP_E2E=1`, `SP_REAL_E2E=1` (needs downloaded art), `RENDER_E2E=1`, `SIM_E2E=1` (a local Chrome,
   `CHROME_PATH`). `npm run test:browser` (tools/browser-suite.mjs) runs every browser file in one go, slowest first
   (`--gate` for a short smoke set, `--list` to print the order); the fps floors and per-frame budgets are checked only by

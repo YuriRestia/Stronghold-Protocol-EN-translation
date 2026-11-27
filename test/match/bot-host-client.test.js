@@ -116,6 +116,9 @@ test('a live boss field reports through a human battle\'s frames, naming the roo
   assert.deepEqual(sent.at(-1), { t: 'b.progress', battleId: 'b.1', gt: 1 });
   recv('b.pool', { hp: 5, acked: { f: 1 } });
   assert.deepEqual(workers[0].posted.at(-1), { t: 'pool', hp: 5, acked: { f: 1 } });
+  // the SPA-CC boss-pool view (Lockout, United 2's hold, the linked Degenbrecher HP) reaches the Worker too
+  recv('b.pool', { hp: 4, acked: { f: 1 }, risk: { hold: true, degen: { f: 3 } } });
+  assert.deepEqual(workers[0].posted.at(-1), { t: 'pool', hp: 4, acked: { f: 1 }, risk: { hold: true, degen: { f: 3 } } });
   recv('b.end', { battleId: 'other', reason: 'forced' });
   assert.deepEqual(workers[0].posted.at(-1).t, 'pool');
   recv('b.end', { battleId: 'b.1', reason: 'forced' });

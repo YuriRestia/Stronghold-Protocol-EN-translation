@@ -18,7 +18,7 @@ body:
       label: Checklist
       description: "Before reporting this problem, please check:"
       options:
-        - label: I have tested on the latest version ![latest version](https://img.shields.io/github/v/release/sganggs/Stronghold-Protocol?include_prereleases&style=flat-square&label=) or ![latest version](https://img.shields.io/github/v/release/sganggs/Stronghold-Protocol?style=flat-square&label=) and looked at the [latest commits](https://github.com/sganggs/Stronghold-Protocol/commits/master/), and this bug is not fixed yet. I have also searched the [Issues](https://github.com/sganggs/Stronghold-Protocol/issues), and this bug has not been reported before.
+        - label: I have tested on the latest version ![latest version](https://img.shields.io/github/package-json/v/evenifyouforget/Stronghold-Protocol-EN/main?style=flat-square&label=) and looked at the [latest commits](https://github.com/evenifyouforget/Stronghold-Protocol-EN/commits/main/), and this bug is not fixed yet. I have also searched the [Issues](https://github.com/evenifyouforget/Stronghold-Protocol-EN/issues), and this bug has not been reported before.
           required: true
         - label: I understand and agree that this is only for reporting problems in the program (questions about anything else belong in Discussions).
           required: true
@@ -27,7 +27,7 @@ body:
     attributes:
       label: Version
       description: |
-        The version you are using. See the version number in the corner of the title screen, or the file name of the release zip. When running from a source checkout, run `git rev-parse --short HEAD` in the repository folder. The number in the badges above is the repository's latest release, only for comparison; it is not your version.
+        The version you are using. See the version number in the corner of the title screen, or the file name of the release zip. When running from a source checkout, run `git rev-parse --short HEAD` in the repository folder. The number in the badge above is the version on this repository's main branch, only for comparison; it is not your version.
       placeholder: "e.g. 0.3.0, or a short commit hash"
     validations:
       required: true

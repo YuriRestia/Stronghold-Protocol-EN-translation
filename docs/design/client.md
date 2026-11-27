@@ -1618,11 +1618,12 @@ is presentation inferred from the available animation roles; simulation facing a
 
 ### Release notes (#603)
 
-(fork) The title footer's button opens that version's CHANGELOG section, with newer/older navigation limited to the running
-release and its predecessors. Upstream's automatic opening after an update is left out: this fork's lobby has its own update
-banner (ui/matchSearch.js UpdateNews). A Chinese page reads `/CHANGELOG.md`, any other its English translation
-`/CHANGELOG.en.md`; both are revalidated, including after update overlays, and only those two root documents are served.
-Text-only Markdown supports headings, lists, code, emphasis and safe links. Revision: [§37.1](../history/0.3.4.md).
+At first launch (including fresh installs) and after each APP_VERSION update, the title/lobby shows that version's
+CHANGELOG section, never during room/match play or session restoration. Dismissal is remembered per origin/version.
+The title footer reopens it, with newer/older navigation limited to the running release and its predecessors.
+`/CHANGELOG.md` is revalidated, including after update overlays; only that root document is served. Text-only Markdown
+supports headings, lists, code, emphasis and safe links; the document stays in its authored language. A failed fetch
+never marks it read. Unavailable storage falls back to once per page. Revision: [§37.1](../history/0.3.4.md).
 
 ### COST / SP receipts (#657)
 

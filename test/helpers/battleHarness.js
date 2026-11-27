@@ -40,7 +40,7 @@
 //   autoFinish    end when all enemies are dead (default: true when any spawn is scheduled, else false so a
 //                 battle without enemies keeps running until its time limit)
 //   hooks         list of hook names to capture (default: all DESIGN events)
-// Returned harness: { battle, b, step(n), run(seconds), runUntil(pred|seconds, maxSeconds), runToEnd(maxSeconds),
+// Returned harness: { battle, b, step(n), run(seconds), runUntil(pred|seconds, maxSeconds), settle(maxSeconds), runToEnd(maxSeconds),
 //   unit(idOrChessIdOrUid), allies(), enemies(), enemy(key), spawn(key, opts), events, eventsOf(kind),
 //   hooks, hooksOf(name), invariants(), result(), snapshot() }
 
@@ -315,6 +315,13 @@ export function makeBattle(opts = {}) {
       }
       drain();
       return !!pred(battle);
+    },
+    /** Step until no enemy is sliding (a push / pull's slide, battle/displacement.js; GitHub #60), at most `maxSeconds`. */
+    settle(maxSeconds = 3) {
+      const limit = battle.time + maxSeconds;
+      while (!battle.finished && battle.time < limit && battle.enemies.some((e) => e.alive && e.shift)) battle.step();
+      drain();
+      return h;
     },
     runToEnd(maxSeconds = 4000) {
       const limit = battle.time + maxSeconds;

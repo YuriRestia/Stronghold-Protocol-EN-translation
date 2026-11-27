@@ -61,6 +61,7 @@ const FILES = {
   'Stronghold-Protocol/public/assets/local/scene/act/b.png': big('b'),
   'Stronghold-Protocol/public/assets/other/c.png': 'not local art',
   'Stronghold-Protocol/data/local-assets.json': '{"groups":{"map/autochess":{"tiles":1}}}',
+  'Stronghold-Protocol/data/local-fx.json': '{"fx":1}',
   'Stronghold-Protocol/data/chess.json': '{"not":"installed"}',
 };
 
@@ -80,10 +81,11 @@ test('installs only public/assets/local/ and data/local-assets.json, from v<pack
   const impl = (url, init) => { asked ??= url; return f.impl(url, init); };
   const r = await run({ repo: 'o/r' }, { ...quiet, root, fetchImpl: impl });
   assert.equal(asked, 'https://github.com/o/r/releases/download/v0.2.5/Stronghold-Protocol-v0.2.5.zip');
-  assert.deepEqual([r.tag, r.files, r.installed, r.previous], ['v0.2.5', 4, true, null]);
+  assert.deepEqual([r.tag, r.files, r.installed, r.previous], ['v0.2.5', 5, true, null]);
   assert.equal(read(root, 'public/assets/local/map/autochess/tiles.json'), '{"tiles":1}');
   assert.equal(read(root, 'public/assets/local/spine/enemy/a.skel'), 'a'.repeat(5000), 'a deflated entry');
   assert.equal(read(root, 'data/local-assets.json'), FILES['Stronghold-Protocol/data/local-assets.json']);
+  assert.equal(read(root, 'data/local-fx.json'), '{"fx":1}', 'every data/local-*.json list (0.3.0+: local-fx.json)');
   for (const rel of ['server/index.js', 'data/chess.json', 'public/assets/other/c.png']) assert.equal(fs.existsSync(path.join(root, rel)), false, rel);
   assert.ok(f.calls.every((c) => /^bytes=\d+-\d+$/.test(c)), `explicit ranges only: ${f.calls}`);
   assert.equal(fs.existsSync(path.join(root, '.cache/release-local/v0.2.5')), false, 'the staging dir is gone');
@@ -95,11 +97,14 @@ test('the previous local art is moved aside, never deleted; a re-run of the same
   fs.writeFileSync(path.join(root, 'public/assets/local/old/x.png'), 'mine');
   fs.mkdirSync(path.join(root, 'data'));
   fs.writeFileSync(path.join(root, 'data/local-assets.json'), '{"old":true}');
+  fs.writeFileSync(path.join(root, 'data/local-stale.json'), '{"stale":true}');
   const zip = makeZip(FILES);
   const r = await run({ repo: 'o/r' }, { ...quiet, root, fetchImpl: fakeFetch(zip).impl });
   assert.equal(path.relative(root, r.previous), path.join('.cache', 'release-local', 'previous-2026-10-21T00-00-00-000Z'));
   assert.equal(fs.readFileSync(path.join(r.previous, 'public-assets-local/old/x.png'), 'utf8'), 'mine');
   assert.equal(fs.readFileSync(path.join(r.previous, 'local-assets.json'), 'utf8'), '{"old":true}');
+  assert.equal(fs.existsSync(path.join(root, 'data/local-stale.json')), false, 'a list the release lacks is moved aside too');
+  assert.equal(fs.readFileSync(path.join(r.previous, 'local-stale.json'), 'utf8'), '{"stale":true}');
   assert.equal(fs.existsSync(path.join(root, 'public/assets/local/old')), false);
 
   const f = fakeFetch(zip);
@@ -117,7 +122,7 @@ test('an interrupted run resumes: staged files with the right CRC are not fetche
   fs.mkdirSync(path.join(stage, 'public/assets/local/scene/act'), { recursive: true });
   fs.writeFileSync(path.join(stage, 'public/assets/local/scene/act/b.png'), 'wrong bytes');
   const r = await run({ repo: 'o/r' }, { ...quiet, root, fetchImpl: fakeFetch(zip).impl });
-  assert.deepEqual([r.files, r.downloaded], [4, 3], 'the good staged file is kept');
+  assert.deepEqual([r.files, r.downloaded], [5, 4], 'the good staged file is kept');
   assert.equal(read(root, 'public/assets/local/scene/act/b.png'), 'b'.repeat(5000), 'a wrong staged file is fetched again');
   assert.equal(read(root, 'public/assets/local/spine/enemy/a.skel'), 'a'.repeat(5000));
 });

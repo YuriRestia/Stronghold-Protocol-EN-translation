@@ -88,6 +88,7 @@ import { lanUrls, displayHost, isProcessEntry, runMain } from './http/boot.js';
 import { NoticeBoard } from './announce.js';
 import { NewsBoard } from './news.js';
 import { AltArtLedger } from './altArt.js';
+import { RecordStore, recordsDirFrom } from './records.js';
 import { MaintenanceBoard } from './maintenance.js';
 import { Presence } from './presence.js';
 import { regionConfigFrom, regionConnectSources } from './regions.js';
@@ -95,6 +96,7 @@ import { PeerLink, signTicket, verifyTicket } from './peerLink.js';
 import { CrossMatch } from './crossMatch.js';
 import { GenerationWatch } from './generation.js';
 import { GEN_ID_RE } from '../shared/gen.js';
+import { writeServerInfo } from './serverInfo.js';
 
 // The public API of this module (tests and tools import it from here); the code lives in ./http/.
 export {
@@ -267,6 +269,8 @@ export async function startServer(opts = {}) {
   const generation = gen && genFile ? new GenerationWatch({ gen, file: genFile, registry, lobby, pollMs: opts.genPollMs, log }) : null;
   // (fork) picked rooms + journal of the alternate result background (server/altArt.js); only the real server writes it
   if (opts.altArtDir) lobby.altArt = new AltArtLedger({ dir: opts.altArtDir, log, gen });
+  // (fork) opt-in anonymous match records (server/records.js, SP_RECORDS); only the real server passes the folder
+  if (opts.recordsDir) { lobby.records = new RecordStore({ dir: opts.recordsDir, log }); log.info(`[records] match records on: ${opts.recordsDir}`); }
   if (generation) {
     const helloBefore = lobby.onHello.bind(lobby);
     lobby.onHello = (session, info) => {
@@ -425,4 +429,5 @@ export function roomCodeFromArgv(argv = process.argv.slice(2)) {
 }
 
 // `node server/index.js` / npm start: listen, print the banner, stop on SIGINT / SIGTERM (http/boot.js).
-if (isProcessEntry(import.meta.url)) runMain(() => startServer({ warmResources: true, altArtDir: path.join(ROOT, 'logs'), roomCode: roomCodeFromArgv() }));
+// (fork) public/server-info.json first: the title screen's version line and "What's new" (serverInfo.js)
+if (isProcessEntry(import.meta.url)) runMain(() => (writeServerInfo(ROOT), startServer({ warmResources: true, altArtDir: path.join(ROOT, 'logs'), roomCode: roomCodeFromArgv(), recordsDir: recordsDirFrom(process.env.SP_RECORDS, ROOT) })));

@@ -39,6 +39,7 @@
 //                     server/data.js getData() used by sim/content/support serves it).
 //   getSimData()      the injected data (browser) or the generated data (Node), or null.
 
+import { ruleDataPatch, rulesChangeData, VIRTUOSA, BLAZE } from '../../shared/ruleData.js';
 import { resolveRecordLoadout, composeStats, composeTalents, loadoutRecord } from '../../shared/loadoutRecord.js';
 import { atPotential, isPotential, POTENTIAL_DEFAULT, cultivateMul } from '../../shared/potential.js';
 import { standInRecord } from '../../shared/standIn.js';
@@ -906,6 +907,28 @@ export function withUnitLoadouts(ds, players) {
     view.getToken = (id, owner = null, ownerLoadout = null) => ds.getToken(id, owner, ownerLoadout ?? (owner != null ? map.get(owner) ?? null : null));
   }
   view.loadoutConflicts = [...conflicts];
+  return view;
+}
+
+const RULE_VIEWS = new WeakMap();
+/**
+ * The data source with the record changes of the Custom Lobby Modifications' rebalanced alliances (shared/ruleData.js:
+ * 塑心's extra alliances, 煌 in 凯瑟琳's slot) over `ds`, or `ds` itself when `rules` change nothing. One view per source
+ * and rule combination (its own caches; the other records come from `ds`). createBattleFromSpec applies it from the
+ * spec's flags.rules, so a browser's battle fields the same operators as the server's.
+ */
+export function withRuleData(ds, rules) {
+  if (!rulesChangeData(rules) || !ds || typeof ds.rawChess !== 'function') return ds;
+  const key = `${rules.virtuosaBonds === true}|${rules.blaze === true}`;
+  let views = RULE_VIEWS.get(ds);
+  if (!views) RULE_VIEWS.set(ds, views = new Map());
+  if (views.has(key)) return views.get(key);
+  const ids = [...VIRTUOSA.ids, BLAZE.slot.a, BLAZE.slot.b];
+  const chess = Object.fromEntries(ids.map((id) => [id, ds.rawChess(id)]).filter(([, r]) => r));
+  const backups = typeof ds.rawBackups === 'function' ? ds.rawBackups() : null;
+  const patch = ruleDataPatch({ chess, backups }, rules);
+  const view = Object.keys(patch.chess).length ? new DataSource({ chess: patch.chess }, ds) : ds;
+  views.set(key, view);
   return view;
 }
 

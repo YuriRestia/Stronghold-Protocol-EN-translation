@@ -46,12 +46,24 @@ import { bbCap } from '../../../../shared/plugins/officialBounds.js';
 import { burstLimit } from '../../../../shared/plugins/steps.js';
 import { createRng } from '../../rng.js';
 import { buffsOf, num, bandRecord, bandEffectId, gameData, mutationCellIds } from '../support/index.js';
+import { CC } from '../../../../shared/ruleData.js';
 import { metaBonds } from '../support/meta.js';
 import * as garrisons from '../garrisons.js';
 
 const int = (v, d = 0) => Math.trunc(num(v, d));
 // [ASSUMED] DESIGN §32.5: bb.count grant and slot loops share the official `count` cap. Read at call time.
 const timesOf = (v, d = 1) => Math.min(bbCap('count'), Math.max(1, int(v, d)));
+
+/**
+ * SPA-CC ccStrategyLate (shared/rules.js): a Strategy's named round comes one round later (杰西卡 4/7/10/13 → 5/8/11/14,
+ * 老鲤's held Funds 1–2 → 2–3 and its payout 3 → 4, 芬 14 → 15 — the Hidden Core round, only when it is played). Rules
+ * by period keep theirs: "every N rounds" / even rounds (杜宾, 松桐, 娜仁图亚) and 达马兹提 — "every 5 rounds" in its text,
+ * rounds 5 / 10 / 15 in the data (Fish, 2026-10-15).
+ */
+const PERIODIC_BANDS = new Set(CC.strategyLate.periodic);
+const roundLate = (ctx, bandId) => (ctx.lobbyRules?.ccStrategyLate > 0 && !PERIODIC_BANDS.has(bandId) ? 1 : 0);
+/** The round a Strategy's `round` names, after ccStrategyLate. */
+const namedRound = (ctx, p, bandId, d = -1) => int(p.round, d) + roundLate(ctx, bandId);
 const list = (s) => String(s ?? '').split(',').map((x) => x.trim()).filter(Boolean);
 const hasBond = (ctx, id, bond) => { const c = ctx.gd.chess(id); return !!(c && Array.isArray(c.bonds) && c.bonds.includes(bond)); };
 const isNormalChess = (ctx, id) => { const c = ctx.gd.chess(id); return !!(c && !c.isGolden); };
@@ -125,7 +137,8 @@ K.prep_finish_char_bond_add_layer = (ps) => ({
 K.band_first_self_refresh_present_char = (ps) => ({
   onRefresh(ctx) {
     const p = ps[0];
-    if ((ctx.roundStats().refreshes || 0) > 2) return;
+    // the first 2 manual refreshes of a round (the text; SPA-CC Strategy 2 — ccStrategyLate 2 —: the first CC.strategy2.duyaoyRefreshes)
+    if ((ctx.roundStats().refreshes || 0) > (ctx.lobbyRules?.ccStrategyLate >= 2 ? CC.strategy2.duyaoyRefreshes : 2)) return;
     const need = timesOf(p.count, 1);
     const idx = chessSlots(ctx);
     const slots = ctx.shopSlots();
@@ -154,11 +167,11 @@ K.band_shop_refresh_copy_max_lv_char = () => ({
   },
 });
 
-K.preparation_start_gain_chess_from_round = (ps) => ({
+K.preparation_start_gain_chess_from_round = (ps, bandId) => ({
   onPrepStart(ctx) {
     for (const p of ps) {
       const id = p.chess ?? p.chess_id;
-      if (ctx.round !== int(p.round, -1) || !id) continue;
+      if (ctx.round !== namedRound(ctx, p, bandId) || !id) continue;
       for (let k = 0; k < timesOf(p.count, 1); k++) grant(ctx, id, { requirePool: false, source: 'band' });
     }
   },
@@ -175,16 +188,16 @@ K.preparation_start_gain_chess_every_n_round = (ps) => ({
   },
 });
 
-K.give_coin_in_round = (ps) => ({
+K.give_coin_in_round = (ps, bandId) => ({
   onIncome(ctx, ev) {
-    for (const p of ps) if (ctx.round === int(p.round, -1)) ev.income = Math.max(0, int(p.coin, 0));
+    for (const p of ps) if (ctx.round === namedRound(ctx, p, bandId)) ev.income = Math.max(0, int(p.coin, 0));
   },
 });
 
-K.prep_start_gain_chess_from_pool_in_round = (ps) => ({
+K.prep_start_gain_chess_from_pool_in_round = (ps, bandId) => ({
   onPrepStart(ctx) {
     for (const p of ps) {
-      if (ctx.round !== int(p.round, -1)) continue;
+      if (ctx.round !== namedRound(ctx, p, bandId)) continue;
       for (let k = 0; k < timesOf(p.count, 1); k++) {
         const r = ctx.rollPool(p.pool);
         if (r) grant(ctx, r.id, { source: 'band' });
@@ -235,10 +248,10 @@ K.up_shop_next_refresh_must_present_bond_char = (ps) => ({
   },
 });
 
-K.gain_bond_char_per_round = (ps) => ({
+K.gain_bond_char_per_round = (ps, bandId) => ({
   onRoundStart(ctx) {
     const p = ps[0];
-    const r0 = int(p.round, 1), every = Math.max(1, int(p.preround, 1));
+    const r0 = namedRound(ctx, p, bandId, 1), every = Math.max(1, int(p.preround, 1));
     if (ctx.round < r0 || (ctx.round - r0) % every !== 0) return;
     for (let k = 0; k < timesOf(p.count, 1); k++) {
       const id = rollBond(ctx, p.bond, { anyTier: true });
@@ -277,10 +290,10 @@ K.band_cost_coin_reach_cnt_gain_chess_from_pool = (ps) => ({
  * that is such a bond means nothing is added, and with two active bonds a layered one still gets count2. Only this
  * strategy: 协防's 「使所有已激活的盟约层数」 (bonds/addon/meta.js) and 华法琳's 【重点监护】 keep adding to every bond they name.
  */
-K.round_start_bond_check_gain_layer = (ps) => ({
+K.round_start_bond_check_gain_layer = (ps, bandId) => ({
   onRoundStart(ctx) {
     const p = ps[0];
-    if (ctx.round !== int(p.round, -1)) return;
+    if (ctx.round !== namedRound(ctx, p, bandId)) return;
     const active = Object.entries(ctx.bonds()).filter(([, b]) => b && b.active).map(([id]) => id);
     const n = active.length === int(p.factioncount, 1) ? int(p.count1, 0) : int(p.count2, 0);
     for (const b of active) {
@@ -586,7 +599,7 @@ const duckGlobal = {
     const picks = [];
     holders.forEach((holder, j) => {
       const p = duckParams(holder.bandId());
-      if (!p || ctx.round < int(p.round, 1)) return;
+      if (!p || ctx.round < namedRound(ctx, p, DUCK_BAND, 1)) return;
       const by = j === 0 ? '' : `:by:${holder.playerId}`;
       const rng = seeded ? createRng(ctx.seedFor(`duck:${ctx.round}${by}`)) : ctx.rng;
       const typeRng = seeded ? createRng(ctx.seedFor(`duck:${ctx.round}:${ctx.playerId}${by}`)) : rng;

@@ -3,7 +3,7 @@
 import { int, isObj } from './shared.js';
 import { diyPicks } from './diy.js';
 import { t } from '../../../../shared/i18n.js';
-import { grantedBondsByMorph } from '../../../../shared/plugins/rules.js';
+import { grantedBondsByMorph, morphBondOf } from '../../../../shared/plugins/rules.js';
 
 
 // ---- bonds -------------------------------------------------------------------------------------------
@@ -105,9 +105,10 @@ export function morphPairings(itemRecs, bondRecs, { off = null, carried = null, 
   /** bondId → family id → { id, name, tier, order, ids } */
   const groups = new Map();
   recs.forEach((r, order) => {
-    if (r.canGiveBond || typeof r.giveBondId !== 'string' || !r.giveBondId) return;
-    let g = groups.get(r.giveBondId);
-    if (!g) groups.set(r.giveBondId, (g = new Map()));
+    const bondId = morphBondOf(r); // (fork) its giveBondId, or the Damazti Isomorph+ pair (#134)
+    if (r.canGiveBond || !bondId) return;
+    let g = groups.get(bondId);
+    if (!g) groups.set(bondId, (g = new Map()));
     const fam = famOf(r);
     const e = g.get(fam);
     if (e) { e.ids.push(r.id); return; }

@@ -38,6 +38,22 @@
 .toolbtn__img { width: .34rem; height: .34rem; object-fit: contain; }
 .toolbtn .icon { width: .24rem; height: .24rem; }
 .toolbtn--amber { --tb: var(--amber); }
+.toolbtn--deck { --tb: var(--mint-500, #4fe8c0); }
+/* (fork, GitHub #132) the shared deck popup (ui/deck.js) */
+.deck__intro { margin: 0 0 .1rem; font-size: calc(.17 * var(--t)); color: #b9bfbc; }
+.deck__wait { font-size: calc(.17 * var(--t)); color: #9fa6a3; }
+.deck__group { margin-top: .1rem; }
+.deck__prof { margin: 0 0 .05rem; font-size: calc(.18 * var(--t)); color: #cfd4d2; }
+.deck__ops { display: grid; grid-template-columns: repeat(auto-fill, minmax(1.9rem, 1fr)); gap: .05rem; margin: 0; padding: 0; list-style: none; }
+.deck__op { display: grid; grid-template-columns: .42rem 1fr auto; align-items: center; gap: .06rem; padding: .03rem .06rem .03rem .03rem;
+  background: rgba(255, 255, 255, .04); border-left: 3px solid var(--deck-tier, #777); }
+.deck__op--t1 { --deck-tier: #9fa6a3; } .deck__op--t2 { --deck-tier: #7fd18b; } .deck__op--t3 { --deck-tier: #5aa9e6; }
+.deck__op--t4 { --deck-tier: #b48cf0; } .deck__op--t5 { --deck-tier: #f0c35a; } .deck__op--t6 { --deck-tier: #f07a4f; }
+.deck__op.is-out { opacity: .4; }
+.deck__art { width: .42rem; height: .42rem; object-fit: cover; }
+.deck__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(.16 * var(--t)); }
+.deck__n { font-size: calc(.2 * var(--t)); }
+.deck__n small { font-size: calc(.13 * var(--t)); font-weight: 400; color: #9fa6a3; }
 .toolbtn--ice.is-on { background: var(--ice); color: #0b1822; }
 .toolbtn--ice.is-on kbd { color: #28435a; border-color: #5d88aa; }
 .toolbtn--ice.is-on:hover:not(:disabled) { background: #c2e5ff; color: #0b1822; box-shadow: 0 0 .22rem rgba(159, 212, 255, .6); }

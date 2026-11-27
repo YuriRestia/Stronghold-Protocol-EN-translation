@@ -2,7 +2,7 @@
 // 起飞), the blocked targets of a blocker, block release and the 隐匿 switch-off after a block ends.
 // Installed on Battle.prototype by server/sim/Battle.js (a method container: never instantiated; `this` is the battle).
 
-import { ROWS, COLS, BLOCK_RADIUS_SQ, STEALTH_RESTORE } from '../constants.js';
+import { ROWS, COLS, BLOCK_RADIUS_SQ, STEALTH_RESTORE, BLOCK_EDGE_OUT, BLOCK_SPREAD } from '../constants.js';
 import { canTargetEnemy, stealthOffKey } from '../targeting.js';
 
 export class BattleBlocking {
@@ -48,8 +48,52 @@ export class BattleBlocking {
     e.blockedBy = u;
     u.blocking.push(e);
     e.moving = false;
+    this._blockShift(e, u);
     if (this._hooks.blocked) this.emit('blocked', { blocker: u, enemy: e });
     return true;
+  }
+
+  /**
+   * Block shifting (constants.js BLOCK_EDGE_OUT / BLOCK_SPREAD; GitHub #61): enemy `e`, just blocked by `u`, out of `u`'s
+   * tile to just past its nearest edge; then, if another enemy blocked from the same side already stands there, to the
+   * left or right of it (left first) [ASSUMED]. Ground blocking only [ASSUMED: device and air blocking keep their radii];
+   * leaders are never moved. A step onto a tile ground units cannot pass, or onto high ground, is not taken.
+   */
+  _blockShift(e, u) {
+    if (u.kind === 'device' || e.isFlying || e.isBoss) return;
+    let x = e.x, y = e.y;
+    const dx = x - u.x, dy = y - u.y;
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    // inside the tile, not on its centre: past the nearest edge (the larger offset is nearer its edge)
+    if (ax < 0.5 && ay < 0.5 && ax + ay > 1e-9) {
+      if (ax >= ay) x = u.x + Math.sign(dx) * BLOCK_EDGE_OUT;
+      else y = u.y + Math.sign(dy) * BLOCK_EDGE_OUT;
+      if (!this._blockShiftOk(x, y)) { x = e.x; y = e.y; }
+    }
+    // the side it is blocked from: the blocking direction d (from it towards the blocker, along an axis); its left (−d.y, d.x)
+    const sideOf = (o) => { const ox = o.x - u.x, oy = o.y - u.y; return Math.abs(ox) >= Math.abs(oy) ? [-Math.sign(ox) || 1, 0] : [0, -Math.sign(oy)]; };
+    const [ddx, ddy] = sideOf({ x, y });
+    const lx = -ddy, ly = ddx;
+    const lateral = (o) => (o.x - u.x) * lx + (o.y - u.y) * ly;
+    const taken = u.blocking.filter((o) => o !== e && o.alive && sideOf(o)[0] === ddx && sideOf(o)[1] === ddy).map(lateral);
+    const free = (l) => !taken.some((t) => Math.abs(t - l) < BLOCK_SPREAD / 2);
+    const l0 = lateral({ x, y });
+    if (!free(l0)) {
+      for (const k of [1, -1, 2, -2]) {
+        const sx = x + lx * k * BLOCK_SPREAD, sy = y + ly * k * BLOCK_SPREAD;
+        if (free(l0 + k * BLOCK_SPREAD) && this._blockShiftOk(sx, sy)) { x = sx; y = sy; break; }
+      }
+    }
+    if (x === e.x && y === e.y) return;
+    e.x = x; e.y = y;
+    this._clampPos(e);
+    this.fx('displace', { x: e.x, y: e.y, id: e.id, dur: 0.1, keepFacing: true });
+  }
+
+  /** Can a block shift put a ground enemy at (x, y): a low tile ground units pass. */
+  _blockShiftOk(x, y) {
+    const r = Math.round(y), c = Math.round(x);
+    return this.grid.groundPassable(r, c) && this.grid.isLow(r, c);
   }
 
   /**

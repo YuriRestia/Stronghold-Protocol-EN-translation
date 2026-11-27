@@ -4,7 +4,8 @@
 //   - a push: the 位移时间 of its 受力等级 (PRTS 游戏数据基础 推力-位移近似对应表: 0.2 / 0.4 / 0.8 / 0.9 / 32⁄30 / 35⁄30 s);
 //   - a pull: its force window (推与拉 §拉力: 1 s, 0.5 s below 受力等级 −1), to its end after the 急停 too;
 //   - a 静态刚体 hit by a force > 0: the 0.1 s 失衡硬直 floor, no movement (特殊机制 静态刚体); 失衡免疫: never;
-//   - 浮空 ends it (术语释义 浮空); the move itself stays instant (the unbalanced() talents keyed off the jump).
+//   - 浮空 ends it (术语释义 浮空). The move is a slide (GitHub #60: momentum and friction, battle/displacement.js) whose
+//     frames after the hit frame are the row's frames: the enemy walks on the frame after both end.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeBattle, enemyRec, chessRec, checkInvariants } from '../helpers/battleHarness.js';
@@ -27,22 +28,29 @@ function field({ mass = 1, enemy = {}, units = [], ...o } = {}) {
   h.step();
   return { h, e: h.enemy('enemy_w') };
 }
-/** Seconds until `e` moves again (its position changes), up to `max`. */
+/** Seconds until `e` moves again on its own (its position changes on a frame that is not its slide's), up to `max`. */
 function stillFor(h, e, max = 3) {
-  const x = e.x, y = e.y, t0 = h.b.time;
+  const t0 = h.b.time;
   while (h.b.time - t0 < max) {
+    const x = e.x, y = e.y, sliding = !!e.shift;
     h.step();
-    if (!near(e.x, x) || !near(e.y, y)) return h.b.time - t0;
+    if (!sliding && (!near(e.x, x) || !near(e.y, y))) return h.b.time - t0;
   }
   return Infinity;
 }
+/** Step until `e`'s slide is over. */
+function settle(h, e) {
+  for (let k = 0; k < 120 && e.shift; k++) h.step();
+}
+/** The table's distances at 30 fps (the frames round them: 1.698 for 1.7, 2.952 for 2.96). */
+const FRAME_EPS = 0.01;
 
 test('a push holds the enemy for the 位移时间 of its 受力等级 (PRTS 游戏数据基础), then it walks on', () => {
   for (const [force, level] of [[-1, -2], [0, -1], [1, 0], [2, 1], [3, 2], [4, 3], [6, 3]]) {
     const { h, e } = field();
     const t0 = h.b.time;
     const moved = h.b.push(e, force, { from: { x: e.x + 1, y: e.y } });   // to the left: room for 3.53 tiles
-    assert.ok(near(moved, PUSH_TILES[level], 1e-6), `力度 ${force}: moved ${moved}`);
+    assert.ok(near(moved, PUSH_TILES[level], FRAME_EPS), `力度 ${force}: moved ${moved}`);
     const want = PUSH_UNBALANCE[level];
     assert.ok(near(e.unbalanceUntil - t0, want), `受力等级 ${level}: ${e.unbalanceUntil - t0} s, want ${want}`);
     const t = stillFor(h, e);
@@ -75,7 +83,7 @@ test('the −2 angle correction picks the row: a directional push off by more th
   const { h, e } = field();                               // weight 1: 中力 (1) → 受力等级 0, corrected −2
   const t0 = h.b.time;
   const moved = h.b.push(e, 1, { from: { x: e.x, y: e.y - 1 }, dir: { x: 1, y: 0 } });
-  assert.ok(near(moved, PUSH_TILES[-2], 1e-6), `the radial −2 push: ${moved}`);
+  assert.ok(near(moved, PUSH_TILES[-2], FRAME_EPS), `the radial −2 push: ${moved}`);
   assert.ok(near(e.unbalanceUntil - t0, PUSH_UNBALANCE[-2]));
 });
 
@@ -91,13 +99,16 @@ test('the row time stays when the 特效 column or a wall shortens the slide; a 
   const m1 = wall.h.b.push(wall.e, 0, { from: { x: wall.e.x - 1, y: wall.e.y } });
   assert.ok(m1 > 0 && m1 < PUSH_TILES[0], `stopped by the edge after ${m1}`);
   assert.ok(near(wall.e.unbalanceUntil - t1, PUSH_UNBALANCE[0]), 'still the row time [ASSUMED]');
+  settle(wall.h, wall.e);
   const m2 = wall.h.b.push(wall.e, 0, { from: { x: wall.e.x - 1, y: wall.e.y } });
   assert.equal(m2, 0, 'no room left');
   assert.ok(near(wall.e.unbalanceUntil - t1, PUSH_UNBALANCE[0]), 'a running longer state is kept');
   const w2 = field({ mass: 0 });
   w2.e.x = 9.6;
   w2.h.b.push(w2.e, 0, { from: { x: w2.e.x - 1, y: w2.e.y } });
-  w2.h.run(1);
+  // against the wall, its state almost over (one frame more and it walks off the wall)
+  settle(w2.h, w2.e);
+  while (w2.h.b.time + TICK < w2.e.unbalanceUntil - 1e-9) w2.h.step();
   const t2 = w2.h.b.time;
   assert.equal(w2.h.b.push(w2.e, 0, { from: { x: w2.e.x - 1, y: w2.e.y } }), 0);
   assert.ok(near(w2.e.unbalanceUntil - t2, UNBALANCE_MIN), 'stopped at once: the 0.1 s floor [ASSUMED]');
@@ -158,13 +169,12 @@ test('the displace fx carries the state\'s game seconds for the client\'s slide'
 // the branch review (fb7-unbalance): exact frames, a 静态刚体 pulled, 弧光锋卫's bleed, skills and scripted moves, the
 // forced state switches
 
-test('every push row holds its exact frames at 30 fps (6, 12, 24, 27, 32, 35) — the enemy walks on the next frame', () => {
+test('every push row holds its exact frames at 30 fps (6, 12, 24, 27, 32, 35) — the slide\'s frames after the hit; the enemy walks on the next frame', () => {
   for (const [force, frames] of [[-1, 6], [0, 12], [1, 24], [2, 27], [3, 32], [4, 35]]) {
     const { h, e } = field();
     h.b.push(e, force, { from: { x: e.x + 1, y: e.y } });
-    const x = e.x, y = e.y;
     let k = 0;
-    while (k < 60) { h.step(); k++; if (!near(e.x, x) || !near(e.y, y)) break; }
+    while (k < 60) { const x = e.x, y = e.y, sliding = !!e.shift; h.step(); k++; if (!sliding && (!near(e.x, x) || !near(e.y, y))) break; }
     assert.equal(k, frames + 1, `力度 ${force} (受力等级 ${force - 1}): held ${k - 1} frames, want ${frames}`);
   }
 });

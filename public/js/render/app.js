@@ -837,6 +837,13 @@ export async function createFieldView(host, options = {}) {
 
   // ---- prep -----------------------------------------------------------------------------------------------
 
+  /** An equipped item's pip for UnitView.setItems: its icon URL, or { url, cursed } for the Toxic Waste. */
+  function itemPip(id) {
+    const r = data.item(id);
+    const url = assets.itemIcon ? assets.itemIcon(r ? { trapId: r.trapId, iconId: r.iconId } : id) : null;
+    return r && r.cursed ? { url, cursed: true } : url;
+  }
+
   function pieceInfo(piece, area) {
     const kind = piece.kind;
     // board pieces face their stored dir (the server default RIGHT when absent), drawn through the prep field (mirrored
@@ -846,7 +853,7 @@ export async function createFieldView(host, options = {}) {
       const rec = data.item(piece.id);
       const tier = rec?.tier || piece.tier || 1;
       const url = assets.itemIcon ? assets.itemIcon(rec ? { trapId: rec.trapId, iconId: rec.iconId } : piece.id) : null;
-      return { kind: 'item', defId: piece.id, icon: url, color: (piece.golden || rec?.isGolden) ? 0xffc600 : TIER_COLORS[tier] || TIER_COLORS[1] };
+      return { kind: 'item', defId: piece.id, icon: url, color: (piece.golden || rec?.isGolden) ? 0xffc600 : TIER_COLORS[tier] || TIER_COLORS[1], cursed: !!rec?.cursed };
     }
     if (kind === 'token') {
       const rec = data.token(piece.id);
@@ -1010,7 +1017,7 @@ export async function createFieldView(host, options = {}) {
       if (info.kind === 'item' && v.setIcon) v.setIcon(info.icon); // an icon the manifest named late (onAssets)
       if (v.setCount) v.setCount(e.piece.kind === 'token' ? e.piece.count : 0);
       if (v.setItemProgress) v.setItemProgress(pieceItemProgress(e.piece));
-      if (v.setItems) v.setItems(Array.isArray(e.piece.items) ? e.piece.items.map((it) => { const r = data.item(it?.id); return assets.itemIcon ? assets.itemIcon(r ? { trapId: r.trapId, iconId: r.iconId } : it?.id) : null; }) : []);
+      if (v.setItems) v.setItems(Array.isArray(e.piece.items) ? e.piece.items.map((it) => itemPip(it?.id)) : []);
       v._showFacing = e.area === 'board';
       // the stored facing (a piece held by the direction step shows the wheel's preview instead)
       if (e.area === 'board' && info.dir && !held.has(e.uid) && typeof v.setDir === 'function') v.setDir(info.dir);
@@ -1118,7 +1125,7 @@ export async function createFieldView(host, options = {}) {
       if (info.dir && typeof v.setDir === 'function') v.setDir(info.dir);
       v._showFacing = true;
       if (v.setItems && Array.isArray(info.items) && info.items.length) {
-        v.setItems(info.items.map((it) => { const r = data.item(it); return assets.itemIcon ? assets.itemIcon(r ? { trapId: r.trapId, iconId: r.iconId } : it) : null; }));
+        v.setItems(info.items.map((it) => itemPip(it)));
       }
       views.set(info.id, v);
     }
@@ -1718,7 +1725,7 @@ export async function createFieldView(host, options = {}) {
     const tier = rec?.tier || info.tier || 1;
     return { ...info,
       icon: assets.itemIcon ? assets.itemIcon(rec ? { trapId: rec.trapId, iconId: rec.iconId } : info.defId) : null,
-      color: (info.golden || rec?.isGolden) ? 0xffc600 : TIER_COLORS[tier] || TIER_COLORS[1] };
+      color: (info.golden || rec?.isGolden) ? 0xffc600 : TIER_COLORS[tier] || TIER_COLORS[1], cursed: !!rec?.cursed };
   }
 
   function battleView(id) {
@@ -1732,7 +1739,7 @@ export async function createFieldView(host, options = {}) {
     // a teammate's operator shows its equipped items like the own prep bench does (item pips; user playtest #2:
     // at the unit, not only in the detail card) — prep surfaces only, the battle HUD stays as it is
     if (v.setItems && battleMeta?.prep && Array.isArray(info.items) && info.items.length) {
-      v.setItems(info.items.map((it) => { const r = data.item(it); return assets.itemIcon ? assets.itemIcon(r ? { trapId: r.trapId, iconId: r.iconId } : it) : null; }));
+      v.setItems(info.items.map((it) => itemPip(it)));
     }
     v.setWorld(info.x, info.y, 0);
     v._seen = false;

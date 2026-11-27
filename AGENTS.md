@@ -52,6 +52,13 @@ rooms) with a deterministic battle sim shared by the server and the browser.
   own hosts, regions, domain, commands and traffic numbers never go in its sections (`Operator notes:`). A player
   change that is news adds a `News:` block: its update news line(s) in en, zh, ja, ko and zh-TW, names only through
   `{name:<game-data id>}` / `{term:<Chinese UI text>}` (changes/README.md "News lines"); `npm run changelog` checks it.
+- **(Fish Edition) Changelog fragments.** A pull request never edits the "### Fish Edition" section of `CHANGELOG.md` /
+  `CHANGELOG.en.md`: it adds `changes-fish/<PR>-<what>.md` and `.en.md` ([changes-fish/README.md](changes-fish/README.md),
+  GitHub #158). The server shows them in the release notes at once; `npm run changelog:fish -- --write` folds them in
+  before a release.
+- **(Fish Edition) Collaborators.** Several people and agents work here and can't see each other's sessions: read
+  [fish-edition/COLLABORATION.md](fish-edition/COLLABORATION.md) and the pinned "Work board" issue before starting, and
+  sign what you write on GitHub.
 - **(fork) Server cost.** Every fragment ends with `Server cost: none` or the numbers (typical and worst case per
   player, per room and for 300 players: MB/s and GB/day, CPU %, memory MB, disk MB/day, bot ms/round, the cap,
   measured or estimated; [changes/README.md](changes/README.md) "Server cost"). `npm run server-cost` fails a branch
@@ -74,6 +81,7 @@ Run the tests of what you touched first, then everything before opening the PR:
 ```bash
 node --test test/<area>/<file>.test.js      # targeted
 npm run ci                                  # the CI checks locally (tools/ci.mjs): npm test, smoke, lint, imports, types
+npm run ci -- --quick                       # the quick tier instead (the CI of pull requests into a branch other than main)
 npm run golden                              # golden results
 ```
 

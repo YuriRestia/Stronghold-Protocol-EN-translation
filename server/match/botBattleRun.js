@@ -76,7 +76,7 @@ export function createBotBossRun(spec, { ds, BattleClass, battleId, now = () => 
       if (pool?.byPlayer) msg.by = Object.fromEntries(Object.entries(pool.byPlayer).slice(0, 4));
       return msg;
     },
-    syncPool(hp, acked) { battle.sharedBoss?.sync?.(hp, acked); },
+    syncPool(hp, acked, risk) { battle.sharedBoss?.sync?.(hp, acked, risk); }, // risk: the SPA-CC boss-pool view
     forceEnd(reason) { if (!battle.finished) battle.forceEnd(reason === 'timeout' ? 'timeout' : 'forced'); },
     /** The b.result's `result`. */
     result: () => fitResult(compactResult(battle.result()), { bossLike: true, battleId }),

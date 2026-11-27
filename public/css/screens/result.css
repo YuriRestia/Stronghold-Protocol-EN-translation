@@ -121,6 +121,25 @@ html[data-script="alphabetic"] .result__headline { font-size: min(calc(.96 * var
 @keyframes head-in { from { opacity: 0; letter-spacing: .5em; } }
 .result__sub { font-size: calc(.2 * var(--t)); color: var(--text-lo); letter-spacing: .1em; }
 .result__rounds { display: flex; align-items: baseline; gap: .12rem; margin-top: .1rem; }
+/* Custom Lobby Modifications (ui/lobbyRules.js): "seeded" beside the difficulty, the WITH CHEATS mark across the hero,
+   the rules in force (rules-chip from screens/room.css) */
+.result__tagline { display: flex; align-items: center; gap: .12rem; }
+.result__risk { color: #ffb48a; font-size: calc(.3 * var(--t)); font-weight: 900; }
+.result__seeded { padding: .03rem .14rem; border: 1px solid var(--gold-2); color: var(--gold-2); font-size: calc(.2 * var(--t)); font-weight: 800; letter-spacing: .06em; }
+.result__cheats {
+  align-self: stretch;
+  padding: .06rem .2rem;
+  background: rgba(231, 49, 24, .88);
+  color: #fff;
+  font-size: calc(.34 * var(--t));
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-align: center;
+  transform: rotate(-2deg);
+  box-shadow: 0 .06rem .2rem rgba(0, 0, 0, .5);
+}
+.result__rules { display: flex; flex-direction: column; gap: .06rem; }
+.result__rules ul { display: flex; flex-wrap: wrap; gap: .06rem; margin: 0; padding: 0; list-style: none; }
 .result__rlabel { font-size: calc(.22 * var(--t)); color: var(--text-md); letter-spacing: .14em; }
 .result__rnum { font-size: calc(1.5 * var(--t)); line-height: .9; font-weight: 700; color: #fff; }
 .result__rof { font-size: calc(.4 * var(--t)); color: var(--text-dim); }

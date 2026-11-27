@@ -7,6 +7,7 @@
 import { ERR, PHASE } from '../../../shared/constants.js';
 import { freeSlot } from '../board.js';
 import { OK, fail } from './common.js';
+import { CC } from '../../../shared/ruleData.js';
 import { isMutationCell } from '../../sim/content/support/index.js';
 
 export class PlayerPrep {
@@ -91,6 +92,7 @@ export class PlayerPrep {
     for (let i = 0; i < this.temp.length; i++) {
       const p = this.temp[i];
       if (!p || this.tempDue(p) > this.prepsEnded) continue;
+      if (p.kind === 'item' && p.id === CC.junk.itemId) continue; // SPA-CC Junk: the Toxic Waste never expires
       this.temp[i] = null;
       this._tempDue.delete(p.uid);
       changed = true;

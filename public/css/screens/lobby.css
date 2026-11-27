@@ -1428,3 +1428,22 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 }
 .lobby-me__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(.15 * var(--t)); font-weight: 700; color: var(--text-hi); }
 @media (max-width: 900px) { .lobby-me__name { display: none; } .lobby-me { padding-right: .04rem; } }
+
+/* Challenges (#192): the panel the lobby plate opens, and its Settings rows */
+.chal { display: flex; flex-direction: column; gap: .12rem; min-width: 0; }
+.chal-bar { display: flex; flex-wrap: wrap; gap: .06rem; align-items: center; }
+.chal-i { margin-left: auto; width: 1.5em; height: 1.5em; padding: 0; background: none; border: 1px solid currentColor; border-radius: 50%; color: inherit; opacity: .7; cursor: pointer; }
+.chal-i:hover { opacity: 1; }
+.chal-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .08rem; }
+.chal-card { display: grid; grid-template-columns: auto 1fr auto auto; gap: .08rem; align-items: start; padding: .08rem .1rem; border: 1px solid rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .04); }
+.chal-card.is-frozen { border-color: rgba(140, 200, 255, .6); }
+.chal-card__n { opacity: .6; }
+.chal-card__title { display: block; }
+.chal-card__lines { margin: .03rem 0 0; padding-left: 1.1em; opacity: .85; font-size: calc(.125 * var(--t)); }
+.chal-card__pts { white-space: nowrap; opacity: .8; }
+.chal-card__freeze { font: inherit; font-size: calc(.12 * var(--t)); padding: .02rem .08rem; background: none; border: 1px solid rgba(255, 255, 255, .3); color: inherit; cursor: pointer; }
+.chal-card__freeze.is-on { background: rgba(140, 200, 255, .25); border-color: rgba(140, 200, 255, .7); }
+.chal-foot { display: flex; justify-content: space-between; gap: .08rem; }
+.chal-info p, .chal-done p { margin: 0 0 .08rem; }
+.chal-info__odds, .chal-done ul { list-style: none; margin: 0 0 .1rem; padding: 0; display: flex; flex-direction: column; gap: .04rem; }
+@media (max-width: 36rem) { .chal-card { grid-template-columns: auto 1fr; } .chal-card__pts, .chal-card__freeze { justify-self: start; } }

@@ -33,7 +33,8 @@
 //                                          (keySourceCounts only; settlement bills that same set)
 //   syntheticResult(players, progress)     stand-in when a boss field's client never reported
 import { TICK, SNAPSHOT_EVERY } from '../sim/constants.js';
-import { layerGainRoom } from '../../shared/constants.js';
+import { layerGainRoom, layerCapOf } from '../../shared/constants.js';
+import { modZOf } from '../../shared/modZ.js';
 import { uniteLeft } from '../sim/spec.js';
 import { diyTokenOwner, diyRecordOf } from '../../shared/diy.js';
 import { simMeter } from './simMeter.js';
@@ -62,7 +63,7 @@ export function snapFrame(fieldId, snap) {
 
 /** Synthetic per-player result used when a field could not run at all (never punishes the player). */
 export function emptyPerPlayer() {
-  return { killed: 0, total: 0, resolved: 0, leaked: [], perfect: true, layerGains: {}, coins: 0, damageDealt: 0, bossDamage: 0, healingDone: 0, deaths: 0, unitsEnd: [], unitStats: [] };
+  return { killed: 0, total: 0, resolved: 0, leaked: [], perfect: true, layerGains: {}, coins: 0, damageDealt: 0, bossDamage: 0, healingDone: 0, deaths: 0, downs: 0, unitsEnd: [], unitStats: [] };
 }
 
 /** A finished stand-in for a battle that failed to construct. */
@@ -627,7 +628,7 @@ function layerBondsOf(p, gd) {
  * only by the room under 999 (Infinity here): such boards legitimately gain hundreds of layers a battle.
  * @returns {Map<string, number>} bondId → extra allowance (Infinity: uncapped)
  */
-function layerAllowanceOf(p, gd) {
+export function layerAllowanceOf(p, gd) {
   const out = new Map();
   if (typeof gd.garrison !== 'function' || typeof gd.chess !== 'function' || typeof gd.bond !== 'function') return out;
   const units = (Array.isArray(p.units) ? p.units : []).filter((u) => u && u.kind !== 'token' && typeof u.chessId === 'string');
@@ -651,6 +652,13 @@ function layerAllowanceOf(p, gd) {
       const given = gd.garrison(g.bbStr?.give_garrison_id);
       if (given && given.eventType === 'IN_BATTLE') credit(given, units.length);
     }
+  }
+  // (Fish Edition) a Mod Z / W that adds stacks in battle (shared/modZ.js `layerAllow`: how many per Alliance per battle at most):
+  // `own` and `all` count the player's whole line-up (the module's own Alliances are in it), a bond id names that one
+  for (const u of units) {
+    const z = modZOf(u.diy?.uniEquipId);
+    if (!z || !z.layerAllow) continue;
+    for (const [k, n] of Object.entries(z.layerAllow)) for (const b of (k === 'own' || k === 'all' ? lineup : [k])) out.set(b, (out.get(b) || 0) + n);
   }
   if (extra) for (const b of out.keys()) out.set(b, Infinity);
   return out;
@@ -684,6 +692,8 @@ export function specBounds(spec, gd = null) {
   const derived = new Set();
   for (const k of keyCounts.keys()) for (const d of derivedKeys(gd, k)) derived.add(d);
   const maxTotal = spawnCount * 4 + 100;
+  // (Fish Edition) a player with Mod W Typhon re-adds up to 30 fallen enemies (content/modZ.js): extra leaks of scheduled keys, uncounted
+  const reviveAllow = (spec.players || []).some((pl) => (pl.units || []).some((u) => u && u.diy && u.diy.uniEquipId === 'uniequip_fishw_typhon')) ? 30 : 0;
   // 联防: `${childKey}|${sourcePlayerId}` → how many content-spawned children the enemies that leaker sent in can leave
   // (offspringPerParent per parent; maxTotal when the data gives no bound) — a reported child must belong to a leaker
   // whose own enemies can have produced it, including a child marked `uniteRuntime` (which is not billed)
@@ -739,7 +749,7 @@ export function specBounds(spec, gd = null) {
   return {
     keyCounts, keySourceCounts, derivedSourceCounts, uncountedKeys, derived, spawnCount, bountyCoins, sources, players,
     // content spawns (splits, summons, boss minions) can add enemies beyond the schedule
-    maxTotal,
+    maxTotal, reviveAllow,
     layerCap: 60 + 4 * round,
     maxTime: spec && spec.timeLimit > 0 ? spec.timeLimit + 5 : HARD_CAP_SECONDS,
   };
@@ -847,11 +857,11 @@ export function validateClientResult(spec, raw, { gd = null, botField = false } 
           if (!B.keyCounts.has(key) && !B.derived.has(key)) return bad('leak key');
           const n = (leakCount.get(key) || 0) + 1;
           leakCount.set(key, n);
-          const bound = (B.keyCounts.get(key) || 0) + (B.derived.has(key) ? B.maxTotal : 0);
+          const bound = (B.keyCounts.get(key) || 0) + (B.derived.has(key) ? B.maxTotal : 0) + B.reviveAllow;
           if (n > bound) return bad('leak multiset');
           // a leak costs LP unless the enemy never counts (data notCountInTotal, countInTotal false, boss / part
           // entries); content-spawned keys (summons, splits) may carry their own flag
-          if (!counted && !B.uncountedKeys.has(key) && !B.derived.has(key)) return bad('uncounted leak');
+          if (!counted && !B.uncountedKeys.has(key) && !B.derived.has(key) && !B.reviveAllow) return bad('uncounted leak');
         }
         // mods / tag / source come from the spawn schedule (a leak re-enters 联防 with them). An enemy content spawned
         // (a split, a summon) carries its parent's mods — the round multipliers, a bounty id — so the leak's mods may
@@ -895,7 +905,7 @@ export function validateClientResult(spec, raw, { gd = null, botField = false } 
       for (const [bondId, n] of Object.entries(p.layerGains || {})) {
         // ≤ 60 + 4·round + what the player's layer 特质 can add to the bond (layerAllowanceOf; uncapped ones: no flat
         // bound), and never past BOND_LAYER_CAP from the layers the bond started with (Battle.addLayers clamps)
-        const bound = Math.min(B.layerCap + (own.layerAllow.get(bondId) || 0), layerGainRoom(own.startLayers.get(bondId) || 0, Infinity));
+        const bound = Math.min(B.layerCap + (own.layerAllow.get(bondId) || 0), layerGainRoom(own.startLayers.get(bondId) || 0, Infinity, layerCapOf(spec.flags && spec.flags.rules)));
         if (!finiteIn(n, 0, bound)) return bad('layer bound');
         if (n > 0 && spec.flags && spec.flags.layerGainsEnabled === false) return bad('layers disabled');
         if (gd && typeof gd.bond === 'function' && !gd.bond(bondId)) return bad('bond');
@@ -934,7 +944,7 @@ export function validateClientResult(spec, raw, { gd = null, botField = false } 
       const stat = (v) => (finiteIn(v, 0, 1e13) ? v : 0);
       perPlayer[pid] = {
         killed: p.killed, total: p.total, leaked, perfect: countedLeaks === 0, layerGains, coins,
-        damageDealt: stat(p.damageDealt), bossDamage: stat(p.bossDamage), healingDone: stat(p.healingDone), deaths: Math.trunc(stat(p.deaths)),
+        damageDealt: stat(p.damageDealt), bossDamage: stat(p.bossDamage), healingDone: stat(p.healingDone), deaths: Math.trunc(stat(p.deaths)), downs: Math.max(Math.trunc(stat(p.deaths)), Math.trunc(stat(p.downs))), // a knock-out starts a redeploy timer: never fewer downs than deaths
         unitsEnd, unitStats,
         creditedKills: Number.isInteger(p.creditedKills) ? p.creditedKills : unitStats.reduce((n, u) => n + u.kills, 0),
       };

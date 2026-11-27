@@ -56,10 +56,12 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   }
   // 0.3.1 release fetch-assets: 952 (+ 琳琅诗怀雅 S3, 刻俄柏, 风丸 attacks and 松果's hit); 0.3.2 (#848, DESIGN §35.38): + the 26
   // plain mode-bank slots on 19 operators, and 弑君者 / 莱伊 / 望 / 灰毫's normal attack from their mode-0 banks
-  // The four-version art union adds nine references to installed sounds and 46 official pool records.
+  // The four-version art union adds nine references to installed sounds and 46 official pool records; the online
+  // regeneration of 2026-11-03 (DESIGN §37.93) adds the attack / hit files of 16 第一期 operators and 2 enemies (+37).
   // (fork) + 2 references for 丰川祥子 (char_4182_oblvns): her swing and S3 volley pools (tools/assets/plan.mjs
   // NOTE_SFX_CHARS); + 17 pools: those two, her S1 / S2 / S3 sting banks (plan.mjs STING_BANKS) and her note born / hit
   // banks (plan.mjs NOTE_SFX_LOOKS: 5 born + 7 hit; attack and S1 have no born bank)
+  // (Fish Edition) + 2 references and + 2 pools: 爱国者 (enemy_1506_patrt, the SPA-CC Patriot) attack and hit
   // (fork) + 37 references: the manifest built on a local fx index that lists all 230 operators gives the older-season
   // operators their slots and files (the 5 pool-only attack sounds among them)
   // (fork) + 3 pools: 塔露拉 S3's launch, impact and overload banks (tools/assets/plan.mjs FX_SOUND_BANKS)

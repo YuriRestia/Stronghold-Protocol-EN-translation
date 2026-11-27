@@ -70,6 +70,17 @@ test('Battle.addLayers: clamps the live copy at 999; the event and layerGains ca
   assert.equal(h.result().perPlayer.P.layerGains.yanShip, 9, 'the result reports what was added');
 });
 
+test('Battle.addLayers with the cheat 「叠层上限 9999」 (flags.rules.bigStacks): the live copy clamps at 9999 (GitHub #174)', () => {
+  const h = layerBattle({ yanShip: { count: 3, active: true, tier: 1, layers: 990 } }, { flags: { rules: { bigStacks: true } } });
+  h.step();
+  const b = h.b;
+  assert.equal(b.addLayers('P', 'yanShip', 4000, 'garrison'), 4000);
+  assert.equal(b.getPlayer('P').bonds.yanShip.layers, 4990);
+  assert.equal(b.addLayers('P', 'yanShip', 20000, 'garrison'), 5009, 'only the room left (9999 − 4990)');
+  assert.equal(b.getPlayer('P').bonds.yanShip.layers, 9999);
+  assert.equal(b.addLayers('P', 'yanShip', 3, 'garrison'), 0, 'a gain at the cap adds 0');
+});
+
 test('Battle.addLayers: a layerGain hook that raises n (魔王 +1) is clamped after the hook', () => {
   const h = layerBattle({ yanShip: { count: 3, active: true, tier: 1, layers: 997 } }, {
     setup: (b) => b.on('layerGain', (c) => { c.n += 5; }),
@@ -106,13 +117,13 @@ test('layer gains stay disabled in boss / 联防 fields (unchanged)', () => {
 // ---------------------------------------------------------------------------------------------------------------
 // 限伤: the boss-hit limit
 
-const guardRec = () => chessRec({ id: 't_guard', profession: 'WARRIOR', stats: { atk: 10, maxHp: 1e9 }, skill: null });
+const guardRec = (o = {}) => chessRec({ id: 't_guard', profession: 'WARRIOR', stats: { atk: 10, maxHp: 1e9 }, skill: null, ...o });
 /** A field of `kind` with a leader (tag 'boss'), a minion and a part, all standing still; the shared pool when given. */
-function hitField({ kind = 'boss', pool = null, leaderDef = 0, leaderRes = 0 } = {}) {
+function hitField({ kind = 'boss', pool = null, leaderDef = 0, leaderRes = 0, golden = false } = {}) {
   const h = makeBattle({
     kind, sharedBoss: pool,
     defs: {
-      chess: { t_guard: guardRec() },
+      chess: { t_guard: guardRec({ golden }) },
       enemies: {
         enemy_lead: enemyRec({ key: 'enemy_lead', rank: 'BOSS', hp: 1e9, speed: 0, def: leaderDef, res: leaderRes }),
         enemy_mini: enemyRec({ key: 'enemy_mini', hp: 1e9, speed: 0 }),
@@ -252,6 +263,30 @@ test('限伤: what ran before the hit stays — the attack\'s hit hook fires; no
   assert.equal(h.hooksOf('fatal').length, 0);
   assert.equal(h.hooksOf('kill').length, 0);
   assert.ok(leader.alive);
+});
+
+test('限伤 (fork, #131): a promoted operator\'s hit ignores the limit — 300000 and more land, no hitCap event', () => {
+  const pool = new SharedBossPool(5e6);
+  const { h, b, leader, op } = hitField({ pool, golden: true });
+  assert.ok(op.def.golden, 'the operator is promoted');
+  assert.equal(b.dealDamage(op, leader, { amount: LIMIT, type: 'true' }), LIMIT);
+  assert.equal(b.dealDamage(op, leader, { amount: 1e6, type: 'true' }), 1e6);
+  assert.equal(pool.hp, 5e6 - LIMIT - 1e6);
+  assert.equal(pool.byPlayer.get('P'), LIMIT + 1e6);
+  assert.equal(b.loseHp(leader, 4e5, { source: op }), 4e5, 'an HP loss from it lands too');
+  assert.equal(capEvents(h).length, 0);
+});
+
+test('限伤 (fork, #131): a summon of a promoted operator ignores the limit; a summon of a normal one and source-less damage do not', () => {
+  const { b, leader, op } = hitField({ golden: true });
+  const token = { side: 'ally', def: { golden: false }, ownerUnit: op };
+  assert.equal(leaderHitCancelled(b, leader, LIMIT, token), false);
+  assert.equal(leaderHitCancelled(b, leader, LIMIT, { ...token, ownerUnit: { def: { golden: false } } }), true);
+  assert.equal(leaderHitCancelled(b, leader, LIMIT, null), true, 'no source (element burst): limited');
+  assert.equal(leaderHitCancelled(b, leader, LIMIT, { side: 'enemy', def: { golden: true } }), true, 'only ally sources');
+  const n = hitField();
+  assert.ok(!n.op.def.golden);
+  assert.equal(n.b.dealDamage(n.op, n.leader, { amount: LIMIT, type: 'true' }), 0, 'a normal operator stays limited');
 });
 
 test('限伤: a browser pool (client-side combat) behaves the same; the field stays alive and deterministic', () => {

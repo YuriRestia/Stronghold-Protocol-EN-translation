@@ -27,9 +27,15 @@ test('release notes: never open on their own, the button opens them with history
     assert.equal(await page.$('.release-notes'), null, 'a fresh install does not open them');
     await page.click('.release-notes-entry');
     await page.waitForSelector('.release-notes');
-    assert.match(await page.$eval('.release-notes', (e) => e.textContent), new RegExp(APP_VERSION.replaceAll('.', '\\.')));
-    await page.evaluate(() => [...document.querySelectorAll('.release-notes button')].find((b) => b.textContent.includes('更早版本')).click());
-    assert.match(await page.$eval('.release-notes', (e) => e.textContent), /0\.3\.2/);
+    // (fork) the unreleased section comes first (this server runs main), then the running version, then older ones
+    const notes = () => page.$eval('.release-notes', (e) => e.textContent);
+    const earlier = () => page.evaluate(() => [...document.querySelectorAll('.release-notes button')].find((b) => b.textContent.includes('更早版本')).click());
+    assert.match(await notes(), /未发布[\s\S]*Fish Edition/);
+    assert.doesNotMatch(await notes(), /开发中（未随版本发布）/);
+    await earlier();
+    assert.match(await notes(), new RegExp(APP_VERSION.replaceAll('.', '\\.')));
+    await earlier();
+    assert.match(await notes(), /0\.3\.2/);
     await page.keyboard.press('Escape');
     await page.waitForSelector('.release-notes', { hidden: true });
     await page.reload();

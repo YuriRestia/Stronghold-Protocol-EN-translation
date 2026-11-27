@@ -24,6 +24,10 @@ import { PUSH_TILES, PULL_STOP_RADIUS } from '../../server/sim/constants.js';
 
 const REAL = { skip: !hasGeneratedData() };
 const approx = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, `${msg ?? ''} ${a} ≈ ${b}`);
+/** The table's distances at 30 fps (a push is a slide, battle/displacement.js: 1.698 for 1.7, 0.4416 for 0.44). */
+const FRAME_EPS = 0.01;
+/** Where `e`'s slide ends: a push / pull only starts it (GitHub #60). */
+const endOf = (b, e) => (e.shift ? b._shiftPredict(e, e.shift) : { x: e.x, y: e.y });
 const STILL = { hpMul: 1e4, speedMul: 0, atkMul: 0 };
 
 const MINT = 'chess_char_3_08_a';
@@ -61,7 +65,8 @@ function firstHitDrag(h, u, pos) {
   const hits = () => h.hooksOf('damaged').filter((c) => c.source === u && c.target === e);
   assert.ok(h.runUntil(() => hits().length > 0, 8), 'she hits it');
   assert.equal(hits().length, 1, 'one hit so far');
-  return { e, moved: Math.hypot(e.x - x0, e.y - y0), dmg: hits()[0].amount };
+  const end = endOf(h.b, e);
+  return { e, moved: Math.hypot(end.x - x0, end.y - y0), dmg: hits()[0].amount };
 }
 
 test('B5: the data — every air unit of the mode but “炎佑” is a 静态刚体 (+ 昆图斯); 薄绿 S2 is 小力 and the default skill', REAL, () => {
@@ -102,7 +107,7 @@ test('B5 (the player\'s scenario): 薄绿 S2 hits the drones but never drags the
     approx(res[FROST], 0, 1e-9, `${chessId}: 寒霜 (静态刚体) stays`);
     // 小力 (0) − weight 0 = 受力等级 0: 1.7 tiles, stopped at the 急停 radius 0.6708 from her centre; − weight 1 = −1: 0.44
     approx(res[SLIME], Math.min(PUSH_TILES[0], 2 - PULL_STOP_RADIUS), 1e-6, `${chessId}: 源石虫`);
-    approx(res[AGENT], PUSH_TILES[-1], 1e-6, `${chessId}: 步兵`);
+    approx(res[AGENT], PUSH_TILES[-1], FRAME_EPS, `${chessId}: 步兵`);
   }
 });
 
@@ -173,7 +178,8 @@ test('B5: hovering enemies are 失衡免疫 while they hover, dragged once groun
   const hitsOn = () => h.hooksOf('damaged').filter((c) => c.source === u && c.target === e).length;
   const n0 = hitsOn();
   assert.ok(h.runUntil(() => hitsOn() > n0, 8));
-  approx(Math.hypot(e.x - at.x, e.y - at.y), Math.min(PUSH_TILES[0], Math.hypot(at.x - 3, at.y - 10) - PULL_STOP_RADIUS), 1e-6, 'dragged');
+  const end = endOf(h.b, e);
+  approx(Math.hypot(end.x - at.x, end.y - at.y), Math.min(PUSH_TILES[0], Math.hypot(at.x - 3, at.y - 10) - PULL_STOP_RADIUS), 1e-6, 'dragged');
   // 掠海漂移体 爬行模式: no 失衡免疫, but weight 4 — 小力 − 4 = −4 → no movement (the table), 大力 (3) − 4 = −1 → 0.44
   const s = mintVs(SYUFO, pos).h;
   s.step();
@@ -182,7 +188,7 @@ test('B5: hovering enemies are 失衡免疫 while they hover, dragged once groun
   s.step();
   assert.ok(!z.isFlying && !z.s.flags.noDisplace, '爬行模式: a ground unit');
   assert.equal(s.b.pushDistance(z, 0), 0);
-  approx(s.b.push(z, 3, { from: { x: 3, y: 10 } }), PUSH_TILES[-1], 1e-9, '大力 vs weight 4');
+  approx(s.b.push(z, 3, { from: { x: 3, y: 10 } }), PUSH_TILES[-1], FRAME_EPS, '大力 vs weight 4');
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -276,8 +282,11 @@ test('B5 audit: 缪尔赛思 S3 — a melee 流形 copy\'s pulse reaches air uni
     const e = h.spawn(key, { routeIndex: route, pos: [10, 7], mods: STILL });
     assert.ok(castNow(u, 'test', { free: true }), 'S3 on');
     h.step(2);
+    const end = endOf(h.b, e);   // where the pull's slide ends (the copy then blocks a ground one inside its tile and
+    // shifts it to the tile's edge: block shifting, GitHub #61)
+    for (let k = 0; k < 60 && e.shift; k++) h.step();   // the pull's slide
     // 小力 − weight 0 = 0: all the way to the 急停 radius around the copy's centre (from √2 tiles)
-    if (pulled) approx(Math.hypot(e.x - t.x, e.y - t.y), PULL_STOP_RADIUS, 1e-6, `${key}: pulled to the copy`);
+    if (pulled) approx(Math.hypot(end.x - t.x, end.y - t.y), PULL_STOP_RADIUS, 1e-6, `${key}: pulled to the copy`);
     else approx(Math.hypot(e.x - 7, e.y - 10), 0, 1e-9, `${key}: a 静态刚体 stays`);
   }
 });
@@ -376,7 +385,7 @@ test('喷气人 飞行模式 = 近地悬浮 + 不可阻挡 + 失衡免疫 (PRTS 
   assert.ok(!e.isFlying && !e.s.flags.noDisplace, 'landed: a ground unit');
   assert.ok(e.s.flags.unblockable && !e.blockedBy, 'unblockable for a while');
   approx(speed(), 0.1, 1e-9, 'braking after the landing');
-  approx(h.b.push(e, 3, { from: { x: 3, y: 9 } }), PUSH_TILES[0], 1e-9, '大力 − 3 = 0 → 1.7 tiles');
+  approx(h.b.push(e, 3, { from: { x: 3, y: 9 } }), PUSH_TILES[0], FRAME_EPS, '大力 − 3 = 0 → 1.7 tiles');
   h.run(1.4);
   assert.ok(!e.s.flags.unblockable, 'blockable again after 1.333 s');
   approx(speed(), 1, 1e-9, 'its own speed');

@@ -98,7 +98,7 @@ export function resolveDamage(battle, ctx) {
   const estimate = estimateTargetDamage(final, type, ts);
   // 限伤 cancels the whole hit. [ASSUMED] Its position relative to native injury effects is unverified; use one
   // pre-injury check for every shield kind (research 12 S43), preserving earlier attack/hit/gauge effects.
-  if (estimate > 0 && leaderHitCancelled(battle, target, estimate)) return 0;
+  if (estimate > 0 && leaderHitCancelled(battle, target, estimate, source)) return 0;
   return settleEffects(battle, effects(final), amount => applyDamage(battle, ctx, amount, expected));
 }
 

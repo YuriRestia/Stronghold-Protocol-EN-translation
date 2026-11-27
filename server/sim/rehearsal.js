@@ -35,6 +35,21 @@ export function rehearsalLeaks(battle, playerId) {
   return pp ? (pp.leaked || []).filter((l) => l && l.counted !== false).length : 0;
 }
 
+/** The most a quick clear adds to a candidate's score: less than one kill, more than the candidate order's 0.01 steps. */
+export const QUICK_CLEAR = 0.5;
+/** Game seconds a round without a time limit is measured against for QUICK_CLEAR. */
+const QUICK_CLEAR_REF = 120;
+
+/**
+ * GitHub #117: how quickly a battle was cleared, QUICK_CLEAR × the share of the round's time limit it left unused (0 when
+ * it was not cleared, e.g. it ran out of time). Part of the last tie-break (RehearsalScore).
+ */
+export function quickClear(battle, result) {
+  if (!result || result.reason !== 'cleared' || !Number.isFinite(result.time)) return 0;
+  const limit = Number.isFinite(battle?.timeLimit) && battle.timeLimit > 0 ? battle.timeLimit : QUICK_CLEAR_REF;
+  return QUICK_CLEAR * Math.max(0, Math.min(1, 1 - result.time / limit));
+}
+
 /**
  * The best candidate of a rehearsal so far: `index` into the candidate order, `leaks` / `boss` / `score`.
  * Counted leaks rank first; leader damage breaks a leak tie; `score` (the old −1000/kills/position number) breaks the rest.
@@ -76,7 +91,10 @@ export class RehearsalScore {
     if (!pp) return false;
     const leaks = (pp.leaked || []).filter((l) => l && l.counted !== false).length;
     const boss = Math.max(0, Number(pp.bossDamage) || 0);
-    const score = -leaks * 1000 + (pp.killed || 0) - candidateIndex * 0.01;
+    // GitHub #117: a quicker clear adds up to QUICK_CLEAR (less than one kill) to the last tie-break, so of boards that
+    // are otherwise equal the bot stops picking one that stalls the round. Leaks, leader damage and the stacks gained
+    // still rank first, so a board that stalls for stacks (Kjerag's Frozen, Foresight) is still picked.
+    const score = -leaks * 1000 + (pp.killed || 0) + quickClear(battle, r) - candidateIndex * 0.01;
     // §37.37: the layers the battle gained (its 特质 and bonds, `layerGains`) break a leak and leader-damage tie
     const gain = Object.values(pp.layerGains || {}).reduce((s, n) => s + (Number(n) || 0), 0);
     if (bossField(battle) && this.leaks < Infinity && (boss > 0 || this.boss > 0)) {

@@ -18,7 +18,7 @@ body:
       label: 检查清单
       description: 在开始反馈这个问题之前，请先检查：
       options:
-        - label: 我已更新到最新版 ![最新的版本号](https://img.shields.io/github/v/release/sganggs/Stronghold-Protocol?include_prereleases&style=flat-square&label=) 或 ![最新的版本号](https://img.shields.io/github/v/release/sganggs/Stronghold-Protocol?style=flat-square&label=) 测试，并看过 [最新提交](https://github.com/sganggs/Stronghold-Protocol/commits/master/)，确认这一 Bug 还没有修复。我也已在 [Issues](https://github.com/sganggs/Stronghold-Protocol/issues) 中检索，确认这一 Bug 未被提交过。
+        - label: 我已更新到最新版 ![最新的版本号](https://img.shields.io/github/package-json/v/evenifyouforget/Stronghold-Protocol-EN/main?style=flat-square&label=) 测试，并看过 [最新提交](https://github.com/evenifyouforget/Stronghold-Protocol-EN/commits/main/)，确认这一 Bug 还没有修复。我也已在 [Issues](https://github.com/evenifyouforget/Stronghold-Protocol-EN/issues) 中检索，确认这一 Bug 未被提交过。
           required: true
         - label: 我已知晓并同意，此处仅用于汇报程序中存在的问题（关于其他非程序本身的问题应当在 Discussion 板块提出）。
           required: true
@@ -27,7 +27,7 @@ body:
     attributes:
       label: 版本号
       description: |
-        你正在使用的版本。看标题画面角落的版本号，或发布压缩包的文件名。从检出的源码运行时，在仓库目录执行 `git rev-parse --short HEAD`。上面徽章里的号是仓库当前的最新发布，只作对照，不是你这份的版本。
+        你正在使用的版本。看标题画面角落的版本号，或发布压缩包的文件名。从检出的源码运行时，在仓库目录执行 `git rev-parse --short HEAD`。上面徽章里的号是本仓库 main 分支的版本，只作对照，不是你这份的版本。
       placeholder: "例如 0.3.0，或提交的短哈希"
     validations:
       required: true

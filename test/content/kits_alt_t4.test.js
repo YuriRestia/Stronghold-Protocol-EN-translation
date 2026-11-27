@@ -532,6 +532,7 @@ test('歌蕾蒂娅 S1 缺水的大洋裂断: charges; next attack atk_scale (×1
     const sk = dmgBy(h, u, (c) => c.dmg.isAttack && c.dmg.isSkill);
     assert.equal(sk.length, 1);
     approx(sk[0].amount, u.s.atk * bb.atk_scale * t1.atk_scale, 1e-6, `${id} hit`);
+    h.settle();
     assert.ok(e.x < x0 - 0.5, `${id}: pulled towards her (${x0} → ${e.x})`);
     assert.ok(h.eventsOf('fx').some((f) => f[1] === 'displace' && f[4]?.keepFacing === true),
       `${id}: S1 pull carries the common facing metadata`);
@@ -1118,6 +1119,7 @@ test('百炼嘉维尔 S2 链锯强袭: wider range, ATK/DEF up, unblocked enemie
     assert.ok(castNow(u, 'test', { free: true }));
     approx(u.s.atk, u.base.atk * (1 + bb.atk + D(id, 1).talents[0].bb.atk), 1e-6, 'ATK (+ 战地巨斧)');
     assert.ok(h.runUntil(() => dmgBy(h, u).length > 0, 5), `${id}: reaches 2 tiles ahead`);
+    h.settle();
     assert.ok(e.x < 6 - 0.4, `pulled (${e.x})`);
   }
 });

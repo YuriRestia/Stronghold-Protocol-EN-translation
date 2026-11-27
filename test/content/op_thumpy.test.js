@@ -137,9 +137,11 @@ test('S1 “还不走？” (30 s): ATK / DEF +28 % / +37 %; she strikes every e
     const hit = h.hooksOf('damaged').slice(n0).filter((c) => c.source === u && c.dmg.isAttack && c.dmg.isSkill);
     assert.equal(new Set(hit.map((c) => c.dmg.attackId)).size, 1, `T${tier}: one attack`);
     assert.deepEqual(sortN(hit.map((c) => c.target.id)), sortN([right.id, left.id, upE.id]), `T${tier}: every blocked enemy struck at once`);
-    approx(right.x - at[0][0], 1.7, `T${tier}: weight 0 pushed right 1.7`);
-    approx(at[1][0] - left.x, 1.7, `T${tier}: weight 0 pushed left 1.7`);
-    approx(upE.y - at[2][1], 0.44, `T${tier}: weight 1 pushed up 0.44`);
+    h.settle();
+    // the slide at 30 fps runs the table to within 0.01 (GitHub #60)
+    approx(right.x - at[0][0], 1.7, `T${tier}: weight 0 pushed right 1.7`, 0.01);
+    approx(at[1][0] - left.x, 1.7, `T${tier}: weight 0 pushed left 1.7`, 0.01);
+    approx(upE.y - at[2][1], 0.44, `T${tier}: weight 1 pushed up 0.44`, 0.01);
     done(h);
   }
 });

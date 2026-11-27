@@ -22,8 +22,8 @@ const A = (k) => `chess_item_${k}_e_a`;
 // ---------------------------------------------------------------------------------------------------------------
 // prep helpers
 
-function setup({ band, mode = 'solo', humans = 1, seed = 41, bands: perPlayer = null } = {}) {
-  const h = makeMatch({ mode, humans, seed, registry: REG, fake: true }).start();
+function setup({ band, mode = 'solo', humans = 1, seed = 41, bands: perPlayer = null, rules = undefined } = {}) {
+  const h = makeMatch({ mode, humans, seed, registry: REG, fake: true, lobbyRules: rules }).start();
   h.toPrep(1);
   const m = h.m;
   for (const ps of m.players.values()) {
@@ -175,6 +175,36 @@ test('fixed-round grants: 小贾斯汀 / 昆图斯 / 马克维茨 / 变形者集
     }
     cover(band);
   }
+});
+
+test('SPA-CC ccStrategyLate: every named round one round later; 达马兹提 and the even-round ones keep theirs', () => {
+  const CASES = [
+    ['band_justin', A('3_12'), [2, 5, 8, 11]],
+    ['band_quintus', A('5_08'), [4]],
+    ['band_damaztic', A('6_09'), [5, 10, 15]],
+    ['band_jesica', A('4_01'), [5, 8, 11, 14]],
+    ['band_fang', A('5_04'), [9, 11, 13, 15]],
+    ['band_pith', 'chess_char_1_15_a', [2]],
+  ];
+  for (const [band, id, rounds] of CASES) {
+    const { ps, prepStart } = setup({ band, seed: 5, rules: { ccStrategyLate: 1 } });
+    for (let r = 1; r <= 15; r++) {
+      const before = handIds(ps).filter((x) => x === id).length;
+      prepStart(r); // 0.3.3: some named rounds fire at onPrepStart
+      const got = handIds(ps).filter((x) => x === id).length - before;
+      assert.equal(got, rounds.includes(r) ? 1 : 0, `${band} R${r}`);
+      ps.hand.fill(null); ps.temp.fill(null);
+    }
+  }
+  const dob = setup({ band: 'band_doberm', rules: { ccStrategyLate: 1 } });
+  const even = [];
+  for (let r = 1; r <= 6; r++) { dob.prepStart(r); if (handIds(dob.ps, 'item').includes('chess_item_6_03_m')) even.push(r); dob.ps.hand.fill(null); }
+  assert.deepEqual(even, [2, 4, 6], '杜宾: even rounds');
+  // 老鲤: Funds held on rounds 2 and 3, released on 4 (Fish, 2026-10-15)
+  const lee = setup({ band: 'band_lmlee', seed: 14, rules: { ccStrategyLate: 1 } });
+  const got = [];
+  for (const r of [1, 2, 3, 4]) { lee.at(r); lee.ps.funds = 0; lee.ps.startRound(r); got.push(lee.ps.funds); }
+  assert.deepEqual(got, [lee.m.gd.income(1), 0, 0, 15]);
 });
 
 test('杜宾 加练！: a 教鞭 every 2 rounds (even rounds)', () => {
@@ -695,6 +725,42 @@ test('伊奥莱塔 统御号令: n elite operators on the field ⇒ each elite A
   close(h.unit('t_n').s.atk, 500, 'normal operators unchanged');
   checkInvariants(h.b);
   cover('band_ioleta');
+});
+
+test('SPA-CC Strategy 2 (ccStrategyLate 2): 阿米娅 needs 4 / 5 / 6 active bonds; 伊奥莱塔 at most +50 %', () => {
+  const S2 = { rules: { ccStrategyLate: 2 } };
+  const ALL = ['yanShip', 'sargonShip', 'victoriaShip', 'kjeragShip', 'lateranoShip', 'egirShip'];
+  for (const [n, mul] of [[3, 1], [4, 1.2], [5, 1.3], [6, 1.4]]) {
+    const h = fight({ band: 'band_amiya', bonds: active(...ALL.slice(0, n)), units: [{ chessId: 't_op', row: 10, col: 4 }], flags: S2 });
+    h.step(1);
+    close(h.unit('t_op').s.atk, 500 * mul, `${n} bonds ATK`);
+    close(h.unit('t_op').s.maxHp, 2000 * mul, `${n} bonds HP`);
+  }
+  const ids = ['t_e1_b', 't_e2_b', 't_e3_b', 't_e4_b', 't_e5_b', 't_e6_b'];
+  const ops = Object.fromEntries(ids.map((id) => [id, op(id, { golden: true })]));
+  const units = ids.map((chessId, i) => ({ chessId, row: 10 + (i % 3), col: 3 + Math.floor(i / 3) }));
+  for (const [flags, mul] of [[undefined, 1.6], [S2, 1.5], [{ rules: { ccStrategyLate: 1 } }, 1.6]]) {
+    const h = fight({ band: 'band_ioleta', ops, units, flags });
+    h.step(1);
+    for (const id of ids) { close(h.unit(id).s.atk, 500 * mul, `${id} ATK`); close(h.unit(id).s.maxHp, 2000 * mul, `${id} HP`); }
+  }
+});
+
+test('SPA-CC Strategy 2 (ccStrategyLate 2): only the first manual refresh of a round is 杜遥夜\'s special one', () => {
+  const seed = seedWithBond('yanShip', 3, 2);
+  let second = 0;
+  for (let k = 0; k < 8; k++) {
+    const { m, ps } = setup({ band: 'band_duyaoy', seed, rules: { ccStrategyLate: 2 } });
+    ps.shop.level = 3;
+    const yanIn = () => ps.shop.slots.some((sl) => sl && sl.kind === 'chess' && DATA.chess[sl.id].bonds.includes('yanShip'));
+    for (let i = 0; i < k; i++) { ps.shop.freeRefreshes = 1; m.handle('p_0', { t: 'g.refresh' }); } // randomise the stream
+    ps.round.refreshes = 0;
+    assert.deepEqual(m.handle('p_0', { t: 'g.refresh' }), OK);
+    assert.ok(yanIn(), 'refresh 1');
+    m.handle('p_0', { t: 'g.refresh' });
+    if (!yanIn()) second++;
+  }
+  assert.ok(second >= 1, 'the 2nd refresh is not special');
 });
 
 test('Touch 外勤医疗: every player of a match with the band gets 预备干员-医疗 (≤ 1 elite) or Touch (≥ 2 elites) on its stage slot', () => {

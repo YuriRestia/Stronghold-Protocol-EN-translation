@@ -383,6 +383,33 @@
 .seat__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seat__you { flex: none; padding: 0 .06rem; font-size: calc(.12 * var(--t)); font-weight: 700; color: var(--text-on-mint); background: var(--mint-500); }
 .rseat__doc { font-size: calc(.11 * var(--t)); letter-spacing: .1em; color: #7f8583; }
+/* (fork, GitHub #107) the host's bot-profile pick on an AI seat's plate */
+.rseat__botpick {
+  min-width: 0; max-width: 100%; justify-self: start; padding: 0 .04rem;
+  font: inherit; font-size: calc(.13 * var(--t)); color: #cfd4d2;
+  background: rgba(0, 0, 0, .35); border: 1px solid rgba(255, 255, 255, .16); border-radius: 2px; cursor: pointer;
+}
+.rseat__botpick:hover, .rseat__botpick:focus-visible { border-color: #5df0c6; outline: none; }
+.rseat__botpick option { color: #eef0ef; background: #1b1e1d; }
+/* (fork, GitHub #87) the ⓘ of an AI seat's plate: the 「AI 方案」 popup (ui/botInfo.js) */
+.rseat__botinfo {
+  position: absolute; right: .04rem; bottom: .04rem; display: grid; place-items: center; width: max(.24rem, 18px); height: max(.24rem, 18px);
+  padding: 0; color: #9fa6a3; background: rgba(0, 0, 0, .35); border: 1px solid rgba(255, 255, 255, .16); border-radius: 50%; cursor: pointer;
+}
+.rseat__botinfo:hover, .rseat__botinfo:focus-visible { color: #5df0c6; border-color: #5df0c6; outline: none; }
+.rseat__botinfo .icon { width: 70%; height: 70%; }
+.botinfo__intro { margin: 0 0 .12rem; font-size: calc(.14 * var(--t)); color: #b9bfbc; }
+.botinfo__bot { padding: .1rem .12rem; margin-top: .08rem; border-left: 2px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .03); }
+.botinfo__bot.is-current { border-left-color: #5df0c6; background: rgba(93, 240, 198, .06); }
+.botinfo__name { margin: 0 0 .04rem; font-size: calc(.17 * var(--t)); }
+.botinfo__name small { margin-left: .06rem; font-size: calc(.12 * var(--t)); font-weight: 400; color: #9fa6a3; }
+.botinfo__name .botinfo__here { color: #5df0c6; }
+.botinfo__strength { margin-left: .06rem; font-size: calc(.13 * var(--t)); font-weight: 600; color: #e8c872; }
+.botinfo__about, .botinfo__tactics { margin: 0; padding-left: 1.2em; line-height: 1.45; font-size: calc(.14 * var(--t)); }
+.botinfo__sub { margin: .06rem 0 .02rem; font-size: calc(.13 * var(--t)); color: #9fa6a3; }
+.botinfo__scores { margin: 0 0 .04rem; font-size: calc(.12 * var(--t)); color: #9fa6a3; }
+.botinfo__spacc { margin: 0 0 .04rem; font-size: calc(.12 * var(--t)); color: #9fa6a3; }
+.botinfo__tactics code { font-size: calc(.12 * var(--t)); color: #9fa6a3; }
 .rseat__me { position: absolute; left: -.1rem; top: -.1rem; display: grid; place-items: center; width: max(.26rem, 16px); height: max(.26rem, 16px); color: #08221b; background: #4fe8c0; border-radius: 3px; }
 .rseat__me .icon { width: 80%; height: 80%; }
 .rseat__plate--empty { display: flex; justify-content: center; border-style: dashed; border-color: rgba(255, 255, 255, .12); background: none; font-size: calc(.15 * var(--t)); }
@@ -523,6 +550,17 @@
   z-index: 2;
 }
 .rs-foot__left { min-width: 0; }
+/* (fork, GitHub #107) 「用 AI 填满空位」 */
+.rs-fill { display: inline-flex; align-items: center; gap: .06rem; max-width: 100%; color: #9aa19e; }
+.rs-fill .icon { flex: none; width: max(.2rem, 13px); height: max(.2rem, 13px); color: #4fe8c0; }
+.rs-fill__sel {
+  min-width: 0; max-width: 100%; min-height: max(.36rem, 28px); padding: 0 .1rem;
+  font: inherit; font-size: calc(.15 * var(--t)); color: #eef0ef;
+  background: rgba(0, 0, 0, .35); border: 1px solid rgba(255, 255, 255, .16); border-radius: 2px; cursor: pointer;
+}
+.rs-fill__sel:hover, .rs-fill__sel:focus-visible { border-color: #5df0c6; outline: none; }
+.rs-fill__sel:disabled { opacity: .6; cursor: default; }
+.rs-fill__sel option { color: #eef0ef; background: #1b1e1d; }
 .rs-foot__center { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: .08rem; }
 .rs-hint { margin: 0; font-size: calc(.18 * var(--t)); color: #d6dad8; text-align: center; }
 .room-bar__status .icon { width: 1.1em; height: 1.1em; margin-right: 4px; vertical-align: -2px; }
@@ -668,6 +706,129 @@
 .ailast__opt .icon { opacity: .25; }
 .ailast__opt .icon.is-on { opacity: 1; }
 
+/* ---- lobby rules strip (between the seats and the bottom bar) ------------------------------------------- */
+.room-rules {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: .22rem;
+  padding: 0 .6rem .16rem;
+  font-size: calc(.14 * var(--t));
+}
+.rules-pick { display: flex; flex-wrap: wrap; gap: .1rem; }
+.rules-pick__opt {
+  display: flex;
+  align-items: center;
+  gap: .06rem;
+  height: .44rem;
+  padding: 0 .18rem;
+  border: 1px solid var(--line-2);
+  background: rgba(0, 0, 0, .3);
+  color: var(--text-lo);
+  font-size: calc(.16 * var(--t));
+  font-weight: 700;
+  letter-spacing: .04em;
+  transition: color var(--t-fast), background-color var(--t-med), border-color var(--t-med);
+}
+.rules-pick__opt .icon { width: .18rem; height: .18rem; opacity: .6; }
+.rules-pick__opt:hover:not(:disabled) { color: var(--text-hi); background: rgba(255, 255, 255, .03); }
+.rules-pick__opt:disabled { cursor: default; }
+.rules-pick__opt.is-active {
+  color: var(--mint-400);
+  border-color: var(--mint-600);
+  background: rgba(78, 216, 175, .1);
+}
+.rules-pick__opt.is-active .icon { opacity: 1; }
+
+/* ---- Custom Lobby Modifications (ui/lobbyRules.js): the strip's summary and the dialog ----------------------------- */
+.rules-summary { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .08rem; }
+.rules-chips { display: flex; flex-wrap: wrap; gap: .06rem; margin: 0; padding: 0; list-style: none; }
+.rules-chip {
+  padding: .03rem .12rem;
+  border: 1px solid var(--line-2);
+  background: rgba(0, 0, 0, .3);
+  color: var(--text-md);
+  font-size: calc(.14 * var(--t));
+  white-space: nowrap;
+}
+.rules-chip--cheat { border-color: rgba(231, 49, 24, .55); color: #ff9a86; }
+.rules-chip--seeded { border-color: rgba(246, 163, 41, .55); color: var(--gold-2); }
+.rules-chip--neutral { border-color: var(--mint-600); color: var(--mint-400); }
+.rules-badge { padding: .02rem .1rem; font-size: calc(.13 * var(--t)); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.rules-badge--cheat { background: rgba(231, 49, 24, .85); color: #fff; }
+.rules-badge--seeded { border: 1px solid var(--gold-2); color: var(--gold-2); text-transform: none; }
+.rules-open { flex: none; }
+/* GitHub #139: until this browser has opened the rules once, the button glows (ui/lobbyRules.js RULES_SEEN_PREF) */
+.rules-open.is-new { animation: rules-new-glow 2.4s var(--ease-out) infinite; border-color: var(--mint-500); }
+@keyframes rules-new-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(78, 216, 175, 0); }
+  50% { box-shadow: 0 0 .16rem .03rem rgba(78, 216, 175, .65); }
+}
+@media (prefers-reduced-motion: reduce) { .rules-open.is-new { animation: none; box-shadow: 0 0 .1rem .02rem rgba(78, 216, 175, .65); } }
+/* #139: a shimmer also sweeps across it, left to right, until the dialog has been opened once (none with reduced motion) */
+.rules-open.is-new { position: relative; overflow: hidden; }
+.rules-open.is-new::after { content: ''; position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .3) 50%, transparent 70%); animation: rules-new-shimmer 2.8s ease-in-out infinite; }
+@keyframes rules-new-shimmer { 0%, 30% { transform: translateX(-100%); } 80%, 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .rules-open.is-new::after { animation: none; display: none; } }
+.room-rules .rules-summary { order: 0; }
+/* A Grand Alliance opens private: its 公开 button glows like the rules button (same keyframes) until the host presses it, which asks
+   vanilla or modded (ui/modsPref.js OpenKindDialog) */
+.rs-access__opt.is-nudge { animation: rules-new-glow 2.4s var(--ease-out) infinite; position: relative; overflow: hidden; }
+.rs-access__opt.is-nudge::after { content: ''; position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .3) 50%, transparent 70%); animation: rules-new-shimmer 2.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .rs-access__opt.is-nudge { animation: none; box-shadow: 0 0 .1rem .02rem rgba(78, 216, 175, .65); } .rs-access__opt.is-nudge::after { animation: none; display: none; } }
+/* the lobby's Preference button (ui/modsPref.js) and the vanilla / modded dialog */
+.mods-pref { align-self: flex-start; padding: .04rem .12rem; background: transparent; color: var(--text-lo); border: 1px solid var(--line-2); font: inherit; font-size: calc(.15 * var(--t)); cursor: pointer; }
+.mods-pref:hover { color: var(--text-hi); border-color: var(--mint-500); }
+.mods-pref.is-on { color: #ffc45c; border-color: #ffc45c; }
+.open-kind__opts { display: flex; flex-direction: column; gap: .1rem; margin: .12rem 0; }
+.open-kind__note { margin: 0 0 .06rem; font-size: calc(.15 * var(--t)); }
+
+.rules-dialog .rules-note { margin: 0 0 .12rem; color: var(--text-lo); font-size: calc(.15 * var(--t)); }
+.rules-sec { display: flex; flex-direction: column; gap: .1rem; padding: .12rem 0; border-top: 1px solid var(--line-1); }
+.rules-sec:first-of-type { border-top: 0; }
+.rules-sec h3 { margin: 0; font-size: calc(.18 * var(--t)); }
+.rules-sec h3 .t-dim { font-size: calc(.14 * var(--t)); font-weight: 400; }
+.rules-row { display: flex; flex-direction: column; gap: .05rem; }
+.rules-row > .rules-pick__opt { align-self: flex-start; }
+.rules-row__desc { margin: 0; color: var(--text-lo); font-size: calc(.14 * var(--t)); line-height: 1.45; }
+.rules-mod { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem; font-size: calc(.16 * var(--t)); }
+.rules-mod .bglyph { width: .32rem; height: .32rem; }
+.rules-seg { display: flex; gap: .04rem; }
+.rules-seg--wrap { flex-wrap: wrap; }
+.rules-seg__opt {
+  min-height: .38rem;
+  padding: 0 .14rem;
+  border: 1px solid var(--line-2);
+  background: rgba(0, 0, 0, .3);
+  color: var(--text-lo);
+  font-size: calc(.15 * var(--t));
+  font-weight: 700;
+}
+.rules-seg__opt:hover:not(:disabled) { color: var(--text-hi); }
+.rules-seg__opt:disabled { cursor: default; }
+.rules-seg__opt.is-active { color: var(--mint-400); border-color: var(--mint-600); background: rgba(78, 216, 175, .1); }
+.rules-bans { display: flex; flex-direction: column; gap: .06rem; }
+.rules-bans__head { display: flex; align-items: baseline; gap: .1rem; font-size: calc(.15 * var(--t)); }
+.rules-bans__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(1.5rem, 1fr)); gap: .06rem; }
+.rules-ban {
+  display: flex;
+  align-items: center;
+  gap: .06rem;
+  padding: .04rem .08rem;
+  border: 1px solid var(--line-2);
+  background: rgba(0, 0, 0, .3);
+  color: var(--text-md);
+  font-size: calc(.14 * var(--t));
+  text-align: left;
+}
+.rules-ban .bglyph { flex: none; width: .3rem; height: .3rem; }
+.rules-ban:disabled { cursor: default; opacity: .55; }
+.rules-ban.is-active { opacity: 1; color: #ff9a86; border-color: rgba(231, 49, 24, .7); background: rgba(231, 49, 24, .12); }
+/* (Fish Edition) the Mod Z / W picker (ModZPicker): a pressed button ALLOWS the module, so it lights up like a chosen option */
+.rules-ban--allow.is-active { color: var(--mint-400); border-color: var(--mint-600); background: rgba(78, 216, 175, .1); }
+.rules-ban.rules-ban--allow.is-active span { text-decoration: none; }
 
 
 /* ---- 搜寻队友 switch (ui/matchSearch.js SearchBar), right above the big button ------------------------------------ */
@@ -706,6 +867,99 @@
 .trusted-banner button { color: inherit; text-decoration: underline; }
 .trusted-hash { overflow-wrap: anywhere; font-family: monospace; }
 
+/* SPA-CC Risk tags (ui/lobbyRules.js RiskGrid): a column per tag, its levels top to bottom */
+.rules-badge--risk { background: rgba(231, 90, 26, .9); color: #fff; }
+.rules-chip--risk { border-color: rgba(231, 90, 26, .7); color: #ffb48a; }
+/* (GitHub #125, spacc/cards-overhaul.md) an awarded tag: still orange (a Risk tag), but framed by corner brackets
+   instead of an outline, over a faint triangular lattice, with an AUTO label: in a screenshot it reads as "counted, not
+   committed to beforehand". The brackets are the site's panel idiom (the briefing, the dialogs). */
+.rules-chip--auto {
+  --bk: rgba(255, 140, 70, .85);
+  border-color: transparent;
+  background:
+    linear-gradient(var(--bk), var(--bk)) top left / 5px 1px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) top left / 1px 5px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) top right / 5px 1px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) top right / 1px 5px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) bottom left / 5px 1px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) bottom left / 1px 5px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) bottom right / 5px 1px no-repeat,
+    linear-gradient(var(--bk), var(--bk)) bottom right / 1px 5px no-repeat,
+    repeating-linear-gradient(60deg, rgba(255, 140, 70, .08) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(-60deg, rgba(255, 140, 70, .08) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(0deg, rgba(255, 140, 70, .06) 0 1px, transparent 1px 6px),
+    rgba(0, 0, 0, .3);
+  position: relative;
+  overflow: hidden;
+}
+.rules-chip__auto {
+  margin-right: .05rem;
+  padding: 0 .03rem;
+  background: rgba(255, 140, 70, .2);
+  color: #ffd2b8;
+  font-size: calc(.1 * var(--t));
+  font-weight: 800;
+  letter-spacing: .04em;
+  vertical-align: .01rem;
+}
+/* the motion half: a scan line creeps up the card every few seconds (the site's ps-scan idiom); off with reduced motion */
+.rules-chip--auto::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 1px; bottom: -2px;
+  background: rgba(255, 180, 130, .55);
+  animation: chip-auto-scan 4.5s linear infinite;
+  pointer-events: none;
+}
+@keyframes chip-auto-scan { 0%, 60% { transform: translateY(0); opacity: 0; } 62% { opacity: 1; } 100% { transform: translateY(-2.4em); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .rules-chip--auto::after { animation: none; display: none; } }
+/* the Risk grid while the rule is on: the versions it can award, bracket corners and no fill (not taken) */
+.risk__tile.is-awardable {
+  border-style: dashed;
+  border-color: rgba(231, 90, 26, .35);
+}
+.rules-auto__list { margin: .02rem 0 .04rem; padding-left: .2rem; color: var(--text-lo); font-size: calc(.13 * var(--t)); line-height: 1.45; }
+.rules-auto__list b { color: #ffb48a; font-weight: 600; }
+.rules-auto__warn { margin: 0 0 .06rem; color: var(--amber); font-size: calc(.13 * var(--t)); }
+.risk { display: flex; flex-direction: column; gap: .08rem; }
+.risk__total { display: flex; align-items: baseline; gap: .12rem; font-size: calc(.18 * var(--t)); }
+.risk__total b { color: #ffb48a; }
+.risk__grid > * { display: flex; min-width: 0; }
+.risk__grid { display: grid; grid-template-columns: repeat(var(--risk-cols), minmax(.9rem, 1fr)); gap: .05rem; overflow-x: auto; }
+.risk__tile {
+  flex: 1; width: 100%;
+  display: flex; flex-direction: column; align-items: flex-start; gap: .02rem;
+  min-height: .62rem; padding: .05rem .07rem;
+  border: 1px solid var(--line-2); background: rgba(0, 0, 0, .3); color: var(--text-md);
+  font-size: calc(.13 * var(--t)); line-height: 1.25; text-align: left;
+}
+.risk__tile:disabled { cursor: default; }
+.risk__tile.is-active { border-color: rgba(231, 90, 26, .85); background: rgba(231, 90, 26, .16); color: #ffd2b8; }
+.risk__tile.is-included { border-color: rgba(231, 90, 26, .5); background: rgba(231, 90, 26, .07); }
+.risk__lv { font-size: calc(.16 * var(--t)); font-weight: 800; color: #ff9a5a; }
+.risk__gap { min-height: .62rem; }
+.risk__effects { margin: 0; padding-left: .2rem; color: var(--text-lo); font-size: calc(.14 * var(--t)); line-height: 1.45; }
+/* the map: number buttons beside a preview of the player's field (ui/lobbyRules.js StagePreview) */
+.rules-map { flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: .16rem; }
+.rules-map__pick { display: flex; flex-direction: column; gap: .06rem; }
+.rules-seg__opt--num { min-width: .38rem; }
+.stage-prev { display: flex; flex-direction: column; gap: .03rem; margin: 0; }
+.stage-prev svg { width: 2.6rem; height: auto; background: rgba(0, 0, 0, .35); border: 1px solid var(--line-2); padding: .03rem; }
+.stage-prev figcaption { color: var(--text-lo); font-size: calc(.13 * var(--t)); }
+.stage-prev--random .stage-prev__q { display: grid; place-items: center; width: 2.6rem; height: 1rem; background: rgba(0, 0, 0, .35); border: 1px dashed var(--line-2); color: var(--text-lo); font-size: calc(.3 * var(--t)); }
+.stage-prev__t { fill: #5b6360; }
+.stage-prev__t--road { fill: #6f7774; }
+.stage-prev__t--floor { fill: #4a514f; }
+.stage-prev__t--high { fill: #b9c2bf; }
+.stage-prev__t--fence { fill: #8a9aa6; }
+.stage-prev__t--gate { fill: #e74c3c; }
+.stage-prev__t--goal { fill: #3d8bfd; }
+.stage-prev__t--tele { fill: #9b6bd6; }
+.stage-prev__t--deep { fill: #1f5f8b; }
+.stage-prev__t--smog { fill: #8c7aa3; }
+.stage-prev__t--infect { fill: #e8862a; }
+.stage-prev__t--mire { fill: #7a5a35; }
+.rules-ban { position: relative; }
+.rules-ban__x { position: absolute; top: .02rem; right: .02rem; width: .16rem; height: .16rem; color: #ff6b57; }
+.rules-ban.is-active span { text-decoration: line-through; }
 /* ---- short landscape phones (≤ 520 CSS px tall; 1rem is ~40 px: the text gets its own sizes) ------------------- */
 @media (max-height: 520px) {
   .rs .rs-top { padding-top: 6px; }
@@ -847,6 +1101,13 @@
   .rs-foot { grid-template-columns: minmax(0, 1fr) auto; }
   .rs-foot__left { display: none; }
   .rs-foot__center { justify-self: start; max-width: 100%; }
+  /* (fork, GitHub #107) 「用 AI 填满空位」 stays, as the robot only: the drop-down lies over it, invisible */
+  .rs-foot--fill { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .rs-foot--fill .rs-foot__left { display: block; }
+  .rs-fill { position: relative; justify-content: center; width: max(.5rem, 32px, calc(36px * var(--sp-ui, 1))); height: max(.5rem, 32px, calc(36px * var(--sp-ui, 1))); border: 1px solid rgba(255, 255, 255, .16); background: rgba(0, 0, 0, .35); border-radius: 2px; }
+  .rs-fill .icon { width: 55%; height: 55%; }
+  .rs-fill__sel { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; opacity: 0; }
+  .rs-fill:focus-within { border-color: #5df0c6; }
 }
 @media (max-aspect-ratio: 1/1) {
   .rs-seats { justify-content: flex-start; }
@@ -1315,3 +1576,19 @@
 .rseat__bubble > .ebubble { flex: none; }
 .rseat__plate { position: relative; }
 .rseat__mute { position: absolute; right: .06rem; top: 50%; transform: translateY(-50%); z-index: 2; }
+
+/* (GitHub #125) the end screen's "why weren't other tags awarded" button and its panel (closed by default) */
+.rules-why__open {
+  display: inline-flex; align-items: center; gap: .05rem; margin-top: .06rem; padding: .02rem .08rem;
+  font: inherit; font-size: calc(.12 * var(--t)); color: #9fa6a3; background: transparent;
+  border: 1px solid rgba(255, 255, 255, .16); cursor: pointer;
+}
+.rules-why__open:hover, .rules-why__open:focus-visible { color: #5df0c6; border-color: #5df0c6; outline: none; }
+.rules-why__open .icon { width: 1.1em; height: 1.1em; }
+.rules-why__intro { margin: 0 0 .1rem; font-size: calc(.14 * var(--t)); color: #b9bfbc; }
+.rules-why__list { margin: 0; padding: 0; list-style: none; }
+.rules-why__tag { padding: .08rem .12rem; margin-top: .06rem; border-left: 2px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .03); }
+.rules-why__tag ul { margin: .03rem 0 0; padding-left: 1.1em; font-size: calc(.13 * var(--t)); color: #c9cecb; }
+.rules-why__at { color: #9fa6a3; }
+
+.rbr-card__mod { padding: 0 .08rem; color: #ffc45c; border: 1px solid #ffc45c; font-size: calc(.13 * var(--t)); }

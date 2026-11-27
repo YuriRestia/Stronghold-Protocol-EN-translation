@@ -151,9 +151,11 @@ export class FxZones {
   }
 
   /** Flash a set of tiles ([[r,c]]) on the ground (telegraphed boxes, blast tiles). */
-  tileFlash(tiles, tint, dur, warn = false, wall = null) {
+  tileFlash(tiles, tint, dur, warn = false, wall = null, key = null) {
     if (!Array.isArray(tiles) || !tiles.length) return;
-    this.tileFlashes.push({ tiles: tiles.slice(0, 60), tint, dur: Math.max(0.2, dur), t: 0, warn, wall });
+    // `key` (the sim fx's `key`): a set already up under it is replaced, so an aim that moves is one set of tiles, not a trail
+    if (key != null) this.tileFlashes = this.tileFlashes.filter((f) => f.key !== key);
+    this.tileFlashes.push({ tiles: tiles.slice(0, 60), tint, dur: Math.max(0.2, dur), t: 0, warn, wall, key });
     if (this.tileFlashes.length > 12) this.tileFlashes.shift();
   }
 

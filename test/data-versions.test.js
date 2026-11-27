@@ -313,9 +313,10 @@ test('data/versions/act2autochess-v2_1: the same-id records that differ from tod
   // 悬赏·折射II's 卫队 / 卫士 (04-14)
   assert.deepEqual(changed('effects'), ['aceffect_band_27', 'aceffect_band_39', 'bondeffect_egir', 'bondeffect_invest', 'bondeffect_mira',
     'bondeffect_visi', 'eff_acarm048', 'eff_acarm074', 'eff_acgarm048', 'eff_acgarm074', 'enemyeffect_15_7']);
-  // 圆仔 NORMAL and 节日气球 uncounted (level_autochess_enemy_data, 04-14); the rest term markup or an ability's format only
+  // 圆仔 NORMAL and 节日气球 uncounted (level_autochess_enemy_data, 04-14); the rest term markup or an ability's format only;
+  // (fork) 黑天鹅's level1 stats, the SPA-CC boss pool's (#17)
   assert.deepEqual(changed('enemies'), ['enemy_10028_vtswd', 'enemy_10029_vtshld', 'enemy_10030_vtwand', 'enemy_10034_cnvsax', 'enemy_10040_cnvbln',
-    'enemy_10144_xdelk_2', 'enemy_2008_flking', 'enemy_2085_skzjxd', 'enemy_2085_skzjxd_2', 'enemy_9011_acrefr']);
+    'enemy_10144_xdelk_2', 'enemy_1525_blkswb', 'enemy_2008_flking', 'enemy_2085_skzjxd', 'enemy_2085_skzjxd_2', 'enemy_9011_acrefr']);
   // h07_05's patrol loop (04-14)
   assert.deepEqual(changed('waves', (w) => [w.routes, w.extraRoutes]), ['act2autochess_h07_05', 'act2autochess_h07_05_s']);
   // the modules added after 03-14: 17 elite records offer one fewer (4 of them the CN 2.7.91 modules of 号角, 凛御银灰, 缪尔赛思

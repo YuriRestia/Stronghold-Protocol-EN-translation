@@ -324,8 +324,9 @@ test('statuses (official terms): tremble only stops attacks while blocked; fear 
   assert.ok(Math.abs(e.x - tc) <= 0.5 && Math.round(e.x) === Math.round(x0), `stays on its tile (${x0} → ${e.x})`);
   assert.equal(e.blockedBy, null);
   assert.equal(e.stats.attacks, a1);
-  h.run(0.5);
-  assert.ok(e.blockedBy === u || e.x < x0, 'walks / is blocked again after the fear');
+  // (re-blocked inside the guard's tile after its stun, it was shifted to the tile's edge — block shifting, GitHub #61 —
+  // so it flutters on the next tile and has farther to walk back)
+  assert.ok(h.runUntil(() => e.blockedBy === u || e.x < x0, 2), 'walks / is blocked again after the fear');
 });
 
 test('statuses: sleep = invulnerable except `hitSleep` attackers; levitate halves on heavy units; frozen RES cut only on enemies', () => {

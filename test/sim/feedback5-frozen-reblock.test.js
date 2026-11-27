@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { enemyStealthed, canTargetEnemy } from '../../server/sim/targeting.js';
-import { STEALTH_RESTORE, BLOCK_RADIUS } from '../../server/sim/constants.js';
+import { STEALTH_RESTORE, BLOCK_RADIUS, BLOCK_EDGE_OUT } from '../../server/sim/constants.js';
 
 const OP = 'test_reblock';      // block 2, comes back 4 s after a knock-out (on its tile: GitHub #60)
 const OP1 = 'test_reblock_1';   // block 1
@@ -123,9 +123,11 @@ for (const status of ['bind', 'stun', 'freeze']) {
     h.b.loseHp(A(), 1e12);
     h.step(2);
     assert.ok(!A().alive, 'A falls: the slot frees');
-    assert.equal(b.blockedBy, u, `B is blocked where it stands (${status})`);
+    assert.equal(b.blockedBy, u, `B is blocked (${status})`);
     assert.ok(b.findBuff(status), `the ${status} goes on`);
-    assert.equal(b.x, x, 'it never moved');
+    // inside the blocker's tile: just past its nearest edge — a block shift, not a push, so held or not (GitHub #61)
+    assert.ok(x - u.x > 0 && x - u.x < 0.5, `B stood inside the tile (${x})`);
+    assert.equal(b.x, u.x + BLOCK_EDGE_OUT, 'shifted to the edge');
     checkInvariants(h.b);
   });
 }

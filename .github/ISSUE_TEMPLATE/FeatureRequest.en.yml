@@ -17,7 +17,7 @@ body:
       label: Checklist
       description: "Before submitting this request, please check:"
       options:
-        - label: I have updated to the latest test version ![latest version](https://img.shields.io/github/v/release/sganggs/Stronghold-Protocol?include_prereleases&style=flat-square&label=) and looked at the [latest commits](https://github.com/sganggs/Stronghold-Protocol/commits/master/), and the feature I want is not implemented yet. I have also searched the [Issues](https://github.com/sganggs/Stronghold-Protocol/issues?q=-label%3Abug), and the feature I want has not been requested before.
+        - label: I have updated to the latest test version ![latest version](https://img.shields.io/github/package-json/v/evenifyouforget/Stronghold-Protocol-EN/main?style=flat-square&label=) and looked at the [latest commits](https://github.com/evenifyouforget/Stronghold-Protocol-EN/commits/main/), and the feature I want is not implemented yet. I have also searched the [Issues](https://github.com/evenifyouforget/Stronghold-Protocol-EN/issues?q=-label%3Abug), and the feature I want has not been requested before.
           required: true
   - type: input
     id: version

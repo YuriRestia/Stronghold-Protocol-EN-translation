@@ -3,7 +3,7 @@
 // unbalanced, artsBarrier, husk, statue, bleed, pollution, dmgZone, skill(), blinkForward … and the archetype kits
 // reused by several keys (kitEp, kitTimes …).
 
-import { MOVE_SCALE, COLS, STEALTH_RESTORE } from '../../constants.js';
+import { COLS, STEALTH_RESTORE } from '../../constants.js';
 import {
   HUSK_REBIRTH, BOOM_RADIUS, POLLUTION_INTERVAL, STEALTH_RESTORE_BY_KEY, DUCK_STEALTH_RESTORE, nthOf, stOf, safe, num, T, elem, hurt,
   areaAllies, areaAlliesInTiles, zone, spawnChildren, stepToward, setHits, hitCount, setForm, auraBuff,
@@ -382,7 +382,7 @@ function reborn({ dur = 0, hpRatio = 1, invincible = 0, invincibleUntargetable =
       a.state = 'reborn';
       a.t0 = b.time;
       a.noAtk = e.profile.noAttack;
-      e.unbalanceUntil = -Infinity;   // a 重生 is a forced state change: it ends a 失衡 (PRTS 失衡位移机制 「例如复活」)
+      e.unbalanceUntil = -Infinity; e.shift = null;   // a 重生 is a forced state change: it ends a 失衡 and its slide (PRTS 失衡位移机制 「例如复活」)
       rebirthCleanse(b, e);
       e.hp = Math.min(1, e.s.maxHp);
       if (onKo) safe(b, e, () => onKo(b, e, a));
@@ -425,19 +425,23 @@ const faceCrowd = (b, e, a) => {
 };
 
 /**
- * 失衡 (unbalanced movement): being pushed / pulled by operators. battle.displace() has no hook, so it is detected as
- * movement beyond the enemy's own route speed between two ticks (teleport legs excluded). `onMove(b, e, a, tiles)`.
+ * 失衡 (unbalanced movement): being pushed / pulled by operators. Battle.push / pull / displace have no hook, so it is
+ * detected as a displacement begun since the last tick (`e.shiftN`, battle/displacement.js) that moves the enemy.
+ * `onMove(b, e, a, tiles)` on the tick it begins — or, `atEnd`, on the tick its slide is over (where it stopped: a wall
+ * hit); `a.lx, a.ly` = where the move started (its direction), `tiles` = how far it has come from there.
  */
-function unbalanced(onMove) {
+function unbalanced(onMove, { atEnd = false } = {}) {
   return {
-    tick(b, e, a, dt) {
-      const px = a.px, py = a.py, hid = a.hid;
-      a.px = e.x; a.py = e.y; a.hid = e.hidden;
-      if (px == null || hid || e.hidden) return;
-      const own = e.s.moveSpeed * MOVE_SCALE * dt * 1.5 + 1e-3;
-      const extra = hypot(e.x - px, e.y - py) - own;
-      a.lx = px; a.ly = py;                                          // where the move started (direction for onMove)
-      if (extra > 0.05) onMove(b, e, a, extra);
+    tick(b, e, a) {
+      const px = a.px, py = a.py, hid = a.hid, n = a.sn || 0;
+      a.px = e.x; a.py = e.y; a.hid = e.hidden; a.sn = e.shiftN || 0;
+      if (px == null || hid || e.hidden) { a.wait = false; return; }
+      if (a.sn !== n && (e.shift || hypot(e.x - px, e.y - py) > 1e-6)) {
+        if (!a.wait) { a.lx = px; a.ly = py; }                       // where the move started (direction for onMove)
+        if (!atEnd) onMove(b, e, a, hypot(e.x - a.lx, e.y - a.ly));
+        else a.wait = true;
+      }
+      if (a.wait && !e.shift) { a.wait = false; onMove(b, e, a, hypot(e.x - a.lx, e.y - a.ly)); }
     },
   };
 }
@@ -503,7 +507,7 @@ function husk({ hits, delay, stealthy = true, unblock = false, onHusk = null, ke
       if (a.state === 'husk' || !(hits > 0) || !(delay > 0)) return false;   // the husk's knock-out is the real death
       a.state = 'husk';
       a.rebornUntil = b.time + HUSK_REBIRTH;
-      e.unbalanceUntil = -Infinity;   // a 重生 is a forced state change: it ends a 失衡 (PRTS 失衡位移机制 「例如复活」)
+      e.unbalanceUntil = -Infinity; e.shift = null;   // a 重生 is a forced state change: it ends a 失衡 and its slide (PRTS 失衡位移机制 「例如复活」)
       a.noAtk = e.profile.noAttack;
       a.max = a.max ?? e.base.maxHp;
       rebirthCleanse(b, e);

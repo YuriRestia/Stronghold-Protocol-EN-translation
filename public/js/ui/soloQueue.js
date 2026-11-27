@@ -7,7 +7,7 @@ import { html, Button, Icon } from './components.js';
 import { toast } from './toasts.js';
 import { net } from '../net.js';
 import { createStore, useStore, shallowEqual, serverNow } from '../store.js';
-import { t } from '../../../shared/i18n.js';
+import { t, getLang } from '../../../shared/i18n.js';
 import { searchClock } from './matchSearch.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES } from '../../../shared/constants.js';
 import { versionLabel } from '../versions.js';
@@ -75,7 +75,8 @@ export function QueuePanel({ busy, online, run }) {
   const now = serverNow();
   const aiReady = Number.isFinite(q.aiAt) && now >= q.aiAt;
   const cancel = () => run('queue', () => net.request('queue.leave', {}));
-  const withAi = () => run('ai', () => net.request('queue.ai', {}));
+  // (fork) the AI is named in this client's language (GitHub #89)
+  const withAi = () => run('ai', () => net.request('queue.ai', { lang: getLang() }));
   // en: 正在搜寻博士… "Searching for Doctors…" · 已等待 {time} "Waited {time}" · 凑齐 4 名博士后立即开始模拟 "The simulation
   // starts as soon as 4 Doctors are found" · 取消匹配 "Cancel Matchmaking" · 改为与 AI 队友模拟 "Play with AI Teammates instead"
   return html`<div class="queue-panel brackets" role="status" aria-live="polite">

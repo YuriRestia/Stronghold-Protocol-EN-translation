@@ -19,6 +19,7 @@
 //                            stands, a mode's copy while that mode is on, toggles while their checkers hold, a 重生's
 //                            无敌 window, the buffs a 重生 leaves), their one-shots as they turn on and the end rows as
 //                            they turn off
+//                            and marks each view's `officialInvuln` while its 无敌 loop plays (the ribbons give way)
 //   t.keys(views) / t.clear()
 //
 // What plays when (talents.js header for the `when` values): the loops are declared each frame from the bindings in
@@ -446,6 +447,7 @@ export class TalentFx {
     if (!active) {
       if (this.wasActive) for (const U of this.units.values()) if (U) { for (const t of [...U.loops.values(), ...U.sloops.values()]) t.h.stop(); U.loops.clear(); U.sloops.clear(); }
       this.wasActive = false;
+      for (const v of views) v.officialInvuln = false;
       return;
     }
     this.wasActive = true;
@@ -459,6 +461,7 @@ export class TalentFx {
       (summons.get(by) || summons.set(by, []).get(by)).push(s);
     }
     for (const v of views) {
+      v.officialInvuln = false;
       const U = this.of(v);
       if (!U) continue;
       const up = v.alive !== false && !v.destroyed && !v.down;
@@ -501,6 +504,8 @@ export class TalentFx {
         const h = this._play(e, v, { loop: true });
         if (h) U.loops.set(k, { h, e });
       }
+      // the official 无敌 loop plays on the unit: render/units.js leaves out its invulnerability ribbons (GitHub #57)
+      v.officialInvuln = !!U.inv && U.inv.entries.some((e) => U.loops.get(`${e.key}|${e.at}`)?.h.alive !== false);
       for (const [k, t] of U.sloops) if (!wantS.has(k) || (!t.h.alive && t.e.loop)) { if (!wantS.has(k)) t.h.stop(); U.sloops.delete(k); }
       for (const [k, { e, s }] of wantS) {
         if (U.sloops.has(k)) continue;

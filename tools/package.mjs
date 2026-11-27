@@ -95,11 +95,14 @@ import fs from 'node:fs';
 import { smokePackage } from './package-smoke.mjs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { findSpecifiers } from './check-imports.mjs';
+import { writeZip } from './preload-pack.mjs';
 import { rewriteManifest } from '../server/http/assetViews.js';
 import { mergeLocalManifests, planFromManifests } from '../public/js/assetPack.js';
 import { writePackIndex } from './packs.mjs';
+import { collectServerInfo } from '../server/serverInfo.js';
 import { compareVersions, diffBases, manifestText, readBase, updateText } from './package-update.mjs';
 import {
   APPLIED_FILE, MANIFEST_FILE, UPDATE_FILE, affectsRuntime, digestFile, inManifest, isSetupArt, listedArtFiles,
@@ -134,9 +137,16 @@ export const PLAYER_TOOLS = ['tools/crop-board-atlas.mjs', 'tools/doctor.mjs', '
 /** Whole tool directories: fetch-assets' modules, the local-client extraction setup runs. */
 export const PLAYER_TOOL_DIRS = ['tools/assets/', 'tools/local-extract/'];
 /** Whole runtime directories (their tracked files). */
-export const RUNTIME_DIRS = ['server/', 'shared/', 'data/', 'public/', 'packs/', 'schemas/'];
+// (fork, GitHub #158) changes-fish/: the Fish Edition changelog fragments the server folds into /CHANGELOG(.en).md
+export const RUNTIME_DIRS = ['server/', 'shared/', 'data/', 'public/', 'packs/', 'schemas/', 'changes-fish/'];
 /** Written into the stage, never taken from the checkout: the pack index of the shipped packs, and the release marker. */
 export const GENERATED_PACK_INDEX = 'packs/index.json';
+/**
+ * (fork, leftover of GitHub #98–#100) public/server-info.json — the branch, commit and latest changes for the title
+ * screen's version line, "What's new" and "About this server" (server/serverInfo.js). A release has no git, so the
+ * server can't write it at start (it then keeps the shipped one): the package writes it from this checkout.
+ */
+export const GENERATED_SERVER_INFO = 'public/server-info.json';
 /** Whether shipped files include a content pack (then the stage gets GENERATED_PACK_INDEX). @param {string[]} files */
 export const shipsPacks = (files) => files.some((f) => /^public\/i18n\/[^/]+\.json$/.test(f) || /^packs\/[^/]+\/pack\.json$/.test(f));
 /** Never from the tracked list: the dev pages, and what only the art plan adds (or npm ci writes). */
@@ -572,7 +582,10 @@ export function plan(root, opts = {}) {
   const art = artPlan(root, { lite, jpVoice: opts.jpVoice ?? FULL_ZIP_JP_VOICE, optionalVoice: opts.optionalVoice ?? FULL_ZIP_OPTIONAL_VOICE });
   const pkg = readJson(path.join(root, 'package.json')) || {};
   const lock = readJson(path.join(root, 'package-lock.json')) || {};
-  const generated = [...(shipsPacks(keep) ? [GENERATED_PACK_INDEX] : []), LLM_RELEASE_MARKER];
+  // (fork) the title screen's server info, when this checkout has git (a temporary test checkout has none)
+  let serverInfo = null;
+  if (opts.serverInfo !== false) { try { serverInfo = collectServerInfo(root); } catch { serverInfo = null; } }
+  const generated = [...(shipsPacks(keep) ? [GENERATED_PACK_INDEX] : []), LLM_RELEASE_MARKER, ...(serverInfo ? [GENERATED_SERVER_INFO] : [])];
   const files = [...keep, ...art.files, ...generated];
   const problems = [];
   for (const f of files) if (isRefused(f) || isJunk(f)) problems.push(`refused: ${f}`);
@@ -611,7 +624,7 @@ export function plan(root, opts = {}) {
   const vendorBytes = opts.measure !== false ? sumBytes(root, listTree(root, 'public/vendor')) : 0;
   const dropBytes = Object.values(dropped).reduce((n, g) => n + g.bytes, 0);
   return {
-    version: pkg.version || '0.0.0', lite, tracked: keep, art: art.files, generated, files, dropped, orphans: art.orphans,
+    version: pkg.version || '0.0.0', lite, tracked: keep, art: art.files, generated, serverInfo, files, dropped, orphans: art.orphans,
     held: art.held, fxHeld: art.fxHeld, localArt: art.local, problems, names: names.length, scanned,
     scenes: { files: art.scenes || [], bytes: sumBytes(root, art.scenes || []) },
     bytes: {
@@ -643,6 +656,7 @@ export function formatSummary(p) {
     const bits = [];
     if (p.generated.includes(GENERATED_PACK_INDEX)) bits.push('the pack index of the shipped packs, for a static host');
     if (p.generated.includes(LLM_RELEASE_MARKER)) bits.push('the release marker that keeps external AI off the package');
+    if (p.generated.includes(GENERATED_SERVER_INFO)) bits.push('the branch, commit and latest changes for the title screen');
     lines.push(`generated: ${p.generated.join(', ')} (${bits.join('; ')})`);
   }
   lines.push(`production node_modules: ${MB(p.bytes.modules)} · public/vendor: ${MB(p.bytes.vendor)} (npm ci --omit=dev and its postinstall)`);
@@ -682,14 +696,12 @@ export function systemTar(platform = process.platform, env = process.env, exists
 
 /**
  * Zip `cwd`/`folder` (FOLDER unless named: the asset pack's folder) into `zipPath`: Info-ZIP `zip`, else a bsdtar
- * `tar --format zip` (Windows 10+, macOS; on Windows also the system's tar.exe by its full path, systemTar). bsdtar writes
+ * `tar --format zip` (Windows 10+, macOS; on Windows also the system's tar.exe by its full path, systemTar), else the built-in
+ * writer (tools/preload-pack.mjs writeZip). bsdtar writes
  * the names in UTF-8 (flag bit 11) only when told: its default is the system code page, which loses a name it cannot
- * spell (卫戍 becomes ?? on Windows code page 1252) and leaves no UTF-8 copy for a reader. No third attempt without
- * `--options`: that tar may write the zip with the names it could not spell, which no reader can undo.
- *
- * A tool that is installed but refuses this folder is not a missing tool, and the difference used to be invisible:
- * both branches threw one sentence and dropped the tool's own words. The error now names every attempt with its exit
- * status or errno and the line the tool printed (#840).
+ * spell (卫戍 becomes ?? on Windows code page 1252) and leaves no UTF-8 copy for a reader.
+ * The built-in writer is for when bsdtar fails: Windows' own tar.exe crashed (exit 3221225477, an access violation) on
+ * the GitHub Windows runners, every run, from 2026-10 (GitHub #28).
  */
 export function zipFolder(cwd, zipPath, folder = FOLDER) {
   // deflate everything: storing PNG / MP3 as they are made the full zip 8.5 MB larger and saved no real time
@@ -715,7 +727,35 @@ export function zipFolder(cwd, zipPath, folder = FOLDER) {
   fs.rmSync(zipPath, { force: true });
   // neither tool exists at all: the old hint still says what to do
   const hint = failed.every((f) => f.missing) ? ' — install `zip` (or a bsdtar `tar`)' : '';
-  throw new Error(`zipping failed: ${failed.map((f) => f.text).join('; ')}${hint}`);
+  const tools = `${failed.map((f) => f.text).join('; ')}${hint}`;
+  // (fork, GitHub #28) the built-in writer, when no tool wrote the zip; it needs zlib.crc32 (Node ≥ 22.2)
+  if (typeof zlib.crc32 !== 'function') throw new Error(`zipping failed: ${tools}`);
+  try {
+    writeZip(zipPath, folderEntries(cwd, folder));
+  } catch (e) {
+    fs.rmSync(zipPath, { force: true });
+    throw new Error(`zipping failed: ${tools}; built-in: ${e?.message || e}`, { cause: e });
+  }
+}
+
+/**
+ * `cwd`/`folder`'s files as writeZip entries, '/'-separated names under `folder`, read when written. Links are
+ * followed, as zip and tar do.
+ * @returns {{ name: string, data: () => Buffer }[]}
+ */
+function folderEntries(cwd, folder) {
+  const out = [];
+  const walk = (rel) => {
+    for (const d of fs.readdirSync(path.join(cwd, rel), { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+      const r = `${rel}/${d.name}`;
+      const abs = path.join(cwd, r);
+      const st = d.isSymbolicLink() ? fs.statSync(abs) : d;
+      if (st.isDirectory()) walk(r);
+      else if (st.isFile()) out.push({ name: r, data: () => fs.readFileSync(abs) });
+    }
+  };
+  walk(folder);
+  return out;
 }
 
 const isLib = (f) => f.startsWith('node_modules/') || f.startsWith('public/vendor/');
@@ -806,6 +846,13 @@ function makeStage(root, p, stage, { install, env, log }) {
     fs.mkdirSync(path.dirname(marker), { recursive: true });
     fs.writeFileSync(marker, LLM_RELEASE_MARKER_TEXT);
     log(`${LLM_RELEASE_MARKER}: external AI stays off this package`);
+  }
+  if (generated.has(GENERATED_SERVER_INFO)) {
+    const info = p.serverInfo;
+    const file = path.join(stage, GENERATED_SERVER_INFO);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${JSON.stringify(info, null, 2)}\n`);
+    log(`${GENERATED_SERVER_INFO}: ${info.branch} @ ${String(info.commit).slice(0, 7)}`);
   }
   if (install) {
     log('npm ci --omit=dev …');
@@ -1151,8 +1198,8 @@ export function formatUpdate(r, version) {
 
 const USAGE = 'usage: node tools/package.mjs [--lite | --update --from <base zip or folder>[,<…>] | --assets] [--dry-run [--list]] [--out <dir>] [--force] [--keep-stage] [--no-install] [--allow-dirty] [--allow-dev] [--root <dir>]';
 
-/** Whether `version` is a development (pre-release) version, e.g. 0.2.0-dev. */
-export const isDevVersion = (version) => /-/.test(String(version || ''));
+/** Whether `version` is a development (pre-release) version, e.g. 0.2.0-dev. A numbered update (0.3.4-3) is a release. */
+export const isDevVersion = (version) => /-(?!\d+$)/.test(String(version || ''));
 
 export function parseArgs(argv) {
   const o = { lite: false, update: false, assets: false, from: [], dryRun: false, list: false, out: '', force: false, keepStage: false, install: true, allowDirty: false, allowDev: false, root: REPO, help: false };

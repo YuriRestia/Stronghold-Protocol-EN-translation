@@ -449,7 +449,7 @@ The emotes (6 sets × 6) and the 19 tutorial pages of "How to Play" are also on 
 
 **For a server without a client** that wants the official assets in the table above, the easiest way is `npm run assets:release-local` (see "Or let a script do the copy" below). By hand: from the full bundle of **the same version** ([Releases](https://github.com/sganggs/Stronghold-Protocol/releases)), copy the `public/assets/local/` folder and `data/local-assets.json` (plus the official battle effects' manifest `data/local-fx.json`) to the same locations under the server's project directory. The server re-reads both on every request, so no restart is needed; players just refresh the page. Always use a full bundle of the same version as the server code: each version's extracted content and manifest may differ (for example the Blazing / Pyric Originium Slug models were only added after 0.1.0, and the summon models in 0.2.0), and mixing in files from another version leads to missing or wrong images. After copying, `node tools/doctor.mjs` shows the number of local asset entries and "3D board available". When the groups or the official effects manifest don't match this version, it says how many there are and how many this version expects.
 
-**Or let a script do the copy** (Linux, macOS or Windows; Node only): `npm run assets:release-local` (`node tools/fetch-release-local.mjs`) reads only the release zip's file list and those two parts of it, over HTTP range requests, about 200 MB of the ~800 MB zip, so nothing is unpacked by hand. It picks the release of this checkout's `package.json` version (`--tag v0.3.1` picks another, `--latest` the newest), checks each file's CRC, resumes an interrupted run, and moves the current `public/assets/local/` and `data/local-assets.json` to `.cache/release-local/previous-<time>/` instead of deleting them. The rest of the checkout (code, data, other assets, local changes) is not touched. `--dry-run` only lists what it would fetch.
+**Or let a script do the copy** (Linux, macOS or Windows; Node only): `npm run assets:release-local` (`node tools/fetch-release-local.mjs`) reads only the release zip's file list and those two parts of it, over HTTP range requests, about 200 MB of the ~800 MB zip, so nothing is unpacked by hand. It picks the release of this checkout's `package.json` version (`--tag v0.3.1` picks another, `--latest` the newest), checks each file's CRC, resumes an interrupted run, and moves the current `public/assets/local/` and `data/local-*.json` to `.cache/release-local/previous-<time>/` instead of deleting them. Since 0.3.0 that includes `data/local-fx.json`, the list of official battle effects the server offers. The rest of the checkout (code, data, other assets, local changes) is not touched. `--dry-run` only lists what it would fetch.
 
 **Groups that don't match this version's extractor**: `node tools/setup.mjs` compares against the groups the current extractor writes (`expectedGroups` in `tools/local-extract/extract.py --print-jobs`; no client needed). When groups are missing, or the entry count in the manifest differs from what the groups list, it says how many groups and items there are and how many groups this version expects. When what is missing is not a battlefield scene, run `node tools/setup.mjs --local` to extract again. If the missing groups are all `scene/` (a battlefield, or the shared textures `scene/tex`), use `node tools/setup.mjs --scenes` instead when you have a client, or copy `public/assets/local` and `data/local-assets.json` from the full bundle of the same version when you don't: `--local` does not download battlefield scenes. The summon models are a new extraction item in 0.2.0 (`spine/token/<id>`); to add only this item, run `tools/local-extract/extract.py --only spine/token` in the Python environment used for extraction (the new files go into `public/assets/local/spine/token/`; the other manifest entries stay as they are). The official effects manifest `data/local-fx.json` is a separate step: run `tools/local-extract/extract.py --only fx --fx-set used` with the project's `.venv-extract/bin/python` (`.venv-extract\Scripts\python.exe` on Windows). Without it setup only notes one line, "not extracted", and does not count the local art as failed; when it exists but its groups, entry count or version are wrong, it warns separately.
 
@@ -608,3 +608,40 @@ Node 22's `--permission` **does not restrict the network** (TCP/UDP/DNS/listenin
 widen the readable scope: don't put such links in the install root, including externally linked node_modules, npm link and config/storage links. Use a container or
 network namespace to restrict outbound and private-network access, and set OS memory/CPU limits. The parent process re-checks the shape and length of IPC such as logs, startup errors, sent frames and RPC replies
 (DESIGN §32.11), but Node has already decoded the IPC before the check, so this can't be claimed as immunity to memory bombs or message floods.
+
+## 11. Match records (optional, Fish Edition)
+
+A server can keep an anonymous record of every finished match, for statistics: human vs. AI win rates per difficulty,
+lobby rule and strategy, the SPA-CC Risk curve, how players spend their prep. **Off by default**: without the setting
+nothing is recorded or written.
+
+Turning it on: the environment variable `SP_RECORDS`, e.g. `SP_RECORDS=on npm start`. For the Windows background service (§1.4), add the line `set "SP_RECORDS=on"` to `scripts\service.env.cmd` (running the installer again rewrites that file); for systemd, an `Environment=SP_RECORDS=on` line.
+
+| `SP_RECORDS` | Records |
+|---|---|
+| unset, empty, `0`, `off`, `false`, `no` | off |
+| `1`, `on`, `true`, `yes` | in `logs/records/` of the install directory (gitignored, like all of `logs/`) |
+| any other value | in that folder (a relative path is relative to the install directory) |
+
+The server log says `[records] match records on: <folder>` at start. Every finished match writes one file,
+`<folder>/<YYYY-MM-DD>/<random id>.json.gz` (gzipped JSON, about 10 KB for a solo match and 30–35 KB for a 4-seat
+co-op match). The file and folder times are set to that day's midnight (UTC), so an archive of the folder doesn't date the matches either. Test rooms are never recorded. Any set of these files is a valid data set: to share your data, zip a
+day's folder (or several) and send it.
+
+**What a record holds**: the app version and the date; the mode, difficulty, lobby rules, the content hash of plugin
+rooms, and the seed; per seat (`s0`–`s3`): human or AI, strategy, rounds passed, title and the end-screen statistics;
+the outcome; every action that changed the game, in order, without times (buys, sells, refreshes, level-ups, moves,
+equips, Arts, rewards, draft picks, AI takeover on or off; an action made by the AI for a seat is marked), every shop
+roll and every operator or item gained; a row per round (LP, shop level, funds, board, bonds, layers); and every
+battle's spec with the digest of its result; every round has its row, including the one the match ended in and a Final Assault won before the Hidden Core. The battles are deterministic, so a battle replays from its spec.
+
+**What a record never holds**: player names or ids, room codes, IP addresses, tokens, browser or device details, times
+of day (only the date), emotes or chat, the "Report a problem" text. Seats are only `s0`–`s3`, human or AI: nothing
+links a player's matches to each other.
+
+Reading them: `node tools/records.mjs [folder…]` (default `logs/records`) prints tables (matches per mode and
+difficulty, human vs. AI seats, by lobby rule, by Risk, by strategy, human prep activity per round); Matches that ended before their first battle (everyone left during the briefing or the drafts) are counted apart and left out of the tables. `--json` gives the
+same numbers as JSON; `--verify` replays each recorded normal battle from its spec with this checkout and checks it
+gives the recorded result. A record of this version that differs is an error; records of other versions are replayed
+too, but a gameplay change between versions may explain a difference, so theirs are listed apart as "maybe" and do not
+fail.

@@ -54,6 +54,7 @@
 // saveStats / their helpers.
 
 import { PHASE } from '../../../shared/constants.js';
+import { normalizeRules, rulesInForce } from '../../../shared/rules.js';
 import { LARGE_ROOM_SEATS } from '../../../shared/largeRoom.js';
 import { sanitizeName } from './playerName.js';
 import { DEFAULT_VERSION, versionById } from '../../../shared/versions.js';
@@ -91,6 +92,17 @@ export function contentOf(c) {
     .map((p) => (typeof p === 'string' ? p : isObj(p) && typeof p.id === 'string' ? `${p.id}@${typeof p.version === 'string' ? p.version : '?'}` : null))
     .filter((x) => typeof x === 'string' && x.length <= 80).slice(0, 32);
   return { cs: c.cs, plugins: list };
+}
+/**
+ * (fork) The Custom Lobby Modifications a record keeps (m.public rules, shared/rules.js): only the rules in force, valid
+ * values only; null when none was (#78: the re-viewed settlement shows the +N, the tags and WITH CHEATS like the live one).
+ * @param {any} v
+ */
+export function rulesOf(v) {
+  if (!isObj(v)) return null;
+  const n = normalizeRules(v);
+  const keys = rulesInForce(n);
+  return keys.length ? Object.fromEntries(keys.map((k) => [k, n[k]])) : null;
 }
 /** Did the record's match play gameplay plugins (unofficial)? @param {any} rec */
 export const isModdedRecord = (rec) => !!(isObj(rec) && rec.content);
@@ -142,6 +154,11 @@ const str = (v, max = 64) => (typeof v === 'string' && v.length ? v.slice(0, max
 // selfRowOf then read player 1's row as theirs (wrong win / loss and stats on the stats page)
 const MAX_PLAYERS = LARGE_ROOM_SEATS;
 const MAX_LINEUP = 12;
+/** (fork, #192) the charIds of the custom operators a player fielded in any battle (server result `customSeen`), or null. */
+const customSeenOf = (p) => {
+  const a = (Array.isArray(p.customSeen) ? p.customSeen : []).filter((x) => typeof x === 'string' && /^char_[0-9a-z_]{1,40}$/.test(x)).slice(0, 24);
+  return a.length ? a : null;
+};
 const MAX_ITEMS = 4;
 const MAX_BONDS = 24;
 const MAX_STAT_KEYS = 24;
@@ -243,6 +260,7 @@ function normalizePlayerRow(raw, quit = false) {
     trophies: int(p.trophies, 0),
     reward: int(p.reward, 0),
     lineup,
+    ...(customSeenOf(p) ? { customSeen: customSeenOf(p) } : {}),
     bonds,
     ...(Array.isArray(p.usedBondIds) ? { usedBondIds: usedBondIdsOf(p) } : {}),
     stats: normalizeStatBlock(p.stats),
@@ -281,6 +299,7 @@ export function normalizeRecord(raw) {
     hiddenBossId: str(r.hiddenBossId),
     seed: num(r.seed),
     durationMs: num(r.durationMs),
+    ...(Number.isFinite(r.bossSeconds) && r.bossSeconds >= 0 && r.bossSeconds <= 36000 ? { bossSeconds: r.bossSeconds } : {}),
     teamLp: num(r.teamLp),
     roomMode: r.roomMode === 'solo' || r.roomMode === 'coop' ? r.roomMode : null,
     selfId: str(r.selfId),
@@ -297,6 +316,8 @@ export function normalizeRecord(raw) {
   if (r.test === true) rec.test = true;
   if (rec.test === true && Number.isInteger(r.testActions) && r.testActions >= 0 && r.testActions <= 1e6) rec.testActions = r.testActions;
   if (r.compact === true) rec.compact = true;
+  // (fork, #192) the 卫戍认证 this match's finished Challenges added (ui/challenges.js completeFor); counted by settle.js levelProgress
+  if (Number.isInteger(r.challengePts) && r.challengePts > 0 && r.challengePts <= 100000) rec.challengePts = r.challengePts;
   // (fork) the alternate result background (m.result.altArt): noted in the record; the re-view (recordToResult)
   // doesn't show it, only the screen right after the match does
   if (r.altArt === true) rec.altArt = true;
@@ -306,6 +327,9 @@ export function normalizeRecord(raw) {
   // an id-less (hand-made) record gets a content id, so both copies of it land on the same key (`vs` and `content` left
   // out: the id of a record from before 0.3.0 stays the same)
   if (!rec.id) rec.id = `c.${fnv1a(JSON.stringify({ ...rec, vs: undefined, content: undefined, version: undefined }))}`;
+  // (fork) set after the id, and only when a rule was in force: the id of a record from before it stays the same
+  const rules = rulesOf(r.rules);
+  if (rules) rec.rules = rules;
   return rec;
 }
 
@@ -406,7 +430,7 @@ export function peekStatsRecords() {
 // ---- compaction + the storage budget ---------------------------------------------------------------------------
 
 const COMPACT_FRAME = ['id', 'v', 't', 'end', 'victory', 'roundsPassed', 'lastRound', 'hiddenReached', 'hiddenCleared', 'reason', 'modeId',
-  'difficulty', 'roomMode', 'durationMs', 'selfId', 'vs', 'content', 'version', 'test', 'testActions', 'oneForAll'];
+  'difficulty', 'roomMode', 'durationMs', 'selfId', 'vs', 'content', 'version', 'test', 'testActions', 'rules', 'oneForAll'];
 
 /**
  * The compact form of a record: the frame and the player's OWN row without lineup, bonds and name — everything the
@@ -427,6 +451,7 @@ export function compactRecord(rec) {
     trophies: self.trophies,
     reward: self.reward,
     ...(usedBondIds.length ? { usedBondIds } : {}),
+    ...(self.customSeen ? { customSeen: self.customSeen } : {}),
     ...(self.creditedKills != null ? { creditedKills: self.creditedKills } : {}),
   }] : [];
   return out;
@@ -519,9 +544,10 @@ export function roomModeOf(modeId, roomMode) {
  * without players (the error-path settlement) or matches the local player did not take part in (spectator
  * seats get every result pushed too — eliminated players, who ARE in players[], keep recording).
  * @param {any} res raw m.result payload
- * @param {{ myId?: string|null, roomMode?: string|null, vs?: string|null, content?: any, version?: string|null, now?: number }} ctx
+ * @param {{ myId?: string|null, roomMode?: string|null, vs?: string|null, content?: any, version?: string|null, rules?: any, now?: number }} ctx
  *   vs: the room's visual set (room.state.content.vs); content: room.state.content (its content set when it played
- *   gameplay plugins); version: the official version it played (null / 第二期下半: left out) — see the header
+ *   gameplay plugins); version: the official version it played (null / 第二期下半: left out) — see the header; (fork)
+ *   rules: the match's m.public rules (rulesOf)
  * @returns {any|null}
  */
 export function buildRecord(res, ctx = {}) {
@@ -556,6 +582,7 @@ export function buildRecord(res, ctx = {}) {
     version: ctx.version ?? null,
     players: r.players,
     altArt: r.altArt === true,
+    rules: ctx.rules,
     // (fork) One for All: the server's m.result.mode, else the room's switch (room.state.oneForAll)
     oneForAll: r.mode === 'oneForAll' || ctx.oneForAll === true,
   });
@@ -698,6 +725,7 @@ export function recordToResult(rec) {
     hiddenBossId: r.hiddenBossId,
     seed: r.seed,
     durationMs: r.durationMs,
+    ...(Number.isFinite(r.bossSeconds) ? { bossSeconds: r.bossSeconds } : {}),
     teamLp: r.teamLp,
     players: r.players,
   };
@@ -730,6 +758,22 @@ function storeRecord(rec) {
   const { stats: next, added } = appendRecord(stats, rec);
   if (added && !saveStats(next)) console.warn('[stats] localStorage write failed (quota?), record not persisted');
   return added ? rec : null;
+}
+
+/**
+ * (fork, #192) Writes the Challenges points a finished match earned into its stored record, so the LV that is recomputed from the
+ * records counts them. Returns false when the record is not stored (or the envelope is newer than this build).
+ * @param {string} id the record's id @param {number} pts
+ */
+export function setChallengePts(id, pts) {
+  if (!id || !(pts > 0)) return false;
+  const stats = loadStats();
+  if (stats.newer) return false;
+  const i = stats.records.findIndex((r) => r.id === id);
+  if (i < 0) return false;
+  const records = stats.records.slice();
+  records[i] = { ...records[i], challengePts: Math.min(100000, Math.floor(pts)) };
+  return saveStats({ v: STATS_VERSION, records });
 }
 
 /**

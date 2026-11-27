@@ -86,9 +86,10 @@ export class MatchSetupVote {
     let prepared;
     try {
       const rng = createRng(deriveSeed(this.seed, `reroll-setup:${this.setupRevision + 1}`));
-      const setup = setupMatchWaves(this.gd, rng);
+      // a chosen map / chosen bans stay (Custom Lobby Modifications): only what is still random rerolls
+      const setup = setupMatchWaves(this.gd, rng, { stageId: this.lobbyRules?.stage ?? null });
       const stage = setup.stageId ? this.gd.stage(setup.stageId) : null;
-      const bans = drawDisabledBonds(this.gd, rng);
+      const bans = drawDisabledBonds(this.gd, rng, { picks: this.lobbyRules?.bans ?? [] });
       const pool = new SharedPool(this.gd, { banned: bans.banned });
       if (!pool.entries.size) throw new Error('rerolled chess pool is empty');
       const off = new Set([...bans.drawn, ...bans.staticOff]);

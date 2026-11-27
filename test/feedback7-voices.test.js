@@ -92,7 +92,8 @@ test('data/assets.json: voiceJp gives every voiced operator the JP twin of each 
   // (fork, docs/OUTFITS.md) the trees also carry the outfits' own voice sets, keyed by their word key ('…_epoque#28')
   const outfitKeys = new Set(Object.values(readJson('data/outfits.json')).map((r) => r.voice).filter(Boolean));
   assert.deepEqual(Object.keys(jp).filter((k) => k.includes('#')).sort(), [...outfitKeys].sort(), 'the outfit voice sets');
-  assert.equal(Object.keys(jp).filter((k) => !k.includes('#')).length, 215); // 192 / 2688 until upstream's online regeneration of 2026-11-03 (DESIGN §37.93); (fork) older-season lines + 丰川祥子
+  // 192 / 2688 until the online regeneration of 2026-11-03 added the 19 第一期 operators' lines (DESIGN §37.93); (fork) + the older seasons' lines (Yuri) + 丰川祥子
+  assert.equal(Object.keys(jp).filter((k) => !k.includes('#')).length, 215);
   // the JP tree is the Chinese one with the folder swapped: same slots, same lines in the same order, same file names
   assert.deepEqual(JSON.parse(JSON.stringify(cn).replaceAll('/assets/audio/voice/cn/', '/assets/audio/voice/jp/')), jp);
   const lines = [];

@@ -293,7 +293,7 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
   const offCancel = net.on('b.botBattleCancel', (msg) => { if (msg && typeof msg.battleId === 'string') drop(msg.battleId); });
   const offStatus = net.on('status', (snap) => { if (!snap || snap.status !== 'online') clear(); });
   const hasLive = () => [...jobs.values()].some((job) => job.live);
-  const offPool = net.on('b.pool', (msg) => { if (msg && w && hasLive()) w.port.postMessage({ t: 'pool', hp: msg.hp, acked: msg.acked }); });
+  const offPool = net.on('b.pool', (msg) => { if (msg && w && hasLive()) w.port.postMessage({ t: 'pool', hp: msg.hp, acked: msg.acked, ...(msg.risk ? { risk: msg.risk } : {}) }); });
   const offEnd = net.on('b.end', (msg) => {
     if (!msg || !jobs.get(msg.battleId)?.live) return;
     if (msg.reason === 'takeover') { drop(msg.battleId); return; }

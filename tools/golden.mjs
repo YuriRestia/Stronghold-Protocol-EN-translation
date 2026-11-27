@@ -327,7 +327,8 @@ const BOSSES = Object.keys(data.bosses).sort((a, b) => Number(a.replace(/\D/g, '
 const LEADER_KEYS = new Set();
 for (const bo of Object.values(data.bosses)) { LEADER_KEYS.add(bo.enemyKey); for (const p of bo.parts || []) LEADER_KEYS.add(typeof p === 'string' ? p : p.enemyKey ?? p.key); }
 const ACLOON = 'enemy_9012_acloon'; // the 炎 bond's summon, never an enemy
-const EXTRA_ENEMIES = Object.keys(data.enemies).filter((k) => !LEADER_KEYS.has(k) && k !== ACLOON).sort(byId);
+// fork enemies (data/enemies.json `fork`, tools/build-data.mjs FORK_ENEMY_KEYS) are not the mode's: no roster battle has them
+const EXTRA_ENEMIES = Object.keys(data.enemies).filter((k) => !LEADER_KEYS.has(k) && k !== ACLOON && !data.enemies[k].fork).sort(byId);
 /** 机变 cards with a battle part (content/choices.js battlePlanOf: 战术决策 operator / enemy / heal effects). */
 const BATTLE_CARD_KEYS = new Set(['global_special_choice_all_activated', 'env_gbuff_new_with_verify', 'env_gbuff_new', 'char_respawntime_mul', 'enemy_attribute_mul', 'enemy_attribute_add', 'global_special_choice_prep_finish_same_row_at_least', 'global_special_choice_prep_finish_bench_at_least', 'global_special_choice_prep_finish_bench_at_most']);
 const BATTLE_CARDS = Object.values(data.effects)

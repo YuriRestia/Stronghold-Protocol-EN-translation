@@ -53,7 +53,8 @@ test('every interface pack translates the new settings and title strings', () =>
 test('the title page links the project repository in a new tab', () => {
   const src = read('public/js/screens/title.js');
   assert.match(src, /class="title-repo"/);
-  assert.match(src, /href="https:\/\/github\.com\/sganggs\/Stronghold-Protocol"/);
+  // (fork, GitHub #98) our repository: ui/about.js REPO
+  assert.match(src, /href=\$\{REPO\}/);
   assert.match(src, /target="_blank"/);
   assert.match(src, /rel="noopener noreferrer"/);
   assert.match(src, /t\('项目仓库'\)/);
